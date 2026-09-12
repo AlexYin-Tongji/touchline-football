@@ -1,9 +1,11 @@
 {
   "name": "touchline-football-agent",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-club-index.mjs",
+    "prebuild": "node scripts/build-club-index.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1"

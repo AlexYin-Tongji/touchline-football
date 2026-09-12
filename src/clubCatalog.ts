@@ -1,4 +1,4 @@
-import catalog from "../public/assets/clubs/catalog.json";
+import catalog from "./generated/club-index.json";
 import type { Team } from "./types";
 
 export type Club = Pick<Team, "id" | "name"> & {
@@ -15,7 +15,8 @@ export const clubCatalog: readonly Club[] = catalog;
 
 function normalizeClubName(value: string): string {
   return value
-    .normalize("NFKC")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .trim()
     .toLowerCase()
     .replace(/&amp;|&/g, " and ")

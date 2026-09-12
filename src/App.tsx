@@ -37,9 +37,12 @@ import {
 import { TeamHub, chineseText } from "./teamHub";
 import { ClubPicker } from "./ClubPicker";
 import { ReadingPage } from "./ReadingPage";
+import { ReportReader, ReportsPage } from "./ReportViews";
+import { LeaguePage, useLeagues } from "./LeaguePage";
 import { useAuth } from "./AuthGate";
 import type {
   AppState,
+  AutoReport,
   ClubEvent,
   Evidence,
   Match,
@@ -49,6 +52,7 @@ import type {
 } from "./types";
 
 type Panel = "preferences" | "sources" | "tracking" | "profile" | null;
+type AppPage = "home" | "reports" | "report" | "reading" | "leagues" | "chat";
 const SettingsPage = lazy(() => import("./pages").then(module => ({ default: module.SettingsPage })));
 const SourcesPage = lazy(() => import("./pages").then(module => ({ default: module.SourcesPage })));
 const TrackingPage = lazy(() => import("./v2pages").then(module => ({ default: module.TrackingPage })));
@@ -57,7 +61,9 @@ const isActive = (run?: Run | null) =>
   run?.status === "queued" || run?.status === "running";
 const navigation = [
   { id: "home" as const, label: "球队动态", icon: LayoutDashboard },
+  { id: "reports" as const, label: "跟队报告", icon: Sparkles },
   { id: "reading" as const, label: "资料阅读", icon: BookOpen },
+  { id: "leagues" as const, label: "五大联赛", icon: Globe2 },
   { id: "chat" as const, label: "询问助手", icon: MessageCircle },
 ];
 
@@ -72,13 +78,15 @@ export default function App() {
       return "";
     }
   });
-  const [page, setPage] = useState<"home" | "reading" | "chat">("home");
+  const [page, setPage] = useState<AppPage>("home");
+  const [report, setReport] = useState<AutoReport | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [event, setEvent] = useState<ClubEvent | null>(null);
   const [document, setDocument] = useState<Evidence | null>(null);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState("");
   const [pendingEvidence, setPendingEvidence] = useState<Evidence | null>(null);
+  const [pendingReportEvidence, setPendingReportEvidence] = useState<string[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<Skill>("auto");
   const [question, setQuestion] = useState("");
   const [allowNetwork, setAllowNetwork] = useState(true);
@@ -109,6 +117,7 @@ export default function App() {
   const closePanel = useCallback(() => setPanel(null), []);
   const closeEvent = useCallback(() => setEvent(null), []);
   const closeDocument = useCallback(() => setDocument(null), []);
+  const leagueState = useLeagues(data?.settings.spoiler_free);
 
   useEffect(() => {
     if (!document) return;
@@ -124,13 +133,14 @@ export default function App() {
   const reload = useCallback(async () => {
     const serial = ++requestSerial.current;
     const requestedMode = scope.current.mode;
+    const requestedTeam = scope.current.teamId;
     try {
       const result = await api<AppState>(
-        requestedMode ? `/state?mode=${requestedMode}` : "/state",
+        `/state?${new URLSearchParams({ ...(requestedMode ? { mode: requestedMode } : {}), ...(requestedTeam ? { team_id: requestedTeam } : {}) })}`,
       );
       if (
         serial !== requestSerial.current ||
-        requestedMode !== scope.current.mode
+        requestedMode !== scope.current.mode || requestedTeam !== scope.current.teamId
       )
         return;
       const next = {
@@ -155,6 +165,9 @@ export default function App() {
         setEvent(null);
         setDocument(null);
         setPendingEvidence(null);
+        setPendingReportEvidence([]);
+        setReport(null);
+        setPage(previous => previous === "report" ? "reports" : previous);
       }
       spoilerPreference.current = next.settings.spoiler_free;
       setData(next);
@@ -179,7 +192,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     reload().catch(() => undefined);
-  }, [reload]);
+  }, [reload, teamId]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 5500);
@@ -189,7 +202,7 @@ export default function App() {
     ...Object.values(viewedRuns),
     ...(data?.runs || []).filter((r) => !viewedRuns[r.id]),
   ]
-    .filter((r) => r.mode === mode && r.team_id === teamId)
+    .filter((r) => r.mode === mode && r.team_id === teamId && !r.internal_report && String(r.skill) !== "news_report")
     .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
   const selectedRun =
     runDetail?.id === selectedRunId &&
@@ -199,6 +212,7 @@ export default function App() {
       : runs.find((r) => r.id === selectedRunId) || null;
   const running = runs.find(isActive);
   const active = isActive(selectedRun) || !!running;
+  const reportsRunning = data?.reports?.some(item => item.status === "generating" || item.status === "queued" && data.settings.reports?.auto_generate !== false && (item.budget?.remaining_today ?? 1) > 0);
   useEffect(() => {
     const tick = () => {
       if (window.document.visibilityState === "visible")
@@ -206,14 +220,14 @@ export default function App() {
     };
     const timer = window.setInterval(
       tick,
-      data?.automation_status?.running ? 2500 : 30000,
+      data?.automation_status?.running || reportsRunning ? 2500 : 30000,
     );
     window.addEventListener("focus", tick);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", tick);
     };
-  }, [reload, data?.automation_status?.running]);
+  }, [reload, data?.automation_status?.running, reportsRunning]);
   const activeIds = runs
     .filter(isActive)
     .map((r) => r.id)
@@ -316,6 +330,7 @@ export default function App() {
     setQuestion("");
     setPendingMatch(null);
     setPendingEvidence(null);
+    setPendingReportEvidence([]);
     setSelectedSkill("auto");
     setRunError("");
   }
@@ -331,6 +346,8 @@ export default function App() {
     resetConversation();
     setEvent(null);
     setDocument(null);
+    setReport(null);
+    setPage(previous => previous === "report" ? "reports" : previous);
     setHistoryOpen(false);
   }
   async function switchMode(next: Mode) {
@@ -345,17 +362,22 @@ export default function App() {
       resetConversation();
       setEvent(null);
       setDocument(null);
+      setReport(null);
+      setPage(previous => previous === "report" ? "reports" : previous);
       await reload();
     });
   }
-  function navigate(next: "home" | "reading" | "chat") {
+  function navigate(next: AppPage) {
     setPage(next);
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    window.setTimeout(() => window.document.getElementById("main-content")?.focus({ preventScroll: true }), 0);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function ask(text: string, match?: Match) {
     setQuestion(text);
     setPendingMatch(match || null);
     setPendingEvidence(null);
+    setPendingReportEvidence([]);
     setSelectedSkill("auto");
     setEvent(null);
     setDocument(null);
@@ -368,12 +390,31 @@ export default function App() {
     ask(text);
     setPendingEvidence(item);
   }
+  function openReport(item: AutoReport) {
+    setReport(item);
+    setEvent(null);
+    navigate("report");
+  }
+  function askFromReport(text: string, item: AutoReport) {
+    resetConversation();
+    ask(text);
+    setPendingReportEvidence(item.report?.sources.map(source => source.id) || []);
+  }
+  async function retryReport(item: AutoReport) {
+    await act(`report-${item.id}`, async () => {
+      const updated = await post<AutoReport>(`/reports/${encodeURIComponent(item.id)}/retry`);
+      if (updated?.id === item.id) setReport(previous => previous?.id === item.id ? updated : previous);
+      await reload();
+      notice("报告已加入整理队列，完成后会自动显示。");
+    });
+  }
   function openRun(run: Run) {
     setSelectedRunId(run.id);
     setRunDetail(run);
     setConversationId(run.conversation_id);
     setQuestion("");
     setPendingEvidence(null);
+    setPendingReportEvidence([]);
     setSelectedSkill(run.skill);
     setPendingMatch(data?.matches.find((m) => m.id === run.match_id) || null);
     setPanel(null);
@@ -424,7 +465,7 @@ export default function App() {
         allow_network: allowNetwork,
         conversation_id: conversationId || undefined,
         match_id: effectiveMatch?.id,
-        evidence_ids: pendingEvidence ? [pendingEvidence.id] : undefined,
+        evidence_ids: pendingEvidence ? [pendingEvidence.id] : pendingReportEvidence.length ? pendingReportEvidence : undefined,
       });
       if (
         requested.mode !== scope.current.mode ||
@@ -507,6 +548,9 @@ export default function App() {
     );
   const team = data.teams.find((t) => t.id === teamId);
   const evidence = data.evidence.filter((e) => e.team_id === teamId);
+  const reports = (data.reports || []).filter(item => item.team_id === teamId && item.mode === mode);
+  const modelConfigured = data.setup?.model_configured ?? !!data.settings.llm.model;
+  const eventSources = event?.evidence_ids.map(id => evidence.find(item => item.id === id)).filter((item): item is Evidence => !!item) || [];
   const conversationRuns = selectedRun
     ? [selectedRun, ...runs.filter((r) => r.id !== selectedRun.id)].sort(
         (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
@@ -572,8 +616,8 @@ export default function App() {
             {navigation.map((item) => (
               <button
                 key={item.id}
-                className={page === item.id ? "active" : ""}
-                aria-current={page === item.id ? "page" : undefined}
+                className={page === item.id || page === "report" && item.id === "reports" ? "active" : ""}
+                aria-current={page === item.id || page === "report" && item.id === "reports" ? "page" : undefined}
                 onClick={() => navigate(item.id)}
               >
                 <item.icon size={17} />
@@ -594,7 +638,7 @@ export default function App() {
       </header>
       <div className="v4-clubbar">
         <div className="clubbar-inner">
-          <ClubPicker teams={data.teams} teamId={teamId} followed={data.settings.followed_teams || []} onSelect={switchTeam} />
+          <ClubPicker teams={data.teams} teamId={teamId} followed={data.settings.followed_teams || []} onSelect={switchTeam} leagues={leagueState.leagues} seasons={leagueState.available_seasons} season={leagueState.season} onSeason={leagueState.setSeason} />
           <label className={`space-switch ${mode}`}>
             <span className="space-dot" />
             <select
@@ -615,7 +659,7 @@ export default function App() {
         id="main-content"
         tabIndex={-1}
       >
-        {mode === "demo" && (
+        {mode === "demo" && page !== "leagues" && (
           <div className="demo-banner">
             <Sparkles size={15} />
             <span>体验模式 · 动态、对手和赛果为虚构示例</span>
@@ -643,7 +687,9 @@ export default function App() {
               onAsk={ask}
               onWatch={watch}
               onEvent={(item) => {
-                setEvent(item);
+                const existingReport = reports.find(report => report.event_id === item.id);
+                if (existingReport) openReport(existingReport);
+                else setEvent(item);
                 if (!item.read)
                   act(`read-${item.id}`, async () => {
                     await post(`/events/${item.id}/read`, { read: true });
@@ -655,9 +701,20 @@ export default function App() {
               onRun={openRun}
               onEvidence={setDocument}
               onReading={() => navigate("reading")}
+              reports={reports}
+              onReport={openReport}
+              onReports={() => navigate("reports")}
+              onRetryReport={retryReport}
+              league={leagueState.leagues.find(league => league.teams.some(member => member.id === team.id))}
             />
+          ) : page === "leagues" ? (
+            <LeaguePage state={leagueState} onTeam={id => { switchTeam(id); navigate("home"); }} onSettings={() => setPanel("preferences")} />
+          ) : page === "reports" || page === "report" && !report ? (
+            <ReportsPage team={team} reports={reports} onRead={openReport} onSettings={() => setPanel("preferences")} onRetry={retryReport} onSources={() => setPanel("sources")} configured={modelConfigured} automatic={data.settings.reports?.auto_generate ?? true} />
+          ) : page === "report" && report ? (
+            <ReportReader key={report.id} item={reports.find(item => item.id === report.id) || report} team={team} evidence={evidence} spoiler={data.settings.spoiler_free} onBack={() => navigate("reports")} onEvidence={setDocument} onAsk={askFromReport} onSettings={() => setPanel("preferences")} onRetry={retryReport} />
           ) : page === "reading" ? (
-            <ReadingPage key={`${mode}-${teamId}`} evidence={evidence} team={team} onRead={setDocument} onSources={() => setPanel("sources")} />
+            <ReadingPage key={`${mode}-${teamId}`} evidence={evidence} team={team} onRead={setDocument} onSources={() => setPanel("sources")} reports={reports} onReport={openReport} />
           ) : (
             <div className="assistant-view">
               <div className="assistant-heading">
@@ -822,6 +879,7 @@ export default function App() {
                     }}
                   >
                     {pendingEvidence && <div className="question-context article-context"><BookOpen size={14} /><span>正在讨论：{evidenceTitle(pendingEvidence)}</span><button type="button" aria-label="移除报道上下文" onClick={() => setPendingEvidence(null)}><X size={13} /></button></div>}
+                    {pendingReportEvidence.length > 0 && <div className="question-context article-context"><BookOpen size={14} /><span>已带入本篇报告的 {pendingReportEvidence.length} 份引用资料</span><button type="button" aria-label="移除报告引用资料" onClick={() => setPendingReportEvidence([])}><X size={13} /></button></div>}
                     {pendingMatch && (
                       <div className="question-context">
                         {pendingMatch.status === "finished"
@@ -985,17 +1043,17 @@ export default function App() {
         </Modal>
       )}
       {event && (
-        <Modal title="球队动态" onClose={closeEvent} wide>
+        <Modal title="来源动态" onClose={closeEvent} wide>
           <div className="event-reading">
             <span className="quiet-label">{dateTime(event.updated_at)}</span>
             <h2>
-              {event.display_title || event.title || "球队最新消息"}
+              {event.summary_origin === "pending" && eventSources[0] ? evidenceTitle(eventSources[0]) : event.display_title || event.title || "球队最新消息"}
             </h2>
             <p>
-              {event.display_summary || event.summary || event.change || "已收录相关消息，可请助手整理中文要点。"}
+              {event.summary_origin === "pending" ? eventSources[0]?.text?.slice(0, 800) || "原文资料正在提取，可从下方打开来源。" : event.display_summary || event.summary || event.change || eventSources[0]?.text?.slice(0, 800)}
             </p>
             {event.uncertainties
-              ?.filter((x) => /[\u3400-\u9fff]/.test(x))
+              ?.filter((x) => /[\u3400-\u9fff]/.test(x) && !/来源内容不等于|需要对照原文|独立证据/.test(x))
               .map((text, index) => (
                 <p className="event-uncertainty" key={index}>
                   {text}
@@ -1017,7 +1075,7 @@ export default function App() {
               }
             >
               <Sparkles size={16} />
-              请助手解读
+              围绕资料提问
             </button>
           </div>
         </Modal>
@@ -1026,6 +1084,7 @@ export default function App() {
         <Modal title="报道阅读" onClose={closeDocument} wide>
           {documentLoading && <div className="reader-loading"><Spinner text="正在获取最新正文" /></div>}
           <ErrorNotice>{documentError ? `正文更新未完成，下面显示已收录的内容。${documentError}` : ""}</ErrorNotice>
+          {reports.filter(item => item.status === "completed" && item.report?.sources.some(source => source.id === document.id)).slice(0, 1).map(item => <button key={item.id} className="reader-report-link" onClick={() => { setDocument(null); openReport(item); }}><Sparkles size={16} /><span>这篇来源已整理成中文报告<strong>{item.report!.title}</strong></span><ArrowRight size={17} /></button>)}
           <EvidenceDetail key={document.id} item={document} onAsk={askFromArticle} />
         </Modal>
       )}

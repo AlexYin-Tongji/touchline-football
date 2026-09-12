@@ -685,6 +685,7 @@ export function SettingsPage({
   );
   const [personalization, setPersonalization] = useState<NonNullable<Settings["personalization"]>>(data.settings.personalization || { interests: ["球队动态", "战术", "转会"], reading_language: "zh", fan_level: "regular", briefing_window_hours: 72 });
   const [teamQuery, setTeamQuery] = useState("");
+  const [reportPreferences, setReportPreferences] = useState(data.settings.reports || { auto_generate: true, max_per_cycle: 2 });
   const [baseUrl, setBaseUrl] = useState(data.settings.llm.base_url || "");
   const [model, setModel] = useState(data.settings.llm.model || "");
   const [key, setKey] = useState("");
@@ -769,6 +770,7 @@ export function SettingsPage({
         spoiler_free: spoiler,
         explanation_depth: depth,
         personalization,
+        reports: reportPreferences,
       });
       await reload();
       notice("跟队偏好已保存。");
@@ -909,6 +911,12 @@ export function SettingsPage({
                 <span />
               </button>
             </label>
+            <section className="report-preferences" aria-labelledby="automatic-reports-heading">
+              <h3 id="automatic-reports-heading">让 Agent 自动写报告</h3>
+              <label className="toggle-row"><span><strong>收录资料后自动整理</strong><small>自动阅读来源、整理中文正文并核对引用，完成后进入跟队报告。</small></span><button type="button" className={`switch ${reportPreferences.auto_generate ? "on" : ""}`} role="switch" aria-label="自动整理跟队报告" aria-checked={reportPreferences.auto_generate} onClick={() => setReportPreferences(previous => ({ ...previous, auto_generate: !previous.auto_generate }))}><span /></button></label>
+              <label className="spaced">每轮最多整理<select value={reportPreferences.max_per_cycle} onChange={event => setReportPreferences(previous => ({ ...previous, max_per_cycle: Number(event.target.value) }))}><option value={1}>1 篇 · 节省模型用量</option><option value={2}>2 篇 · 日常跟队</option><option value={3}>3 篇 · 更快整理</option></select></label>
+              <p className="field-hint">每天最多尝试整理 12 篇（含重试），北京时间 08:00 重置。超出后保留队列；来源原文随时可读。</p>
+            </section>
             <label className="spaced">
               回答详略
               <select

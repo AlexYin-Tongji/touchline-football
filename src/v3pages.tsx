@@ -962,8 +962,8 @@ export function AutomationSettings({
             }
           />
           <span>
-            新资料到达后，自动生成解读
-            <small>开启后会调用你配置的模型；没有新资料时不重复生成。</small>
+            另外生成一份球队简报
+            <small>汇总本轮球队变化，供助手对话查看。单篇跟队报告由“自动整理跟队报告”单独控制。</small>
           </span>
         </label>
         <label className="check-row">
@@ -973,9 +973,9 @@ export function AutomationSettings({
             onChange={(e) => setVerification(e.target.checked)}
           />
           <span>
-            独立核对关键结论与原文
+            问答与球队简报也核对原文
             <small>
-              生成解读后增加一次有时限的模型核对，显示支持、冲突或证据不足。
+              跟队报告始终核对引用。此开关为普通问答与简报增加原文核对。
             </small>
           </span>
         </label>

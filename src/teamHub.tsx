@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { Crest, dateTime, Empty, safeUrl, sourceLabel, evidenceTitle, contentLabel } from "./components";
 import { findClub } from "./clubCatalog";
-import type { AppState, ClubEvent, Evidence, Match, Run, Team } from "./types";
+import { ReportShelf } from "./ReportViews";
+import type { AppState, AutoReport, ClubEvent, Evidence, League, Match, Run, Team } from "./types";
 
 export const chineseText = (value = "", fallback = "球队消息") => {
   const cleaned = value
@@ -351,6 +352,11 @@ export function TeamHub({
   onRun,
   onEvidence,
   onReading,
+  reports,
+  onReport,
+  onReports,
+  onRetryReport,
+  league,
 }: {
   data: AppState;
   team: Team;
@@ -364,11 +370,16 @@ export function TeamHub({
   onRun: (run: Run) => void;
   onEvidence: (item: Evidence) => void;
   onReading: () => void;
+  reports: AutoReport[];
+  onReport: (report: AutoReport) => void;
+  onReports: () => void;
+  onRetryReport: (report: AutoReport) => void;
+  league?: League;
 }) {
   const [category, setCategory] = useState("all");
   const [shown, setShown] = useState(6);
   const events = data.events
-    .filter((x) => x.team_id === team.id)
+    .filter((x) => x.team_id === team.id && !reports.some(report => report.event_id === x.id))
     .sort((a, b) => timeValue(b.updated_at) - timeValue(a.updated_at));
   const evidence = data.evidence.filter(
     (x) => x.team_id === team.id && !x.spoiler_hidden,
@@ -436,7 +447,7 @@ export function TeamHub({
         <div className="hero-copy">
           <span className="hero-league">
             <span />
-            {team.league_name || team.league || team.country || "我的球队"}
+            {league ? `${league.name} · ${league.season_label}` : team.country || "我的球队"}
           </span>
           <h2>{team.name}</h2>
           <p>
@@ -446,9 +457,9 @@ export function TeamHub({
           </p>
           <div className="hero-actions">
             <button
-              onClick={() => onAsk(`总结${team.name}最近值得关注的变化。`)}
+              onClick={onReports}
             >
-              听听助手怎么说
+              阅读跟队报告
               <ArrowUpRight size={17} />
             </button>
             {safeUrl(team.official_url) && (
@@ -476,6 +487,7 @@ export function TeamHub({
       </section>
       <div className="hub-grid">
         <div className="hub-main-column">
+          <ReportShelf reports={reports} onRead={onReport} onSettings={onSettings} onRetry={onRetryReport} onAll={onReports} compact configured={data.setup?.model_configured ?? !!data.settings.llm.model} automatic={data.settings.reports?.auto_generate ?? true} onSources={onUpdate} />
           {summary && (
             <section className="brief-ribbon">
               <span className="brief-icon">
@@ -494,11 +506,11 @@ export function TeamHub({
               </button>
             </section>
           )}
-          <section className="hub-card news-card">
+          {events.length > 0 && <section className="hub-card news-card">
             <div className="hub-section-heading">
               <h2>
                 <Newspaper size={19} />
-                球队动态
+                更多来源动态
               </h2>
               <span className="quiet-label">{events.length} 条消息</span>
             </div>
@@ -552,12 +564,12 @@ export function TeamHub({
                       onClick={() => onEvent(event)}
                     >
                       <h3>
-                        {event.display_title || event.title || `${categoryLabel}有新消息`}
+                        {event.summary_origin === "pending" && sources[0] ? evidenceTitle(sources[0]) : event.display_title || event.title || `${categoryLabel}有新消息`}
                       </h3>
                       <ChevronRight size={18} />
                     </button>
                     <p>
-                      {(event.display_summary || event.summary || event.change || "打开相关报道，阅读原文或请助手解读。").slice(0, 180)}
+                      {(event.summary_origin === "pending" ? sources[0]?.text || "" : event.display_summary || event.summary || event.change || sources[0]?.text || "").slice(0, 180)}
                     </p>
                     <div className="news-item-footer">
                       {source ? (
@@ -620,7 +632,7 @@ export function TeamHub({
                 <ChevronRight size={16} />
               </button>
             )}
-          </section>
+          </section>}
           <section className="hub-card home-reading">
             <div className="hub-section-heading"><h2><BookOpen size={18} />值得细读</h2><button className="text-button" onClick={onReading}>进入阅读室<ArrowRight size={14} /></button></div>
             {evidence.filter(item => !item.fixture_record).slice(0, 3).map(item => <button className="home-reading-row" key={item.id} onClick={() => onEvidence(item)}><span><small>{sourceLabel(item)} · {contentLabel(item)}</small><strong>{evidenceTitle(item)}</strong></span><ArrowRight size={16} /></button>)}

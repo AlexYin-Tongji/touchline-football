@@ -27,6 +27,7 @@ export interface Team {
   description?: string;
   official_url?: string;
   profile_sources?: { name: string; url: string }[];
+  memberships?: { league_id: string; league_name?: string; season_start_year: number; season_label?: string }[];
 }
 export interface Evidence {
   id: string;
@@ -61,7 +62,7 @@ export interface ClubEvent {
   title: string;
   display_title?: string;
   display_summary?: string;
-  summary_origin?: "assistant" | "source" | "pending";
+  summary_origin?: "assistant" | "source" | "pending" | "report";
   display_status?: "supported" | "unverified" | "pending";
   source_run_id?: string | null;
   summary?: string;
@@ -132,6 +133,7 @@ export interface Source {
 }
 export interface Settings {
   mode: Mode;
+  reports?: { auto_generate: boolean; max_per_cycle: number };
   followed_teams: string[];
   spoiler_free: boolean;
   auto_refresh: boolean;
@@ -166,6 +168,7 @@ export interface Settings {
   };
 }
 export interface Run {
+  internal_report?: boolean;
   id: string;
   mode: Mode;
   team_id: string;
@@ -283,6 +286,7 @@ export interface ModelTest {
   elapsed_ms?: number;
 }
 export interface AppState {
+  reports?: AutoReport[];
   runtime?: { server_mode: boolean; storage: "server" | "local" };
   settings: Settings;
   teams: Team[];
@@ -305,6 +309,57 @@ export interface AppState {
     last_run_id?: string;
   };
   service?: { version: string; running: boolean; autostart_enabled: boolean; server_mode?: boolean };
+}
+export interface AutoReport {
+  id: string;
+  event_id: string;
+  team_id: string;
+  mode: Mode;
+  status: "queued" | "generating" | "completed" | "needs_configuration" | "failed" | "stale";
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+  run_id?: string;
+  attempts?: number;
+  retry_at?: string;
+  error?: string;
+  source_title: string;
+  source_excerpt?: string;
+  source_language?: string;
+  source_count?: number;
+  evidence_ids?: string[];
+  report?: {
+    title: string;
+    lead: string;
+    sections: { heading: string; body: string; kind?: string; evidence_ids: string[] }[];
+    analysis?: string;
+    next_steps?: string[];
+    sources: { id: string; title: string; source_name?: string; url?: string; published_at?: string }[];
+    source_document_count?: number;
+    reading_minutes?: number;
+  };
+  verification_status?: string;
+  queue_note?: string;
+  budget?: { daily_limit: number; used_today: number; remaining_today: number; resets_at: string; concurrency: number };
+}
+export interface League {
+  id: string;
+  name: string;
+  country: string;
+  season_label: string;
+  season_start_year: number;
+  expected_team_count: number;
+  teams: Team[];
+  team_count: number;
+  coverage?: Record<string, unknown>;
+  last_sync?: string | { status?: string; updated_at?: string; finished_at?: string; started_at?: string; error?: string } | null;
+  standings?: { position?: number; rank?: number; team_id?: string; team?: string; team_name?: string; name?: string; played?: number; won?: number; drawn?: number; lost?: number; points?: number; goals_for?: number; goals_against?: number; goal_difference?: number }[];
+  standings_hidden?: boolean;
+  errors?: string[];
+  sync_status?: string;
+  source_url?: string;
+  logo_url?: string;
+  fixtures?: { id: string; home_team_id: string; away_team_id: string; home_team: string; away_team: string; kickoff?: string; kickoff_confirmed?: boolean; status: string; home_score?: number; away_score?: number; spoiler_hidden?: boolean; source_url?: string }[];
 }
 export interface Capabilities {
   tools: { name: string; description: string }[];

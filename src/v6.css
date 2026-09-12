@@ -1,0 +1,273 @@
+/* Report reading and season-aware league discovery. */
+:root { --paper: #fffefb; --report-ink: #293d32; }
+.v4-nav button { padding-inline: 13px; white-space: nowrap; }
+.v4-main { max-width: 1240px; }
+.hub-title-row p { margin: 7px 0 0; font-size: 13px; }
+.club-directory-controls { display: flex; align-items: center; gap: 15px; }
+.club-directory-controls .news-filters { flex: 1; }
+.club-directory-controls > label { display: flex; flex-direction: row; align-items: center; gap: 7px; font-size: 12px; white-space: nowrap; }
+.club-directory-controls select { padding: 7px; font-size: 12px; }
+.report-shelf { min-width: 0; padding: 27px; border: 1px solid #dce4d8; border-radius: 13px; background: var(--paper); }
+.report-section-caption { color: #69786c; font-size: 12px; line-height: 1.8; margin: 10px 0 21px; }
+.report-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19px; }
+.report-card { min-width: 0; display: flex; flex-direction: column; padding: 27px; background: #fff; border: 1px solid #e0e6db; border-radius: 8px; }
+.report-card.featured { background: #f4f7ed; border-color: #d7e2ce; }
+.compact .report-card-grid { grid-template-columns: minmax(0, 1fr); }
+.compact .report-card { padding: 22px; }
+.report-card-kicker { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #6c7e69; font-size: 11px; }
+.report-card-kicker > span { display: inline-flex; gap: 5px; align-items: center; letter-spacing: .5px; }
+.report-title-button { display: flex; align-items: flex-start; justify-content: space-between; gap: 17px; text-align: left; width: 100%; margin-top: 13px; }
+.report-title-button h3 { margin: 0; color: #253f2d; font-size: 22px; line-height: 1.6; overflow-wrap: anywhere; }
+.report-title-button > svg { flex-shrink: 0; color: #537550; margin-top: 8px; }
+.report-title-button:hover h3 { color: #237b4f; }
+.report-lead { font-size: 14px; line-height: 1.95; color: #64755f; margin: 14px 0 23px; overflow-wrap: anywhere; }
+.report-card-footer { margin-top: auto; border-top: 1px solid #dee7d6; padding-top: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #6e7d64; }
+.report-card-footer button { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; color: #345e36; font-size: 12px; font-weight: 600; }
+.report-setup { padding: 19px 21px; background: #edf3e9; border: 1px solid #dce6d4; border-radius: 8px; display: flex; gap: 18px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.report-setup > div { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.report-setup > div > svg { color: #53764b; flex-shrink: 0; margin-top: 2px; }
+.report-setup strong, .report-setup small { display: block; }
+.report-setup strong { font-size: 14px; line-height: 1.7; }
+.report-setup small { color: #6b7d63; font-size: 12px; line-height: 1.8; margin-top: 6px; }
+.report-setup > button { flex-shrink: 0; font-size: 12px; padding: 9px 12px; }
+.report-empty { padding: 20px 0; display: flex; align-items: center; gap: 16px; color: #708468; flex-wrap: wrap; }
+.report-empty > svg { flex-shrink: 0; }
+.report-empty > div { flex: 1; min-width: 180px; }
+.report-empty h3 { font-size: 15px; margin: 0 0 7px; color: #405a38; }
+.report-empty p { font-size: 12px; line-height: 1.9; margin: 0; }
+.report-queue { margin-top: 22px; border-top: 1px solid #e0e6da; }
+.report-queue > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 19px 0; cursor: pointer; font-size: 12px; color: #647558; list-style: none; }
+.report-queue > summary > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+.report-queue > summary > span:last-child::after { content: "＋"; margin-left: 12px; }
+.report-queue[open] > summary > span:last-child::after { content: "－"; }
+.report-queue-item { padding: 19px 0; border-top: 1px solid #e8ecdf; }
+.report-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: #edf1e8; color: #607458; }
+.report-status.failed { background: #f8eee5; color: #966e44; }
+.report-status.generating { background: #e8f1e4; color: #356336; }
+.report-queue-title { display: block; text-align: left; line-height: 1.7; font-size: 14px; font-weight: 600; margin: 10px 0 5px; overflow-wrap: anywhere; }
+.report-queue-title:hover { color: #2c7448; }
+.report-queue-item > p { margin: 6px 0 12px; color: #77816f; font-size: 12px; line-height: 1.9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.report-queue-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; justify-content: space-between; font-size: 11px; color: #7b8673; }
+.report-queue-actions button { display: inline-flex; gap: 6px; align-items: center; color: #3e693e; font-size: 12px; }
+.report-page-filters { display: flex; gap: 18px; align-items: center; justify-content: space-between; margin: 18px 0 25px; }
+.report-page-filters > input { max-width: 330px; font-size: 13px; background: #fff; }
+.report-reader { max-width: 950px; margin: 0 auto; }
+.report-reader-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 22px; }
+.report-reader-toolbar .button { padding: 8px 13px; font-size: 12px; }
+.report-paper { background: var(--paper); border: 1px solid #dfe5da; border-radius: 13px; padding: 48px 67px 52px; }
+.report-paper-kicker { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #748367; font-size: 11px; }
+.report-paper-kicker > span:first-child { display: flex; align-items: center; gap: 7px; letter-spacing: .5px; }
+.report-paper > h1 { font-size: 34px; line-height: 1.55; color: #273f2e; margin: 25px 0 20px; overflow-wrap: anywhere; }
+.report-standfirst { font-size: 17px; line-height: 2; color: #64725b; margin: 0 0 22px; }
+.report-paper-meta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; color: #78856d; font-size: 11px; border-bottom: 1px solid #dfe5d5; padding: 0 0 24px; }
+.report-paper-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.report-narrative { color: #344630; font-size: 16px; line-height: 2.15; overflow-wrap: anywhere; }
+.report-narrative > section { padding-top: 31px; }
+.report-narrative h2 { font-size: 23px; line-height: 1.65; margin: 0 0 17px; color: #2b442b; }
+.report-narrative p { margin: 0 0 18px; }
+.report-narrative a { text-decoration: underline; text-underline-offset: 3px; color: #3d784b; }
+.report-narrative ul, .report-narrative ol { padding-left: 24px; }
+.report-narrative li { margin-bottom: 10px; }
+.report-narrative table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.report-narrative th, .report-narrative td { border-bottom: 1px solid #dde4d7; padding: 8px; text-align: left; }
+.report-inline-sources { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 3px; }
+.report-inline-sources button { display: inline-flex; align-items: center; gap: 5px; background: #eef2e7; color: #62734f; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+.report-analysis { margin-top: 30px; padding: 24px !important; background: #f1f5e9; border-left: 3px solid #83a16d; border-radius: 0 7px 7px 0; }
+.report-analysis .overline { font-size: 10px; margin-bottom: 8px; color: #7b9061; }
+.report-analysis > :last-child, .report-next > :last-child { margin-bottom: 0; }
+.report-next { padding-bottom: 10px; }
+.report-bibliography { margin-top: 36px; border-top: 1px solid #dce3d2; padding-top: 24px; }
+.report-bibliography h2 { font-size: 17px; margin: 0 0 19px; }
+.report-bibliography > div { display: flex; gap: 13px; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid #e8ecdf; }
+.report-source-number { display: inline-flex; align-items: center; justify-content: center; width: 22px; min-width: 22px; height: 22px; margin-top: 2px; border-radius: 50%; background: #eaf0e2; color: #647b52; font-size: 11px; }
+.report-bibliography button { flex: 1; min-width: 0; text-align: left; }
+.report-bibliography strong { display: block; font-size: 13px; line-height: 1.8; font-weight: 500; overflow-wrap: anywhere; }
+.report-bibliography small { display: block; margin-top: 5px; color: #78846f; font-size: 11px; }
+.report-bibliography a { padding: 5px; color: #6c8558; flex-shrink: 0; }
+.report-followup { padding: 23px; background: #ecf2e5; border-radius: 8px; margin-top: 32px; display: flex; gap: 20px; align-items: center; justify-content: space-between; }
+.report-followup h3 { font-size: 15px; margin: 0 0 7px; }
+.report-followup p { font-size: 12px; color: #6d7f60; margin: 0; }
+.report-followup .button { font-size: 12px; padding: 9px 12px; flex-shrink: 0; }
+.report-pending-detail { margin-top: 25px; font-size: 14px; line-height: 2; }
+.report-pending-detail > p { color: #62745b; margin: 17px 0; }
+.report-pending-detail > section { margin: 25px 0; border-top: 1px solid #e1e7d9; padding-top: 22px; }
+.report-pending-detail h2 { font-size: 17px; }
+.source-excerpt { color: #6f7a64; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-pending-detail details { margin: 18px 0; color: #8b6849; font-size: 12px; overflow-wrap: anywhere; }
+.report-pending-detail summary { cursor: pointer; }
+.large-type .report-narrative { font-size: 20px; }
+.large-type .report-standfirst { font-size: 20px; }
+.league-overview { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid #dfe5da; border-bottom: 1px solid #dfe5da; padding: 20px 2px; margin-bottom: 25px; }
+.league-overview > div { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; font-size: 13px; color: #71816a; }
+.league-overview > div > svg { color: #6c8760; }
+.league-overview strong { font-size: 25px; font-weight: 600; color: #355236; margin-right: 5px; }
+.league-overview > label { flex-direction: row; align-items: center; gap: 9px; font-size: 12px; white-space: nowrap; }
+.league-overview select { width: auto; font-size: 13px; padding: 8px 14px; background: #fff; }
+.league-selector { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 15px; margin-bottom: 29px; }
+.league-selector > button { min-width: 0; text-align: left; background: #fff; border: 1px solid #dde5d9; border-radius: 10px; padding: 22px; display: flex; flex-direction: column; align-items: flex-start; }
+.league-selector > button.selected { border-color: var(--league-color); box-shadow: inset 0 0 0 1px var(--league-color); }
+.league-selector > button:hover { background: #f5f8ef; }
+.league-monogram { width: 43px; height: 43px; background: var(--league-color); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; border-radius: 9px; margin-bottom: 15px; }
+.league-selector strong { font-size: 18px; line-height: 1.6; }
+.league-country { color: #7b8971; font-size: 11px; margin-top: 3px; }
+.league-selector small { display: flex; align-items: center; gap: 7px; color: #547445; font-size: 11px; margin-top: 15px; }
+.league-detail { background: #fff; border: 1px solid #dde5d7; border-radius: 12px; padding: 30px; }
+.league-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.league-detail-heading h2 { font-size: 27px; margin: 6px 0; }
+.league-detail-heading p { color: #77866d; font-size: 12px; margin: 4px 0; }
+.league-detail-heading > div:last-child { display: flex; align-items: flex-end; flex-direction: column; gap: 12px; }
+.league-detail-heading .button { font-size: 12px; padding: 9px 13px; }
+.league-detail-heading .text-button { font-size: 11px; }
+.league-coverage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #f4f7ef; border: 1px solid #e2e8d9; border-radius: 9px; margin: 25px 0; padding: 20px 0; }
+.league-coverage > div { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 11px; margin: 0 23px; padding-right: 15px; border-right: 1px solid #dce4d1; }
+.league-coverage > div:last-child { border-right: 0; }
+.league-coverage svg { grid-row: 1 / 3; color: #7b9169; }
+.league-coverage strong { font-size: 19px; font-weight: 600; color: #466337; }
+.league-coverage span { font-size: 11px; color: #7b896c; }
+.league-tabs { display: flex; align-items: center; gap: 22px; margin-bottom: 24px; border-bottom: 1px solid #e2e8d9; }
+.league-tabs button { font-size: 13px; padding: 7px 3px 13px; color: #7c896f; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.league-tabs button.active { color: #3e6335; border-color: #3e6335; font-weight: 600; }
+.league-team-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.league-team-grid > button { min-width: 0; display: flex; align-items: center; gap: 11px; border: 1px solid #e0e7d9; border-radius: 8px; padding: 17px 13px; text-align: left; }
+.league-team-grid > button:hover { background: #f3f7ec; border-color: #a6bd91; }
+.league-team-grid .crest { width: 31px; height: 39px; min-width: 31px; }
+.league-team-grid > button > span:nth-child(2) { flex: 1; min-width: 0; }
+.league-team-grid strong { font-size: 13px; display: block; }
+.league-team-grid small { font-size: 10px; color: #7f8b73; line-height: 1.7; display: block; margin-top: 3px; overflow-wrap: anywhere; }
+.league-team-grid > button > svg { width: 12px; flex-shrink: 0; color: #8ca278; }
+.league-table-scroll { overflow: auto; width: 100%; }
+.league-standings { width: 100%; min-width: 580px; border-collapse: collapse; font-size: 13px; }
+.league-standings caption { text-align: left; font-size: 11px; color: #819072; padding: 0 0 14px; }
+.league-standings th, .league-standings td { padding: 13px 12px; border-bottom: 1px solid #e6ebdd; text-align: center; }
+.league-standings thead th { font-size: 11px; color: #819071; font-weight: 500; background: #f5f8ee; }
+.league-standings th:nth-child(2), .league-standings th[scope=row] { text-align: left; }
+.league-standings th[scope=row] { font-weight: 500; }
+.league-standings th[scope=row] button { display: flex; align-items: center; gap: 10px; }
+.league-standings .crest.small { width: 22px; min-width: 22px; height: 27px; }
+.league-fixture { display: grid; grid-template-columns: 125px 1fr 55px 1fr 25px; align-items: center; gap: 17px; padding: 17px 2px; border-bottom: 1px solid #e2e8d9; font-size: 13px; }
+.league-fixture time { color: #819171; font-size: 11px; }
+.league-fixture strong { font-weight: 500; }
+.league-fixture strong:nth-child(2) { text-align: right; }
+.league-fixture-score { text-align: center; display: flex; align-items: center; justify-content: center; color: #67814e; }
+.league-fixture > a { color: #829b69; }
+.league-errors { font-size: 12px; color: #8a7048; padding: 10px 15px; background: #faf5ea; border-radius: 6px; margin: 0 0 22px; overflow-wrap: anywhere; }
+.league-errors summary { cursor: pointer; }
+.league-errors ul { margin-bottom: 3px; }
+.league-sync-notice { background: #eaf2e3; color: #5b7847; font-size: 13px; padding: 12px 17px; border-radius: 8px; margin-bottom: 20px; }
+.report-preferences { margin-top: 20px; }
+.report-preferences .field-hint { line-height: 1.85; }
+.report-budget-note { font-size: 11px; line-height: 1.8; color: #7b866d; margin: 8px 0 0; }
+.setup-preparation { padding: 21px; border-radius: 9px; background: #f0f5e9; border: 1px solid #dbe6d0; margin: 0 0 24px; }
+.setup-preparation h2 { margin: 0 0 10px; font-size: 17px; }
+.setup-preparation ol { padding-left: 21px; margin: 0; color: #64775a; font-size: 12px; line-height: 1.9; }
+.setup-preparation li { padding: 3px 0; }
+.setup-preparation strong { color: #3f5c36; }
+@media (max-width: 1050px) {
+  .v4-nav button { padding-inline: 9px; font-size: 13px; }
+  .league-team-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .league-selector > button { padding: 17px 14px; }
+  .report-shelf { padding: 21px; }
+  .report-setup { flex-wrap: wrap; }
+  .report-paper { padding-inline: 48px; }
+}
+@media (max-width: 780px) {
+  .report-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .report-reader { max-width: 100%; }
+  .report-paper { padding: 32px; }
+  .report-paper > h1 { font-size: 28px; }
+  .league-selector { gap: 9px; }
+  .league-selector > button { padding: 15px 10px; }
+  .league-monogram { width: 36px; height: 36px; margin-bottom: 10px; font-size: 12px; }
+  .league-selector strong { font-size: 15px; }
+  .league-country { font-size: 9px; }
+  .league-selector small { font-size: 10px; gap: 4px; }
+  .league-detail { padding: 22px; }
+  .league-coverage > div { margin-inline: 13px; gap: 7px; }
+  .league-coverage strong { font-size: 16px; }
+  .league-team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-followup { flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+  .v4-header { min-height: 124px; }
+  .v4-header-inner { grid-template-rows: 55px 65px; padding-inline: 14px; }
+  .v4-nav button { flex-direction: column; gap: 3px; font-size: 10px; padding: 6px 4px; line-height: 1.65; min-height: 51px; }
+  .v4-nav button svg { width: 17px; height: 17px; }
+  .header-actions { gap: 12px; }
+  .hub-title-row { flex-wrap: wrap; align-items: flex-start; }
+  .hub-title-row > button { margin-top: 4px; }
+  .hub-title-row h1 { font-size: 22px; }
+  .club-directory-controls { align-items: flex-start; flex-direction: column-reverse; gap: 0; margin-top: 14px; }
+  .club-directory-controls .news-filters { padding: 13px 0; }
+  .club-directory-grid { gap: 8px; }
+  .report-shelf { padding: 19px 17px; }
+  .report-card, .compact .report-card { padding: 18px; }
+  .report-title-button { gap: 10px; }
+  .report-title-button h3 { font-size: 20px; }
+  .report-lead { font-size: 13px; }
+  .report-card-footer { gap: 9px; }
+  .report-card-footer button { font-size: 11px; }
+  .report-section-caption { font-size: 11px; }
+  .report-setup { padding: 17px; gap: 14px; }
+  .report-setup > div > svg { display: none; }
+  .report-setup strong { font-size: 13px; }
+  .report-setup small { font-size: 11px; }
+  .report-setup > button { width: 100%; justify-content: center; }
+  .report-page-filters { flex-direction: column; align-items: stretch; gap: 13px; }
+  .report-page-filters > input { max-width: none; }
+  .report-paper { padding: 25px 22px 30px; border-radius: 10px; }
+  .report-paper > h1 { font-size: 26px; margin-top: 21px; }
+  .report-standfirst { font-size: 15px; }
+  .report-narrative { font-size: 15px; line-height: 2.05; }
+  .report-narrative h2 { font-size: 20px; }
+  .report-paper-meta { gap: 12px; font-size: 10px; }
+  .report-paper-kicker { gap: 7px; font-size: 10px; }
+  .report-analysis { padding: 20px 17px !important; margin-inline: -3px; }
+  .report-followup { padding: 19px; gap: 15px; }
+  .report-followup .button { width: 100%; justify-content: center; }
+  .report-bibliography > div { gap: 9px; }
+  .report-bibliography strong { font-size: 12px; }
+  .report-reader-toolbar { margin-bottom: 16px; }
+  .large-type .report-narrative, .large-type .report-standfirst { font-size: 18px; }
+  .league-overview { gap: 12px; flex-wrap: wrap; padding-block: 16px; }
+  .league-overview > div { gap: 15px; font-size: 12px; }
+  .league-overview strong { font-size: 22px; }
+  .league-overview > label { font-size: 11px; }
+  .league-selector { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 22px; }
+  .league-selector > button { padding: 14px; }
+  .league-country { font-size: 10px; }
+  .league-selector small { margin-top: 8px; }
+  .league-detail { padding: 21px 16px; }
+  .league-detail-heading { gap: 12px; flex-wrap: wrap; }
+  .league-detail-heading h2 { font-size: 24px; }
+  .league-detail-heading > div:last-child { flex-direction: row; align-items: center; }
+  .league-coverage { padding: 16px 0; margin-block: 20px; }
+  .league-coverage > div { display: flex; align-items: flex-start; flex-direction: column; margin-inline: 9px; gap: 4px; padding-right: 4px; }
+  .league-coverage strong { font-size: 15px; }
+  .league-coverage span { font-size: 10px; }
+  .league-coverage svg { width: 14px; height: 14px; margin-bottom: 3px; }
+  .league-team-grid { gap: 8px; }
+  .league-team-grid > button { padding: 13px 10px; gap: 9px; }
+  .league-team-grid .crest { width: 25px; min-width: 25px; height: 32px; }
+  .league-team-grid strong { font-size: 12px; }
+  .league-team-grid small { font-size: 9px; }
+  .league-team-grid > button > svg { display: none; }
+  .league-fixture { grid-template-columns: 1fr 35px 1fr 18px; gap: 9px; padding-block: 14px; font-size: 12px; }
+  .league-fixture time { grid-column: 1 / -1; font-size: 10px; }
+  .league-fixture strong:nth-child(2) { text-align: left; }
+  .league-standings { font-size: 12px; min-width: 530px; }
+  .league-standings th, .league-standings td { padding-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+
+.league-monogram.has-logo { background: #f3f6ee; border: 1px solid #e1e7d8; padding: 5px; }
+.league-monogram img { width: 100%; height: 100%; object-fit: contain; }
+
+.reading-report-link { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 6px; background: #eef4e8; color: #53764a; font-size: 12px; margin-bottom: 17px; text-align: left; }
+.reader-report-link { display: flex; align-items: center; gap: 12px; background: #eef4e7; border: 1px solid #dee8d2; border-radius: 8px; padding: 17px 20px; margin: 18px 30px 0; text-align: left; width: calc(100% - 60px); color: #557c41; font-size: 11px; }
+.reader-report-link span { flex: 1; }
+.reader-report-link strong { display: block; font-size: 13px; margin-top: 4px; }
+.reader-report-link > svg { flex-shrink: 0; }
+.report-standfirst > p:last-child { margin-bottom: 0; }
+
+.table-swipe-hint { display: none; }
+@media (max-width: 600px) { .table-swipe-hint { display: block; font-size: 10px; margin-top: 5px; } }
