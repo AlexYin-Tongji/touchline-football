@@ -1,0 +1,22 @@
+[
+  { "id": "arsenal", "name": "阿森纳", "english_name": "Arsenal", "aliases": ["阿仙奴", "Arsenal FC"], "crest_url": "/assets/clubs/arsenal.svg" },
+  { "id": "aston-villa", "name": "阿斯顿维拉", "english_name": "Aston Villa", "aliases": ["维拉", "阿士东维拉", "Aston Villa FC"], "crest_url": "/assets/clubs/aston-villa.svg" },
+  { "id": "bournemouth", "name": "伯恩茅斯", "english_name": "Bournemouth", "aliases": ["般尼茅夫", "AFC Bournemouth", "Bournemouth AFC"], "crest_url": "/assets/clubs/bournemouth.svg" },
+  { "id": "brentford", "name": "布伦特福德", "english_name": "Brentford", "aliases": ["宾福特", "Brentford FC"], "crest_url": "/assets/clubs/brentford.svg" },
+  { "id": "brighton", "name": "布莱顿", "english_name": "Brighton & Hove Albion", "aliases": ["布莱顿霍夫", "白礼顿", "Brighton", "Brighton Hove Albion", "Brighton and Hove Albion FC"], "crest_url": "/assets/clubs/brighton.svg" },
+  { "id": "chelsea", "name": "切尔西", "english_name": "Chelsea", "aliases": ["车路士", "Chelsea FC"], "crest_url": "/assets/clubs/chelsea.svg" },
+  { "id": "coventry-city", "name": "考文垂", "english_name": "Coventry City", "aliases": ["考文垂城", "高云地利", "Coventry", "Coventry City FC"], "crest_url": "/assets/clubs/coventry-city.svg" },
+  { "id": "crystal-palace", "name": "水晶宫", "english_name": "Crystal Palace", "aliases": ["Crystal Palace FC"], "crest_url": "/assets/clubs/crystal-palace.svg" },
+  { "id": "everton", "name": "埃弗顿", "english_name": "Everton", "aliases": ["爱华顿", "Everton FC"], "crest_url": "/assets/clubs/everton.svg" },
+  { "id": "fulham", "name": "富勒姆", "english_name": "Fulham", "aliases": ["富咸", "Fulham FC"], "crest_url": "/assets/clubs/fulham.svg" },
+  { "id": "hull-city", "name": "赫尔城", "english_name": "Hull City", "aliases": ["侯城", "Hull", "Hull City AFC"], "crest_url": "/assets/clubs/hull-city.svg" },
+  { "id": "ipswich-town", "name": "伊普斯维奇", "english_name": "Ipswich Town", "aliases": ["伊普斯维奇镇", "叶士域治", "Ipswich", "Ipswich Town FC"], "crest_url": "/assets/clubs/ipswich-town.svg" },
+  { "id": "leeds-united", "name": "利兹联", "english_name": "Leeds United", "aliases": ["列斯联", "Leeds", "Leeds United FC"], "crest_url": "/assets/clubs/leeds-united.svg" },
+  { "id": "liverpool", "name": "利物浦", "english_name": "Liverpool", "aliases": ["Liverpool FC", "LFC"], "crest_url": "/assets/clubs/liverpool.svg" },
+  { "id": "manchester-city", "name": "曼城", "english_name": "Manchester City", "aliases": ["曼彻斯特城", "曼彻斯特城队", "Manchester City FC", "Man City", "MCFC"], "crest_url": "/assets/clubs/manchester-city.svg" },
+  { "id": "manchester-united", "name": "曼联", "english_name": "Manchester United", "aliases": ["曼彻斯特联", "曼彻斯特联队", "Manchester United FC", "Man United", "Man Utd", "MUFC"], "crest_url": "/assets/clubs/manchester-united.svg" },
+  { "id": "newcastle-united", "name": "纽卡斯尔联", "english_name": "Newcastle United", "aliases": ["纽卡斯尔", "纽卡", "纽卡素", "Newcastle", "Newcastle United FC", "Newcastle Utd"], "crest_url": "/assets/clubs/newcastle-united.svg" },
+  { "id": "nottingham-forest", "name": "诺丁汉森林", "english_name": "Nottingham Forest", "aliases": ["诺定咸森林", "Nottingham Forest FC", "Nott'm Forest", "Nottm Forest", "Nott Forest"], "crest_url": "/assets/clubs/nottingham-forest.svg" },
+  { "id": "sunderland", "name": "桑德兰", "english_name": "Sunderland", "aliases": ["新特兰", "Sunderland AFC"], "crest_url": "/assets/clubs/sunderland.svg" },
+  { "id": "tottenham-hotspur", "name": "热刺", "english_name": "Tottenham Hotspur", "aliases": ["托特纳姆热刺", "托特纳姆", "Tottenham", "Tottenham Hotspur FC", "Spurs"], "crest_url": "/assets/clubs/tottenham-hotspur.svg" }
+]
