@@ -1,4 +1,4 @@
-# V5 架构与 Render 部署
+# V6 架构与 Render 部署
 
 ## 技术决策
 
@@ -8,7 +8,7 @@
 浏览器（动态 / 阅读 / 助手）
     │ HTTPS + HttpOnly 会话
 Render Docker Web Service（单实例、单 worker）
-    ├── React 静态页面与 30 队本地素材
+    ├── React 静态页面与 96 队本地素材
     ├── FastAPI：登录、设置、资料、Agent API
     ├── Agent：工具循环 → 实际阅读 → 引用 / 核对
     ├── 定时采集与主题跟进
@@ -20,6 +20,8 @@ Render Docker Web Service（单实例、单 worker）
 ## Render 配置
 
 项目根目录 `render.yaml` 配置 Docker Web Service、Starter 计划、1 GB 持久磁盘以及 `/api/health` 健康检查。保持一个实例 / 一个 Uvicorn worker，避免重复执行调度任务。[Render 持久磁盘文档](https://render.com/docs/disks)说明磁盘只供单实例在运行时使用，附盘重新部署会有短暂中断。
+
+用户逐项准备指南见 [USER_PREPARATION.md](USER_PREPARATION.md)。Blueprint 与 Web Service 都要使用 `codex/five-leagues-reports` 分支，当前默认分支可能仍是历史基线。
 
 部署步骤：
 
@@ -74,6 +76,6 @@ docker compose up --build -d
 
 - 服务器在运行且功能启用时，定时采集和跟进继续执行，不依赖个人电脑开机。
 - 一个实例最多同时运行 3 个 Agent 任务；工具、来源与正文仍有超时 / 大小限制。
-- 30 队资料入口不等于 30 队赛程适配器。现有 4 队官方比赛适配器保留，其余比赛需手动导入。
+- 96 队属于已核对的 2026/27 五大联赛。ESPN 公开站点适配器读取五联赛全季赛程与积分，4 队俱乐部官网适配器保留；两类来源身份明确区分。
 - 免费订阅、官网改版与限流会影响正文取得；界面必须如实显示摘要 / 部分正文 / 错误。
 - 后续若要公众注册、账户隔离、多实例或大规模资料库，再引入用户模型、PostgreSQL、外部任务队列及对象存储；这不需要先把 Agent 改写成 Node.js。
