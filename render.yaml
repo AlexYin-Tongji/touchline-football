@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: touchline
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    numInstances: 1
+    envVars:
+      - key: TOUCHLINE_SERVER_MODE
+        value: "true"
+      - key: TOUCHLINE_ACCESS_PASSWORD
+        generateValue: true
+      - key: TOUCHLINE_DATA_DIR
+        value: /var/lib/touchline
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+    disk:
+      name: touchline-data
+      mountPath: /var/lib/touchline
+      sizeGB: 1

@@ -1,0 +1,15 @@
+.git
+.venv
+node_modules
+dist
+data
+output
+.env
+.env.*
+__pycache__
+**/__pycache__
+*.pyc
+.playwright-cli
+prototype
+tests
+docs

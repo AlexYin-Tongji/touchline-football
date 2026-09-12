@@ -1,0 +1,14 @@
+services:
+  touchline:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      TOUCHLINE_SERVER_MODE: "true"
+      TOUCHLINE_PUBLIC_URL: "${TOUCHLINE_PUBLIC_URL:-http://localhost:8765}"
+      TOUCHLINE_ACCESS_PASSWORD: "${TOUCHLINE_ACCESS_PASSWORD:?Set a private password of at least 16 characters in .env}"
+    volumes:
+      - touchline-data:/var/lib/touchline
+    restart: unless-stopped
+volumes:
+  touchline-data:
