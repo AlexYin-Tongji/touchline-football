@@ -566,7 +566,17 @@ def save_matches(store, team_id, rows, at):
         existing = store.list("matches", "live", team_id)
         by_source = {r.get("source_match_id"): r for r in existing if r.get("source_match_id")}
         for row in rows:
+            row = {**row, "provider": "club_official"}
             old = by_source.get(row["source_match_id"]) or store.get("matches", row["id"])
+            if not old and row.get("kickoff"):
+                for candidate in existing:
+                    if candidate.get("provider") != "ESPN" or candidate.get("kickoff") != row["kickoff"] or candidate.get("venue") != row["venue"]:
+                        continue
+                    opponent = store.get("teams", candidate.get("opponent_id", "")) or {}
+                    names = [candidate.get("opponent"), opponent.get("name"), opponent.get("english_name"), *opponent.get("aliases", [])]
+                    if any(str(name or "").casefold() == str(row["opponent"]).casefold() for name in names):
+                        old = candidate
+                        break
             if not old:
                 # Adopt a manually-created instance only when teams, venue and
                 # exact kickoff agree, retaining its ID, notes and associations.
@@ -574,7 +584,7 @@ def save_matches(store, team_id, rows, at):
                             and row["kickoff"] and r.get("kickoff") == row["kickoff"] and r.get("venue") == row["venue"]), None)
             if old:
                 source_old, source_new = old.get("source_updated_at"), row.get("source_updated_at")
-                if source_old and source_new and source_new < source_old:
+                if old.get("provider") != "ESPN" and source_old and source_new and source_new < source_old:
                     continue
                 if old.get("status") == "finished" and row["status"] != "finished":
                     continue  # Stale fixture listing must not undo a final result.
@@ -612,6 +622,16 @@ def save_matches(store, team_id, rows, at):
 
 
 def get_team_status(store, team_id):
+    if team_id not in SOURCES:
+        members = [m for m in store.list("league_memberships") if m.get("team_id") == team_id]
+        if members:
+            member = max(members, key=lambda m: m["season_start_year"])
+            league = store.get("leagues", member["league_id"]) or {}
+            status = store.get_meta("league_sync_" + member["season_id"], {})
+            at = _time(status.get("fixtures_at"))
+            return {"supported": True, "provider": "ESPN", "source": {"name": "ESPN 赛事数据", "url": f"https://www.espn.com/soccer/scoreboard/_/league/{league.get('provider_code', '')}"},
+                    "synced_at": status.get("fixtures_at"), "errors": status.get("errors", []), "stale": not at or (datetime.now(timezone.utc) - datetime.fromisoformat(at)).total_seconds() >= CACHE_SECONDS,
+                    "cache_seconds": CACHE_SECONDS}
     cached = store.get_meta("fixtures_sync_" + team_id, {})
     at = _time(cached.get("synced_at"))
     stale = not at or (datetime.now(timezone.utc) - datetime.fromisoformat(at)).total_seconds() >= CACHE_SECONDS
@@ -622,6 +642,9 @@ def get_team_status(store, team_id):
 async def sync_team(store, team_id, force=False):
     if not store.get("teams", team_id):
         raise ingestion.IngestionError("球队不存在")
+    if team_id not in SOURCES and any(m.get("team_id") == team_id for m in store.list("league_memberships")):
+        from .league_data import sync_team as sync_league_team
+        return await sync_league_team(store, team_id, force=force)
     lock = _locks.setdefault((id(store), team_id), asyncio.Lock())
     async with lock:
         cached = get_team_status(store, team_id)

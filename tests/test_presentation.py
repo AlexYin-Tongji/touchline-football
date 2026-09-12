@@ -55,9 +55,10 @@ class PresentationTests(unittest.TestCase):
     def test_unversioned_historical_run_is_not_current_support(self):
         result = self.present()
         self.assertEqual(result["display_status"], "pending")
-        self.assertNotIn("Saka", result["display_title"])
-        self.assertNotIn("being assessed", result["display_summary"])
-        self.assertIn("萨卡", result["display_title"])
+        self.assertEqual(result["display_title"], self.source["title"])
+        self.assertIn("being assessed", result["display_summary"])
+        self.assertEqual(result["display_language"], "original")
+        self.assertEqual(result["report_note"], "中文报告待整理")
 
     def test_new_capture_of_same_page_supersedes_immutable_old_source(self):
         self.archive()
@@ -99,13 +100,15 @@ class PresentationTests(unittest.TestCase):
         self.run["verification"]["claims"][0]["verdict"] = "conflicting"
         self.assertEqual(self.present()["display_status"], "pending")
 
-    def test_chinese_prefix_does_not_expose_english_body(self):
+    def test_pending_report_shows_actual_original_instead_of_fake_translation(self):
         self.event.update(title="球队新闻：Saka injury assessment and training update",
                           summary="来源摘要：Saka is being assessed ahead of training. The club has not announced when he will return.")
         result = self.present()
         self.assertFalse(readable_chinese(self.event["summary"]))
-        self.assertNotIn("Saka", result["display_title"])
-        self.assertNotIn("training", result["display_summary"])
+        self.assertEqual(result["display_title"], self.source["title"])
+        self.assertIn("training", result["display_summary"])
+        self.assertNotIn("相关报道已收录", result["display_summary"])
+        self.assertEqual(result["display_language"], "original")
 
     def test_chinese_source_excerpt_is_short_and_not_a_full_article_dump(self):
         self.event.update(title="萨卡恢复训练仍待评估", summary="俱乐部表示萨卡仍在接受评估。" + "主教练会在接下来的训练中观察他的恢复情况。" * 20)
@@ -114,6 +117,12 @@ class PresentationTests(unittest.TestCase):
         self.assertEqual(result["display_status"], "unverified")
         self.assertEqual(result["display_summary"], "俱乐部表示萨卡仍在接受评估。")
         self.assertLess(len(result["display_summary"]), 120)
+
+    def test_no_visible_source_does_not_republish_chinese_event_body(self):
+        self.event.update(title="不可见的原文标题", summary="不可见的具体伤情细节。")
+        result = self.present(evidence=[])
+        self.assertEqual(result["display_title"], "暂无可读来源")
+        self.assertEqual(result["display_summary"], "")
 
 
 if __name__ == "__main__":

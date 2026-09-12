@@ -8,6 +8,8 @@ def seed(store):
     seed_clubs(store)
     from .team_profiles import seed_team_profiles
     seed_team_profiles(store)
+    from .league_catalog import seed_league_catalog
+    seed_league_catalog(store)
     if store.get_meta("demo_seed_v1"):
         return
     records = [

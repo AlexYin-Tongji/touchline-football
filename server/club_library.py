@@ -2,7 +2,8 @@
 
 The checked-in JSON is also consumed by the browser's badge/name resolver.
 Importing the catalog never downloads assets or writes user data. Competition
-membership and live squad information are intentionally excluded.
+membership lives separately in league_catalog and is scoped to a season;
+permanent club backgrounds survive promotions and relegations.
 """
 from __future__ import annotations
 

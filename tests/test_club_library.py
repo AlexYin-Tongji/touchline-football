@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ClubLibraryTests(unittest.TestCase):
     def test_every_browse_club_has_background_local_crest_and_source_provenance(self):
-        self.assertGreaterEqual(len(CLUBS), 30)
+        self.assertGreaterEqual(len(CLUBS), 96)
         ids = {club["id"] for club in CLUBS}
         self.assertEqual(len(ids), len(CLUBS))
         self.assertTrue({"real-madrid", "bayern-munich", "paris-saint-germain", "juventus",
@@ -42,6 +42,10 @@ class ClubLibraryTests(unittest.TestCase):
                     self.assertTrue(root.tag.endswith("svg"))
                     # Local assets must not execute script when embedded directly.
                     self.assertNotIn(b"<script", body.lower())
+                elif file.suffix == ".png":
+                    self.assertEqual(body[:8], b"\x89PNG\r\n\x1a\n")
+                    self.assertGreater(int.from_bytes(body[16:20], "big"), 32)
+                    self.assertGreater(int.from_bytes(body[20:24], "big"), 32)
 
     def test_all_teams_have_public_sources_and_scoped_aliases(self):
         self.assertEqual(set(RESEARCH_CATALOG), {club["id"] for club in CLUBS})
@@ -50,7 +54,12 @@ class ClubLibraryTests(unittest.TestCase):
             with self.subTest(club=club["id"]):
                 self.assertGreaterEqual(len(sources), 2)
                 self.assertTrue(any(source["id"].startswith("official_") for source in sources))
+                self.assertTrue(any(not source["id"].startswith("official_") for source in sources))
                 self.assertTrue(any(source["kind"] == "rss" for source in sources))
+                self.assertTrue(all(source["kind"] in {"rss", "html"} for source in sources))
+                for source in sources:
+                    if source.get("access_review", {}).get("feed_title"):
+                        self.assertNotEqual(source["access_review"]["feed_title"], "Football | The Guardian")
                 self.assertEqual(len({source["id"] for source in sources}), len(sources))
                 for source in sources:
                     self.assertIn(urlsplit(source["url"]).hostname, TRUSTED_SOURCE_HOSTS)

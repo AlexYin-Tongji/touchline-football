@@ -69,6 +69,38 @@ for _definition in TOOL_DEFINITIONS:
                              "description": "可选：仅检索最近若干天内发布的资料。缺失发布时间的资料不会被当作近期消息。"}})
 OPENAI_TOOLS = [{"type": "function", "function": item} for item in TOOL_DEFINITIONS]
 
+
+def tool_definitions(skill="ask"):
+    """Reports have a spacious editorial contract; ordinary answers stay brief."""
+    if skill != "news_report":
+        return TOOL_DEFINITIONS
+    definitions = copy.deepcopy(TOOL_DEFINITIONS)
+    submit = next(item for item in definitions if item["name"] == "submit_answer")
+    fields = submit["parameters"]["properties"]
+    fields["title"] = {"type": "string", "minLength": 4, "maxLength": 80,
+                       "description": "具体的中文报道标题，不用媒体名加动态分类充当标题。"}
+    submit["parameters"]["required"].append("title")
+    fields["summary"].update(maxLength=400, description="中文导语：交代本次报道的事件、来源说法与关键进展，不写占位提示。")
+    fields["facts"]["maxItems"] = 6
+    fact = fields["facts"]["items"]
+    fact["properties"]["title"]["maxLength"] = 64
+    fact["properties"]["detail"].update(maxLength=900, description="一节完整中文叙事，至少两句，交代原文事实及其关系。报告全文目标900至1400字，通常4节，每节精炼而完整；禁止用重复警告或虚构背景凑篇幅。")
+    fact["properties"]["kind"] = {"type": "string", "enum": ["development", "context", "impact"]}
+    fact["required"].extend(["kind", "quotes"])
+    fact["properties"]["quotes"]["maxItems"] = 8
+    report_quotes = fact["properties"]["quotes"]
+    report_quotes["description"] = "只填写evidence_id和已读passages里的passage_id。禁止输出quote或复制原文；服务器在核验时自行取得对应真实原文。每节选择足够支持正文的1至3个片段，不重复堆积。"
+    report_quotes["items"]["properties"].pop("quote")
+    report_quotes["items"]["required"] = ["evidence_id", "passage_id"]
+    fields["analysis"].update(maxLength=900, description="解释对球队和球迷的可能影响，通常150至250字，明确假设及其有依据的前提，不新增事实。")
+    fields["unknowns"].update(maxItems=5)
+    fields["unknowns"]["items"]["maxLength"] = 240
+    return definitions
+
+
+def openai_tools(skill="ask"):
+    return [{"type": "function", "function": item} for item in tool_definitions(skill)]
+
 # Small, inspectable football vocabulary, not a remote search service or an LLM.
 CONCEPTS = [
     ("伤病", "受伤", "缺阵", "伤情", "injury", "injured", "fitness", "unavailable", "伤势"),
@@ -160,7 +192,7 @@ class LocalTools:
         self.read_cache = {}
         self.redacted_ids = set()
         self.submission = None
-        self.verification_enabled = self.mode == "live" and settings.get("verification_enabled", False) is True
+        self.verification_enabled = self.mode == "live" and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
         self.allow_network = self.mode == "live" and run.get("allow_network", True) is True
@@ -210,6 +242,10 @@ class LocalTools:
 
     def evidence_allowed(self, item):
         if not item or item.get("mode") != self.mode or item.get("team_id") != self.team_id:
+            return False
+        if item.get("deleted") or item.get("private") is True or item.get("visibility") in {"hidden", "deleted"}:
+            return False
+        if self.run.get("report_id") and item["id"] not in self.run.get("input_evidence_ids", []):
             return False
         # A review is about this match, including non-spoiler material. Other
         # fixtures' training or preview news must not become review evidence.
@@ -353,7 +389,7 @@ class LocalTools:
                 for _, row in candidates[:2]]
 
     def validate(self, name, arguments):
-        definition = next((tool for tool in TOOL_DEFINITIONS if tool["name"] == name), None)
+        definition = next((tool for tool in tool_definitions(self.skill) if tool["name"] == name), None)
         if not definition:
             raise ToolError("工具不在允许列表中。")
         def check(value, rule):
@@ -393,18 +429,31 @@ class LocalTools:
                     passage = next((p for p in source.get("passages", []) if p["id"] == quote["passage_id"]), None)
                     if passage:
                         quote["quote"] = passage["text"]
-        limit = answer_fact_limit(self.run.get("question", ""))
+        is_report = self.skill == "news_report"
+        limit = 6 if is_report else answer_fact_limit(self.run.get("question", ""))
         if len(arguments["facts"]) > limit:
             raise ToolError(f"用户明确限制最多 {limit} 项消息，请合并或筛选 facts 后重新提交，不要增加用户未要求的条目。")
         if SUMMARY_CERTAINTY.search(arguments["summary"]):
             raise ToolError("summary 只能使用中性概览，不能使用官方确认、已证实、实锤或已确认等认证标签。请把具体来源说法放在带 evidence_ids 的事实正文中，摘要不得提高其确定性。")
         strings = [arguments["summary"], arguments["analysis"], *arguments["unknowns"]]
+        if is_report:
+            strings.append(arguments.get("title", ""))
         for fact in arguments["facts"]:
             strings.extend([fact["title"], fact["detail"]])
         if any(not clean_delivery_text(value) or "\n" in value or re.search(r"\[[A-Za-z0-9_-]+\]", value) for value in strings):
             raise ToolError("最终答复只能包含简洁的用户正文，不可包含过程叙述、工具预算、换行或引用括号；引用请放入 evidence_ids。请重新提交。")
-        if sum(len(value) for value in strings) > 1000:
-            raise ToolError("最终答复过长，请缩短到合计1000字以内后重新提交。")
+        if sum(len(value) for value in strings) > (6000 if is_report else 1000):
+            raise ToolError("报告全文目标900至1400字，安全上限6000字，请删去重复内容后重试。" if is_report else "最终答复过长，请缩短到合计1000字以内后重新提交。")
+        if is_report and arguments["status"] == "complete":
+            if not 3 <= len(arguments["facts"]) <= 6:
+                raise ToolError("完整报告需要3至6节有实际内容的叙事；材料不足时提交insufficient，不能伪造背景补足章节。")
+            if not re.search(r"[\u3400-\u9fff]", arguments.get("title", "")) or any(
+                    len(re.findall(r"[\u3400-\u9fff]", fact["detail"])) < 25 for fact in arguments["facts"]):
+                raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
+            if not any(fact.get("kind") == "context" for fact in arguments["facts"]):
+                raise ToolError("报告应有一节原文支持的背景。若原文缺少外部背景，可解释本次报道涉及的时间和来源范围，不得调用记忆编造。")
+            if not arguments["analysis"].strip() and not arguments["unknowns"]:
+                raise ToolError("报告需说明有依据的可能影响，或明确下一步需要关注的信息。")
         if len({fact["title"].strip() for fact in arguments["facts"]}) != len(arguments["facts"]):
             raise ToolError("请合并重复主题，每个事实主题只提交一次。")
         if arguments["status"] == "complete" and not arguments["facts"]:
@@ -422,7 +471,7 @@ class LocalTools:
                 if eid not in cited:
                     cited.append(eid)
         source_keys = {self.read_cache[eid].get("url") or eid for eid in cited}
-        lines = [arguments["summary"].strip()]
+        lines = (["# " + arguments["title"].strip()] if is_report and arguments.get("title") else []) + [arguments["summary"].strip()]
         for fact in arguments["facts"]:
             refs = " ".join(f"[{eid}]" for eid in dict.fromkeys(fact["evidence_ids"]))
             lines.append(f"**{fact['title'].strip()}**\n{fact['detail'].strip()} {refs}")
@@ -430,7 +479,7 @@ class LocalTools:
             lines.append("可能影响：" + arguments["analysis"].strip())
         if arguments["unknowns"]:
             lines.append("仍待确认：" + "；".join(value.strip().rstrip("。；") for value in arguments["unknowns"]) + "。")
-        if cited and len(source_keys) == 1:
+        if cited and len(source_keys) == 1 and not is_report:
             lines.append("来源范围：以上依据同一篇来源原文，尚未形成独立交叉核实。")
         self.submission = {"answer": "\n\n".join(lines), "evidence_ids": cited, "status": arguments["status"],
                            "structured_answer": copy.deepcopy(arguments),

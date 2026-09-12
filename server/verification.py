@@ -9,6 +9,7 @@ import json
 import hashlib
 import re
 import unicodedata
+import copy
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -137,7 +138,7 @@ def prepare_claims(local, structured):
                        "quotes": quotes, "_local_error": bool(errors)})
     # Check the whole delivery, not just easy-to-verify quoted facts. Summary
     # and analysis must never introduce another unsupported event or venue.
-    for field in ("summary", "analysis", "unknowns"):
+    for field in ("title", "summary", "analysis", "unknowns"):
         value = structured.get(field)
         value = "；".join(value) if isinstance(value, list) else value
         if value:
@@ -188,15 +189,18 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
 只为输入claims数组中的每个id恰好返回一次。locally_rejected_claim_ids已经由程序判为不支持，不能返回这些id或修改其判定。reason用简短中文解释主张与原文相符或不符的具体点。supported只是受到该原文支持，不意味着真实世界事件已获独立认证。"""},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
     try:
-        cfg = dict(config, max_output_tokens=min(2400, int(config.get("max_output_tokens", 3000))),
+        is_report = getattr(local, "skill", None) == "news_report"
+        cfg = dict(config, max_output_tokens=min(4000 if is_report else 2400, int(config.get("max_output_tokens", 3000))),
                    _session_id=str(config.get("_session_id", "verify"))[:90] + "_support")
-        message = await (requester or request_completion)(cfg, messages, tools=CHECK_TOOL,
+        check_tools = copy.deepcopy(CHECK_TOOL)
+        check_tools[0]["function"]["parameters"]["properties"]["claims"]["maxItems"] = 10 if is_report else 7
+        message = await (requester or request_completion)(cfg, messages, tools=check_tools,
             tool_choice={"type": "function", "function": {"name": "report_source_support"}}, timeout=timeout)
         calls = message.get("tool_calls") or []
         if len(calls) != 1 or calls[0].get("function", {}).get("name") != "report_source_support":
             raise ValueError()
         raw = calls[0]["function"].get("arguments")
-        if not isinstance(raw, str) or len(raw) > 8000:
+        if not isinstance(raw, str) or len(raw) > (16000 if is_report else 8000):
             raise ValueError()
         data = json.loads(raw)
         checks = data["claims"]

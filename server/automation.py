@@ -55,7 +55,13 @@ class AutomationManager:
         from .recommendations import get_recommendations
         settings = self.store.settings()
         config = settings.get("automation", {})
-        teams = [team_id] if team_id else settings.get("followed_teams", [])[:4]
+        followed = settings.get("followed_teams", [])
+        # Rotate the bounded work window so clubs after the fourth are not
+        # permanently starved as the followed list grows across five leagues.
+        offset = self.store.get_meta("automation_team_cursor", 0) % max(1, len(followed))
+        teams = [team_id] if team_id else (followed[offset:] + followed[:offset])[:4]
+        if not team_id and followed:
+            self.store.set_meta("automation_team_cursor", (offset + len(teams)) % len(followed))
         details, errors, last_run = [], [], None
         self.store.set_meta("automation_status", {**self.status(), "stage": "正在更新球队资料", "last_error": None})
         try:

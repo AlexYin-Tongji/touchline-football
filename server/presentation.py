@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import copy
 import re
-from urllib.parse import urlsplit
 
 from .agent_tools import clean_delivery_text
-from .events import ENTITY_ALIASES, entities
-from .research import article_categories, article_url
+from .research import article_url
 from .team_profiles import _evidence_hash, knowledge_for_team
 
 
@@ -24,43 +22,29 @@ def readable_chinese(value):
                 and clean_delivery_text(value))
 
 
-def source_label(source, team_name="球队"):
-    host = (urlsplit(source.get("url") or "").hostname or "").lower()
-    for domain, label in {"arsenal.com": "阿森纳官网", "liverpoolfc.com": "利物浦官网",
-                          "fcbarcelona.com": "巴塞罗那官网", "inter.it": "国际米兰官网",
-                          "theguardian.com": "卫报体育", "bbc.co.uk": "英国广播公司体育", "bbc.com": "英国广播公司体育"}.items():
-        if host == domain or host.endswith("." + domain):
-            return label
-    name = source.get("source_name") or ""
-    return name if readable_chinese(name) else team_name + "相关资讯"
-
-
 def _short_excerpt(value, limit=110):
     clean = re.sub(r"\*\*|【[^】]*】", "", _normalized(value)).strip()
     sentence = re.split(r"(?<=[。！？])", clean)[0]
     return sentence if len(sentence) <= limit else sentence[:limit].rstrip("，、； ") + "…"
 
 
-def _fallback(event, records, team_name):
+def _fallback(event, records):
     first = records[-1] if records else {}
-    category = {"injury": "伤停动态", "transfer": "转会动态", "match": "比赛动态"}.get(event.get("kind"))
-    if not category:
-        labels = {"injury": "伤停动态", "training": "训练动态", "transfer": "转会动态", "squad": "阵容动态",
-                  "preview": "赛前动态", "review": "赛后动态", "tactics": "战术动态", "interview": "采访动态", "discipline": "纪律动态"}
-        topics = article_categories({"title": event.get("title"), "text": event.get("summary")})
-        category = next((labels[key] for key in topics if key in labels), "球队动态")
-    people = [next((alias for alias in ENTITY_ALIASES[key] if re.search(r"[\u3400-\u9fff]", alias)), "")
-              for key in entities(event.get("title", ""))[:2]]
-    subject = "、".join(filter(None, people)) or source_label(first, team_name)
     title, summary = event.get("title") or "", event.get("summary") or ""
-    if readable_chinese(title) and readable_chinese(summary):
+    if records and readable_chinese(title) and readable_chinese(summary):
         title, summary = _short_excerpt(title, 56), _short_excerpt(summary)
         if _normalized(title).rstrip("。") != _normalized(summary).rstrip("。"):
             return {"display_title": title, "display_summary": summary, "summary_origin": "source",
                     "display_status": "unverified", "source_run_id": None}
-    return {"display_title": _short_excerpt(title, 56) if readable_chinese(title) else f"{subject} · {category}",
-            "display_summary": "相关报道已收录，可查看来源，或请助手整理中文要点。",
-            "summary_origin": "pending", "display_status": "pending", "source_run_id": None}
+    # Preserve actual language until the editorial job succeeds. A category
+    # label and an empty invitation to ask again are not a translated report.
+    source_title = str((first.get("title") or title) if records else "暂无可读来源")
+    source_text = str((first.get("text") or summary) if records else "")
+    return {"display_title": _short_excerpt(source_title, 150),
+            "display_summary": _short_excerpt(source_text, 360),
+            "summary_origin": "pending", "display_status": "pending", "source_run_id": None,
+            "display_language": "zh" if readable_chinese(source_text) else "original",
+            "report_note": "中文报告待整理" if records else "当前阅读范围内暂无可读原文"}
 
 
 def _run_fact(run, title, detail, ids):
@@ -116,6 +100,10 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
     run_map = {run["id"]: run for run in runs if run.get("status") == "completed" and not run.get("spoiler_hidden")
                and (not spoiler_free or not run.get("spoiler") and run.get("skill") != "match_review")}
     knowledge_by_scope = {}
+    from .news_reports import list_reports
+    report_map = {(item.get("team_id"), item.get("mode"), item.get("event_id")): item
+                  for mode in {event.get("mode") for event in events}
+                  for item in list_reports(store, mode=mode)}
     result = []
     for event in events:
         scope = (event.get("team_id"), event.get("mode"))
@@ -123,8 +111,7 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
                and (visible[eid].get("team_id"), visible[eid].get("mode")) == scope}
         records = [visible[eid] for eid in event.get("evidence_ids", []) if eid in ids]
         current_ids = _current_source_ids(records)
-        team = store.get("teams", scope[0]) or {}
-        card = _fallback(event, records, team.get("name", "球队"))
+        card = _fallback(event, records)
         if scope not in knowledge_by_scope:
             knowledge_by_scope[scope] = knowledge_for_team(store, *scope, spoiler_free=spoiler_free,
                                                          allowed_evidence_ids=set(visible), limit=None)
@@ -167,5 +154,14 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
             _, _, fact, status, run_id = max(choices, key=lambda choice: choice[:2])
             card = {"display_title": fact["title"], "display_summary": fact["detail"], "summary_origin": "assistant",
                     "display_status": status, "source_run_id": run_id}
+        editorial = report_map.get((*scope, event.get("id")))
+        if editorial:
+            card.update(report_id=editorial["id"], report_status=editorial["status"],
+                        report_note=editorial.get("error") or editorial.get("queue_note"))
+            report = editorial.get("report")
+            if editorial["status"] == "completed" and report:
+                card.update(display_title=report["title"], display_summary=report["lead"],
+                            summary_origin="report", display_status="supported", source_run_id=editorial.get("run_id"),
+                            reading_minutes=report.get("reading_minutes"), section_count=len(report.get("sections", [])))
         result.append({**copy.deepcopy(event), **card})
     return result

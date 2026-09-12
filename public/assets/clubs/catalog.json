@@ -68,7 +68,10 @@
         "reviewed_at": "2026-09-12"
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "359"
+    }
   },
   {
     "id": "aston-villa",
@@ -125,7 +128,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "362"
+    }
   },
   {
     "id": "bournemouth",
@@ -181,7 +187,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "349"
+    }
   },
   {
     "id": "brentford",
@@ -237,7 +246,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "337"
+    }
   },
   {
     "id": "brighton",
@@ -296,7 +308,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "331"
+    }
   },
   {
     "id": "chelsea",
@@ -352,7 +367,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "363"
+    }
   },
   {
     "id": "coventry-city",
@@ -409,14 +427,18 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "388"
+    }
   },
   {
     "id": "crystal-palace",
     "name": "水晶宫",
     "english_name": "Crystal Palace",
     "aliases": [
-      "Crystal Palace FC"
+      "Crystal Palace FC",
+      "C Palace"
     ],
     "crest_url": "/assets/clubs/crystal-palace.svg",
     "short_name": "CRY",
@@ -463,7 +485,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "384"
+    }
   },
   {
     "id": "everton",
@@ -523,7 +548,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "368"
+    }
   },
   {
     "id": "fulham",
@@ -579,7 +607,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "370"
+    }
   },
   {
     "id": "hull-city",
@@ -636,7 +667,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "306"
+    }
   },
   {
     "id": "ipswich-town",
@@ -694,7 +728,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "373"
+    }
   },
   {
     "id": "leeds-united",
@@ -751,7 +788,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "357"
+    }
   },
   {
     "id": "liverpool",
@@ -821,7 +861,10 @@
         "reviewed_at": "2026-09-12"
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "364"
+    }
   },
   {
     "id": "manchester-city",
@@ -880,7 +923,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "382"
+    }
   },
   {
     "id": "manchester-united",
@@ -940,7 +986,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "360"
+    }
   },
   {
     "id": "newcastle-united",
@@ -999,7 +1048,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "361"
+    }
   },
   {
     "id": "nottingham-forest",
@@ -1058,7 +1110,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "393"
+    }
   },
   {
     "id": "sunderland",
@@ -1113,7 +1168,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "366"
+    }
   },
   {
     "id": "tottenham-hotspur",
@@ -1172,7 +1230,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "367"
+    }
   },
   {
     "id": "barcelona",
@@ -1237,7 +1298,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "83"
+    }
   },
   {
     "id": "inter",
@@ -1301,7 +1365,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "110"
+    }
   },
   {
     "id": "real-madrid",
@@ -1357,7 +1424,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "86"
+    }
   },
   {
     "id": "bayern-munich",
@@ -1415,7 +1485,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "132"
+    }
   },
   {
     "id": "paris-saint-germain",
@@ -1474,7 +1547,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "160"
+    }
   },
   {
     "id": "juventus",
@@ -1531,7 +1607,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "111"
+    }
   },
   {
     "id": "ac-milan",
@@ -1589,7 +1668,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "103"
+    }
   },
   {
     "id": "atletico-madrid",
@@ -1605,7 +1687,8 @@
       "Atletico Madrid",
       "Atletico de Madrid",
       "Atlético Madrid",
-      "Atleti"
+      "Atleti",
+      "Atlético"
     ],
     "official_url": "https://www.atleticodemadrid.com/",
     "founded": 1903,
@@ -1648,7 +1731,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "1068"
+    }
   },
   {
     "id": "borussia-dortmund",
@@ -1706,7 +1792,10 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "124"
+    }
   },
   {
     "id": "roma",
@@ -1763,6 +1852,5433 @@
         }
       }
     ],
-    "profile_reviewed_at": "2026-09-12"
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "104"
+    }
+  },
+  {
+    "id": "alaves",
+    "name": "阿拉维斯",
+    "english_name": "Alavés",
+    "aliases": [
+      "阿拉维斯竞技",
+      "Deportivo Alaves",
+      "Deportivo Alavés"
+    ],
+    "short_name": "ALA",
+    "color": "#0000ff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "维多利亚",
+    "official_url": "https://www.deportivoalaves.com/",
+    "description": "阿拉维斯是来自维多利亚的西班牙足球俱乐部，英文名称为 Alavés。西甲官方俱乐部资料登记的创立年份为 1921 年。",
+    "crest_url": "/assets/clubs/alaves.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/96/alaves",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/96.png",
+    "crest_attribution": "阿拉维斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "阿拉维斯官方",
+        "url": "https://www.deportivoalaves.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/96/alaves"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_alaves",
+        "name": "阿拉维斯官方",
+        "url": "https://www.deportivoalaves.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        },
+        "allowed_hosts": [
+          "deportivoalaves.com"
+        ]
+      },
+      {
+        "id": "guardian_alaves",
+        "name": "The Guardian · Alavés",
+        "url": "https://www.theguardian.com/football/alaves/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Alaves | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_alaves",
+        "name": "ESPN · Alavés",
+        "url": "https://www.espn.com/soccer/club/_/id/96/alaves",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "96"
+    },
+    "founded": 1921
+  },
+  {
+    "id": "athletic-club",
+    "name": "毕尔巴鄂竞技",
+    "english_name": "Athletic Club",
+    "aliases": [
+      "毕包",
+      "Athletic Bilbao",
+      "Athletic"
+    ],
+    "short_name": "ATH",
+    "color": "#C8142F",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "毕尔巴鄂",
+    "official_url": "https://www.athletic-club.eus/",
+    "description": "毕尔巴鄂竞技是来自毕尔巴鄂的西班牙足球俱乐部，英文名称为 Athletic Club。西甲官方俱乐部资料登记的创立年份为 1898 年。",
+    "crest_url": "/assets/clubs/athletic-club.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/93/athletic-club",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/93.png",
+    "crest_attribution": "毕尔巴鄂竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "毕尔巴鄂竞技官方",
+        "url": "https://www.athletic-club.eus/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/93/athletic-club"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_athletic_club",
+        "name": "毕尔巴鄂竞技官方",
+        "url": "https://www.athletic-club.eus/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "access_limited",
+          "note": "自动访问受限：HTTP Error 403: Forbidden。保留真实官网入口，优先使用公开媒体来源。"
+        }
+      },
+      {
+        "id": "guardian_athletic_club",
+        "name": "The Guardian · Athletic Club",
+        "url": "https://www.theguardian.com/football/athleticbilbao/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Athletic Bilbao | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_athletic_club",
+        "name": "ESPN · Athletic Club",
+        "url": "https://www.espn.com/soccer/club/_/id/93/athletic-club",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "93"
+    },
+    "founded": 1898
+  },
+  {
+    "id": "celta-vigo",
+    "name": "塞尔塔",
+    "english_name": "Celta Vigo",
+    "aliases": [
+      "维戈塞尔塔",
+      "RC Celta",
+      "Celta de Vigo"
+    ],
+    "short_name": "CEL",
+    "color": "#6cace4",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "维戈",
+    "official_url": "https://rccelta.es/",
+    "description": "塞尔塔是来自维戈的西班牙足球俱乐部，英文名称为 Celta Vigo。西甲官方俱乐部资料登记的创立年份为 1923 年。",
+    "crest_url": "/assets/clubs/celta-vigo.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/85/celta-vigo",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/85.png",
+    "crest_attribution": "塞尔塔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "塞尔塔官方",
+        "url": "https://rccelta.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/85/celta-vigo"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_celta_vigo",
+        "name": "塞尔塔官方",
+        "url": "https://rccelta.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_celta_vigo",
+        "name": "The Guardian · Celta Vigo",
+        "url": "https://www.theguardian.com/football/celtavigo/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Celta Vigo | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_celta_vigo",
+        "name": "ESPN · Celta Vigo",
+        "url": "https://www.espn.com/soccer/club/_/id/85/celta-vigo",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "85"
+    },
+    "founded": 1923
+  },
+  {
+    "id": "deportivo-la-coruna",
+    "name": "拉科鲁尼亚",
+    "english_name": "Deportivo",
+    "aliases": [
+      "拉科",
+      "RC Deportivo",
+      "Deportivo La Coruna",
+      "Deportivo La Coruña"
+    ],
+    "short_name": "DEP",
+    "color": "#3366CC",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "拉科鲁尼亚",
+    "official_url": "https://www.rcdeportivo.es/",
+    "description": "拉科鲁尼亚是来自拉科鲁尼亚的西班牙足球俱乐部，英文名称为 Deportivo。西甲官方俱乐部资料登记的创立年份为 1906 年。",
+    "crest_url": "/assets/clubs/deportivo-la-coruna.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/90/deportivo",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/90.png",
+    "crest_attribution": "拉科鲁尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "拉科鲁尼亚官方",
+        "url": "https://www.rcdeportivo.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/90/deportivo"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_deportivo_la_coruna",
+        "name": "拉科鲁尼亚官方",
+        "url": "https://www.rcdeportivo.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_deportivo_la_coruna",
+        "name": "The Guardian · Deportivo",
+        "url": "https://www.theguardian.com/football/deportivo-la-coruna/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Deportivo A Coruña | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_deportivo_la_coruna",
+        "name": "ESPN · Deportivo",
+        "url": "https://www.espn.com/soccer/club/_/id/90/deportivo",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "90"
+    },
+    "founded": 1906
+  },
+  {
+    "id": "elche",
+    "name": "埃尔切",
+    "english_name": "Elche",
+    "aliases": [
+      "艾尔切",
+      "Elche CF"
+    ],
+    "short_name": "ELC",
+    "color": "#288A00",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "埃尔切",
+    "official_url": "https://www.elchecf.es/",
+    "description": "埃尔切是来自埃尔切的西班牙足球俱乐部，英文名称为 Elche。西甲官方俱乐部资料登记的创立年份为 1923 年。",
+    "crest_url": "/assets/clubs/elche.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3751/elche",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3751.png",
+    "crest_attribution": "埃尔切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "埃尔切官方",
+        "url": "https://www.elchecf.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3751/elche"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_elche",
+        "name": "埃尔切官方",
+        "url": "https://www.elchecf.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_elche",
+        "name": "The Guardian · Elche",
+        "url": "https://www.theguardian.com/football/elche-cf/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Elche CF | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_elche",
+        "name": "ESPN · Elche",
+        "url": "https://www.espn.com/soccer/club/_/id/3751/elche",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3751"
+    },
+    "founded": 1923
+  },
+  {
+    "id": "espanyol",
+    "name": "西班牙人",
+    "english_name": "Espanyol",
+    "aliases": [
+      "爱斯宾奴",
+      "RCD Espanyol"
+    ],
+    "short_name": "ESP",
+    "color": "#3366CC",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "巴塞罗那",
+    "official_url": "https://www.rcdespanyol.com/",
+    "description": "西班牙人是来自巴塞罗那的西班牙足球俱乐部，英文名称为 Espanyol。西甲官方俱乐部资料登记的创立年份为 1900 年。",
+    "crest_url": "/assets/clubs/espanyol.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/88/espanyol",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/88.png",
+    "crest_attribution": "西班牙人俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "西班牙人官方",
+        "url": "https://www.rcdespanyol.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/88/espanyol"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_espanyol",
+        "name": "西班牙人官方",
+        "url": "https://www.rcdespanyol.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_espanyol",
+        "name": "The Guardian · Espanyol",
+        "url": "https://www.theguardian.com/football/espanyol/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Espanyol | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_espanyol",
+        "name": "ESPN · Espanyol",
+        "url": "https://www.espn.com/soccer/club/_/id/88/espanyol",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "88"
+    },
+    "founded": 1900
+  },
+  {
+    "id": "getafe",
+    "name": "赫塔费",
+    "english_name": "Getafe",
+    "aliases": [
+      "基达菲",
+      "Getafe CF"
+    ],
+    "short_name": "GET",
+    "color": "#0000ff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "赫塔费",
+    "official_url": "https://www.getafecf.com/",
+    "description": "赫塔费是来自赫塔费的西班牙足球俱乐部，英文名称为 Getafe。西甲官方俱乐部资料登记的创立年份为 1983 年。",
+    "crest_url": "/assets/clubs/getafe.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2922/getafe",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2922.png",
+    "crest_attribution": "赫塔费俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "赫塔费官方",
+        "url": "https://www.getafecf.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2922/getafe"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_getafe",
+        "name": "赫塔费官方",
+        "url": "https://www.getafecf.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_getafe",
+        "name": "The Guardian · Getafe",
+        "url": "https://www.theguardian.com/football/getafe/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Getafe | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_getafe",
+        "name": "ESPN · Getafe",
+        "url": "https://www.espn.com/soccer/club/_/id/2922/getafe",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2922"
+    },
+    "founded": 1983
+  },
+  {
+    "id": "levante",
+    "name": "莱万特",
+    "english_name": "Levante",
+    "aliases": [
+      "利云特",
+      "Levante UD"
+    ],
+    "short_name": "LEV",
+    "color": "#C8142F",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "瓦伦西亚",
+    "official_url": "https://www.levanteud.com/",
+    "description": "莱万特是来自瓦伦西亚的西班牙足球俱乐部，英文名称为 Levante。西甲官方俱乐部资料登记的创立年份为 1909 年。",
+    "crest_url": "/assets/clubs/levante.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/1538/levante",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/1538.png",
+    "crest_attribution": "莱万特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "莱万特官方",
+        "url": "https://www.levanteud.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/1538/levante"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_levante",
+        "name": "莱万特官方",
+        "url": "https://www.levanteud.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_levante",
+        "name": "The Guardian · Levante",
+        "url": "https://www.theguardian.com/football/levante/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Levante | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_levante",
+        "name": "ESPN · Levante",
+        "url": "https://www.espn.com/soccer/club/_/id/1538/levante",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "1538"
+    },
+    "founded": 1909
+  },
+  {
+    "id": "malaga",
+    "name": "马拉加",
+    "english_name": "Málaga",
+    "aliases": [
+      "马拉加CF",
+      "Malaga CF",
+      "Málaga CF"
+    ],
+    "short_name": "MCF",
+    "color": "#b9e8f0",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "马拉加",
+    "official_url": "https://www.malagacf.com/",
+    "description": "马拉加是来自马拉加的西班牙足球俱乐部，英文名称为 Málaga。西甲官方俱乐部资料登记的创立年份为 1994 年。",
+    "crest_url": "/assets/clubs/malaga.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/99/malaga",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/99.png",
+    "crest_attribution": "马拉加俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "马拉加官方",
+        "url": "https://www.malagacf.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/99/malaga"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_malaga",
+        "name": "马拉加官方",
+        "url": "https://www.malagacf.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_malaga",
+        "name": "The Guardian · Málaga",
+        "url": "https://www.theguardian.com/football/malaga/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Málaga | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_malaga",
+        "name": "ESPN · Málaga",
+        "url": "https://www.espn.com/soccer/club/_/id/99/malaga",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "99"
+    },
+    "founded": 1994
+  },
+  {
+    "id": "osasuna",
+    "name": "奥萨苏纳",
+    "english_name": "Osasuna",
+    "aliases": [
+      "奥沙辛拿",
+      "CA Osasuna"
+    ],
+    "short_name": "OSA",
+    "color": "#cd0000",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "潘普洛纳",
+    "official_url": "https://www.osasuna.es/",
+    "description": "奥萨苏纳是来自潘普洛纳的西班牙足球俱乐部，英文名称为 Osasuna。西甲官方俱乐部资料登记的创立年份为 1920 年。",
+    "crest_url": "/assets/clubs/osasuna.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/97/osasuna",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/97.png",
+    "crest_attribution": "奥萨苏纳俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "奥萨苏纳官方",
+        "url": "https://www.osasuna.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/97/osasuna"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_osasuna",
+        "name": "奥萨苏纳官方",
+        "url": "https://www.osasuna.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_osasuna",
+        "name": "The Guardian · Osasuna",
+        "url": "https://www.theguardian.com/football/osasuna/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Osasuna | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_osasuna",
+        "name": "ESPN · Osasuna",
+        "url": "https://www.espn.com/soccer/club/_/id/97/osasuna",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "97"
+    },
+    "founded": 1920
+  },
+  {
+    "id": "racing-santander",
+    "name": "桑坦德竞技",
+    "english_name": "Racing Santander",
+    "aliases": [
+      "桑坦德竞赛",
+      "Racing Club",
+      "Real Racing Club",
+      "Racing"
+    ],
+    "short_name": "RAC",
+    "color": "#ffffff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "桑坦德",
+    "official_url": "https://www.realracingclub.es/",
+    "description": "桑坦德竞技是来自桑坦德的西班牙足球俱乐部，英文名称为 Racing Santander。西甲官方俱乐部资料登记的创立年份为 1913 年。",
+    "crest_url": "/assets/clubs/racing-santander.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/87/racing-santander",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/87.png",
+    "crest_attribution": "桑坦德竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "桑坦德竞技官方",
+        "url": "https://www.realracingclub.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/87/racing-santander"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_racing_santander",
+        "name": "桑坦德竞技官方",
+        "url": "https://www.realracingclub.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_racing_santander",
+        "name": "The Guardian · Racing Santander",
+        "url": "https://www.theguardian.com/football/racingsantander/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Racing Santander | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_racing_santander",
+        "name": "ESPN · Racing Santander",
+        "url": "https://www.espn.com/soccer/club/_/id/87/racing-santander",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "87"
+    },
+    "founded": 1913
+  },
+  {
+    "id": "rayo-vallecano",
+    "name": "巴列卡诺",
+    "english_name": "Rayo Vallecano",
+    "aliases": [
+      "巴列卡诺闪电",
+      "华历简奴",
+      "Rayo"
+    ],
+    "short_name": "RAY",
+    "color": "#ffffff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "马德里",
+    "official_url": "https://www.rayovallecano.es/",
+    "description": "巴列卡诺是来自马德里的西班牙足球俱乐部，英文名称为 Rayo Vallecano。西甲官方俱乐部资料登记的创立年份为 1924 年。",
+    "crest_url": "/assets/clubs/rayo-vallecano.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/101/rayo-vallecano",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/101.png",
+    "crest_attribution": "巴列卡诺俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "巴列卡诺官方",
+        "url": "https://www.rayovallecano.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/101/rayo-vallecano"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_rayo_vallecano",
+        "name": "巴列卡诺官方",
+        "url": "https://www.rayovallecano.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_rayo_vallecano",
+        "name": "The Guardian · Rayo Vallecano",
+        "url": "https://www.theguardian.com/football/rayo-vallecano/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Rayo Vallecano | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_rayo_vallecano",
+        "name": "ESPN · Rayo Vallecano",
+        "url": "https://www.espn.com/soccer/club/_/id/101/rayo-vallecano",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "101"
+    },
+    "founded": 1924
+  },
+  {
+    "id": "real-betis",
+    "name": "皇家贝蒂斯",
+    "english_name": "Real Betis",
+    "aliases": [
+      "贝蒂斯",
+      "贝迪斯",
+      "Real Betis Balompie",
+      "Betis"
+    ],
+    "short_name": "BET",
+    "color": "#288A00",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "塞维利亚",
+    "official_url": "https://www.realbetisbalompie.es/",
+    "description": "皇家贝蒂斯是来自塞维利亚的西班牙足球俱乐部，英文名称为 Real Betis。西甲官方俱乐部资料登记的创立年份为 1907 年。",
+    "crest_url": "/assets/clubs/real-betis.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/244/real-betis",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/244.png",
+    "crest_attribution": "皇家贝蒂斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "皇家贝蒂斯官方",
+        "url": "https://www.realbetisbalompie.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/244/real-betis"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_real_betis",
+        "name": "皇家贝蒂斯官方",
+        "url": "https://www.realbetisbalompie.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_real_betis",
+        "name": "The Guardian · Real Betis",
+        "url": "https://www.theguardian.com/football/realbetis/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Real Betis | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_real_betis",
+        "name": "ESPN · Real Betis",
+        "url": "https://www.espn.com/soccer/club/_/id/244/real-betis",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "244"
+    },
+    "founded": 1907
+  },
+  {
+    "id": "real-sociedad",
+    "name": "皇家社会",
+    "english_name": "Real Sociedad",
+    "aliases": [
+      "皇家苏斯达",
+      "Real Sociedad de Futbol"
+    ],
+    "short_name": "RSO",
+    "color": "#3366CC",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "圣塞瓦斯蒂安",
+    "official_url": "https://www.realsociedad.eus/",
+    "description": "皇家社会是来自圣塞瓦斯蒂安的西班牙足球俱乐部，英文名称为 Real Sociedad。西甲官方俱乐部资料登记的创立年份为 1909 年。",
+    "crest_url": "/assets/clubs/real-sociedad.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/89/real-sociedad",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/89.png",
+    "crest_attribution": "皇家社会俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "皇家社会官方",
+        "url": "https://www.realsociedad.eus/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/89/real-sociedad"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_real_sociedad",
+        "name": "皇家社会官方",
+        "url": "https://www.realsociedad.eus/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_real_sociedad",
+        "name": "The Guardian · Real Sociedad",
+        "url": "https://www.theguardian.com/football/realsociedad/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Real Sociedad | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_real_sociedad",
+        "name": "ESPN · Real Sociedad",
+        "url": "https://www.espn.com/soccer/club/_/id/89/real-sociedad",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "89"
+    },
+    "founded": 1909
+  },
+  {
+    "id": "sevilla",
+    "name": "塞维利亚",
+    "english_name": "Sevilla",
+    "aliases": [
+      "西维尔",
+      "Sevilla FC"
+    ],
+    "short_name": "SEV",
+    "color": "#ffffff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "塞维利亚",
+    "official_url": "https://sevillafc.es/",
+    "description": "塞维利亚是来自塞维利亚的西班牙足球俱乐部，英文名称为 Sevilla。西甲官方俱乐部资料登记的创立年份为 1890 年。",
+    "crest_url": "/assets/clubs/sevilla.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/243/sevilla",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/243.png",
+    "crest_attribution": "塞维利亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "塞维利亚官方",
+        "url": "https://sevillafc.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/243/sevilla"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_sevilla",
+        "name": "塞维利亚官方",
+        "url": "https://sevillafc.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_sevilla",
+        "name": "The Guardian · Sevilla",
+        "url": "https://www.theguardian.com/football/sevilla/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Sevilla | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_sevilla",
+        "name": "ESPN · Sevilla",
+        "url": "https://www.espn.com/soccer/club/_/id/243/sevilla",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "243"
+    },
+    "founded": 1890
+  },
+  {
+    "id": "valencia",
+    "name": "瓦伦西亚",
+    "english_name": "Valencia",
+    "aliases": [
+      "巴伦西亚",
+      "华伦西亚",
+      "Valencia CF"
+    ],
+    "short_name": "VAL",
+    "color": "#ffffff",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "瓦伦西亚",
+    "official_url": "https://www.valenciacf.com/",
+    "description": "瓦伦西亚是来自瓦伦西亚的西班牙足球俱乐部，英文名称为 Valencia。西甲官方俱乐部资料登记的创立年份为 1919 年。",
+    "crest_url": "/assets/clubs/valencia.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/94/valencia",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/94.png",
+    "crest_attribution": "瓦伦西亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "瓦伦西亚官方",
+        "url": "https://www.valenciacf.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/94/valencia"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_valencia",
+        "name": "瓦伦西亚官方",
+        "url": "https://www.valenciacf.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_valencia",
+        "name": "The Guardian · Valencia",
+        "url": "https://www.theguardian.com/football/valencia/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Valencia | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_valencia",
+        "name": "ESPN · Valencia",
+        "url": "https://www.espn.com/soccer/club/_/id/94/valencia",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "94"
+    },
+    "founded": 1919
+  },
+  {
+    "id": "villarreal",
+    "name": "比利亚雷亚尔",
+    "english_name": "Villarreal",
+    "aliases": [
+      "黄潜",
+      "维拉利尔",
+      "Villarreal CF"
+    ],
+    "short_name": "VIL",
+    "color": "#ffff00",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "比利亚雷亚尔",
+    "official_url": "https://villarrealcf.es/",
+    "description": "比利亚雷亚尔是来自比利亚雷亚尔的西班牙足球俱乐部，英文名称为 Villarreal。西甲官方俱乐部资料登记的创立年份为 1923 年。",
+    "crest_url": "/assets/clubs/villarreal.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/102/villarreal",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/102.png",
+    "crest_attribution": "比利亚雷亚尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "比利亚雷亚尔官方",
+        "url": "https://villarrealcf.es/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.laliga.com/en-US/laliga-easports/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/102/villarreal"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_villarreal",
+        "name": "比利亚雷亚尔官方",
+        "url": "https://villarrealcf.es/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_villarreal",
+        "name": "The Guardian · Villarreal",
+        "url": "https://www.theguardian.com/football/villarreal/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Villarreal | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_villarreal",
+        "name": "ESPN · Villarreal",
+        "url": "https://www.espn.com/soccer/club/_/id/102/villarreal",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "102"
+    },
+    "founded": 1923
+  },
+  {
+    "id": "atalanta",
+    "name": "亚特兰大",
+    "english_name": "Atalanta",
+    "aliases": [
+      "阿特兰大",
+      "Atalanta BC"
+    ],
+    "short_name": "ATA",
+    "color": "#1157bf",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "贝加莫",
+    "official_url": "https://www.atalanta.it/",
+    "description": "亚特兰大是来自贝加莫的意大利足球俱乐部，英文名称为 Atalanta。意甲官方俱乐部目录列出的主场为 New Balance Arena。",
+    "crest_url": "/assets/clubs/atalanta.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/105/atalanta",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/105.png",
+    "crest_attribution": "亚特兰大俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "亚特兰大官方",
+        "url": "https://www.atalanta.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/105/atalanta"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_atalanta",
+        "name": "亚特兰大官方",
+        "url": "https://www.atalanta.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_atalanta",
+        "name": "The Guardian · Atalanta",
+        "url": "https://www.theguardian.com/football/atalanta/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Atalanta | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_atalanta",
+        "name": "ESPN · Atalanta",
+        "url": "https://www.espn.com/soccer/club/_/id/105/atalanta",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "105"
+    },
+    "stadium": "New Balance Arena"
+  },
+  {
+    "id": "bologna",
+    "name": "博洛尼亚",
+    "english_name": "Bologna",
+    "aliases": [
+      "博洛尼亚FC",
+      "Bologna FC"
+    ],
+    "short_name": "BOL",
+    "color": "#04043d",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "博洛尼亚",
+    "official_url": "https://www.bolognafc.it/",
+    "description": "博洛尼亚是来自博洛尼亚的意大利足球俱乐部，英文名称为 Bologna。意甲官方俱乐部目录列出的主场为 Renato Dall’Ara。",
+    "crest_url": "/assets/clubs/bologna.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/107/bologna",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/107.png",
+    "crest_attribution": "博洛尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "博洛尼亚官方",
+        "url": "https://www.bolognafc.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/107/bologna"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_bologna",
+        "name": "博洛尼亚官方",
+        "url": "https://www.bolognafc.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "access_limited",
+          "note": "自动访问受限：HTTP Error 403: Forbidden。保留真实官网入口，优先使用公开媒体来源。"
+        }
+      },
+      {
+        "id": "guardian_bologna",
+        "name": "The Guardian · Bologna",
+        "url": "https://www.theguardian.com/football/bologna/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Bologna | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_bologna",
+        "name": "ESPN · Bologna",
+        "url": "https://www.espn.com/soccer/club/_/id/107/bologna",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "107"
+    },
+    "stadium": "Renato Dall’Ara"
+  },
+  {
+    "id": "cagliari",
+    "name": "卡利亚里",
+    "english_name": "Cagliari",
+    "aliases": [
+      "卡利亚里竞技",
+      "Cagliari Calcio"
+    ],
+    "short_name": "CAG",
+    "color": "#282846",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "卡利亚里",
+    "official_url": "https://cagliaricalcio.com/",
+    "description": "卡利亚里是来自卡利亚里的意大利足球俱乐部，英文名称为 Cagliari。意甲官方俱乐部目录列出的主场为 Unipol Domus。",
+    "crest_url": "/assets/clubs/cagliari.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2925/cagliari",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2925.png",
+    "crest_attribution": "卡利亚里俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "卡利亚里官方",
+        "url": "https://cagliaricalcio.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2925/cagliari"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_cagliari",
+        "name": "卡利亚里官方",
+        "url": "https://cagliaricalcio.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_cagliari",
+        "name": "The Guardian · Cagliari",
+        "url": "https://www.theguardian.com/football/cagliari/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Cagliari | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_cagliari",
+        "name": "ESPN · Cagliari",
+        "url": "https://www.espn.com/soccer/club/_/id/2925/cagliari",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2925"
+    },
+    "stadium": "Unipol Domus"
+  },
+  {
+    "id": "como",
+    "name": "科莫",
+    "english_name": "Como",
+    "aliases": [
+      "科莫1907",
+      "Como 1907"
+    ],
+    "short_name": "COMO",
+    "color": "#4169E1",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "科莫",
+    "official_url": "https://comofootball.com/",
+    "description": "科莫是来自科莫的意大利足球俱乐部，英文名称为 Como。意甲官方俱乐部目录列出的主场为 Giuseppe Sinigaglia。",
+    "crest_url": "/assets/clubs/como.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2572/como",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2572.png",
+    "crest_attribution": "科莫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "科莫官方",
+        "url": "https://comofootball.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2572/como"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_como",
+        "name": "科莫官方",
+        "url": "https://comofootball.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_como",
+        "name": "The Guardian · Como",
+        "url": "https://www.theguardian.com/football/como/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Como | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_como",
+        "name": "ESPN · Como",
+        "url": "https://www.espn.com/soccer/club/_/id/2572/como",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2572"
+    },
+    "stadium": "Giuseppe Sinigaglia"
+  },
+  {
+    "id": "fiorentina",
+    "name": "佛罗伦萨",
+    "english_name": "Fiorentina",
+    "aliases": [
+      "佛罗伦斯",
+      "紫百合",
+      "ACF Fiorentina"
+    ],
+    "short_name": "FIO",
+    "color": "#4c1d84",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "佛罗伦萨",
+    "official_url": "https://www.acffiorentina.com/",
+    "description": "佛罗伦萨是来自佛罗伦萨的意大利足球俱乐部，英文名称为 Fiorentina。意甲官方俱乐部目录列出的主场为 Artemio Franchi。",
+    "crest_url": "/assets/clubs/fiorentina.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/109/fiorentina",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/109.png",
+    "crest_attribution": "佛罗伦萨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "佛罗伦萨官方",
+        "url": "https://www.acffiorentina.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/109/fiorentina"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_fiorentina",
+        "name": "佛罗伦萨官方",
+        "url": "https://www.acffiorentina.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_fiorentina",
+        "name": "The Guardian · Fiorentina",
+        "url": "https://www.theguardian.com/football/fiorentina/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Fiorentina | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_fiorentina",
+        "name": "ESPN · Fiorentina",
+        "url": "https://www.espn.com/soccer/club/_/id/109/fiorentina",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "109"
+    },
+    "stadium": "Artemio Franchi"
+  },
+  {
+    "id": "frosinone",
+    "name": "弗罗西诺内",
+    "english_name": "Frosinone",
+    "aliases": [
+      "费辛隆尼",
+      "Frosinone Calcio"
+    ],
+    "short_name": "FRO",
+    "color": "#FACF08",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "弗罗西诺内",
+    "official_url": "https://www.frosinonecalcio.com/",
+    "description": "弗罗西诺内是来自弗罗西诺内的意大利足球俱乐部，英文名称为 Frosinone。意甲官方俱乐部目录列出的主场为 Benito Stirpe。",
+    "crest_url": "/assets/clubs/frosinone.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/4057/frosinone",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/4057.png",
+    "crest_attribution": "弗罗西诺内俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "弗罗西诺内官方",
+        "url": "https://www.frosinonecalcio.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/4057/frosinone"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_frosinone",
+        "name": "弗罗西诺内官方",
+        "url": "https://www.frosinonecalcio.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_frosinone",
+        "name": "The Guardian · Frosinone",
+        "url": "https://www.theguardian.com/football/frosinone/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Frosinone | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_frosinone",
+        "name": "ESPN · Frosinone",
+        "url": "https://www.espn.com/soccer/club/_/id/4057/frosinone",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "4057"
+    },
+    "stadium": "Benito Stirpe"
+  },
+  {
+    "id": "genoa",
+    "name": "热那亚",
+    "english_name": "Genoa",
+    "aliases": [
+      "热拿亚",
+      "Genoa CFC"
+    ],
+    "short_name": "GEN",
+    "color": "#08305d",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "热那亚",
+    "official_url": "https://genoacfc.it/",
+    "description": "热那亚是来自热那亚的意大利足球俱乐部，英文名称为 Genoa。意甲官方俱乐部目录列出的主场为 Luigi Ferraris。",
+    "crest_url": "/assets/clubs/genoa.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3263/genoa",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3263.png",
+    "crest_attribution": "热那亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "热那亚官方",
+        "url": "https://genoacfc.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3263/genoa"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_genoa",
+        "name": "热那亚官方",
+        "url": "https://genoacfc.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_genoa",
+        "name": "The Guardian · Genoa",
+        "url": "https://www.theguardian.com/football/genoa/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Genoa | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_genoa",
+        "name": "ESPN · Genoa",
+        "url": "https://www.espn.com/soccer/club/_/id/3263/genoa",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3263"
+    },
+    "stadium": "Luigi Ferraris"
+  },
+  {
+    "id": "lazio",
+    "name": "拉齐奥",
+    "english_name": "Lazio",
+    "aliases": [
+      "拉素",
+      "SS Lazio"
+    ],
+    "short_name": "LAZ",
+    "color": "#74bde7",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "罗马",
+    "official_url": "https://www.sslazio.it/",
+    "description": "拉齐奥是来自罗马的意大利足球俱乐部，英文名称为 Lazio。意甲官方俱乐部目录列出的主场为 Olimpico。",
+    "crest_url": "/assets/clubs/lazio.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/112/lazio",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/112.png",
+    "crest_attribution": "拉齐奥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "拉齐奥官方",
+        "url": "https://www.sslazio.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/112/lazio"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lazio",
+        "name": "拉齐奥官方",
+        "url": "https://www.sslazio.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_lazio",
+        "name": "The Guardian · Lazio",
+        "url": "https://www.theguardian.com/football/lazio/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lazio | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lazio",
+        "name": "ESPN · Lazio",
+        "url": "https://www.espn.com/soccer/club/_/id/112/lazio",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "112"
+    },
+    "stadium": "Olimpico"
+  },
+  {
+    "id": "lecce",
+    "name": "莱切",
+    "english_name": "Lecce",
+    "aliases": [
+      "莱切体育",
+      "US Lecce"
+    ],
+    "short_name": "LEC",
+    "color": "#FCED0B",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "莱切",
+    "official_url": "https://www.uslecce.it/",
+    "description": "莱切是来自莱切的意大利足球俱乐部，英文名称为 Lecce。意甲官方俱乐部目录列出的主场为 Ettore Giardiniero - Via del Mare。",
+    "crest_url": "/assets/clubs/lecce.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/113/lecce",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/113.png",
+    "crest_attribution": "莱切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "莱切官方",
+        "url": "https://www.uslecce.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/113/lecce"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lecce",
+        "name": "莱切官方",
+        "url": "https://www.uslecce.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        },
+        "allowed_hosts": [
+          "uslecce.it"
+        ]
+      },
+      {
+        "id": "guardian_lecce",
+        "name": "The Guardian · Lecce",
+        "url": "https://www.theguardian.com/football/lecce/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lecce | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lecce",
+        "name": "ESPN · Lecce",
+        "url": "https://www.espn.com/soccer/club/_/id/113/lecce",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "113"
+    },
+    "stadium": "Ettore Giardiniero - Via del Mare"
+  },
+  {
+    "id": "monza",
+    "name": "蒙扎",
+    "english_name": "Monza",
+    "aliases": [
+      "蒙沙",
+      "AC Monza"
+    ],
+    "short_name": "MON",
+    "color": "#C8142F",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "蒙扎",
+    "official_url": "https://www.acmonza.com/",
+    "description": "蒙扎是来自蒙扎的意大利足球俱乐部，英文名称为 Monza。意甲官方俱乐部目录列出的主场为 Brianteo。",
+    "crest_url": "/assets/clubs/monza.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/4007/monza",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/4007.png",
+    "crest_attribution": "蒙扎俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "蒙扎官方",
+        "url": "https://www.acmonza.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/4007/monza"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_monza",
+        "name": "蒙扎官方",
+        "url": "https://www.acmonza.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_monza",
+        "name": "The Guardian · Monza",
+        "url": "https://www.theguardian.com/football/monza/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Monza | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_monza",
+        "name": "ESPN · Monza",
+        "url": "https://www.espn.com/soccer/club/_/id/4007/monza",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "4007"
+    },
+    "stadium": "Brianteo"
+  },
+  {
+    "id": "napoli",
+    "name": "那不勒斯",
+    "english_name": "Napoli",
+    "aliases": [
+      "拿坡里",
+      "SSC Napoli"
+    ],
+    "short_name": "NAP",
+    "color": "#0677d2",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "那不勒斯",
+    "official_url": "https://sscnapoli.it/",
+    "description": "那不勒斯是来自那不勒斯的意大利足球俱乐部，英文名称为 Napoli。意甲官方俱乐部目录列出的主场为 Diego Armando Maradona。",
+    "crest_url": "/assets/clubs/napoli.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/114/napoli",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/114.png",
+    "crest_attribution": "那不勒斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "那不勒斯官方",
+        "url": "https://sscnapoli.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/114/napoli"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_napoli",
+        "name": "那不勒斯官方",
+        "url": "https://sscnapoli.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_napoli",
+        "name": "The Guardian · Napoli",
+        "url": "https://www.theguardian.com/football/napoli/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Napoli | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_napoli",
+        "name": "ESPN · Napoli",
+        "url": "https://www.espn.com/soccer/club/_/id/114/napoli",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "114"
+    },
+    "stadium": "Diego Armando Maradona"
+  },
+  {
+    "id": "parma",
+    "name": "帕尔马",
+    "english_name": "Parma",
+    "aliases": [
+      "帕尔马1913",
+      "Parma Calcio"
+    ],
+    "short_name": "PAR",
+    "color": "#19161D",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "帕尔马",
+    "official_url": "https://www.parmacalcio1913.com/",
+    "description": "帕尔马是来自帕尔马的意大利足球俱乐部，英文名称为 Parma。意甲官方俱乐部目录列出的主场为 Ennio Tardini。",
+    "crest_url": "/assets/clubs/parma.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/115/parma",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/115.png",
+    "crest_attribution": "帕尔马俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "帕尔马官方",
+        "url": "https://www.parmacalcio1913.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/115/parma"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_parma",
+        "name": "帕尔马官方",
+        "url": "https://www.parmacalcio1913.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_parma",
+        "name": "The Guardian · Parma",
+        "url": "https://www.theguardian.com/football/parma/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Parma | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_parma",
+        "name": "ESPN · Parma",
+        "url": "https://www.espn.com/soccer/club/_/id/115/parma",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "115"
+    },
+    "stadium": "Ennio Tardini"
+  },
+  {
+    "id": "sassuolo",
+    "name": "萨索洛",
+    "english_name": "Sassuolo",
+    "aliases": [
+      "萨斯索罗",
+      "US Sassuolo"
+    ],
+    "short_name": "SAS",
+    "color": "#0fa653",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "萨索洛",
+    "official_url": "https://www.sassuolocalcio.it/",
+    "description": "萨索洛是来自萨索洛的意大利足球俱乐部，英文名称为 Sassuolo。意甲官方俱乐部目录列出的主场为 Mapei Stadium。",
+    "crest_url": "/assets/clubs/sassuolo.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3997/sassuolo",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3997.png",
+    "crest_attribution": "萨索洛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "萨索洛官方",
+        "url": "https://www.sassuolocalcio.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3997/sassuolo"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_sassuolo",
+        "name": "萨索洛官方",
+        "url": "https://www.sassuolocalcio.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_sassuolo",
+        "name": "The Guardian · Sassuolo",
+        "url": "https://www.theguardian.com/football/sassuolo/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Sassuolo | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_sassuolo",
+        "name": "ESPN · Sassuolo",
+        "url": "https://www.espn.com/soccer/club/_/id/3997/sassuolo",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3997"
+    },
+    "stadium": "Mapei Stadium"
+  },
+  {
+    "id": "torino",
+    "name": "都灵",
+    "english_name": "Torino",
+    "aliases": [
+      "拖连奴",
+      "Torino FC"
+    ],
+    "short_name": "TOR",
+    "color": "#9f0000",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "都灵",
+    "official_url": "https://www.torinofc.it/",
+    "description": "都灵是来自都灵的意大利足球俱乐部，英文名称为 Torino。意甲官方俱乐部目录列出的主场为 Olimpico - Grande Torino。",
+    "crest_url": "/assets/clubs/torino.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/239/torino",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/239.png",
+    "crest_attribution": "都灵俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "都灵官方",
+        "url": "https://www.torinofc.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/239/torino"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_torino",
+        "name": "都灵官方",
+        "url": "https://www.torinofc.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_torino",
+        "name": "The Guardian · Torino",
+        "url": "https://www.theguardian.com/football/torino/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Torino | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_torino",
+        "name": "ESPN · Torino",
+        "url": "https://www.espn.com/soccer/club/_/id/239/torino",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "239"
+    },
+    "stadium": "Olimpico - Grande Torino"
+  },
+  {
+    "id": "udinese",
+    "name": "乌迪内斯",
+    "english_name": "Udinese",
+    "aliases": [
+      "乌甸尼斯",
+      "Udinese Calcio"
+    ],
+    "short_name": "UDI",
+    "color": "#19161D",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "乌迪内",
+    "official_url": "https://www.udinese.it/",
+    "description": "乌迪内斯是来自乌迪内的意大利足球俱乐部，英文名称为 Udinese。意甲官方俱乐部目录列出的主场为 Friuli / Bluenergy Stadium。",
+    "crest_url": "/assets/clubs/udinese.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/118/udinese",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/118.png",
+    "crest_attribution": "乌迪内斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "乌迪内斯官方",
+        "url": "https://www.udinese.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/118/udinese"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_udinese",
+        "name": "乌迪内斯官方",
+        "url": "https://www.udinese.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_udinese",
+        "name": "The Guardian · Udinese",
+        "url": "https://www.theguardian.com/football/udinese/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Udinese | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_udinese",
+        "name": "ESPN · Udinese",
+        "url": "https://www.espn.com/soccer/club/_/id/118/udinese",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "118"
+    },
+    "stadium": "Friuli / Bluenergy Stadium"
+  },
+  {
+    "id": "venezia",
+    "name": "威尼斯",
+    "english_name": "Venezia",
+    "aliases": [
+      "威尼斯FC",
+      "Venezia FC"
+    ],
+    "short_name": "VEN",
+    "color": "#000000",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "威尼斯",
+    "official_url": "https://www.veneziafc.it/",
+    "description": "威尼斯是来自威尼斯的意大利足球俱乐部，英文名称为 Venezia。意甲官方俱乐部目录列出的主场为 Pier Luigi Penzo。",
+    "crest_url": "/assets/clubs/venezia.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/17530/venezia",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/17530.png",
+    "crest_attribution": "威尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "威尼斯官方",
+        "url": "https://www.veneziafc.it/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.legaseriea.it/team"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/17530/venezia"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_venezia",
+        "name": "威尼斯官方",
+        "url": "https://www.veneziafc.it/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_venezia",
+        "name": "The Guardian · Venezia",
+        "url": "https://www.theguardian.com/football/venezia/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Venezia | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_venezia",
+        "name": "ESPN · Venezia",
+        "url": "https://www.espn.com/soccer/club/_/id/17530/venezia",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "17530"
+    },
+    "stadium": "Pier Luigi Penzo"
+  },
+  {
+    "id": "union-berlin",
+    "name": "柏林联合",
+    "english_name": "1. FC Union Berlin",
+    "aliases": [
+      "柏林联",
+      "Union Berlin"
+    ],
+    "short_name": "FCU",
+    "color": "#DA0308",
+    "country": "德国",
+    "league": "德国",
+    "city": "柏林",
+    "official_url": "https://www.fc-union-berlin.de/",
+    "description": "柏林联合是来自柏林的德国足球俱乐部，英文名称为 1. FC Union Berlin。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/union-berlin.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/598/1-fc-union-berlin",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/598.png",
+    "crest_attribution": "柏林联合俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "柏林联合官方",
+        "url": "https://www.fc-union-berlin.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/598/1-fc-union-berlin"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_union_berlin",
+        "name": "柏林联合官方",
+        "url": "https://www.fc-union-berlin.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_union_berlin",
+        "name": "The Guardian · 1. FC Union Berlin",
+        "url": "https://www.theguardian.com/football/union-berlin/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Union Berlin | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_union_berlin",
+        "name": "ESPN · 1. FC Union Berlin",
+        "url": "https://www.espn.com/soccer/club/_/id/598/1-fc-union-berlin",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "598"
+    }
+  },
+  {
+    "id": "bayer-leverkusen",
+    "name": "勒沃库森",
+    "english_name": "Bayer Leverkusen",
+    "aliases": [
+      "勒沃",
+      "利华古逊",
+      "Bayer 04 Leverkusen",
+      "Leverkusen"
+    ],
+    "short_name": "B04",
+    "color": "#DA0308",
+    "country": "德国",
+    "league": "德国",
+    "city": "勒沃库森",
+    "official_url": "https://www.bayer04.de/",
+    "description": "勒沃库森是来自勒沃库森的德国足球俱乐部，英文名称为 Bayer Leverkusen。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/bayer-leverkusen.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/131/bayer-leverkusen",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/131.png",
+    "crest_attribution": "勒沃库森俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "勒沃库森官方",
+        "url": "https://www.bayer04.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/131/bayer-leverkusen"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_bayer_leverkusen",
+        "name": "勒沃库森官方",
+        "url": "https://www.bayer04.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_bayer_leverkusen",
+        "name": "The Guardian · Bayer Leverkusen",
+        "url": "https://www.theguardian.com/football/bayerleverkusen/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Bayer Leverkusen | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_bayer_leverkusen",
+        "name": "ESPN · Bayer Leverkusen",
+        "url": "https://www.espn.com/soccer/club/_/id/131/bayer-leverkusen",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "131"
+    }
+  },
+  {
+    "id": "borussia-monchengladbach",
+    "name": "门兴格拉德巴赫",
+    "english_name": "Borussia Mönchengladbach",
+    "aliases": [
+      "门兴",
+      "慕逊加柏",
+      "Borussia Monchengladbach",
+      "Gladbach",
+      "Borussia Moenchengladbach"
+    ],
+    "short_name": "BMG",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "门兴格拉德巴赫",
+    "official_url": "https://www.borussia.de/",
+    "description": "门兴格拉德巴赫是来自门兴格拉德巴赫的德国足球俱乐部，英文名称为 Borussia Mönchengladbach。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/borussia-monchengladbach.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/268/borussia-monchengladbach",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/268.png",
+    "crest_attribution": "门兴格拉德巴赫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "门兴格拉德巴赫官方",
+        "url": "https://www.borussia.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/268/borussia-monchengladbach"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_borussia_monchengladbach",
+        "name": "门兴格拉德巴赫官方",
+        "url": "https://www.borussia.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_borussia_monchengladbach",
+        "name": "The Guardian · Borussia Mönchengladbach",
+        "url": "https://www.theguardian.com/football/borussiamoenchengladbach/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Borussia Mönchengladbach | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_borussia_monchengladbach",
+        "name": "ESPN · Borussia Mönchengladbach",
+        "url": "https://www.espn.com/soccer/club/_/id/268/borussia-monchengladbach",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "268"
+    }
+  },
+  {
+    "id": "eintracht-frankfurt",
+    "name": "法兰克福",
+    "english_name": "Eintracht Frankfurt",
+    "aliases": [
+      "Frankfurt"
+    ],
+    "short_name": "SGE",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "法兰克福",
+    "official_url": "https://www.eintracht.de/",
+    "description": "法兰克福是来自法兰克福的德国足球俱乐部，英文名称为 Eintracht Frankfurt。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/eintracht-frankfurt.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/125/eintracht-frankfurt",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/125.png",
+    "crest_attribution": "法兰克福俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "法兰克福官方",
+        "url": "https://www.eintracht.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/125/eintracht-frankfurt"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_eintracht_frankfurt",
+        "name": "法兰克福官方",
+        "url": "https://www.eintracht.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_eintracht_frankfurt",
+        "name": "The Guardian · Eintracht Frankfurt",
+        "url": "https://www.theguardian.com/football/eintrachtfrankfurt/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Eintracht Frankfurt | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_eintracht_frankfurt",
+        "name": "ESPN · Eintracht Frankfurt",
+        "url": "https://www.espn.com/soccer/club/_/id/125/eintracht-frankfurt",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "125"
+    }
+  },
+  {
+    "id": "augsburg",
+    "name": "奥格斯堡",
+    "english_name": "FC Augsburg",
+    "aliases": [
+      "奥格斯堡FC",
+      "Augsburg"
+    ],
+    "short_name": "FCA",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "奥格斯堡",
+    "official_url": "https://www.fcaugsburg.de/",
+    "description": "奥格斯堡是来自奥格斯堡的德国足球俱乐部，英文名称为 FC Augsburg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/augsburg.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3841/fc-augsburg",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3841.png",
+    "crest_attribution": "奥格斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "奥格斯堡官方",
+        "url": "https://www.fcaugsburg.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3841/fc-augsburg"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_augsburg",
+        "name": "奥格斯堡官方",
+        "url": "https://www.fcaugsburg.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_augsburg",
+        "name": "The Guardian · FC Augsburg",
+        "url": "https://www.theguardian.com/football/augsburg/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Augsburg | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_augsburg",
+        "name": "ESPN · FC Augsburg",
+        "url": "https://www.espn.com/soccer/club/_/id/3841/fc-augsburg",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3841"
+    }
+  },
+  {
+    "id": "cologne",
+    "name": "科隆",
+    "english_name": "FC Cologne",
+    "aliases": [
+      "科隆FC",
+      "1. FC Köln",
+      "FC Koln",
+      "FC Köln",
+      "Cologne"
+    ],
+    "short_name": "KOE",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "科隆",
+    "official_url": "https://fc.de/",
+    "description": "科隆是来自科隆的德国足球俱乐部，英文名称为 FC Cologne。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/cologne.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/122/fc-cologne",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/122.png",
+    "crest_attribution": "科隆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "科隆官方",
+        "url": "https://fc.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/122/fc-cologne"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_cologne",
+        "name": "科隆官方",
+        "url": "https://fc.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_cologne",
+        "name": "The Guardian · FC Cologne",
+        "url": "https://www.theguardian.com/football/cologne/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Cologne | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_cologne",
+        "name": "ESPN · FC Cologne",
+        "url": "https://www.espn.com/soccer/club/_/id/122/fc-cologne",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "122"
+    }
+  },
+  {
+    "id": "hamburg",
+    "name": "汉堡",
+    "english_name": "Hamburg SV",
+    "aliases": [
+      "汉堡SV",
+      "HSV",
+      "Hamburger SV",
+      "Hamburg"
+    ],
+    "short_name": "HSV",
+    "color": "#1a26af",
+    "country": "德国",
+    "league": "德国",
+    "city": "汉堡",
+    "official_url": "https://www.hsv.de/",
+    "description": "汉堡是来自汉堡的德国足球俱乐部，英文名称为 Hamburg SV。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/hamburg.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/127/hamburg-sv",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/127.png",
+    "crest_attribution": "汉堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "汉堡官方",
+        "url": "https://www.hsv.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/127/hamburg-sv"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_hamburg",
+        "name": "汉堡官方",
+        "url": "https://www.hsv.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_hamburg",
+        "name": "The Guardian · Hamburg SV",
+        "url": "https://www.theguardian.com/football/hamburg/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Hamburg | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_hamburg",
+        "name": "ESPN · Hamburg SV",
+        "url": "https://www.espn.com/soccer/club/_/id/127/hamburg-sv",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "127"
+    }
+  },
+  {
+    "id": "mainz",
+    "name": "美因茨",
+    "english_name": "Mainz",
+    "aliases": [
+      "美因茨05",
+      "缅恩斯",
+      "Mainz 05",
+      "1. FSV Mainz 05"
+    ],
+    "short_name": "M05",
+    "color": "#DA0308",
+    "country": "德国",
+    "league": "德国",
+    "city": "美因茨",
+    "official_url": "https://www.mainz05.de/",
+    "description": "美因茨是来自美因茨的德国足球俱乐部，英文名称为 Mainz。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/mainz.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2950/mainz",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2950.png",
+    "crest_attribution": "美因茨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "美因茨官方",
+        "url": "https://www.mainz05.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2950/mainz"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_mainz",
+        "name": "美因茨官方",
+        "url": "https://www.mainz05.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_mainz",
+        "name": "The Guardian · Mainz",
+        "url": "https://www.theguardian.com/football/mainz-05/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Mainz 05 | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_mainz",
+        "name": "ESPN · Mainz",
+        "url": "https://www.espn.com/soccer/club/_/id/2950/mainz",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2950"
+    }
+  },
+  {
+    "id": "rb-leipzig",
+    "name": "RB莱比锡",
+    "english_name": "RB Leipzig",
+    "aliases": [
+      "莱比锡红牛",
+      "莱比锡",
+      "RasenBallsport Leipzig"
+    ],
+    "short_name": "RBL",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "莱比锡",
+    "official_url": "https://rbleipzig.com/",
+    "description": "RB莱比锡是来自莱比锡的德国足球俱乐部，英文名称为 RB Leipzig。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/rb-leipzig.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/11420/rb-leipzig",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/11420.png",
+    "crest_attribution": "RB莱比锡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "RB莱比锡官方",
+        "url": "https://rbleipzig.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/11420/rb-leipzig"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_rb_leipzig",
+        "name": "RB莱比锡官方",
+        "url": "https://rbleipzig.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_rb_leipzig",
+        "name": "The Guardian · RB Leipzig",
+        "url": "https://www.theguardian.com/football/red-bull-leipzig/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "RB Leipzig | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_rb_leipzig",
+        "name": "ESPN · RB Leipzig",
+        "url": "https://www.espn.com/soccer/club/_/id/11420/rb-leipzig",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "11420"
+    }
+  },
+  {
+    "id": "freiburg",
+    "name": "弗赖堡",
+    "english_name": "SC Freiburg",
+    "aliases": [
+      "费雷堡",
+      "Sport-Club Freiburg",
+      "Freiburg"
+    ],
+    "short_name": "SCF",
+    "color": "#DA0308",
+    "country": "德国",
+    "league": "德国",
+    "city": "弗赖堡",
+    "official_url": "https://www.scfreiburg.com/",
+    "description": "弗赖堡是来自弗赖堡的德国足球俱乐部，英文名称为 SC Freiburg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/freiburg.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/126/sc-freiburg",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/126.png",
+    "crest_attribution": "弗赖堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "弗赖堡官方",
+        "url": "https://www.scfreiburg.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/126/sc-freiburg"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_freiburg",
+        "name": "弗赖堡官方",
+        "url": "https://www.scfreiburg.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_freiburg",
+        "name": "The Guardian · SC Freiburg",
+        "url": "https://www.theguardian.com/football/freiburg/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Freiburg | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_freiburg",
+        "name": "ESPN · SC Freiburg",
+        "url": "https://www.espn.com/soccer/club/_/id/126/sc-freiburg",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "126"
+    }
+  },
+  {
+    "id": "paderborn",
+    "name": "帕德博恩",
+    "english_name": "SC Paderborn 07",
+    "aliases": [
+      "帕德伯恩",
+      "Paderborn"
+    ],
+    "short_name": "SCP",
+    "color": "#0000dd",
+    "country": "德国",
+    "league": "德国",
+    "city": "帕德博恩",
+    "official_url": "https://www.scp07.de/",
+    "description": "帕德博恩是来自帕德博恩的德国足球俱乐部，英文名称为 SC Paderborn 07。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/paderborn.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3307/sc-paderborn-07",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3307.png",
+    "crest_attribution": "帕德博恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "帕德博恩官方",
+        "url": "https://www.scp07.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3307/sc-paderborn-07"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_paderborn",
+        "name": "帕德博恩官方",
+        "url": "https://www.scp07.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_paderborn",
+        "name": "The Guardian · SC Paderborn 07",
+        "url": "https://www.theguardian.com/football/paderborn/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Paderborn | The Guardian",
+          "item_count": 5,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_paderborn",
+        "name": "ESPN · SC Paderborn 07",
+        "url": "https://www.espn.com/soccer/club/_/id/3307/sc-paderborn-07",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3307"
+    }
+  },
+  {
+    "id": "elversberg",
+    "name": "埃尔弗斯贝格",
+    "english_name": "SV Elversberg",
+    "aliases": [
+      "艾禾斯堡",
+      "SV 07 Elversberg",
+      "Elversberg"
+    ],
+    "short_name": "ELV",
+    "color": "#000000",
+    "country": "德国",
+    "league": "德国",
+    "city": "施皮森-埃尔弗斯贝格",
+    "official_url": "https://sv07elversberg.de/",
+    "description": "埃尔弗斯贝格是来自施皮森-埃尔弗斯贝格的德国足球俱乐部，英文名称为 SV Elversberg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/elversberg.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/10388/sv-elversberg",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/10388.png",
+    "crest_attribution": "埃尔弗斯贝格俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "埃尔弗斯贝格官方",
+        "url": "https://sv07elversberg.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/10388/sv-elversberg"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_elversberg",
+        "name": "埃尔弗斯贝格官方",
+        "url": "https://sv07elversberg.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_elversberg",
+        "name": "The Guardian · SV Elversberg",
+        "url": "https://www.theguardian.com/football/sv-elversberg/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "SV Elversberg | The Guardian",
+          "item_count": 8,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_elversberg",
+        "name": "ESPN · SV Elversberg",
+        "url": "https://www.espn.com/soccer/club/_/id/10388/sv-elversberg",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "10388"
+    }
+  },
+  {
+    "id": "schalke-04",
+    "name": "沙尔克04",
+    "english_name": "Schalke 04",
+    "aliases": [
+      "沙尔克",
+      "史浩克04",
+      "FC Schalke 04",
+      "Schalke"
+    ],
+    "short_name": "S04",
+    "color": "#0000dd",
+    "country": "德国",
+    "league": "德国",
+    "city": "盖尔森基兴",
+    "official_url": "https://schalke04.de/",
+    "description": "沙尔克04是来自盖尔森基兴的德国足球俱乐部，英文名称为 Schalke 04。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/schalke-04.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/133/schalke-04",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/133.png",
+    "crest_attribution": "沙尔克04俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "沙尔克04官方",
+        "url": "https://schalke04.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/133/schalke-04"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_schalke_04",
+        "name": "沙尔克04官方",
+        "url": "https://schalke04.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_schalke_04",
+        "name": "The Guardian · Schalke 04",
+        "url": "https://www.theguardian.com/football/schalke/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Schalke | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_schalke_04",
+        "name": "ESPN · Schalke 04",
+        "url": "https://www.espn.com/soccer/club/_/id/133/schalke-04",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "133"
+    }
+  },
+  {
+    "id": "hoffenheim",
+    "name": "霍芬海姆",
+    "english_name": "TSG Hoffenheim",
+    "aliases": [
+      "贺芬咸",
+      "TSG 1899 Hoffenheim",
+      "Hoffenheim"
+    ],
+    "short_name": "TSG",
+    "color": "#003399",
+    "country": "德国",
+    "league": "德国",
+    "city": "辛斯海姆",
+    "official_url": "https://www.tsg-hoffenheim.de/",
+    "description": "霍芬海姆是来自辛斯海姆的德国足球俱乐部，英文名称为 TSG Hoffenheim。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/hoffenheim.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/7911/tsg-hoffenheim",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/7911.png",
+    "crest_attribution": "霍芬海姆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "霍芬海姆官方",
+        "url": "https://www.tsg-hoffenheim.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/7911/tsg-hoffenheim"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_hoffenheim",
+        "name": "霍芬海姆官方",
+        "url": "https://www.tsg-hoffenheim.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_hoffenheim",
+        "name": "The Guardian · TSG Hoffenheim",
+        "url": "https://www.theguardian.com/football/hoffenheim/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "1899 Hoffenheim | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_hoffenheim",
+        "name": "ESPN · TSG Hoffenheim",
+        "url": "https://www.espn.com/soccer/club/_/id/7911/tsg-hoffenheim",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "7911"
+    }
+  },
+  {
+    "id": "stuttgart",
+    "name": "斯图加特",
+    "english_name": "VfB Stuttgart",
+    "aliases": [
+      "史特加",
+      "Stuttgart"
+    ],
+    "short_name": "VFB",
+    "color": "#ffffff",
+    "country": "德国",
+    "league": "德国",
+    "city": "斯图加特",
+    "official_url": "https://www.vfb.de/",
+    "description": "斯图加特是来自斯图加特的德国足球俱乐部，英文名称为 VfB Stuttgart。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/stuttgart.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/134/vfb-stuttgart",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/134.png",
+    "crest_attribution": "斯图加特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "斯图加特官方",
+        "url": "https://www.vfb.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/134/vfb-stuttgart"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_stuttgart",
+        "name": "斯图加特官方",
+        "url": "https://www.vfb.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_stuttgart",
+        "name": "The Guardian · VfB Stuttgart",
+        "url": "https://www.theguardian.com/football/stuttgart/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Stuttgart | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_stuttgart",
+        "name": "ESPN · VfB Stuttgart",
+        "url": "https://www.espn.com/soccer/club/_/id/134/vfb-stuttgart",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "134"
+    }
+  },
+  {
+    "id": "werder-bremen",
+    "name": "云达不莱梅",
+    "english_name": "Werder Bremen",
+    "aliases": [
+      "不来梅",
+      "云达不来梅",
+      "SV Werder Bremen",
+      "Bremen"
+    ],
+    "short_name": "SVW",
+    "color": "#03915c",
+    "country": "德国",
+    "league": "德国",
+    "city": "不莱梅",
+    "official_url": "https://www.werder.de/",
+    "description": "云达不莱梅是来自不莱梅的德国足球俱乐部，英文名称为 Werder Bremen。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/werder-bremen.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/137/werder-bremen",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/137.png",
+    "crest_attribution": "云达不莱梅俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "云达不莱梅官方",
+        "url": "https://www.werder.de/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://www.bundesliga.com/de/bundesliga/clubs"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/137/werder-bremen"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_werder_bremen",
+        "name": "云达不莱梅官方",
+        "url": "https://www.werder.de/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "access_limited",
+          "note": "自动访问受限：HTTP Error 429: Too Many Requests。保留真实官网入口，优先使用公开媒体来源。"
+        }
+      },
+      {
+        "id": "guardian_werder_bremen",
+        "name": "The Guardian · Werder Bremen",
+        "url": "https://www.theguardian.com/football/werderbremen/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Werder Bremen | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_werder_bremen",
+        "name": "ESPN · Werder Bremen",
+        "url": "https://www.espn.com/soccer/club/_/id/137/werder-bremen",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "137"
+    }
+  },
+  {
+    "id": "auxerre",
+    "name": "欧塞尔",
+    "english_name": "AJ Auxerre",
+    "aliases": [
+      "欧塞尔AJ",
+      "Auxerre"
+    ],
+    "short_name": "AUX",
+    "color": "#ffffff",
+    "country": "法国",
+    "league": "法国",
+    "city": "欧塞尔",
+    "official_url": "https://www.aja.fr/",
+    "description": "欧塞尔是来自欧塞尔的法国足球俱乐部，英文名称为 AJ Auxerre。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/auxerre.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/172/aj-auxerre",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/172.png",
+    "crest_attribution": "欧塞尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "欧塞尔官方",
+        "url": "https://www.aja.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/172/aj-auxerre"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_auxerre",
+        "name": "欧塞尔官方",
+        "url": "https://www.aja.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_auxerre",
+        "name": "The Guardian · AJ Auxerre",
+        "url": "https://www.theguardian.com/football/auxerre/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Auxerre | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_auxerre",
+        "name": "ESPN · AJ Auxerre",
+        "url": "https://www.espn.com/soccer/club/_/id/172/aj-auxerre",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "172"
+    }
+  },
+  {
+    "id": "monaco",
+    "name": "摩纳哥",
+    "english_name": "AS Monaco",
+    "aliases": [
+      "摩纳哥AS",
+      "Monaco"
+    ],
+    "short_name": "MON",
+    "color": "#E91514",
+    "country": "摩纳哥",
+    "league": "摩纳哥",
+    "city": "摩纳哥",
+    "official_url": "https://www.asmonaco.com/",
+    "description": "摩纳哥是来自摩纳哥的摩纳哥足球俱乐部，英文名称为 AS Monaco。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/monaco.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/174/as-monaco",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/174.png",
+    "crest_attribution": "摩纳哥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "摩纳哥官方",
+        "url": "https://www.asmonaco.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/174/as-monaco"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_monaco",
+        "name": "摩纳哥官方",
+        "url": "https://www.asmonaco.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_monaco",
+        "name": "The Guardian · AS Monaco",
+        "url": "https://www.theguardian.com/football/monaco/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Monaco | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_monaco",
+        "name": "ESPN · AS Monaco",
+        "url": "https://www.espn.com/soccer/club/_/id/174/as-monaco",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "174"
+    }
+  },
+  {
+    "id": "angers",
+    "name": "昂热",
+    "english_name": "Angers",
+    "aliases": [
+      "昂热SCO",
+      "Angers SCO"
+    ],
+    "short_name": "ANG",
+    "color": "#1a1a1a",
+    "country": "法国",
+    "league": "法国",
+    "city": "昂热",
+    "official_url": "https://angers-sco.fr/",
+    "description": "昂热是来自昂热的法国足球俱乐部，英文名称为 Angers。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/angers.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/7868/angers",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/7868.png",
+    "crest_attribution": "昂热俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "昂热官方",
+        "url": "https://angers-sco.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/7868/angers"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_angers",
+        "name": "昂热官方",
+        "url": "https://angers-sco.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_angers",
+        "name": "The Guardian · Angers",
+        "url": "https://www.theguardian.com/football/angers-sco/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Angers SCO | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_angers",
+        "name": "ESPN · Angers",
+        "url": "https://www.espn.com/soccer/club/_/id/7868/angers",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "7868"
+    }
+  },
+  {
+    "id": "brest",
+    "name": "布雷斯特",
+    "english_name": "Brest",
+    "aliases": [
+      "比斯特",
+      "Stade Brestois",
+      "Stade Brestois 29"
+    ],
+    "short_name": "BRE",
+    "color": "#ef2f24",
+    "country": "法国",
+    "league": "法国",
+    "city": "布雷斯特",
+    "official_url": "https://www.sb29.bzh/",
+    "description": "布雷斯特是来自布雷斯特的法国足球俱乐部，英文名称为 Brest。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/brest.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/6997/brest",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/6997.png",
+    "crest_attribution": "布雷斯特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "布雷斯特官方",
+        "url": "https://www.sb29.bzh/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/6997/brest"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_brest",
+        "name": "布雷斯特官方",
+        "url": "https://www.sb29.bzh/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_brest",
+        "name": "The Guardian · Brest",
+        "url": "https://www.theguardian.com/football/brest/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Brest | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_brest",
+        "name": "ESPN · Brest",
+        "url": "https://www.espn.com/soccer/club/_/id/6997/brest",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "6997"
+    }
+  },
+  {
+    "id": "le-havre",
+    "name": "勒阿弗尔",
+    "english_name": "Le Havre AC",
+    "aliases": [
+      "勒哈费尔"
+    ],
+    "short_name": "HAC",
+    "color": "#011F68",
+    "country": "法国",
+    "league": "法国",
+    "city": "勒阿弗尔",
+    "official_url": "https://www.hac-foot.com/",
+    "description": "勒阿弗尔是来自勒阿弗尔的法国足球俱乐部，英文名称为 Le Havre AC。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/le-havre.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3236/le-havre-ac",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3236.png",
+    "crest_attribution": "勒阿弗尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "勒阿弗尔官方",
+        "url": "https://www.hac-foot.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/3236/le-havre-ac"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_le_havre",
+        "name": "勒阿弗尔官方",
+        "url": "https://www.hac-foot.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        },
+        "allowed_hosts": [
+          "hac.football"
+        ]
+      },
+      {
+        "id": "guardian_le_havre",
+        "name": "The Guardian · Le Havre AC",
+        "url": "https://www.theguardian.com/football/lehavre/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Le Havre | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_le_havre",
+        "name": "ESPN · Le Havre AC",
+        "url": "https://www.espn.com/soccer/club/_/id/3236/le-havre-ac",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "3236"
+    }
+  },
+  {
+    "id": "le-mans",
+    "name": "勒芒",
+    "english_name": "Le Mans",
+    "aliases": [
+      "勒芒FC",
+      "Le Mans FC"
+    ],
+    "short_name": "MNS",
+    "color": "#d62b11",
+    "country": "法国",
+    "league": "法国",
+    "city": "勒芒",
+    "official_url": "https://www.lemansfc.fr/",
+    "description": "勒芒是来自勒芒的法国足球俱乐部，英文名称为 Le Mans。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/le-mans.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2697/le-mans",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2697.png",
+    "crest_attribution": "勒芒俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "勒芒官方",
+        "url": "https://www.lemansfc.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2697/le-mans"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_le_mans",
+        "name": "勒芒官方",
+        "url": "https://www.lemansfc.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_le_mans",
+        "name": "The Guardian · Le Mans",
+        "url": "https://www.theguardian.com/football/lemans/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Le Mans | The Guardian",
+          "item_count": 17,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_le_mans",
+        "name": "ESPN · Le Mans",
+        "url": "https://www.espn.com/soccer/club/_/id/2697/le-mans",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2697"
+    }
+  },
+  {
+    "id": "lens",
+    "name": "朗斯",
+    "english_name": "Lens",
+    "aliases": [
+      "朗斯RC",
+      "RC Lens"
+    ],
+    "short_name": "RCL",
+    "color": "#E91514",
+    "country": "法国",
+    "league": "法国",
+    "city": "朗斯",
+    "official_url": "https://www.rclens.fr/",
+    "description": "朗斯是来自朗斯的法国足球俱乐部，英文名称为 Lens。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/lens.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/175/lens",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/175.png",
+    "crest_attribution": "朗斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "朗斯官方",
+        "url": "https://www.rclens.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/175/lens"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lens",
+        "name": "朗斯官方",
+        "url": "https://www.rclens.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_lens",
+        "name": "The Guardian · Lens",
+        "url": "https://www.theguardian.com/football/lens/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lens | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lens",
+        "name": "ESPN · Lens",
+        "url": "https://www.espn.com/soccer/club/_/id/175/lens",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "175"
+    }
+  },
+  {
+    "id": "lille",
+    "name": "里尔",
+    "english_name": "Lille",
+    "aliases": [
+      "里尔LOSC",
+      "LOSC",
+      "Lille OSC"
+    ],
+    "short_name": "LILL",
+    "color": "#c2051b",
+    "country": "法国",
+    "league": "法国",
+    "city": "里尔",
+    "official_url": "https://www.losc.fr/",
+    "description": "里尔是来自里尔的法国足球俱乐部，英文名称为 Lille。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/lille.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/166/lille",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/166.png",
+    "crest_attribution": "里尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "里尔官方",
+        "url": "https://www.losc.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/166/lille"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lille",
+        "name": "里尔官方",
+        "url": "https://www.losc.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_lille",
+        "name": "The Guardian · Lille",
+        "url": "https://www.theguardian.com/football/lille/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lille | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lille",
+        "name": "ESPN · Lille",
+        "url": "https://www.espn.com/soccer/club/_/id/166/lille",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "166"
+    }
+  },
+  {
+    "id": "lorient",
+    "name": "洛里昂",
+    "english_name": "Lorient",
+    "aliases": [
+      "罗连安特",
+      "FC Lorient"
+    ],
+    "short_name": "LOR",
+    "color": "#f46100",
+    "country": "法国",
+    "league": "法国",
+    "city": "洛里昂",
+    "official_url": "https://www.fclorient.bzh/",
+    "description": "洛里昂是来自洛里昂的法国足球俱乐部，英文名称为 Lorient。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/lorient.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/273/lorient",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/273.png",
+    "crest_attribution": "洛里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "洛里昂官方",
+        "url": "https://www.fclorient.bzh/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/273/lorient"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lorient",
+        "name": "洛里昂官方",
+        "url": "https://www.fclorient.bzh/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_lorient",
+        "name": "The Guardian · Lorient",
+        "url": "https://www.theguardian.com/football/lorient/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lorient | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lorient",
+        "name": "ESPN · Lorient",
+        "url": "https://www.espn.com/soccer/club/_/id/273/lorient",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "273"
+    }
+  },
+  {
+    "id": "lyon",
+    "name": "里昂",
+    "english_name": "Lyon",
+    "aliases": [
+      "奥林匹克里昂",
+      "Olympique Lyonnais"
+    ],
+    "short_name": "LYON",
+    "color": "#ffffff",
+    "country": "法国",
+    "league": "法国",
+    "city": "里昂",
+    "official_url": "https://www.ol.fr/",
+    "description": "里昂是来自里昂的法国足球俱乐部，英文名称为 Lyon。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/lyon.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/167/lyon",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/167.png",
+    "crest_attribution": "里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "里昂官方",
+        "url": "https://www.ol.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/167/lyon"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_lyon",
+        "name": "里昂官方",
+        "url": "https://www.ol.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_lyon",
+        "name": "The Guardian · Lyon",
+        "url": "https://www.theguardian.com/football/lyon/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Lyon | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_lyon",
+        "name": "ESPN · Lyon",
+        "url": "https://www.espn.com/soccer/club/_/id/167/lyon",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "167"
+    }
+  },
+  {
+    "id": "marseille",
+    "name": "马赛",
+    "english_name": "Marseille",
+    "aliases": [
+      "奥林匹克马赛",
+      "Olympique de Marseille"
+    ],
+    "short_name": "OLM",
+    "color": "#ffffff",
+    "country": "法国",
+    "league": "法国",
+    "city": "马赛",
+    "official_url": "https://www.om.fr/",
+    "description": "马赛是来自马赛的法国足球俱乐部，英文名称为 Marseille。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/marseille.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/176/marseille",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/176.png",
+    "crest_attribution": "马赛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "马赛官方",
+        "url": "https://www.om.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/176/marseille"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_marseille",
+        "name": "马赛官方",
+        "url": "https://www.om.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_marseille",
+        "name": "The Guardian · Marseille",
+        "url": "https://www.theguardian.com/football/marseille/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Marseille | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_marseille",
+        "name": "ESPN · Marseille",
+        "url": "https://www.espn.com/soccer/club/_/id/176/marseille",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "176"
+    }
+  },
+  {
+    "id": "nice",
+    "name": "尼斯",
+    "english_name": "Nice",
+    "aliases": [
+      "尼斯OGC",
+      "OGC Nice"
+    ],
+    "short_name": "NICE",
+    "color": "#ef2f24",
+    "country": "法国",
+    "league": "法国",
+    "city": "尼斯",
+    "official_url": "https://www.ogcnice.com/",
+    "description": "尼斯是来自尼斯的法国足球俱乐部，英文名称为 Nice。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/nice.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2502/nice",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2502.png",
+    "crest_attribution": "尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "尼斯官方",
+        "url": "https://www.ogcnice.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/2502/nice"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_nice",
+        "name": "尼斯官方",
+        "url": "https://www.ogcnice.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_nice",
+        "name": "The Guardian · Nice",
+        "url": "https://www.theguardian.com/football/nice/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Nice | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_nice",
+        "name": "ESPN · Nice",
+        "url": "https://www.espn.com/soccer/club/_/id/2502/nice",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "2502"
+    }
+  },
+  {
+    "id": "paris-fc",
+    "name": "巴黎FC",
+    "english_name": "Paris FC",
+    "aliases": [
+      "巴黎足球会",
+      "Paris Football Club"
+    ],
+    "short_name": "PAR",
+    "color": "#000000",
+    "country": "法国",
+    "league": "法国",
+    "city": "巴黎",
+    "official_url": "https://parisfc.fr/",
+    "description": "巴黎FC是来自巴黎的法国足球俱乐部，英文名称为 Paris FC。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/paris-fc.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/6851/paris-fc",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/6851.png",
+    "crest_attribution": "巴黎FC俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "巴黎FC官方",
+        "url": "https://parisfc.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/6851/paris-fc"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_paris_fc",
+        "name": "巴黎FC官方",
+        "url": "https://parisfc.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_paris_fc",
+        "name": "The Guardian · Paris FC",
+        "url": "https://www.theguardian.com/football/paris-fc/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Paris FC | The Guardian",
+          "item_count": 12,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_paris_fc",
+        "name": "ESPN · Paris FC",
+        "url": "https://www.espn.com/soccer/club/_/id/6851/paris-fc",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "6851"
+    }
+  },
+  {
+    "id": "rennes",
+    "name": "雷恩",
+    "english_name": "Stade Rennais",
+    "aliases": [
+      "雷恩体育",
+      "Stade Rennais FC",
+      "Rennes"
+    ],
+    "short_name": "REN",
+    "color": "#ef2f24",
+    "country": "法国",
+    "league": "法国",
+    "city": "雷恩",
+    "official_url": "https://www.staderennais.com/",
+    "description": "雷恩是来自雷恩的法国足球俱乐部，英文名称为 Stade Rennais。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/rennes.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/169/stade-rennais",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/169.png",
+    "crest_attribution": "雷恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "雷恩官方",
+        "url": "https://www.staderennais.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/169/stade-rennais"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_rennes",
+        "name": "雷恩官方",
+        "url": "https://www.staderennais.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_rennes",
+        "name": "The Guardian · Stade Rennais",
+        "url": "https://www.theguardian.com/football/rennes/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Rennes | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_rennes",
+        "name": "ESPN · Stade Rennais",
+        "url": "https://www.espn.com/soccer/club/_/id/169/stade-rennais",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "169"
+    }
+  },
+  {
+    "id": "strasbourg",
+    "name": "斯特拉斯堡",
+    "english_name": "Strasbourg",
+    "aliases": [
+      "斯特拉斯堡竞赛",
+      "RC Strasbourg",
+      "RC Strasbourg Alsace"
+    ],
+    "short_name": "STR",
+    "color": "#0000bf",
+    "country": "法国",
+    "league": "法国",
+    "city": "斯特拉斯堡",
+    "official_url": "https://www.rcstrasbourgalsace.fr/",
+    "description": "斯特拉斯堡是来自斯特拉斯堡的法国足球俱乐部，英文名称为 Strasbourg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/strasbourg.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/180/strasbourg",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/180.png",
+    "crest_attribution": "斯特拉斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "斯特拉斯堡官方",
+        "url": "https://www.rcstrasbourgalsace.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/180/strasbourg"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_strasbourg",
+        "name": "斯特拉斯堡官方",
+        "url": "https://www.rcstrasbourgalsace.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_strasbourg",
+        "name": "The Guardian · Strasbourg",
+        "url": "https://www.theguardian.com/football/strasbourg/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Strasbourg | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_strasbourg",
+        "name": "ESPN · Strasbourg",
+        "url": "https://www.espn.com/soccer/club/_/id/180/strasbourg",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "180"
+    }
+  },
+  {
+    "id": "toulouse",
+    "name": "图卢兹",
+    "english_name": "Toulouse",
+    "aliases": [
+      "图鲁兹",
+      "Toulouse FC"
+    ],
+    "short_name": "TOU",
+    "color": "#560080",
+    "country": "法国",
+    "league": "法国",
+    "city": "图卢兹",
+    "official_url": "https://www.toulousefc.com/",
+    "description": "图卢兹是来自图卢兹的法国足球俱乐部，英文名称为 Toulouse。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/toulouse.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/179/toulouse",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/179.png",
+    "crest_attribution": "图卢兹俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "图卢兹官方",
+        "url": "https://www.toulousefc.com/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/179/toulouse"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_toulouse",
+        "name": "图卢兹官方",
+        "url": "https://www.toulousefc.com/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_toulouse",
+        "name": "The Guardian · Toulouse",
+        "url": "https://www.theguardian.com/football/toulouse/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Toulouse | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_toulouse",
+        "name": "ESPN · Toulouse",
+        "url": "https://www.espn.com/soccer/club/_/id/179/toulouse",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "179"
+    }
+  },
+  {
+    "id": "troyes",
+    "name": "特鲁瓦",
+    "english_name": "Troyes",
+    "aliases": [
+      "特鲁瓦ESTAC",
+      "ESTAC Troyes"
+    ],
+    "short_name": "TRY",
+    "color": "#0000bf",
+    "country": "法国",
+    "league": "法国",
+    "city": "特鲁瓦",
+    "official_url": "https://www.estac.fr/",
+    "description": "特鲁瓦是来自特鲁瓦的法国足球俱乐部，英文名称为 Troyes。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
+    "crest_url": "/assets/clubs/troyes.png",
+    "crest_source_url": "https://www.espn.com/soccer/club/_/id/170/troyes",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/170.png",
+    "crest_attribution": "特鲁瓦俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "特鲁瓦官方",
+        "url": "https://www.estac.fr/"
+      },
+      {
+        "name": "赛事官方 · 俱乐部目录",
+        "url": "https://ligue1.com/fr/articles/l1_article_5293-les-dates-de-reprise-des-clubs-de-l1-2627"
+      },
+      {
+        "name": "ESPN · 球队资料",
+        "url": "https://www.espn.com/soccer/club/_/id/170/troyes"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_troyes",
+        "name": "特鲁瓦官方",
+        "url": "https://www.estac.fr/",
+        "kind": "html",
+        "description": "俱乐部官方网站，一线队新闻与公告入口；可读正文由运行时采集确认。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_troyes",
+        "name": "The Guardian · Troyes",
+        "url": "https://www.theguardian.com/football/troyes-ac/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "feed_title": "Troyes AC | The Guardian",
+          "item_count": 20,
+          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
+        }
+      },
+      {
+        "id": "espn_troyes",
+        "name": "ESPN · Troyes",
+        "url": "https://www.espn.com/soccer/club/_/id/170/troyes",
+        "kind": "html",
+        "description": "ESPN 球队专页的公开报道入口；赛程与积分通过独立联赛数据接口同步。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "已核验球队专页；文章链接、正文完整性与时效由运行时检查。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12",
+    "provider_ids": {
+      "espn": "170"
+    }
   }
 ]

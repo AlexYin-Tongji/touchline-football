@@ -86,9 +86,18 @@ class PersonalizationSettings(Model):
         return list(dict.fromkeys(value)) if value is not None else None
 
 
+class ReportSettings(Model):
+    auto_generate: bool | None = None
+    max_per_cycle: int | None = Field(None, ge=1, le=3)
+
+
+class LeagueSyncInput(Model):
+    season_start_year: int | None = Field(None, ge=2000, le=2100)
+
+
 class SettingsPatch(Model):
     mode: Mode | None = None
-    followed_teams: list[Identifier] | None = Field(None, min_length=1, max_length=30)
+    followed_teams: list[Identifier] | None = Field(None, min_length=1, max_length=100)
     spoiler_free: bool | None = None
     explanation_depth: Literal["brief", "standard", "deep"] | None = None
     auto_refresh: bool | None = None
@@ -96,6 +105,7 @@ class SettingsPatch(Model):
     llm: LLMSettings | None = None
     automation: AutomationSettings | None = None
     personalization: PersonalizationSettings | None = None
+    reports: ReportSettings | None = None
     verification_enabled: bool | None = None
     verification_timeout_seconds: int | None = Field(None, ge=10, le=90)
 
@@ -223,7 +233,7 @@ class RunInput(Model):
     mode: Mode
     team_id: Identifier
     question: str = Field(min_length=1, max_length=5000)
-    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer"] = "auto"
+    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report"] = "auto"
     evidence_ids: list[Identifier] = Field(default_factory=list, max_length=5)
     match_id: Identifier | None = None
     conversation_id: Identifier | None = None
@@ -303,6 +313,32 @@ def create_app(db_path=None):
     async def automation_run_request(payload):
         return await create_run(RunInput(**payload))
     automation = AutomationManager(store, automation_run_request)
+    from .league_data import LeagueSyncManager
+    from . import news_reports
+    league_sync = LeagueSyncManager(store)
+    report_wake = asyncio.Event()
+
+    def queue_reports(team_id=None):
+        targets = [team_id] if team_id else store.settings().get("followed_teams", [])
+        if store.settings().get("reports", {}).get("auto_generate", True):
+            for target in targets:
+                news_reports.enqueue_reports(store, team_id=target, limit=12)
+
+    async def scheduled_reports():
+        while True:
+            try:
+                await asyncio.wait_for(report_wake.wait(), timeout=30)
+            except TimeoutError:
+                pass
+            report_wake.clear()
+            try:
+                queue_reports()
+                await news_reports.process_report_queue(store)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # A report failure must not stop source refresh or future jobs.
+                store.set_meta("report_worker_error", "报告整理暂时中断，将在下一周期继续。")
 
     async def scheduled_refresh():
         while True:
@@ -326,6 +362,9 @@ def create_app(db_path=None):
 
     @asynccontextmanager
     async def lifespan(app):
+        news_reports.recover_reports(store)
+        await league_sync.close()
+        queue_reports()
         for run in store.list("runs"):
             if run["status"] in {"queued", "running"}:
                 run.update({"status": "failed", "error": "服务重启，本次运行已中断，请重新发起。", "finished_at": ingestion.now()})
@@ -336,22 +375,26 @@ def create_app(db_path=None):
                             last_error="服务重启，将在恢复后继续检查。")
                 store.put("tracking", item)
         scheduler = asyncio.create_task(scheduled_refresh())
+        reporter = asyncio.create_task(scheduled_reports())
         yield
         scheduler.cancel()
+        reporter.cancel()
         await automation.close()
+        await league_sync.close()
         active = list(tasks.values())
         for task, event in active:
             event.set()
             task.cancel()
-        await asyncio.gather(scheduler, *(task for task, event in active), return_exceptions=True)
+        await asyncio.gather(scheduler, reporter, *(task for task, event in active), return_exceptions=True)
         store.close()
 
-    app = FastAPI(title="看台 Touchline", version="5.0.0", lifespan=lifespan,
+    app = FastAPI(title="看台 Touchline", version="6.0.0", lifespan=lifespan,
                   docs_url=None if runtime.server_mode else "/docs", redoc_url=None,
                   openapi_url=None if runtime.server_mode else "/openapi.json")
     app.state.store = store
     app.state.run_tasks = tasks
     app.state.automation = automation
+    app.state.league_sync = league_sync
     app.state.runtime = runtime
     app.state.access = access
     access.register(app)
@@ -471,6 +514,12 @@ def create_app(db_path=None):
         return False
 
     def run_response(run, with_evidence=False):
+        if run.get("internal_report"):
+            report = news_reports.get_report(store, run.get("report_id", ""))
+            if not report or report.get("status") != "completed" or report.get("run_id") != run["id"]:
+                return {key: run.get(key) for key in ("id", "team_id", "mode", "skill", "conversation_id", "created_at", "finished_at", "internal_report", "report_id")} | {
+                    "status": run.get("status"), "answer": "这份报告正在整理或已经失效，请在报告中心查看当前版本。", "evidence_ids": [], "evidence": [],
+                    "structured_answer": None, "steps": [], "verification": None, "warnings": [], "error": None}
         result = copy.deepcopy(run)
         protect = store.settings().get("spoiler_free", True)
         hidden_answer = protect and run.get("skill") != "match_review" and (run.get("spoiler") or has_hidden_evidence(run))
@@ -519,7 +568,7 @@ def create_app(db_path=None):
     @app.get("/api/service")
     async def get_service():
         from .service_control import service_status
-        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "5.0.0"}
+        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "6.0.0"}
 
     @app.post("/api/service/shortcut")
     async def service_shortcut():
@@ -554,15 +603,20 @@ def create_app(db_path=None):
         return store.put("recommendations", recommendation)
 
     @app.get("/api/state")
-    async def state(mode: Mode | None = Query(None)):
+    async def state(mode: Mode | None = Query(None), team_id: Identifier | None = Query(None)):
         settings = store.settings()
         mode = mode or settings["mode"]
-        evidence = store.list("evidence", mode)
-        events = store.list("events", mode)
-        matches = store.list("matches", mode)
+        if team_id:
+            team_exists(team_id)
+            if mode == "live":
+                from .league_data import materialize_team
+                materialize_team(store, team_id)
+        evidence = store.list("evidence", mode, team_id)
+        events = store.list("events", mode, team_id)
+        matches = store.list("matches", mode, team_id)
         for match in matches:
             match.pop("source_raw", None)
-        runs = store.list("runs", mode)
+        runs = [run for run in store.list("runs", mode, team_id) if not run.get("internal_report")]
         hidden = {"events": 0, "evidence": 0, "runs": 0}
         if settings["spoiler_free"]:
             safe_views = {item["id"]: ingestion.safe_evidence_view(item) for item in evidence}
@@ -593,13 +647,15 @@ def create_app(db_path=None):
         events = present_events(store, events, evidence, runs, spoiler_free=settings["spoiler_free"])
         evidence = [{**item, **{key: value for key, value in ingestion.content_details(item).items() if key != "paragraphs"}}
                     for item in evidence]
-        catalog = source_catalog(store, settings["followed_teams"][0]) if settings["followed_teams"] else []
+        catalog_team = team_id or (settings["followed_teams"][0] if settings["followed_teams"] else None)
+        catalog = source_catalog(store, catalog_team) if catalog_team else []
         return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
+                "reports": news_reports.list_reports(store, team_id=team_id, mode=mode), "report_budget": news_reports.report_budget(store),
                 "events": sorted(events, key=lambda item: item["updated_at"], reverse=True),
                 "evidence": evidence, "matches": sorted(matches, key=lambda item: item["kickoff"]),
-                "sources": store.list("sources", mode), "runs": [run_response(run) for run in runs[-100:]],
+                "sources": store.list("sources", mode, team_id), "runs": [run_response(run) for run in runs[-100:]],
                 "last_refresh": store.get_meta("last_refresh_" + mode), "spoiler_hidden": hidden,
-                "tracking": [tracking_response(item) for item in store.list("tracking", mode)],
+                "tracking": [tracking_response(item) for item in store.list("tracking", mode, team_id)],
                 "source_catalog": catalog, "setup": {"model_configured": bool(settings["llm"].get("base_url") and settings["llm"].get("model")),
                     "live_evidence_count": len(store.list("evidence", "live"))},
                 "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": await get_service()}
@@ -608,6 +664,43 @@ def create_app(db_path=None):
     async def get_evidence(identifier: Identifier):
         item = evidence_response(require("evidence", identifier))
         return {**item, **ingestion.content_details(item)}
+
+    @app.get("/api/leagues")
+    async def get_leagues(season_start_year: int | None = Query(None, ge=2000, le=2100)):
+        from .league_data import league_view
+        seasons = store.list("seasons")
+        available = sorted({(s["season_start_year"], s["label"]) for s in seasons}, reverse=True)
+        return {"available_seasons": [{"season_start_year": y, "label": label} for y, label in available],
+                "leagues": [league_view(store, league["id"], season_start_year) for league in store.list("leagues")]}
+
+    @app.post("/api/leagues/sync", status_code=202)
+    async def sync_all_leagues(payload: LeagueSyncInput = LeagueSyncInput()):
+        return league_sync.start(year=payload.season_start_year)
+
+    @app.post("/api/leagues/{identifier}/sync", status_code=202)
+    async def sync_one_league(identifier: Identifier, payload: LeagueSyncInput = LeagueSyncInput()):
+        return league_sync.start(identifier, payload.season_start_year)
+
+    @app.get("/api/reports")
+    async def get_reports(team_id: Identifier | None = None, mode: Mode = "live"):
+        if team_id:
+            team_exists(team_id)
+        return {"reports": news_reports.list_reports(store, team_id=team_id, mode=mode), "budget": news_reports.report_budget(store)}
+
+    @app.get("/api/reports/{identifier}")
+    async def get_report(identifier: Identifier):
+        report = news_reports.get_report(store, identifier)
+        if not report:
+            raise HTTPException(404, "报告不存在或当前不可见。")
+        return report
+
+    @app.post("/api/reports/{identifier}/retry")
+    async def retry_report(identifier: Identifier):
+        report = news_reports.retry_report(store, identifier)
+        if not report:
+            raise HTTPException(404, "报告不存在或当前不可见。")
+        report_wake.set()
+        return report
 
     @app.put("/api/settings")
     async def settings_update(payload: SettingsPatch):
@@ -662,7 +755,9 @@ def create_app(db_path=None):
     async def research_read(payload: ReadCandidateInput):
         from .research import read_candidate
         team_exists(payload.team_id)
-        return import_response(await read_candidate(store, **payload.model_dump()))
+        result = import_response(await read_candidate(store, **payload.model_dump()))
+        queue_reports(payload.team_id)
+        return result
 
     @app.post("/api/teams/{team_id}/collect")
     async def collect_team_news(team_id: str, payload: CollectInput):
@@ -676,6 +771,7 @@ def create_app(db_path=None):
             result = discovery_response(await collect_team(store, team_id, query=payload.query, limit=payload.limit))
             if synced is not None:
                 result["match_sync"] = synced
+            queue_reports(team_id)
             return result
 
     @app.post("/api/teams/{team_id}/sync")
@@ -740,10 +836,11 @@ def create_app(db_path=None):
 
     @app.post("/api/sources/{identifier}/refresh")
     async def refresh_one(identifier: str):
-        require("sources", identifier)
+        source = require("sources", identifier)
         async with refresh_lock:
             result = await ingestion.refresh_source(store, identifier)
             store.set_meta("last_refresh_live", ingestion.now())
+            queue_reports(source["team_id"])
             return result
 
     @app.post("/api/refresh")
@@ -751,12 +848,16 @@ def create_app(db_path=None):
         if payload.mode == "demo":
             return {"added": 0, "unchanged": 0, "errors": [], "message": "虚构示例不采集网络资料。"}
         async with refresh_lock:
-            return await ingestion.refresh_all(store)
+            result = await ingestion.refresh_all(store)
+            queue_reports()
+            return result
 
     @app.post("/api/import")
     async def import_text(payload: ImportInput):
         team_exists(payload.team_id)
-        return import_response(ingestion.ingest(store, **payload.model_dump()))
+        result = import_response(ingestion.ingest(store, **payload.model_dump()))
+        queue_reports(payload.team_id)
+        return result
 
     @app.post("/api/matches")
     async def create_match(payload: MatchInput):
@@ -908,7 +1009,7 @@ def create_app(db_path=None):
         if payload.skill == "match_review" and match["status"] != "finished":
             raise HTTPException(400, "比赛尚未标记结束，不能生成赛后复盘")
         if payload.conversation_id:
-            prior = [run for run in store.list("runs") if run["conversation_id"] == payload.conversation_id]
+            prior = [run for run in store.list("runs") if run.get("conversation_id") == payload.conversation_id]
             if any(run["mode"] != payload.mode or run["team_id"] != payload.team_id for run in prior):
                 raise HTTPException(400, "会话不属于当前球队及模式，请开始新会话")
         if payload.parent_run_id:
@@ -935,6 +1036,8 @@ def create_app(db_path=None):
     @app.post("/api/runs/{identifier}/resume")
     async def resume_run(identifier: str):
         previous = require("runs", identifier)
+        if previous.get("internal_report"):
+            raise HTTPException(409, "请从报告中心重新整理这份报告。")
         if previous["status"] in {"queued", "running"}:
             raise HTTPException(409, "本次任务仍在执行，可以继续等待或先停止。")
         if previous.get("tracking_id") and previous.get("collection_pending"):
@@ -951,6 +1054,8 @@ def create_app(db_path=None):
     @app.post("/api/runs/{identifier}/cancel")
     async def cancel_run(identifier: str):
         run = require("runs", identifier)
+        if run.get("internal_report"):
+            raise HTTPException(409, "这是后台报告任务；可在设置中暂停后续自动整理。")
         if run["status"] in {"completed", "failed", "cancelled"}:
             return run_response(run, with_evidence=True)
         active = tasks.get(identifier)
