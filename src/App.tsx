@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   CircleAlert,
@@ -9,6 +10,7 @@ import {
   Goal,
   History,
   LayoutDashboard,
+  LogOut,
   MessageCircle,
   Plus,
   Send,
@@ -20,6 +22,8 @@ import { api, errorText, post, put } from "./api";
 import {
   Crest,
   dateTime,
+  evidenceTitle,
+  contentLabel,
   Empty,
   ErrorNotice,
   EvidenceDetail,
@@ -30,10 +34,10 @@ import {
   statusNames,
   sourceLabel,
 } from "./components";
-import { SettingsPage, SourcesPage } from "./pages";
-import { TrackingPage } from "./v2pages";
 import { TeamHub, chineseText } from "./teamHub";
-import { TeamProfileEditor } from "./TeamProfileEditor";
+import { ClubPicker } from "./ClubPicker";
+import { ReadingPage } from "./ReadingPage";
+import { useAuth } from "./AuthGate";
 import type {
   AppState,
   ClubEvent,
@@ -45,14 +49,20 @@ import type {
 } from "./types";
 
 type Panel = "preferences" | "sources" | "tracking" | "profile" | null;
+const SettingsPage = lazy(() => import("./pages").then(module => ({ default: module.SettingsPage })));
+const SourcesPage = lazy(() => import("./pages").then(module => ({ default: module.SourcesPage })));
+const TrackingPage = lazy(() => import("./v2pages").then(module => ({ default: module.TrackingPage })));
+const TeamProfileEditor = lazy(() => import("./TeamProfileEditor").then(module => ({ default: module.TeamProfileEditor })));
 const isActive = (run?: Run | null) =>
   run?.status === "queued" || run?.status === "running";
 const navigation = [
   { id: "home" as const, label: "球队动态", icon: LayoutDashboard },
+  { id: "reading" as const, label: "资料阅读", icon: BookOpen },
   { id: "chat" as const, label: "询问助手", icon: MessageCircle },
 ];
 
 export default function App() {
+  const auth = useAuth();
   const [data, setData] = useState<AppState | null>(null);
   const [mode, setMode] = useState<Mode | null>(null);
   const [teamId, setTeamId] = useState(() => {
@@ -62,10 +72,14 @@ export default function App() {
       return "";
     }
   });
-  const [page, setPage] = useState<"home" | "chat">("home");
+  const [page, setPage] = useState<"home" | "reading" | "chat">("home");
   const [panel, setPanel] = useState<Panel>(null);
   const [event, setEvent] = useState<ClubEvent | null>(null);
   const [document, setDocument] = useState<Evidence | null>(null);
+  const [documentLoading, setDocumentLoading] = useState(false);
+  const [documentError, setDocumentError] = useState("");
+  const [pendingEvidence, setPendingEvidence] = useState<Evidence | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<Skill>("auto");
   const [question, setQuestion] = useState("");
   const [allowNetwork, setAllowNetwork] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -95,6 +109,17 @@ export default function App() {
   const closePanel = useCallback(() => setPanel(null), []);
   const closeEvent = useCallback(() => setEvent(null), []);
   const closeDocument = useCallback(() => setDocument(null), []);
+
+  useEffect(() => {
+    if (!document) return;
+    let current = true;
+    setDocumentLoading(true);
+    setDocumentError("");
+    api<Evidence>(`/evidence/${encodeURIComponent(document.id)}`).then(item => {
+      if (current) setDocument(item);
+    }).catch(error => { if (current) setDocumentError(errorText(error)); }).finally(() => { if (current) setDocumentLoading(false); });
+    return () => { current = false; };
+  }, [document?.id, data?.settings.spoiler_free]);
 
   const reload = useCallback(async () => {
     const serial = ++requestSerial.current;
@@ -129,6 +154,7 @@ export default function App() {
         setViewedRuns({});
         setEvent(null);
         setDocument(null);
+        setPendingEvidence(null);
       }
       spoilerPreference.current = next.settings.spoiler_free;
       setData(next);
@@ -289,6 +315,8 @@ export default function App() {
     setConversationId(null);
     setQuestion("");
     setPendingMatch(null);
+    setPendingEvidence(null);
+    setSelectedSkill("auto");
     setRunError("");
   }
   function switchTeam(id: string) {
@@ -320,23 +348,33 @@ export default function App() {
       await reload();
     });
   }
-  function navigate(next: "home" | "chat") {
+  function navigate(next: "home" | "reading" | "chat") {
     setPage(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function ask(text: string, match?: Match) {
     setQuestion(text);
     setPendingMatch(match || null);
+    setPendingEvidence(null);
+    setSelectedSkill("auto");
     setEvent(null);
+    setDocument(null);
     setPanel(null);
     navigate("chat");
     window.setTimeout(() => questionRef.current?.focus(), 100);
+  }
+  function askFromArticle(text: string, item: Evidence) {
+    resetConversation();
+    ask(text);
+    setPendingEvidence(item);
   }
   function openRun(run: Run) {
     setSelectedRunId(run.id);
     setRunDetail(run);
     setConversationId(run.conversation_id);
     setQuestion("");
+    setPendingEvidence(null);
+    setSelectedSkill(run.skill);
     setPendingMatch(data?.matches.find((m) => m.id === run.match_id) || null);
     setPanel(null);
     setHistoryOpen(false);
@@ -386,6 +424,7 @@ export default function App() {
         allow_network: allowNetwork,
         conversation_id: conversationId || undefined,
         match_id: effectiveMatch?.id,
+        evidence_ids: pendingEvidence ? [pendingEvidence.id] : undefined,
       });
       if (
         requested.mode !== scope.current.mode ||
@@ -516,6 +555,7 @@ export default function App() {
   );
   return (
     <div className="touchline-app">
+      <a className="skip-link" href="#main-content">跳转到主要内容</a>
       <header className="v4-header">
         <div className="v4-header-inner">
           <button
@@ -541,7 +581,7 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <button
+          <div className="header-actions"><button
             className="settings-trigger"
             onClick={() => setPanel("preferences")}
             aria-label="打开设置"
@@ -549,23 +589,12 @@ export default function App() {
             <SettingsIcon size={20} />
             <span>设置</span>
           </button>
+          {auth.status?.required && <button className="icon-button logout-trigger" aria-label="退出登录" title="退出登录" onClick={() => act("logout", auth.logout)} disabled={!!busy.logout}><LogOut size={18} /></button>}</div>
         </div>
       </header>
       <div className="v4-clubbar">
         <div className="clubbar-inner">
-          <div className="club-tabs" aria-label="选择球队">
-            {data.teams.map((t) => (
-              <button
-                key={t.id}
-                className={teamId === t.id ? "active" : ""}
-                aria-pressed={teamId === t.id}
-                onClick={() => switchTeam(t.id)}
-              >
-                <Crest team={t} small />
-                <span>{t.name}</span>
-              </button>
-            ))}
-          </div>
+          <ClubPicker teams={data.teams} teamId={teamId} followed={data.settings.followed_teams || []} onSelect={switchTeam} />
           <label className={`space-switch ${mode}`}>
             <span className="space-dot" />
             <select
@@ -584,6 +613,7 @@ export default function App() {
       <main
         className={`v4-main ${page === "chat" ? "is-chat" : ""}`}
         id="main-content"
+        tabIndex={-1}
       >
         {mode === "demo" && (
           <div className="demo-banner">
@@ -623,7 +653,11 @@ export default function App() {
               onSettings={() => setPanel("preferences")}
               onProfile={() => setPanel("profile")}
               onRun={openRun}
+              onEvidence={setDocument}
+              onReading={() => navigate("reading")}
             />
+          ) : page === "reading" ? (
+            <ReadingPage key={`${mode}-${teamId}`} evidence={evidence} team={team} onRead={setDocument} onSources={() => setPanel("sources")} />
           ) : (
             <div className="assistant-view">
               <div className="assistant-heading">
@@ -699,7 +733,7 @@ export default function App() {
                   )}
                   <div className="history-save-note">
                     <CheckCircle2 size={14} />
-                    对话与查到的资料，自动保存在本机
+                    对话与查到的资料，自动保存在{data.runtime?.server_mode ? "服务器" : "本机"}
                   </div>
                 </aside>
                 <section className="assistant-chat">
@@ -784,9 +818,10 @@ export default function App() {
                     className="v4-composer"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      startRun(question, "auto", pendingMatch);
+                      startRun(question, selectedSkill, pendingMatch);
                     }}
                   >
+                    {pendingEvidence && <div className="question-context article-context"><BookOpen size={14} /><span>正在讨论：{evidenceTitle(pendingEvidence)}</span><button type="button" aria-label="移除报道上下文" onClick={() => setPendingEvidence(null)}><X size={13} /></button></div>}
                     {pendingMatch && (
                       <div className="question-context">
                         {pendingMatch.status === "finished"
@@ -819,11 +854,12 @@ export default function App() {
                           !e.nativeEvent.isComposing
                         ) {
                           e.preventDefault();
-                          startRun(question, "auto", pendingMatch);
+                          startRun(question, selectedSkill, pendingMatch);
                         }
                       }}
                     />
                     <div className="v4-composer-bottom">
+                      <label className="skill-select"><span className="sr-only">助手工作方式</span><select aria-label="助手工作方式" value={selectedSkill} onChange={e => setSelectedSkill(e.target.value as Skill)}><option value="auto">智能选择</option><option value="team_brief">球队简报</option><option value="transfer_check">转会核验</option><option value="tactics_explainer">战术解读</option></select></label>
                       <label
                         className={`network-toggle ${allowNetwork ? "on" : ""}`}
                       >
@@ -874,6 +910,7 @@ export default function App() {
             看台
           </span>
           <span>热爱有主场。</span>
+          {data.runtime?.server_mode && <span>资料保存在服务器</span>}
         </footer>
       </main>
       {toast && (
@@ -907,6 +944,7 @@ export default function App() {
             ))}
           </div>
           <div className="settings-content">
+            <Suspense fallback={<Spinner text="正在打开设置" />}>
             {panel === "preferences" ? (
               <SettingsPage data={data} reload={reload} notice={notice} />
             ) : panel === "profile" ? (
@@ -942,21 +980,19 @@ export default function App() {
                 openRun={openRun}
               />
             )}
+            </Suspense>
           </div>
         </Modal>
       )}
       {event && (
-        <Modal title="球队动态" onClose={closeEvent}>
+        <Modal title="球队动态" onClose={closeEvent} wide>
           <div className="event-reading">
             <span className="quiet-label">{dateTime(event.updated_at)}</span>
             <h2>
-              {chineseText(event.display_title || event.title, "球队最新消息")}
+              {event.display_title || event.title || "球队最新消息"}
             </h2>
             <p>
-              {chineseText(
-                event.display_summary || event.summary || event.change,
-                "已收录相关消息，可请助手整理中文要点。",
-              )}
+              {event.display_summary || event.summary || event.change || "已收录相关消息，可请助手整理中文要点。"}
             </p>
             {event.uncertainties
               ?.filter((x) => /[\u3400-\u9fff]/.test(x))
@@ -965,33 +1001,18 @@ export default function App() {
                   {text}
                 </p>
               ))}
-            <div className="source-link-list">
+            <h3 className="event-source-heading"><BookOpen size={17} />阅读相关报道</h3>
+            <div className="event-source-list">
               {event.evidence_ids
                 .map((id) => evidence.find((e) => e.id === id))
                 .filter((e): e is Evidence => !!e)
-                .map((item) =>
-                  safeUrl(item.url) ? (
-                    <a
-                      key={item.id}
-                      href={safeUrl(item.url) || undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {sourceLabel(item)}
-                      <ArrowUpRight size={15} />
-                    </a>
-                  ) : (
-                    <span className="quiet-label" key={item.id}>
-                      {mode === "demo" ? "演示资料" : "本地导入资料"}
-                    </span>
-                  ),
-                )}
+                .map((item) => <button key={item.id} onClick={() => { setEvent(null); setDocument(item); }}><span><strong>{evidenceTitle(item)}</strong><small>{sourceLabel(item)} · {contentLabel(item)}</small></span><ArrowRight size={17} /></button>)}
             </div>
             <button
               className="button dark-button"
               onClick={() =>
                 ask(
-                  `解读“${event.display_title || chineseText(event.title)}”，对${team?.name}有什么影响？`,
+                  `解读“${event.display_title || event.title}”，对${team?.name}有什么影响？`,
                 )
               }
             >
@@ -1002,8 +1023,10 @@ export default function App() {
         </Modal>
       )}
       {document && (
-        <Modal title="资料出处" onClose={closeDocument}>
-          <EvidenceDetail item={document} />
+        <Modal title="报道阅读" onClose={closeDocument} wide>
+          {documentLoading && <div className="reader-loading"><Spinner text="正在获取最新正文" /></div>}
+          <ErrorNotice>{documentError ? `正文更新未完成，下面显示已收录的内容。${documentError}` : ""}</ErrorNotice>
+          <EvidenceDetail key={document.id} item={document} onAsk={askFromArticle} />
         </Modal>
       )}
     </div>

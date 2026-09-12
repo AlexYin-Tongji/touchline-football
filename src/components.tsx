@@ -5,7 +5,9 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
+  Clock3,
   LoaderCircle,
+  Sparkles,
   Square,
   X,
 } from "lucide-react";
@@ -42,6 +44,8 @@ export const skillNames: Record<string, string> = {
   team_brief: "球队变化",
   match_preview: "赛前观察",
   match_review: "赛后复盘",
+  transfer_check: "转会核验",
+  tactics_explainer: "战术解读",
 };
 export const statusNames: Record<string, string> = {
   queued: "准备中",
@@ -72,12 +76,15 @@ export function sourceLabel(item: Pick<Evidence, "source_name" | "origin" | "url
   if (/inter(?:\b|nazionale)/i.test(name)) return "国际米兰相关资讯";
   if (/espn/i.test(name)) return "ESPN 体育";
   if (/[\u3400-\u9fff]/.test(name) && !/[A-Za-z]{4,}/.test(name)) return name;
-  return item.origin === "manual" ? "本地资料" : "资讯来源";
+  return name || host || (item.origin === "manual" ? "导入资料" : "资讯来源");
 }
 export function evidenceTitle(item: Pick<Evidence, "title" | "source_name" | "origin" | "url">) {
-  return /[\u3400-\u9fff]/.test(item.title || "")
-    ? item.title
-    : `${sourceLabel(item)} · 相关报道`;
+  return item.title?.trim() || `${sourceLabel(item)} · 相关报道`;
+}
+export function contentLabel(item: Evidence) {
+  if (item.fixture_record) return "赛程资料";
+  if (item.text_truncated) return "正文有截取";
+  return ({ full_text: "已提取正文", partial: "部分正文", summary: "仅有摘要", imported: "用户导入" } as Record<string, string>)[item.content_status || ""] || "已收录资料";
 }
 function runErrorMessage(error?: string | null) {
   if (!error) return null;
@@ -288,10 +295,15 @@ export function Modal({
     </div>
   );
 }
-export function EvidenceDetail({ item }: { item: Evidence }) {
+export function EvidenceDetail({ item, onAsk }: { item: Evidence; onAsk?: (question: string, item: Evidence) => void }) {
   const url = safeUrl(item.url);
+  const [large, setLarge] = useState(false);
+  const [followup, setFollowup] = useState("");
+  const text = item.text || "";
+  const paragraphs = text.split(/\n\s*\n|\r?\n/).map(x => x.trim()).filter(Boolean);
+  const readingMinutes = item.reading_minutes || Math.max(1, Math.ceil(text.length / 900));
   return (
-    <article className="evidence-detail">
+    <article className={`evidence-detail article-reader ${large ? "large-type" : ""}`}>
       <div className="meta">
         <span className="tag">
           {item.mode === "demo"
@@ -301,6 +313,7 @@ export function EvidenceDetail({ item }: { item: Evidence }) {
               : "参考来源"}
         </span>
         <span>{sourceLabel(item)}</span>
+        <span className={`content-badge ${item.content_status || "unknown"}`}>{contentLabel(item)}</span>
       </div>
       <h3>{evidenceTitle(item)}</h3>
       {(item.spoiler_redacted || item.spoiler_hidden) && (
@@ -315,7 +328,11 @@ export function EvidenceDetail({ item }: { item: Evidence }) {
             {item.published_at ? dateTime(item.published_at) : "发布时间未知"}
           </dd>
         </div>
+        {item.fetched_at && <div><dt>收录时间</dt><dd>{dateTime(item.fetched_at)}</dd></div>}
       </dl>
+      <div className="reader-toolbar">
+        <span><Clock3 size={14} />约 {readingMinutes} 分钟 · {text.length.toLocaleString()} 字符</span>
+        <button className="text-button" onClick={() => setLarge(!large)} aria-pressed={large}>{large ? "标准字号" : "大字阅读"}</button>
       {url && (
         <a
           className="source-link"
@@ -323,10 +340,29 @@ export function EvidenceDetail({ item }: { item: Evidence }) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          查看来源 <ArrowUpRight size={15} />
+          打开原文 <ArrowUpRight size={15} />
         </a>
       )}
-      {!url && <p className="fine-print">这份本地资料没有附带来源链接。</p>}
+      </div>
+      {(item.content_status === "summary" || item.content_status === "partial" || item.text_truncated) && (
+        <p className="reader-quality-note"><CircleAlert size={16} />{item.content_note || (item.content_status === "summary" ? "目前只取得来源摘要，完整报道请打开原文阅读。" : "目前取得的正文可能不完整，请结合原文阅读。")}</p>
+      )}
+      {paragraphs.length ? <div className="article-body" lang={/[\u3400-\u9fff]/.test(text) ? "zh-CN" : undefined}>
+        {paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+      </div> : <Empty title="这份资料暂时没有可读正文">可以打开原文阅读，或在资料来源中导入正文。</Empty>}
+      {!url && <p className="fine-print">这份资料没有附带来源链接。</p>}
+      {onAsk && !item.spoiler_hidden && <section className="reader-assistant">
+        <div><Sparkles size={18} /><strong>和助手一起读</strong></div>
+        <p>以这篇资料为依据，解释背景、核对疑点，或聊聊对球队的影响。</p>
+        <div className="reader-prompts">
+          {["用中文梳理这篇报道的事实、背景与尚不确定的部分。", "这篇报道对球队有什么影响？请区分事实和你的判断。"].map((prompt, index) => <button key={prompt} className="button compact" onClick={() => onAsk(prompt, item)}>{index === 0 ? "中文导读" : "分析球队影响"}<ArrowUpRight size={14} /></button>)}
+        </div>
+        <form onSubmit={e => { e.preventDefault(); if (followup.trim()) onAsk(followup.trim(), item); }}>
+          <label className="sr-only" htmlFor={`article-question-${item.id}`}>对这篇报道的疑问</label>
+          <input id={`article-question-${item.id}`} value={followup} onChange={e => setFollowup(e.target.value)} maxLength={3000} placeholder="读到这里，你想问什么？" />
+          <button className="button dark-button" disabled={!followup.trim()}>带着报道提问<ArrowUpRight size={15} /></button>
+        </form>
+      </section>}
     </article>
   );
 }
@@ -410,12 +446,6 @@ export function RunView({
                 if (href?.startsWith("#evidence-")) {
                   const id = validIds.find((value) => `#evidence-${encodeURIComponent(value)}` === href);
                   const item = id ? byId.get(id) : undefined;
-                  const url = safeUrl(item?.url);
-                  if (item && url) return (
-                    <a className="citation" href={url} target="_blank" rel="noopener noreferrer" title={evidenceTitle(item)}>
-                      {children}
-                    </a>
-                  );
                   return item ? (
                     <button
                       className="citation"
@@ -475,7 +505,6 @@ export function RunView({
           </summary>
           {validIds.map((id, index) => {
             const item = byId.get(id);
-            const url = safeUrl(item?.url);
             const content = item ? (
               <>
                 <span className="evidence-number">{index + 1}</span>
@@ -492,15 +521,9 @@ export function RunView({
               </>
             ) : null;
             return item ? (
-              url ? (
-                <a key={id} className="evidence-row" href={url} target="_blank" rel="noopener noreferrer">
-                  {content}
-                </a>
-              ) : (
                 <button key={id} className="evidence-row" onClick={() => openEvidence(item)}>
                   {content}
                 </button>
-              )
             ) : (
               <p className="fine-print" key={id}>
                 来源 {index + 1} 暂不可用。

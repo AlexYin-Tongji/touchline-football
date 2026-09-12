@@ -896,7 +896,7 @@ export function AutomationSettings({
         </span>
         <div>
           <h2>自动跟队</h2>
-          <p>服务运行时，按你选择的节奏更新。</p>
+          <p>{data.runtime?.server_mode ? "服务器按你的节奏更新，关闭浏览器也会继续跟队。" : "服务运行时，按你选择的节奏更新。"}</p>
         </div>
       </div>
       <ErrorNotice>{error}</ErrorNotice>
@@ -1028,7 +1028,7 @@ export function AutomationSettings({
           )}
         </button>
       </div>
-      <details className="service-controls">
+      {!(data.runtime?.server_mode || data.service?.server_mode) && <details className="service-controls">
         <summary>
           <Monitor size={16} />
           启动与桌面入口
@@ -1079,7 +1079,7 @@ export function AutomationSettings({
             <span />
           </button>
         </label>
-      </details>
+      </details>}
     </section>
   );
 }

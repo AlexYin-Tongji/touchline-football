@@ -1,13 +1,12 @@
 import {
   useState,
   type CSSProperties,
-  type PointerEvent,
-  type ReactNode,
 } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
   Bookmark,
+  BookOpen,
   CalendarDays,
   Check,
   ChevronRight,
@@ -22,7 +21,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import { Crest, dateTime, Empty, safeUrl, sourceLabel } from "./components";
+import { Crest, dateTime, Empty, safeUrl, sourceLabel, evidenceTitle, contentLabel } from "./components";
 import { findClub } from "./clubCatalog";
 import type { AppState, ClubEvent, Evidence, Match, Run, Team } from "./types";
 
@@ -148,46 +147,6 @@ const shortDate = (value?: string) =>
         timeZone: "Asia/Shanghai",
       })
     : "日期待定";
-
-function Tilt({
-  children,
-  className = "",
-  style,
-}: {
-  children: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  function move(e: PointerEvent<HTMLDivElement>) {
-    if (
-      e.pointerType !== "mouse" ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty(
-      "--tilt-x",
-      `${(0.5 - (e.clientY - rect.top) / rect.height) * 5}deg`,
-    );
-    e.currentTarget.style.setProperty(
-      "--tilt-y",
-      `${((e.clientX - rect.left) / rect.width - 0.5) * 5}deg`,
-    );
-  }
-  return (
-    <div
-      className={`tilt-surface ${className}`}
-      style={style}
-      onPointerMove={move}
-      onPointerLeave={(e) => {
-        e.currentTarget.style.setProperty("--tilt-x", "0deg");
-        e.currentTarget.style.setProperty("--tilt-y", "0deg");
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 function Opponent({ name, teams }: { name: string; teams: Team[] }) {
   const found =
@@ -390,6 +349,8 @@ export function TeamHub({
   onSettings,
   onProfile,
   onRun,
+  onEvidence,
+  onReading,
 }: {
   data: AppState;
   team: Team;
@@ -401,6 +362,8 @@ export function TeamHub({
   onSettings: () => void;
   onProfile: () => void;
   onRun: (run: Run) => void;
+  onEvidence: (item: Evidence) => void;
+  onReading: () => void;
 }) {
   const [category, setCategory] = useState("all");
   const [shown, setShown] = useState(6);
@@ -455,7 +418,7 @@ export function TeamHub({
       <div className="hub-title-row">
         <div>
           <span className="overline">我的主场</span>
-          <h1>每个变化，都跟得上。</h1>
+          <h1>今天，主队有什么新鲜事？</h1>
         </div>
         <button
           className="button dark-button"
@@ -466,7 +429,7 @@ export function TeamHub({
           {busy ? "正在更新" : "更新动态"}
         </button>
       </div>
-      <Tilt
+      <section
         className="club-hero"
         style={{ "--club-color": team.color || "#19785b" } as CSSProperties}
       >
@@ -500,21 +463,7 @@ export function TeamHub({
             )}
           </div>
         </div>
-        <div className="hero-scene" aria-hidden="true">
-          <div className="stadium-halo" />
-          <div className="pitch-plane">
-            <div className="pitch-boundary">
-              <div className="pitch-half" />
-              <div className="pitch-center" />
-              <div className="pitch-box top" />
-              <div className="pitch-box bottom" />
-            </div>
-          </div>
-          <div className="hero-badge">
-            <Crest team={team} />
-          </div>
-          <div className="crest-shadow" />
-        </div>
+        <div className="club-identity" aria-hidden="true"><Crest team={team} /><span>{team.english_name}</span></div>
         <div className="hero-bottom">
           <span>
             <MapPin size={15} />
@@ -524,7 +473,7 @@ export function TeamHub({
             {latest ? `最近收录 ${shortDate(latest)}` : "开启你的跟队日常"}
           </span>
         </div>
-      </Tilt>
+      </section>
       <div className="hub-grid">
         <div className="hub-main-column">
           {summary && (
@@ -603,29 +552,18 @@ export function TeamHub({
                       onClick={() => onEvent(event)}
                     >
                       <h3>
-                        {chineseText(
-                          event.display_title || event.title,
-                          `${categoryLabel}有新消息`,
-                        )}
+                        {event.display_title || event.title || `${categoryLabel}有新消息`}
                       </h3>
                       <ChevronRight size={18} />
                     </button>
                     <p>
-                      {chineseText(
-                        event.display_summary || event.summary || event.change,
-                        "已收录最新消息，可请助手整理中文要点。",
-                      ).slice(0, 180)}
+                      {(event.display_summary || event.summary || event.change || "打开相关报道，阅读原文或请助手解读。").slice(0, 180)}
                     </p>
                     <div className="news-item-footer">
                       {source ? (
-                        <a
-                          href={safeUrl(source.url) || undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {sourceLabel(source)}
-                          <ArrowUpRight size={13} />
-                        </a>
+                        <button className="news-source-read" onClick={() => onEvidence(source)}>
+                          <BookOpen size={13} />{sourceLabel(source)} · 阅读报道
+                        </button>
                       ) : (
                         <span className="quiet-label">
                           {data.settings.mode === "demo"
@@ -637,7 +575,7 @@ export function TeamHub({
                         <button
                           onClick={() =>
                             onAsk(
-                              `解读“${event.display_title || chineseText(event.title)}”，说明已确认的情况与对${team.name}的影响。`,
+                              `解读“${event.display_title || event.title}”，说明已确认的情况与对${team.name}的影响。`,
                             )
                           }
                         >
@@ -682,6 +620,11 @@ export function TeamHub({
                 <ChevronRight size={16} />
               </button>
             )}
+          </section>
+          <section className="hub-card home-reading">
+            <div className="hub-section-heading"><h2><BookOpen size={18} />值得细读</h2><button className="text-button" onClick={onReading}>进入阅读室<ArrowRight size={14} /></button></div>
+            {evidence.filter(item => !item.fixture_record).slice(0, 3).map(item => <button className="home-reading-row" key={item.id} onClick={() => onEvidence(item)}><span><small>{sourceLabel(item)} · {contentLabel(item)}</small><strong>{evidenceTitle(item)}</strong></span><ArrowRight size={16} /></button>)}
+            {!evidence.filter(item => !item.fixture_record).length && <p className="inline-empty">收集报道后，在这里阅读全文，并带着原文向助手提问。</p>}
           </section>
           <section className="hub-card schedule-card">
             <div className="hub-section-heading">

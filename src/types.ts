@@ -7,6 +7,8 @@ export type Skill =
   | "team_brief"
   | "match_preview"
   | "match_review"
+  | "transfer_check"
+  | "tactics_explainer"
   | "event_watch";
 export interface Team {
   id: string;
@@ -43,6 +45,14 @@ export interface Evidence {
   redaction_note?: string;
   spoiler?: boolean;
   fixture_record?: boolean;
+  content_status?: "full_text" | "partial" | "summary" | "imported";
+  content_method?: string;
+  content_note?: string;
+  paragraph_count?: number;
+  word_count?: number;
+  reading_minutes?: number;
+  text_truncated?: boolean;
+  paragraphs?: { index: number; text: string }[];
 }
 export interface ClubEvent {
   id: string;
@@ -127,6 +137,12 @@ export interface Settings {
   auto_refresh: boolean;
   refresh_minutes: number;
   explanation_depth?: "brief" | "standard" | "deep";
+  personalization?: {
+    interests: string[];
+    reading_language: "zh" | "original";
+    fan_level: "beginner" | "regular" | "expert";
+    briefing_window_hours: number;
+  };
   automation?: {
     enabled: boolean;
     interval_minutes: number;
@@ -267,6 +283,7 @@ export interface ModelTest {
   elapsed_ms?: number;
 }
 export interface AppState {
+  runtime?: { server_mode: boolean; storage: "server" | "local" };
   settings: Settings;
   teams: Team[];
   events: ClubEvent[];
@@ -287,7 +304,7 @@ export interface AppState {
     next_check?: string;
     last_run_id?: string;
   };
-  service?: { version: string; running: boolean; autostart_enabled: boolean };
+  service?: { version: string; running: boolean; autostart_enabled: boolean; server_mode?: boolean };
 }
 export interface Capabilities {
   tools: { name: string; description: string }[];

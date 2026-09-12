@@ -28,6 +28,7 @@ import {
   Empty,
   ErrorNotice,
   safeUrl,
+  contentLabel,
   sourceLabel,
   Spinner,
 } from "./components";
@@ -412,7 +413,6 @@ export function SourcesPage({
       <div className="panel document-list">
         {documents.length ? (
           documents.map((item) => {
-            const url = safeUrl(item.url);
             const content = <>
               <span className="document-icon">
                 <FileText size={19} />
@@ -425,15 +425,12 @@ export function SourcesPage({
                     ? dateTime(item.published_at)
                     : "发布时间未知"}
                   {item.mode === "demo" ? " · 虚构示例" : ""}
+                  {` · ${contentLabel(item)}`}
                 </small>
               </span>
               <ArrowUpRight size={17} />
             </>;
-            return url ? (
-              <a className="document-row" key={item.id} href={url} target="_blank" rel="noopener noreferrer">
-                {content}
-              </a>
-            ) : (
+            return (
               <button className="document-row" key={item.id} onClick={() => openEvidence(item)}>
                 {content}
               </button>
@@ -686,6 +683,8 @@ export function SettingsPage({
   const [depth, setDepth] = useState(
     data.settings.explanation_depth || "standard",
   );
+  const [personalization, setPersonalization] = useState<NonNullable<Settings["personalization"]>>(data.settings.personalization || { interests: ["球队动态", "战术", "转会"], reading_language: "zh", fan_level: "regular", briefing_window_hours: 72 });
+  const [teamQuery, setTeamQuery] = useState("");
   const [baseUrl, setBaseUrl] = useState(data.settings.llm.base_url || "");
   const [model, setModel] = useState(data.settings.llm.model || "");
   const [key, setKey] = useState("");
@@ -769,6 +768,7 @@ export function SettingsPage({
         followed_teams: followed,
         spoiler_free: spoiler,
         explanation_depth: depth,
+        personalization,
       });
       await reload();
       notice("跟队偏好已保存。");
@@ -853,8 +853,9 @@ export function SettingsPage({
               </div>
             </div>
             <label>关注球队</label>
+            <input type="search" className="team-preference-search" aria-label="筛选可关注的球队" placeholder="搜索球队名称" value={teamQuery} onChange={e => setTeamQuery(e.target.value)} />
             <div className="team-options">
-              {data.teams.map((team) => (
+              {data.teams.filter(team => `${team.name} ${team.english_name || ""}`.toLowerCase().includes(teamQuery.toLowerCase())).map((team) => (
                 <label
                   className={`team-option ${followed.includes(team.id) ? "selected" : ""}`}
                   key={team.id}
@@ -884,6 +885,13 @@ export function SettingsPage({
               <Plus size={15} />
               {teamAdding ? "收起自定义球队" : "添加其他球队"}
             </button>
+            <div className="setting-divider" />
+            <fieldset className="interest-fieldset"><legend>你最关注什么</legend><p className="field-hint">助手会据此安排简报重点，并调整解释方式。</p><div className="interest-options">{[["球队动态", "球队动态"], ["战术", "战术"], ["转会", "转会"], ["伤停", "伤停"], ["青训", "青训"], ["球队文化", "球队文化"]].map(([id, label]) => <label key={id} className={personalization.interests.includes(id) ? "selected" : ""}><input type="checkbox" checked={personalization.interests.includes(id)} onChange={e => setPersonalization(previous => ({ ...previous, interests: e.target.checked ? [...previous.interests, id] : previous.interests.filter(value => value !== id) }))} />{label}</label>)}</div></fieldset>
+            <div className="form-grid personalization-grid">
+              <label>看球熟悉程度<select value={personalization.fan_level} onChange={e => setPersonalization({ ...personalization, fan_level: e.target.value as typeof personalization.fan_level })}><option value="beginner">刚入门，多解释术语</option><option value="regular">经常看球，重点讲变化</option><option value="expert">深入看球，保留战术细节</option></select></label>
+              <label>阅读语言<select value={personalization.reading_language} onChange={e => setPersonalization({ ...personalization, reading_language: e.target.value as typeof personalization.reading_language })}><option value="zh">优先中文导读</option><option value="original">保留原文语言</option></select></label>
+              <label>简报回顾范围<select value={personalization.briefing_window_hours} onChange={e => setPersonalization({ ...personalization, briefing_window_hours: Number(e.target.value) })}><option value={24}>最近 24 小时</option><option value={48}>最近 48 小时</option><option value={72}>最近 3 天</option><option value={168}>最近一周</option></select></label>
+            </div>
             <div className="setting-divider" />
             <label className="toggle-row">
               <span>

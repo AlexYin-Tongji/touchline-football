@@ -236,7 +236,7 @@ export function TrackingPage({
                 )}
               </div>
               <p className="tracking-note">
-                应用运行时自动检查，可随时暂停。
+                {data.runtime?.server_mode ? "服务器会持续检查，关闭浏览器后仍然运行，可随时暂停。" : "服务运行时自动检查，可随时暂停。"}
               </p>
               <div className="form-actions">
                 <button type="button" className="button" onClick={resetForm}>
@@ -573,7 +573,7 @@ export function ResearchPanel({
             onClick={() => read(item)}
           >
             {busy === item.id ? (
-              <Spinner text="保存中" />
+              <Spinner text="正在提取正文" />
             ) : readIds.includes(item.id) ? (
               <>
                 <Check size={13} />
@@ -581,7 +581,7 @@ export function ResearchPanel({
               </>
             ) : (
               <>
-                保存资料
+                提取并阅读
                 <ArrowRight size={13} />
               </>
             )}

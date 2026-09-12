@@ -1,9 +1,13 @@
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...options,
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...options.headers },
   });
   let value: unknown;
@@ -13,10 +17,12 @@ export async function api<T>(
     throw new Error(
       response.ok
         ? "服务返回了无法读取的内容。"
-        : "本地服务没有正常响应，请确认服务已启动。",
+        : "网站暂时没有响应，请稍后重新连接。",
     );
   }
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/"))
+      window.dispatchEvent(new Event("touchline-auth-required"));
     const detail = (value as { detail?: unknown })?.detail;
     const message =
       typeof detail === "string"
@@ -24,7 +30,7 @@ export async function api<T>(
         : Array.isArray(detail)
           ? detail.map((x) => x.msg || "输入内容不符合要求").join("；")
           : `请求失败（${response.status}）`;
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
   return value as T;
 }
