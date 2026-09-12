@@ -17,61 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .ingestion import normalize_url
 
 
-PROFILE_REVIEWED_AT = "2026-09-09"
-CLUB_PROFILES = {
-    "arsenal": {
-        "country": "英格兰", "city": "伦敦", "founded": 1886, "stadium": "酋长球场",
-        "nickname": "枪手", "league_name": "英格兰足球超级联赛",
-        "description": "1886 年创立于伦敦伍尔维奇，1913 年迁至北伦敦。俱乐部自 2006 年起以酋长球场为主场。",
-        "official_url": "https://www.arsenal.com/", "crest_url": "/assets/arsenal.svg",
-        "crest_source_url": "https://www.premierleague.com/en/clubs/3/arsenal/overview",
-        "crest_asset_url": "https://resources.premierleague.com/premierleague25/badges-alt/3.svg",
-        "crest_attribution": "阿森纳俱乐部标识，来自英超官方球队资料页。",
-        "profile_sources": [
-            {"name": "阿森纳官方 · 俱乐部历史", "url": "https://www.arsenal.com/feature/where-are-arsenal-located-in-london-a78bI0A8K1JA"},
-            {"name": "阿森纳官方 · 俱乐部与球场", "url": "https://www.arsenal.com/the-club"},
-        ],
-    },
-    "barcelona": {
-        "country": "西班牙", "city": "巴塞罗那", "founded": 1899, "stadium": "诺坎普球场",
-        "nickname": "红蓝军团", "league_name": "西班牙足球甲级联赛",
-        "description": "1899 年由甘伯等人创立。诺坎普球场于 1957 年启用，是俱乐部历史与城市足球文化的重要组成部分。",
-        "official_url": "https://www.fcbarcelona.com/en/", "crest_url": "/assets/barcelona.png",
-        "crest_source_url": "https://www.fcbarcelona.com/en/",
-        "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
-        "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。",
-        "profile_sources": [
-            {"name": "巴塞罗那官方 · 俱乐部历史", "url": "https://www.fcbarcelona.com/en/club/history/decade-by-decade"},
-            {"name": "巴塞罗那官方 · 诺坎普球场", "url": "https://www.fcbarcelona.com/en/club/instalaciones/spotify-camp-nou"},
-        ],
-    },
-    "liverpool": {
-        "country": "英格兰", "city": "利物浦", "founded": 1892, "stadium": "安菲尔德球场",
-        "nickname": "红军", "league_name": "英格兰足球超级联赛",
-        "description": "1892 年在利物浦创立，并以安菲尔德球场为主场。俱乐部的首场比赛也于同年在安菲尔德举行。",
-        "official_url": "https://www.liverpoolfc.com/", "crest_url": "/assets/liverpool.png",
-        "crest_source_url": "https://www.liverpoolfc.com/",
-        "crest_asset_url": "https://www.liverpoolfc.com/apple-touch-icon.png",
-        "crest_attribution": "利物浦俱乐部利弗鸟标识，来自俱乐部官方网站。",
-        "profile_sources": [
-            {"name": "利物浦官方 · 俱乐部创立", "url": "https://www.liverpoolfc.com/info/how-liverpool-fc-was-founded-1892"},
-            {"name": "利物浦官方 · 安菲尔德球场", "url": "https://www.liverpoolfc.com/info/anfield"},
-        ],
-    },
-    "inter": {
-        "country": "意大利", "city": "米兰", "founded": 1908, "stadium": "朱塞佩·梅阿查球场",
-        "nickname": "蓝黑军团", "league_name": "意大利足球甲级联赛",
-        "description": "1908 年 3 月 9 日在米兰创立。梅阿查球场又称圣西罗球场，自 1947 年起承载着国际米兰的主场历史。",
-        "official_url": "https://www.inter.it/en", "crest_url": "/assets/inter.png",
-        "crest_source_url": "https://www.inter.it/en",
-        "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
-        "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。",
-        "profile_sources": [
-            {"name": "国际米兰官方 · 俱乐部创立", "url": "https://www.inter.it/en/news/2021-03-09-inter-113-years-history"},
-            {"name": "国际米兰官方 · 梅阿查球场", "url": "https://www.inter.it/en/club/stadium"},
-        ],
-    },
-}
+from .club_library import CLUB_PROFILES, PROFILE_REVIEWED_AT
 
 
 def seed_team_profiles(store):

@@ -124,7 +124,10 @@ class TrackingTests(unittest.TestCase):
             "status": "completed", "answer": f"来源给出了修订的出行安排。[{eid}]", "evidence_ids": [eid],
             "redacted_evidence_ids": [eid], "spoiler": False})
         state = self.client.get("/api/state?mode=live").json()
-        self.assertNotIn("2-1", str(state))
+        # Static club history URLs can contain year ranges such as 1902-1910.
+        # Check the news surfaces carrying the protected match evidence.
+        for collection in ("events", "evidence", "runs", "recommendations", "tracking", "matches"):
+            self.assertNotIn("2-1", str(state[collection]))
         self.assertEqual(len(state["evidence"]), 1)
         self.assertTrue(state["evidence"][0]["spoiler_redacted"])
         self.assertIn("travel", state["events"][0]["summary"])

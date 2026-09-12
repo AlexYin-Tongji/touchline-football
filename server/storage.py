@@ -18,6 +18,7 @@ DEFAULT_SETTINGS = {
     "explanation_depth": "standard", "auto_refresh": False, "refresh_minutes": 30,
     "automation": {"enabled": False, "interval_minutes": 60, "sync_matches": True, "generate_brief": False},
     "verification_enabled": True, "verification_timeout_seconds": 45,
+    "personalization": {"interests": [], "reading_language": "zh", "fan_level": "regular", "briefing_window_hours": 72},
     "llm": {"base_url": "", "model": "", "api_key": "", "max_rounds": 10,
             "timeout_seconds": 90, "temperature": 0.2, "protocol": "chat_completions",
             "send_temperature": False, "max_output_tokens": 3000, "use_env_proxy": True,
@@ -111,9 +112,10 @@ class Store:
         with self.lock:
             settings = copy.deepcopy(DEFAULT_SETTINGS)
             saved = self.get_meta("settings", {})
-            settings.update({key: value for key, value in saved.items() if key not in {"llm", "automation"}})
+            settings.update({key: value for key, value in saved.items() if key not in {"llm", "automation", "personalization"}})
             settings["llm"].update(saved.get("llm", {}))
             settings["automation"].update(saved.get("automation", {}))
+            settings["personalization"].update(saved.get("personalization", {}))
             row = self._db.execute("SELECT encrypted FROM secrets WHERE key='llm_api_key'").fetchone()
             settings["llm"]["api_key"] = self._cipher.decrypt(row[0]).decode() if row else ""
             return settings
@@ -121,8 +123,9 @@ class Store:
     def save_settings(self, patch: dict):
         with self.lock:
             current = self.settings()
-            current.update({key: value for key, value in patch.items() if key not in {"llm", "automation"}})
+            current.update({key: value for key, value in patch.items() if key not in {"llm", "automation", "personalization"}})
             current["automation"].update(patch.get("automation", {}))
+            current["personalization"].update(patch.get("personalization", {}))
             llm = copy.deepcopy(patch.get("llm", {}))
             key = llm.pop("api_key", "")
             clear = llm.pop("clear_api_key", False)

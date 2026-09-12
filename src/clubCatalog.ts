@@ -5,6 +5,10 @@ export type Club = Pick<Team, "id" | "name"> & {
   english_name: string;
   aliases: string[];
   crest_url: string;
+  country: string;
+  city: string;
+  description: string;
+  official_url: string;
 };
 
 export const clubCatalog: readonly Club[] = catalog;

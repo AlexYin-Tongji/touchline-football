@@ -1,18 +1,11 @@
 """Clearly fictional, fixed-date examples. Real collections start empty."""
 
 
-TEAMS = [
-    {"id": "arsenal", "name": "阿森纳", "short_name": "ARS", "english_name": "Arsenal", "color": "#C83C3C", "league": "英格兰"},
-    {"id": "barcelona", "name": "巴塞罗那", "short_name": "BAR", "english_name": "Barcelona", "color": "#465BA6", "league": "西班牙"},
-    {"id": "liverpool", "name": "利物浦", "short_name": "LIV", "english_name": "Liverpool", "color": "#BE3945", "league": "英格兰"},
-    {"id": "inter", "name": "国际米兰", "short_name": "INT", "english_name": "Inter", "color": "#317AB1", "league": "意大利"},
-]
+from .club_library import TEAMS, seed_clubs
 
 
 def seed(store):
-    for team in TEAMS:
-        if not store.get("teams", team["id"]):
-            store.put("teams", team)
+    seed_clubs(store)
     from .team_profiles import seed_team_profiles
     seed_team_profiles(store)
     if store.get_meta("demo_seed_v1"):

@@ -7,6 +7,7 @@ import hashlib
 import http.client
 import ipaddress
 import json
+import math
 import re
 import socket
 import ssl
@@ -22,6 +23,39 @@ from bs4 import BeautifulSoup
 
 MAX_BODY = 2 * 1024 * 1024
 MAX_ENTRIES = 30
+MAX_ARTICLE_TEXT = 30000
+MAX_FEED_FOLLOWUPS = 6
+
+CONTENT_FIELDS = ("content_status", "content_method", "content_note", "text_truncated")
+
+
+def content_details(item):
+    """Describe the supplied visible text; callers must apply spoiler scope first.
+
+    Status reports extraction coverage, never truthfulness or verification. Old
+    records receive conservative labels instead of pretending an RSS excerpt is
+    a complete article. Do not persist the derived paragraphs alongside text.
+    """
+    text = str(item.get("text") or "")
+    paragraphs = [{"index": index, "text": part.strip()} for index, part in
+                  enumerate(re.split(r"\n+", text)) if part.strip()]
+    words = len(re.findall(r"[\u3400-\u9fff]|[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*", text))
+    status = item.get("content_status")
+    if status not in {"full_text", "partial", "summary", "imported"}:
+        status = "imported" if item.get("origin") == "manual" else "summary" if item.get("origin") == "rss" else "partial"
+    note = item.get("content_note") or {
+        "full_text": "已提取页面可读正文；不代表已经独立核实，原站可能另有更新。",
+        "partial": "当前保存的是可提取的部分正文，不能据此判断全文没有其他信息。",
+        "summary": "当前仅有订阅摘要，原文尚未完整读取。",
+        "imported": "用户导入的原文；内容范围与完整性取决于导入材料。",
+    }[status]
+    if item.get("spoiler_redacted"):
+        status = "partial"
+        note = item.get("redaction_note") or "当前显示避剧透节选，部分原文已隐藏。"
+    return {"content_status": status, "content_method": item.get("content_method") or "legacy",
+            "content_note": note, "text_truncated": bool(item.get("text_truncated")),
+            "paragraphs": paragraphs, "paragraph_count": len(paragraphs), "word_count": words,
+            "reading_minutes": max(1, math.ceil(words / 260)) if text else 0}
 
 
 def now():
@@ -266,18 +300,32 @@ def extract_html(body, url, source_name):
                 structured_text = body_text
             title = node.get("headline") or node.get("title") or title
             date = date or published_time(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt"))
-    # Publisher body selectors avoid menu, sponsor, related-story contamination.
-    container = (soup.select_one('[itemprop="articleBody"]') or soup.select_one('#article-body-blocks')
-                 or soup.select_one('.article-body-viewer-selector') or soup.select_one('.article__body')
-                 or soup.find("article") or soup.find("main") or soup.body or soup)
-    for element in container.select("aside, .related-articles, .related-content, [data-component='RelatedArticles'], [data-spacefinder-type*='RichLink'], [data-spacefinder-type*='Newsletter'], gu-island[name='EmailSignUpWrapper']"):
+    # Prefer publisher article bodies, then semantic containers. Generic page
+    # fallbacks remain partial: a long menu is not evidence of a complete story.
+    container = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article-body-viewer-selector, .article__body, .article-body, .article-content, .story-body, .entry-content')
+    method = "html_article" if container else "html_fallback"
+    container = container or soup.find("article") or soup.find("main") or soup.body or soup
+    if container.name == "article":
+        method = "html_article"
+    for element in container.select("aside, .related-articles, .related-content, .article-related, .newsletter, .social-share, .share-buttons, [role='navigation'], [aria-hidden='true'], [data-component='RelatedArticles'], [data-spacefinder-type*='RichLink'], [data-spacefinder-type*='Newsletter'], gu-island[name='EmailSignUpWrapper']"):
         element.decompose()
-    text = (structured_text or html_text(str(container)))[:30000]
+    raw_text = structured_text or html_text(str(container))
+    if structured_text:
+        method = "structured_article"
+    text = raw_text[:MAX_ARTICLE_TEXT]
     if len(text) < 30:
         raise IngestionError("未提取到足够正文；页面可能需要登录或 JavaScript，可改为手动导入")
     if len(text) < 1500 and re.search(r"checking your browser|just a moment|enable javascript|access denied|verify you are human|page not found|404 not found|正在加载|请启用.{0,10}javascript", text, re.I):
         raise IngestionError("来源返回了加载或访问验证页面，请改为手动导入正文")
-    return [{"title": clean_text(str(title))[:200], "text": text, "url": url, "published_at": date}]
+    gated = bool(re.search(r"subscribe to (?:continue|read)|sign in to (?:continue|read)|already a subscriber|unlock (?:this|the) article|订阅后阅读|登录后阅读", text, re.I))
+    full = method != "html_fallback" and len(text) >= 500 and not gated and len(raw_text) <= MAX_ARTICLE_TEXT
+    note = ("原站仅提供订阅或登录前的可见部分，未绕过访问限制。" if gated else
+            "正文超过保存上限，当前保留前 30000 字符。" if len(raw_text) > MAX_ARTICLE_TEXT else
+            "已提取页面可读正文；不代表已经独立核实，原站可能另有更新。" if full else
+            "仅提取到较短正文或通用页面文本，完整性尚不能确认。")
+    return [{"title": clean_text(str(title))[:200], "text": text, "url": url, "published_at": date,
+             "content_status": "full_text" if full else "partial", "content_method": method,
+             "content_note": note, "text_truncated": len(raw_text) > MAX_ARTICLE_TEXT}]
 
 
 def extract_feed(body, url, source_name):
@@ -297,13 +345,19 @@ def extract_feed(body, url, source_name):
         for child in entry:
             name = local(child.tag)
             content = "".join(child.itertext()).strip()
+            if name in {"content", "encoded", "description", "summary"} and len(child):
+                # Atom XHTML bodies carry real paragraph elements, not an
+                # escaped HTML string. Serialise the children to keep them.
+                content = (child.text or "") + "".join(ElementTree.tostring(node, encoding="unicode") for node in child)
+                content = re.sub(r"(<\/?)[A-Za-z0-9_]+:(?=[A-Za-z])", r"\1", content)
             if name == "link":
                 candidate = child.attrib.get("href") or content
                 if not link or child.attrib.get("rel", "alternate") == "alternate":
                     link = candidate
             values[name] = content
         raw = values.get("encoded") or values.get("content") or values.get("description") or values.get("summary") or ""
-        text = html_text(raw)[:30000]
+        raw_text = html_text(raw)
+        text = raw_text[:MAX_ARTICLE_TEXT]
         if len(text) < 30:
             continue
         article_url = url
@@ -312,8 +366,13 @@ def extract_feed(body, url, source_name):
                 article_url = normalize_url(urljoin(url, link))
             except IngestionError:
                 continue
+        embedded_body = bool(values.get("encoded") or values.get("content"))
         results.append({"title": clean_text(values.get("title") or source_name)[:200], "text": text,
-                        "url": article_url, "published_at": published_time(values.get("pubDate") or values.get("published"))})
+                        "url": article_url, "published_at": published_time(values.get("pubDate") or values.get("published")),
+                        "content_status": "partial" if embedded_body else "summary",
+                        "content_method": "feed_content" if embedded_body else "feed_summary",
+                        "content_note": "订阅源提供的正文片段，尚未与原始文章核对完整性。" if embedded_body else "当前仅有订阅摘要，原文尚未完整读取。",
+                        "text_truncated": len(raw_text) > MAX_ARTICLE_TEXT})
     if not results:
         raise IngestionError("订阅源没有可导入的正文条目（每条至少 30 字符）")
     return results
@@ -395,7 +454,8 @@ def safe_evidence_view(item):
 
 
 def ingest(store, *, team_id, title, text, url="", source_name="手动导入", published_at=None,
-           kind="team", stage=None, spoiler=False, event_id=None, source_id=None, origin="manual"):
+           kind="team", stage=None, spoiler=False, event_id=None, source_id=None, origin="manual",
+           content_status=None, content_method=None, content_note=None, text_truncated=False):
     text = clean_text(text)
     digest = fingerprint(text)
     with store.atomic():
@@ -406,6 +466,11 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
         duplicate = next((item for item in evidence_list if item.get("fingerprint", fingerprint(item["text"])) == digest), None)
         if duplicate:
             parent = next((item for item in store.list("events", "live", team_id) if duplicate["id"] in item["evidence_ids"]), None)
+            if content_status and url and url == duplicate.get("url") and source_id == duplicate.get("source_id"):
+                duplicate.update({"content_status": content_status, "content_method": content_method,
+                                  "content_note": content_note, "text_truncated": bool(text_truncated)})
+                duplicate.update({key: value for key, value in content_details(duplicate).items() if key != "paragraphs"})
+                store.put("evidence", duplicate)
             if spoiler and not duplicate.get("spoiler"):
                 duplicate["spoiler"] = True
                 store.put("evidence", duplicate)
@@ -424,6 +489,10 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
                     "title": title, "text": text, "url": url or "", "source_name": source_name,
                     "published_at": published_at, "fetched_at": timestamp, "source_id": source_id,
                     "origin": origin, "spoiler": spoiler, "fingerprint": digest}
+        evidence.update({"content_status": content_status or ("imported" if origin == "manual" else "partial"),
+                         "content_method": content_method or origin, "content_note": content_note,
+                         "text_truncated": bool(text_truncated)})
+        evidence.update({key: value for key, value in content_details(evidence).items() if key != "paragraphs"})
         prior_event = dict(event) if event else None
         if not event:
             event = {"id": "event_" + uuid.uuid4().hex[:16], "mode": "live", "team_id": team_id,
@@ -442,6 +511,53 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
         return {"evidence": evidence, "event": event, "duplicate": False}
 
 
+async def follow_feed_articles(entries, source, feed_url):
+    """Bounded follow-through; failure keeps a clearly labelled feed excerpt.
+
+    Only the configured feed host is trusted for custom sources. The BBC's
+    fixed feed-to-article domains are an explicit publisher adapter. Every
+    fetch still resolves and pins public addresses, including redirects.
+    """
+    hosts = {urlsplit(normalize_url(source["url"])).hostname}
+    if urlsplit(feed_url).hostname not in hosts:
+        # A feed may itself have redirected; do not silently grant its entries
+        # access to a new domain that the user never configured.
+        return entries, {"followed": 0, "full_text": 0, "summary_only": len(entries)}
+    if hosts == {"feeds.bbci.co.uk"}:
+        hosts.update({"www.bbc.co.uk", "www.bbc.com", "bbc.co.uk", "bbc.com"})
+    limit = asyncio.Semaphore(3)
+    followed = 0
+
+    async def enrich(entry, index):
+        nonlocal followed
+        article_url = entry.get("url")
+        if index >= MAX_FEED_FOLLOWUPS or not article_url or article_url == feed_url:
+            return entry
+        if urlsplit(article_url).hostname not in hosts:
+            return {**entry, "content_note": "当前为订阅摘要；文章链接超出此来源允许的域名，未自动跟读。"}
+        async with limit:
+            followed += 1
+            try:
+                body, final_url, _ = await asyncio.wait_for(asyncio.to_thread(fetch_document, article_url, allowed_hosts=hosts), 25)
+                if urlsplit(normalize_url(final_url)).hostname not in hosts:
+                    raise IngestionError("文章重定向超出了允许域名")
+                article = extract_html(body, final_url, source["name"])[0]
+                # A landing page or short consent prompt must not replace a
+                # richer feed body. Keep the best actually retrieved content.
+                if len(article["text"]) > len(entry["text"]):
+                    article["published_at"] = article.get("published_at") or entry.get("published_at")
+                    article["content_method"] = "rss_follow_" + article["content_method"]
+                    return article
+                return {**entry, "content_note": "已尝试读取原站，但没有取得比订阅内容更完整的正文；当前保留订阅片段。"}
+            except (IngestionError, asyncio.TimeoutError):
+                return {**entry, "content_note": "原站正文暂不可读取，当前保留订阅内容；可打开来源或手动导入正文。"}
+
+    enriched = await asyncio.gather(*(enrich(entry, index) for index, entry in enumerate(entries)))
+    return enriched, {"followed": followed,
+                      "full_text": sum(item.get("content_status") == "full_text" for item in enriched),
+                      "summary_only": sum(item.get("content_status") == "summary" for item in enriched)}
+
+
 async def refresh_source(store, source_id):
     source = store.get("sources", source_id)
     if not source:
@@ -454,6 +570,9 @@ async def refresh_source(store, source_id):
         body, url, content_type = await asyncio.wait_for(asyncio.to_thread(fetch_document, source["url"]), timeout=25)
         parser = extract_feed if source["kind"] == "rss" else extract_html
         entries = parser(body, url, source["name"])
+        if source["kind"] == "rss":
+            entries, coverage = await follow_feed_articles(entries, source, url)
+            result.update(coverage)
         for entry in entries:
             imported = ingest(store, team_id=source["team_id"], source_name=source["name"], source_id=source_id,
                               origin="rss" if source["kind"] == "rss" else "web",

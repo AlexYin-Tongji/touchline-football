@@ -15,33 +15,11 @@ from bs4 import BeautifulSoup
 
 from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
+from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
 
 
-CATALOG = {
-    "arsenal": [
-        {"id": "official_arsenal", "name": "Arsenal FC 官方", "url": "https://www.arsenal.com/news/men/1", "kind": "html", "description": "官方新闻；动态列表使用官网发布的文章站点地图补充发现。", "index_url": "https://www.arsenal.com/sitemaps/articles/1/sitemap.xml"},
-        {"id": "guardian_arsenal", "name": "The Guardian · Arsenal", "url": "https://www.theguardian.com/football/arsenal/rss", "kind": "rss", "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。"},
-        {"id": "bbc_arsenal", "name": "BBC Sport · Arsenal", "url": "https://feeds.bbci.co.uk/sport/football/teams/arsenal/rss.xml", "kind": "rss", "description": "BBC 公开球队新闻订阅源。"},
-    ],
-    "liverpool": [
-        {"id": "official_liverpool", "name": "Liverpool FC 官方", "url": "https://www.liverpoolfc.com/news", "kind": "html", "description": "官网新闻与发布会，优先读取网页内嵌的结构化列表。"},
-        {"id": "guardian_liverpool", "name": "The Guardian · Liverpool", "url": "https://www.theguardian.com/football/liverpool/rss", "kind": "rss", "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。"},
-        {"id": "bbc_liverpool", "name": "BBC Sport · Liverpool", "url": "https://feeds.bbci.co.uk/sport/football/teams/liverpool/rss.xml", "kind": "rss", "description": "BBC 公开球队新闻订阅源。"},
-    ],
-    "barcelona": [
-        {"id": "official_barcelona", "name": "FC Barcelona 官方", "url": "https://www.fcbarcelona.com/en/football/first-team/news", "kind": "html", "description": "巴萨官方一线队新闻。"},
-        {"id": "guardian_barcelona", "name": "The Guardian · Barcelona", "url": "https://www.theguardian.com/football/barcelona/rss", "kind": "rss", "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。"},
-    ],
-    "inter": [
-        {"id": "official_inter", "name": "Inter 官方", "url": "https://www.inter.it/en/news", "kind": "html", "description": "国际米兰官网新闻；读取内嵌文章数据。"},
-        {"id": "guardian_inter", "name": "The Guardian · Internazionale", "url": "https://www.theguardian.com/football/internazionale/rss", "kind": "rss", "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。"},
-    ],
-}
-TRUSTED_HOSTS = {"arsenal.com", "www.arsenal.com", "liverpoolfc.com", "www.liverpoolfc.com", "www.fcbarcelona.com", "fcbarcelona.com", "www.inter.it", "inter.it", "www.theguardian.com", "theguardian.com", "feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk"}
-TEAM_ALIASES = {
-    "arsenal": ("arsenal", "阿森纳"), "liverpool": ("liverpool", "利物浦"),
-    "barcelona": ("barcelona", "巴塞罗那", "巴萨"), "inter": ("internazionale", "inter milan", "国际米兰", "国米"),
-}
+CATALOG = RESEARCH_CATALOG
+TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk"}
 TOPICS = [
     ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out"),
     ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return"),
@@ -91,10 +69,13 @@ def _source_hosts(source):
     host = urlsplit(source["url"]).hostname
     hosts = {host}
     if source.get("builtin"):
+        hosts.update(source.get("allowed_hosts") or [])
         if source["id"].startswith("bbc_"):
             hosts.update({"feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com", "bbc.co.uk", "bbc.com"})
         elif host and host.startswith("www."):
             hosts.add(host[4:])
+        if not hosts <= TRUSTED_HOSTS:
+            raise ingestion.IngestionError("内置来源域名配置不正确")
     return hosts
 
 
@@ -535,7 +516,7 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
                         and article_url(cached["url"]) == article_url(candidate["url"])
                         and 0 <= cache_age < ARTICLE_CACHE_SECONDS)
         if reusable:
-            article = {key: cached.get(key) for key in ("title", "text", "url", "published_at")}
+            article = {key: cached.get(key) for key in ("title", "text", "url", "published_at", *ingestion.CONTENT_FIELDS)}
         else:
             body, url, _ = await _fetch(candidate["url"], source)
             article = ingestion.extract_html(body, article_url(url), source["name"])[0]

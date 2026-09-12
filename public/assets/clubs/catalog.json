@@ -1,22 +1,1768 @@
 [
-  { "id": "arsenal", "name": "阿森纳", "english_name": "Arsenal", "aliases": ["阿仙奴", "Arsenal FC"], "crest_url": "/assets/clubs/arsenal.svg" },
-  { "id": "aston-villa", "name": "阿斯顿维拉", "english_name": "Aston Villa", "aliases": ["维拉", "阿士东维拉", "Aston Villa FC"], "crest_url": "/assets/clubs/aston-villa.svg" },
-  { "id": "bournemouth", "name": "伯恩茅斯", "english_name": "Bournemouth", "aliases": ["般尼茅夫", "AFC Bournemouth", "Bournemouth AFC"], "crest_url": "/assets/clubs/bournemouth.svg" },
-  { "id": "brentford", "name": "布伦特福德", "english_name": "Brentford", "aliases": ["宾福特", "Brentford FC"], "crest_url": "/assets/clubs/brentford.svg" },
-  { "id": "brighton", "name": "布莱顿", "english_name": "Brighton & Hove Albion", "aliases": ["布莱顿霍夫", "白礼顿", "Brighton", "Brighton Hove Albion", "Brighton and Hove Albion FC"], "crest_url": "/assets/clubs/brighton.svg" },
-  { "id": "chelsea", "name": "切尔西", "english_name": "Chelsea", "aliases": ["车路士", "Chelsea FC"], "crest_url": "/assets/clubs/chelsea.svg" },
-  { "id": "coventry-city", "name": "考文垂", "english_name": "Coventry City", "aliases": ["考文垂城", "高云地利", "Coventry", "Coventry City FC"], "crest_url": "/assets/clubs/coventry-city.svg" },
-  { "id": "crystal-palace", "name": "水晶宫", "english_name": "Crystal Palace", "aliases": ["Crystal Palace FC"], "crest_url": "/assets/clubs/crystal-palace.svg" },
-  { "id": "everton", "name": "埃弗顿", "english_name": "Everton", "aliases": ["爱华顿", "Everton FC"], "crest_url": "/assets/clubs/everton.svg" },
-  { "id": "fulham", "name": "富勒姆", "english_name": "Fulham", "aliases": ["富咸", "Fulham FC"], "crest_url": "/assets/clubs/fulham.svg" },
-  { "id": "hull-city", "name": "赫尔城", "english_name": "Hull City", "aliases": ["侯城", "Hull", "Hull City AFC"], "crest_url": "/assets/clubs/hull-city.svg" },
-  { "id": "ipswich-town", "name": "伊普斯维奇", "english_name": "Ipswich Town", "aliases": ["伊普斯维奇镇", "叶士域治", "Ipswich", "Ipswich Town FC"], "crest_url": "/assets/clubs/ipswich-town.svg" },
-  { "id": "leeds-united", "name": "利兹联", "english_name": "Leeds United", "aliases": ["列斯联", "Leeds", "Leeds United FC"], "crest_url": "/assets/clubs/leeds-united.svg" },
-  { "id": "liverpool", "name": "利物浦", "english_name": "Liverpool", "aliases": ["Liverpool FC", "LFC"], "crest_url": "/assets/clubs/liverpool.svg" },
-  { "id": "manchester-city", "name": "曼城", "english_name": "Manchester City", "aliases": ["曼彻斯特城", "曼彻斯特城队", "Manchester City FC", "Man City", "MCFC"], "crest_url": "/assets/clubs/manchester-city.svg" },
-  { "id": "manchester-united", "name": "曼联", "english_name": "Manchester United", "aliases": ["曼彻斯特联", "曼彻斯特联队", "Manchester United FC", "Man United", "Man Utd", "MUFC"], "crest_url": "/assets/clubs/manchester-united.svg" },
-  { "id": "newcastle-united", "name": "纽卡斯尔联", "english_name": "Newcastle United", "aliases": ["纽卡斯尔", "纽卡", "纽卡素", "Newcastle", "Newcastle United FC", "Newcastle Utd"], "crest_url": "/assets/clubs/newcastle-united.svg" },
-  { "id": "nottingham-forest", "name": "诺丁汉森林", "english_name": "Nottingham Forest", "aliases": ["诺定咸森林", "Nottingham Forest FC", "Nott'm Forest", "Nottm Forest", "Nott Forest"], "crest_url": "/assets/clubs/nottingham-forest.svg" },
-  { "id": "sunderland", "name": "桑德兰", "english_name": "Sunderland", "aliases": ["新特兰", "Sunderland AFC"], "crest_url": "/assets/clubs/sunderland.svg" },
-  { "id": "tottenham-hotspur", "name": "热刺", "english_name": "Tottenham Hotspur", "aliases": ["托特纳姆热刺", "托特纳姆", "Tottenham", "Tottenham Hotspur FC", "Spurs"], "crest_url": "/assets/clubs/tottenham-hotspur.svg" }
+  {
+    "id": "arsenal",
+    "name": "阿森纳",
+    "english_name": "Arsenal",
+    "aliases": [
+      "阿仙奴",
+      "Arsenal FC"
+    ],
+    "crest_url": "/assets/arsenal.svg",
+    "short_name": "ARS",
+    "color": "#C83C3C",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.arsenal.com/",
+    "founded": 1886,
+    "stadium": "酋长球场",
+    "nickname": "枪手",
+    "description": "1886 年创立于伦敦伍尔维奇，1913 年迁至北伦敦。俱乐部自 2006 年起以酋长球场为主场。",
+    "crest_source_url": "https://www.premierleague.com/en/clubs/3/arsenal/overview",
+    "crest_asset_url": "https://resources.premierleague.com/premierleague25/badges-alt/3.svg",
+    "crest_attribution": "阿森纳俱乐部标识，来自英超官方球队资料页。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "阿森纳官方 · 俱乐部历史",
+        "url": "https://www.arsenal.com/feature/where-are-arsenal-located-in-london-a78bI0A8K1JA"
+      },
+      {
+        "name": "阿森纳官方 · 俱乐部与球场",
+        "url": "https://www.arsenal.com/the-club"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_arsenal",
+        "name": "Arsenal FC 官方",
+        "url": "https://www.arsenal.com/news/men/1",
+        "kind": "html",
+        "description": "官方新闻；动态列表使用官网发布的文章站点地图补充发现。",
+        "index_url": "https://www.arsenal.com/sitemaps/articles/1/sitemap.xml",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_arsenal",
+        "name": "The Guardian · Arsenal",
+        "url": "https://www.theguardian.com/football/arsenal/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      },
+      {
+        "id": "bbc_arsenal",
+        "name": "BBC Sport · Arsenal",
+        "url": "https://feeds.bbci.co.uk/sport/football/teams/arsenal/rss.xml",
+        "kind": "rss",
+        "description": "BBC 公开球队新闻订阅源。",
+        "reviewed_at": "2026-09-12"
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "aston-villa",
+    "name": "阿斯顿维拉",
+    "english_name": "Aston Villa",
+    "aliases": [
+      "维拉",
+      "阿士东维拉",
+      "Aston Villa FC"
+    ],
+    "crest_url": "/assets/clubs/aston-villa.svg",
+    "short_name": "AVL",
+    "color": "#812D52",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伯明翰",
+    "official_url": "https://www.avfc.co.uk/",
+    "description": "1874 年创立于伯明翰。俱乐部的官方历史从阿斯顿地区的一次路灯下聚会讲起，酒红与天蓝是其长期使用的代表色。",
+    "profile_sources": [
+      {
+        "name": "阿斯顿维拉官方 · 俱乐部资料",
+        "url": "https://www.avfc.co.uk/history/timeline"
+      }
+    ],
+    "founded": 1874,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#aston-villa",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw9ee09a12/logos/clubs/astonvilla.svg",
+    "crest_attribution": "阿斯顿维拉俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_aston_villa",
+        "name": "Aston Villa 官方",
+        "url": "https://www.avfc.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_aston_villa",
+        "name": "The Guardian · Aston Villa",
+        "url": "https://www.theguardian.com/football/aston-villa/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "bournemouth",
+    "name": "伯恩茅斯",
+    "english_name": "Bournemouth",
+    "aliases": [
+      "般尼茅夫",
+      "AFC Bournemouth",
+      "Bournemouth AFC"
+    ],
+    "crest_url": "/assets/clubs/bournemouth.svg",
+    "short_name": "BOU",
+    "color": "#C6323E",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伯恩茅斯",
+    "official_url": "https://www.afcb.co.uk/",
+    "description": "来自英格兰南海岸伯恩茅斯的足球俱乐部，英文全名为 AFC Bournemouth。俱乐部官网提供球队新闻、比赛信息和球迷服务。",
+    "profile_sources": [
+      {
+        "name": "伯恩茅斯官方 · 俱乐部资料",
+        "url": "https://www.afcb.co.uk/"
+      }
+    ],
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#bournemouth",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw822b8915/logos/clubs/bournemouth.svg",
+    "crest_attribution": "伯恩茅斯俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_bournemouth",
+        "name": "Bournemouth 官方",
+        "url": "https://www.afcb.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_bournemouth",
+        "name": "The Guardian · Bournemouth",
+        "url": "https://www.theguardian.com/football/bournemouth/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "brentford",
+    "name": "布伦特福德",
+    "english_name": "Brentford",
+    "aliases": [
+      "宾福特",
+      "Brentford FC"
+    ],
+    "crest_url": "/assets/clubs/brentford.svg",
+    "short_name": "BRE",
+    "color": "#BC3944",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.brentfordfc.com/en",
+    "description": "1889 年创立于伦敦布伦特福德。俱乐部起源与当地社区体育活动相连，官方历史记录了在基尤桥附近决定组建足球队的过程。",
+    "profile_sources": [
+      {
+        "name": "布伦特福德官方 · 俱乐部资料",
+        "url": "https://www.brentfordfc.com/en/news/article/club-news-brentford-and-bees-united-unveil-plaque-marking-clubs-history"
+      }
+    ],
+    "founded": 1889,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#brentford",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw88a35201/logos/clubs/brentford.svg",
+    "crest_attribution": "布伦特福德俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_brentford",
+        "name": "Brentford 官方",
+        "url": "https://www.brentfordfc.com/en/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_brentford",
+        "name": "The Guardian · Brentford",
+        "url": "https://www.theguardian.com/football/brentford/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "brighton",
+    "name": "布莱顿",
+    "english_name": "Brighton & Hove Albion",
+    "aliases": [
+      "布莱顿霍夫",
+      "白礼顿",
+      "Brighton",
+      "Brighton Hove Albion",
+      "Brighton and Hove Albion FC"
+    ],
+    "crest_url": "/assets/clubs/brighton.svg",
+    "short_name": "BHA",
+    "color": "#3378B7",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "布莱顿与霍夫",
+    "official_url": "https://www.brightonandhovealbion.com/home",
+    "description": "1901 年在布莱顿 Ship Street 的 Seven Stars 酒馆成立。俱乐部的身份与布莱顿、霍夫两地相连，官网保留了早期比赛场地和球队发展的历史资料。",
+    "profile_sources": [
+      {
+        "name": "布莱顿官方 · 俱乐部资料",
+        "url": "https://www.brightonandhovealbion.com/media-article/the-countdown-to-our-125-anniversary-celebrations-begins"
+      }
+    ],
+    "founded": 1901,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#brighton-amp-hove-albion",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwd232d4ca/logos/clubs/brighton.svg",
+    "crest_attribution": "布莱顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_brighton",
+        "name": "Brighton & Hove Albion 官方",
+        "url": "https://www.brightonandhovealbion.com/all-latest-news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_brighton",
+        "name": "The Guardian · Brighton & Hove Albion",
+        "url": "https://www.theguardian.com/football/brightonfootball/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "chelsea",
+    "name": "切尔西",
+    "english_name": "Chelsea",
+    "aliases": [
+      "车路士",
+      "Chelsea FC"
+    ],
+    "crest_url": "/assets/clubs/chelsea.svg",
+    "short_name": "CHE",
+    "color": "#3559A7",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.chelseafc.com/en",
+    "description": "1905 年在伦敦斯坦福桥球场对面的酒馆正式组建。俱乐部博物馆保存了创办人签署的文件，球队历史与斯坦福桥紧密相连。",
+    "profile_sources": [
+      {
+        "name": "切尔西官方 · 俱乐部资料",
+        "url": "https://www.chelseafc.com/en/news/article/top-10--chelsea-museum-exhibits"
+      }
+    ],
+    "founded": 1905,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#chelsea",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw2d99592d/logos/clubs/chelsea.svg",
+    "crest_attribution": "切尔西俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_chelsea",
+        "name": "Chelsea 官方",
+        "url": "https://www.chelseafc.com/en/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_chelsea",
+        "name": "The Guardian · Chelsea",
+        "url": "https://www.theguardian.com/football/chelsea/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "coventry-city",
+    "name": "考文垂",
+    "english_name": "Coventry City",
+    "aliases": [
+      "考文垂城",
+      "高云地利",
+      "Coventry",
+      "Coventry City FC"
+    ],
+    "crest_url": "/assets/clubs/coventry-city.svg",
+    "short_name": "COV",
+    "color": "#599FC3",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "考文垂",
+    "official_url": "https://www.ccfc.co.uk/",
+    "description": "来自考文垂的足球俱乐部，常被称为天蓝军团。1987 年夺得足总杯是俱乐部历史的重要篇章，官网保留了相关人物与比赛回忆。",
+    "profile_sources": [
+      {
+        "name": "考文垂官方 · 俱乐部资料",
+        "url": "https://www.ccfc.co.uk/news/2022/february/news-oggy-to-record-made-in-the-midlands-podcast-at-sky-blue-tavern/"
+      }
+    ],
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#coventry-city",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw60a818ea/logos/clubs/Club=Coventry_City,%20Mode=light.svg",
+    "crest_attribution": "考文垂俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_coventry_city",
+        "name": "Coventry City 官方",
+        "url": "https://www.ccfc.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_coventry_city",
+        "name": "The Guardian · Coventry City",
+        "url": "https://www.theguardian.com/football/coventry/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "crystal-palace",
+    "name": "水晶宫",
+    "english_name": "Crystal Palace",
+    "aliases": [
+      "Crystal Palace FC"
+    ],
+    "crest_url": "/assets/clubs/crystal-palace.svg",
+    "short_name": "CRY",
+    "color": "#385BA4",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.cpfc.co.uk/",
+    "description": "来自伦敦的足球俱乐部。官方历史将球队根源追溯至 1861 年，并解释了其与 1905 年职业球队建立之间的联系；相关年代口径见官网历史说明。",
+    "profile_sources": [
+      {
+        "name": "水晶宫官方 · 俱乐部资料",
+        "url": "https://www.cpfc.co.uk/information/crystal-palace-1861-history/"
+      }
+    ],
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#crystal-palace",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1d055761/logos/clubs/crystalpalace.svg",
+    "crest_attribution": "水晶宫俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_crystal_palace",
+        "name": "Crystal Palace 官方",
+        "url": "https://www.cpfc.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_crystal_palace",
+        "name": "The Guardian · Crystal Palace",
+        "url": "https://www.theguardian.com/football/crystalpalace/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "everton",
+    "name": "埃弗顿",
+    "english_name": "Everton",
+    "aliases": [
+      "爱华顿",
+      "Everton FC"
+    ],
+    "crest_url": "/assets/clubs/everton.svg",
+    "short_name": "EVE",
+    "color": "#3154A3",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "利物浦",
+    "official_url": "https://www.evertonfc.com/",
+    "description": "1878 年在利物浦成立，早期队名为 St. Domingo's。俱乐部历史记录了从斯坦利公园到安菲尔德、再到古迪逊公园的发展轨迹。",
+    "profile_sources": [
+      {
+        "name": "埃弗顿官方 · 俱乐部资料",
+        "url": "https://www.evertonfc.com/club/history/our-former-homes"
+      },
+      {
+        "name": "埃弗顿官方 · 社区历史",
+        "url": "https://stories.evertonfc.com/eitc-map/index.html"
+      }
+    ],
+    "founded": 1878,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#everton",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw6564e2a4/logos/clubs/everton.svg",
+    "crest_attribution": "埃弗顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_everton",
+        "name": "Everton 官方",
+        "url": "https://www.evertonfc.com/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_everton",
+        "name": "The Guardian · Everton",
+        "url": "https://www.theguardian.com/football/everton/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "fulham",
+    "name": "富勒姆",
+    "english_name": "Fulham",
+    "aliases": [
+      "富咸",
+      "Fulham FC"
+    ],
+    "crest_url": "/assets/clubs/fulham.svg",
+    "short_name": "FUL",
+    "color": "#4A5058",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.fulhamfc.com/",
+    "description": "1879 年起源于伦敦富勒姆圣安德鲁教堂的社区球队。1896 年迁入克拉文农场球场，球队与泰晤士河北岸的球场形成了长期联系。",
+    "profile_sources": [
+      {
+        "name": "富勒姆官方 · 俱乐部资料",
+        "url": "https://www.fulhamfc.com/club/history/history-of-fulham-football-club"
+      }
+    ],
+    "founded": 1879,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#fulham",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwaed9659d/logos/clubs/fulham.svg",
+    "crest_attribution": "富勒姆俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_fulham",
+        "name": "Fulham 官方",
+        "url": "https://www.fulhamfc.com/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_fulham",
+        "name": "The Guardian · Fulham",
+        "url": "https://www.theguardian.com/football/fulham/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "hull-city",
+    "name": "赫尔城",
+    "english_name": "Hull City",
+    "aliases": [
+      "侯城",
+      "Hull",
+      "Hull City AFC"
+    ],
+    "crest_url": "/assets/clubs/hull-city.svg",
+    "short_name": "HUL",
+    "color": "#B97B23",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "赫尔河畔金斯顿",
+    "official_url": "https://www.wearehullcity.co.uk/",
+    "description": "1904 年在赫尔河畔金斯顿创立。球队从早期友谊赛起步，随后进入足球联赛；琥珀色与黑色球衣是其历史识别元素。",
+    "profile_sources": [
+      {
+        "name": "赫尔城官方 · 俱乐部资料",
+        "url": "https://www.wearehullcity.co.uk/news/2025/may/19/through-the-years-1904-1909/"
+      }
+    ],
+    "founded": 1904,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#hull-city",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw44b2bc9d/logos/clubs/Club=Hull_City,%20Mode=light.svg",
+    "crest_attribution": "赫尔城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_hull_city",
+        "name": "Hull City 官方",
+        "url": "https://www.wearehullcity.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_hull_city",
+        "name": "The Guardian · Hull City",
+        "url": "https://www.theguardian.com/football/hullcity/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "ipswich-town",
+    "name": "伊普斯维奇",
+    "english_name": "Ipswich Town",
+    "aliases": [
+      "伊普斯维奇镇",
+      "叶士域治",
+      "Ipswich",
+      "Ipswich Town FC"
+    ],
+    "crest_url": "/assets/clubs/ipswich-town.svg",
+    "short_name": "IPS",
+    "color": "#3D66AB",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伊普斯维奇",
+    "official_url": "https://www.itfc.co.uk/",
+    "description": "1878 年以业余俱乐部形式成立，1936 年转为职业球队。俱乐部官网按时期梳理了伊普斯维奇的球队发展史。",
+    "profile_sources": [
+      {
+        "name": "伊普斯维奇官方 · 俱乐部资料",
+        "url": "https://www.itfc.co.uk/club/history/"
+      }
+    ],
+    "founded": 1878,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#ipswich-town",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw8400b2cf/logos/clubs/Club=Ipswich_Town,%20Mode=light.svg",
+    "crest_attribution": "伊普斯维奇俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_ipswich_town",
+        "name": "Ipswich Town 官方",
+        "url": "https://www.itfc.co.uk/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_ipswich_town",
+        "name": "The Guardian · Ipswich Town",
+        "url": "https://www.theguardian.com/football/ipswichtown/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "leeds-united",
+    "name": "利兹联",
+    "english_name": "Leeds United",
+    "aliases": [
+      "列斯联",
+      "Leeds",
+      "Leeds United FC"
+    ],
+    "crest_url": "/assets/clubs/leeds-united.svg",
+    "short_name": "LEE",
+    "color": "#64739D",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "利兹",
+    "official_url": "https://www.leedsunited.com/en",
+    "description": "1919 年创立于利兹。俱乐部官方回顾将 1967 至 1974 年列为队史的重要阶段，球队与城市的联系也通过城市荣誉活动延续。",
+    "profile_sources": [
+      {
+        "name": "利兹联官方 · 俱乐部资料",
+        "url": "https://www.leedsunited.com/en/news/freedom-of-city-ceremony-to-take-place"
+      }
+    ],
+    "founded": 1919,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#leeds-united",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1af306cf/logos/clubs/leeds.svg",
+    "crest_attribution": "利兹联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_leeds_united",
+        "name": "Leeds United 官方",
+        "url": "https://www.leedsunited.com/en/news/category/mens",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_leeds_united",
+        "name": "The Guardian · Leeds United",
+        "url": "https://www.theguardian.com/football/leedsunited/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "liverpool",
+    "name": "利物浦",
+    "english_name": "Liverpool",
+    "aliases": [
+      "Liverpool FC",
+      "LFC"
+    ],
+    "crest_url": "/assets/liverpool.png",
+    "short_name": "LIV",
+    "color": "#BE3945",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "利物浦",
+    "official_url": "https://www.liverpoolfc.com/",
+    "founded": 1892,
+    "stadium": "安菲尔德球场",
+    "nickname": "红军",
+    "description": "1892 年在利物浦创立，并以安菲尔德球场为主场。俱乐部的首场比赛也于同年在安菲尔德举行。",
+    "crest_source_url": "https://www.liverpoolfc.com/",
+    "crest_asset_url": "https://www.liverpoolfc.com/apple-touch-icon.png",
+    "crest_attribution": "利物浦俱乐部利弗鸟标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "利物浦官方 · 俱乐部创立",
+        "url": "https://www.liverpoolfc.com/info/how-liverpool-fc-was-founded-1892"
+      },
+      {
+        "name": "利物浦官方 · 安菲尔德球场",
+        "url": "https://www.liverpoolfc.com/info/anfield"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_liverpool",
+        "name": "Liverpool FC 官方",
+        "url": "https://www.liverpoolfc.com/news",
+        "kind": "html",
+        "description": "官网新闻与发布会，优先读取网页内嵌的结构化列表。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_liverpool",
+        "name": "The Guardian · Liverpool",
+        "url": "https://www.theguardian.com/football/liverpool/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      },
+      {
+        "id": "bbc_liverpool",
+        "name": "BBC Sport · Liverpool",
+        "url": "https://feeds.bbci.co.uk/sport/football/teams/liverpool/rss.xml",
+        "kind": "rss",
+        "description": "BBC 公开球队新闻订阅源。",
+        "reviewed_at": "2026-09-12"
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "manchester-city",
+    "name": "曼城",
+    "english_name": "Manchester City",
+    "aliases": [
+      "曼彻斯特城",
+      "曼彻斯特城队",
+      "Manchester City FC",
+      "Man City",
+      "MCFC"
+    ],
+    "crest_url": "/assets/clubs/manchester-city.svg",
+    "short_name": "MCI",
+    "color": "#568DAD",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "曼彻斯特",
+    "official_url": "https://www.mancity.com/",
+    "description": "球队历史可追溯至 1880 年圣马可教堂组建的足球队。1887 年以 Ardwick AFC 名义发展，1894 年改组为曼彻斯特城足球俱乐部。",
+    "profile_sources": [
+      {
+        "name": "曼城官方 · 俱乐部资料",
+        "url": "https://www.mancity.com/club/manchester-city-history"
+      }
+    ],
+    "founded": 1880,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#manchester-city",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw4d0f9c0f/logos/clubs/manchestercity.svg",
+    "crest_attribution": "曼城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_manchester_city",
+        "name": "Manchester City 官方",
+        "url": "https://www.mancity.com/news/mens",
+        "kind": "html",
+        "description": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "restricted",
+          "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
+        }
+      },
+      {
+        "id": "guardian_manchester_city",
+        "name": "The Guardian · Manchester City",
+        "url": "https://www.theguardian.com/football/manchestercity/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "manchester-united",
+    "name": "曼联",
+    "english_name": "Manchester United",
+    "aliases": [
+      "曼彻斯特联",
+      "曼彻斯特联队",
+      "Manchester United FC",
+      "Man United",
+      "Man Utd",
+      "MUFC"
+    ],
+    "crest_url": "/assets/clubs/manchester-united.svg",
+    "short_name": "MUN",
+    "color": "#B93E3F",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "曼彻斯特",
+    "official_url": "https://www.manutd.com/en",
+    "description": "1878 年以 Newton Heath LYR 铁路球队的名称创立，1902 年更名为曼彻斯特联。1910 年迁入老特拉福德球场。",
+    "profile_sources": [
+      {
+        "name": "曼联官方 · 俱乐部资料",
+        "url": "https://ir.manutd.com/company-information/history.aspx"
+      }
+    ],
+    "founded": 1878,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#manchester-united",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwc94b4c76/logos/clubs/manchesterunited.svg",
+    "crest_attribution": "曼联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_manchester_united",
+        "name": "Manchester United 官方",
+        "url": "https://www.manutd.com/en/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_manchester_united",
+        "name": "The Guardian · Manchester United",
+        "url": "https://www.theguardian.com/football/manchester-united/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "newcastle-united",
+    "name": "纽卡斯尔联",
+    "english_name": "Newcastle United",
+    "aliases": [
+      "纽卡斯尔",
+      "纽卡",
+      "纽卡素",
+      "Newcastle",
+      "Newcastle United FC",
+      "Newcastle Utd"
+    ],
+    "crest_url": "/assets/clubs/newcastle-united.svg",
+    "short_name": "NEW",
+    "color": "#4A5058",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "泰恩河畔纽卡斯尔",
+    "official_url": "https://www.newcastleunited.com/en",
+    "description": "官网以“始于 1881 年，1892 年成为 United”概括球队历史。圣詹姆斯公园与纽卡斯尔的城市足球传统紧密相连。",
+    "profile_sources": [
+      {
+        "name": "纽卡斯尔联官方 · 俱乐部资料",
+        "url": "https://www.newcastleunited.com/en/club/history"
+      }
+    ],
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#newcastle-united",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1b65836e/logos/clubs/newcastle.svg",
+    "crest_attribution": "纽卡斯尔联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_newcastle_united",
+        "name": "Newcastle United 官方",
+        "url": "https://www.newcastleunited.com/en/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_newcastle_united",
+        "name": "The Guardian · Newcastle United",
+        "url": "https://www.theguardian.com/football/newcastleunited/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "nottingham-forest",
+    "name": "诺丁汉森林",
+    "english_name": "Nottingham Forest",
+    "aliases": [
+      "诺定咸森林",
+      "Nottingham Forest FC",
+      "Nott'm Forest",
+      "Nottm Forest",
+      "Nott Forest"
+    ],
+    "crest_url": "/assets/clubs/nottingham-forest.svg",
+    "short_name": "NFO",
+    "color": "#B43C42",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "诺丁汉",
+    "official_url": "https://www.nottinghamforest.co.uk/",
+    "description": "1865 年创立于诺丁汉。俱乐部博物馆梳理了球队早期历史，以及 20 世纪 70 年代末和 80 年代初的欧洲赛场经历。",
+    "profile_sources": [
+      {
+        "name": "诺丁汉森林官方 · 俱乐部资料",
+        "url": "https://www.nottinghamforest.co.uk/news/2026/january/07/legends-tours-with-ian-storey-moore-on-sale-now/"
+      }
+    ],
+    "founded": 1865,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#nottingham-forest",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw5c5bfaf0/logos/clubs/nottinghamforest.svg",
+    "crest_attribution": "诺丁汉森林俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_nottingham_forest",
+        "name": "Nottingham Forest 官方",
+        "url": "https://www.nottinghamforest.co.uk/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_nottingham_forest",
+        "name": "The Guardian · Nottingham Forest",
+        "url": "https://www.theguardian.com/football/nottinghamforest/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "sunderland",
+    "name": "桑德兰",
+    "english_name": "Sunderland",
+    "aliases": [
+      "新特兰",
+      "Sunderland AFC"
+    ],
+    "crest_url": "/assets/clubs/sunderland.svg",
+    "short_name": "SUN",
+    "color": "#B53D49",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "桑德兰",
+    "official_url": "https://www.safc.com/",
+    "description": "来自英格兰东北部桑德兰的足球俱乐部，英文名称为 Sunderland AFC。官网提供球队新闻、比赛资料和俱乐部信息。",
+    "profile_sources": [
+      {
+        "name": "桑德兰官方 · 俱乐部资料",
+        "url": "https://www.safc.com/"
+      }
+    ],
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#sunderland",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwaca67b42/logos/clubs/sunderland.svg",
+    "crest_attribution": "桑德兰俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_sunderland",
+        "name": "Sunderland 官方",
+        "url": "https://www.safc.com/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_sunderland",
+        "name": "The Guardian · Sunderland",
+        "url": "https://www.theguardian.com/football/sunderland/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "tottenham-hotspur",
+    "name": "热刺",
+    "english_name": "Tottenham Hotspur",
+    "aliases": [
+      "托特纳姆热刺",
+      "托特纳姆",
+      "Tottenham",
+      "Tottenham Hotspur FC",
+      "Spurs"
+    ],
+    "crest_url": "/assets/clubs/tottenham-hotspur.svg",
+    "short_name": "TOT",
+    "color": "#3E5076",
+    "country": "英格兰",
+    "league": "英格兰",
+    "city": "伦敦",
+    "official_url": "https://www.tottenhamhotspur.com/",
+    "description": "1882 年由伦敦托特纳姆地区的板球俱乐部成员和学生组建。最初使用 Hotspur FC 名称，1884 年更名为 Tottenham Hotspur。",
+    "profile_sources": [
+      {
+        "name": "热刺官方 · 俱乐部资料",
+        "url": "https://www.tottenhamhotspur.com/the-club/history/year-by-year"
+      }
+    ],
+    "founded": 1882,
+    "crest_source_url": "https://shop.premierleague.com/en/clubs/#tottenham-hotspur",
+    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw8e1bc3a4/logos/clubs/tottenham.svg",
+    "crest_attribution": "热刺俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_tottenham_hotspur",
+        "name": "Tottenham Hotspur 官方",
+        "url": "https://www.tottenhamhotspur.com/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_tottenham_hotspur",
+        "name": "The Guardian · Tottenham Hotspur",
+        "url": "https://www.theguardian.com/football/tottenham-hotspur/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "barcelona",
+    "name": "巴塞罗那",
+    "english_name": "Barcelona",
+    "short_name": "BAR",
+    "color": "#465BA6",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "巴塞罗那",
+    "aliases": [
+      "巴萨",
+      "巴塞",
+      "FC Barcelona",
+      "Barca",
+      "Barça"
+    ],
+    "official_url": "https://www.fcbarcelona.com/en/",
+    "founded": 1899,
+    "stadium": "诺坎普球场",
+    "nickname": "红蓝军团",
+    "description": "1899 年由甘伯等人创立。诺坎普球场于 1957 年启用，是俱乐部历史与城市足球文化的重要组成部分。",
+    "crest_url": "/assets/barcelona.png",
+    "crest_source_url": "https://www.fcbarcelona.com/en/",
+    "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
+    "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "巴塞罗那官方 · 俱乐部历史",
+        "url": "https://www.fcbarcelona.com/en/club/history/decade-by-decade"
+      },
+      {
+        "name": "巴塞罗那官方 · 诺坎普球场",
+        "url": "https://www.fcbarcelona.com/en/club/instalaciones/spotify-camp-nou"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_barcelona",
+        "name": "FC Barcelona 官方",
+        "url": "https://www.fcbarcelona.com/en/football/first-team/news",
+        "kind": "html",
+        "description": "巴萨官方一线队新闻。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_barcelona",
+        "name": "The Guardian · Barcelona",
+        "url": "https://www.theguardian.com/football/barcelona/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "inter",
+    "name": "国际米兰",
+    "english_name": "Inter",
+    "short_name": "INT",
+    "color": "#317AB1",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "米兰",
+    "aliases": [
+      "国米",
+      "Inter Milan",
+      "Internazionale",
+      "FC Internazionale Milano"
+    ],
+    "official_url": "https://www.inter.it/en",
+    "founded": 1908,
+    "stadium": "朱塞佩·梅阿查球场",
+    "nickname": "蓝黑军团",
+    "description": "1908 年 3 月 9 日在米兰创立。梅阿查球场又称圣西罗球场，自 1947 年起承载着国际米兰的主场历史。",
+    "crest_url": "/assets/inter.png",
+    "crest_source_url": "https://www.inter.it/en",
+    "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
+    "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "profile_sources": [
+      {
+        "name": "国际米兰官方 · 俱乐部创立",
+        "url": "https://www.inter.it/en/news/2021-03-09-inter-113-years-history"
+      },
+      {
+        "name": "国际米兰官方 · 梅阿查球场",
+        "url": "https://www.inter.it/en/club/stadium"
+      }
+    ],
+    "research_sources": [
+      {
+        "id": "official_inter",
+        "name": "Inter 官方",
+        "url": "https://www.inter.it/en/news",
+        "kind": "html",
+        "description": "国际米兰官网新闻；读取内嵌文章数据。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_inter",
+        "name": "The Guardian · Internazionale",
+        "url": "https://www.theguardian.com/football/internazionale/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "real-madrid",
+    "name": "皇家马德里",
+    "english_name": "Real Madrid",
+    "short_name": "RMA",
+    "color": "#7161A8",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "马德里",
+    "aliases": [
+      "皇马",
+      "Real Madrid CF"
+    ],
+    "official_url": "https://www.realmadrid.com/en-US",
+    "founded": 1902,
+    "description": "1902 年正式组建于马德里，早期名称为 Madrid Football Club。俱乐部官方历史按年代记录了其从创立到发展的历程。",
+    "profile_sources": [
+      {
+        "name": "皇家马德里官方 · 俱乐部历史",
+        "url": "https://www.realmadrid.com/static/en/about-real-madrid/history/football/1902-1910/"
+      }
+    ],
+    "crest_url": "/assets/clubs/real-madrid.png",
+    "crest_source_url": "https://www.realmadrid.com/en-US",
+    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/3kq9cckrnlogidldtdie2fkbl?$Mobile$&fit=wrap&wid=144&hei=144",
+    "crest_attribution": "皇家马德里俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_real_madrid",
+        "name": "Real Madrid 官方",
+        "url": "https://www.realmadrid.com/en-US/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_real_madrid",
+        "name": "The Guardian · Real Madrid",
+        "url": "https://www.theguardian.com/football/realmadrid/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "bayern-munich",
+    "name": "拜仁慕尼黑",
+    "english_name": "Bayern Munich",
+    "short_name": "FCB",
+    "color": "#BE3D4F",
+    "country": "德国",
+    "league": "德国",
+    "city": "慕尼黑",
+    "aliases": [
+      "拜仁",
+      "Bayern München",
+      "FC Bayern München",
+      "Bayern"
+    ],
+    "official_url": "https://fcbayern.com/en",
+    "founded": 1900,
+    "description": "1900 年创立于慕尼黑。俱乐部官方历史按年代介绍建队初期、战后重建及迁入安联球场等重要阶段。",
+    "profile_sources": [
+      {
+        "name": "拜仁慕尼黑官方 · 俱乐部历史",
+        "url": "https://fcbayern.com/en/club/history/mile-stones"
+      }
+    ],
+    "crest_url": "/assets/clubs/bayern-munich.jpg",
+    "crest_source_url": "https://www.realmadrid.com/en-US",
+    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/bpx4ib85d65u9oyhglkt36k1b",
+    "crest_attribution": "拜仁慕尼黑俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_bayern_munich",
+        "name": "Bayern Munich 官方",
+        "url": "https://fcbayern.com/en/news",
+        "kind": "html",
+        "description": "核验时官网请求超时，可稍后重试或从原站手动阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "timeout",
+          "note": "核验时官网请求超时，可稍后重试或从原站手动阅读。"
+        }
+      },
+      {
+        "id": "guardian_bayern_munich",
+        "name": "The Guardian · Bayern Munich",
+        "url": "https://www.theguardian.com/football/bayernmunich/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "paris-saint-germain",
+    "name": "巴黎圣日耳曼",
+    "english_name": "Paris Saint-Germain",
+    "short_name": "PSG",
+    "color": "#384D7A",
+    "country": "法国",
+    "league": "法国",
+    "city": "巴黎",
+    "aliases": [
+      "巴黎",
+      "大巴黎",
+      "PSG",
+      "Paris SG",
+      "Paris Saint Germain"
+    ],
+    "official_url": "https://www.psg.fr/en",
+    "founded": 1970,
+    "description": "1970 年由巴黎足球俱乐部与圣日耳曼体育俱乐部的足球力量合并而成。官方将 1970 年 8 月 12 日登记获准作为俱乐部的正式成立日期。",
+    "profile_sources": [
+      {
+        "name": "巴黎圣日耳曼官方 · 俱乐部历史",
+        "url": "https://en.psg.fr/teams/club/content/50-yrs-the-clubs-beginnings-912-history-psg-paris-saint-germain"
+      }
+    ],
+    "crest_url": "/assets/clubs/paris-saint-germain.png",
+    "crest_source_url": "https://www.psg.fr/en",
+    "crest_asset_url": "https://media.psg.fr/image/upload/psg-logo_avcznk.png",
+    "crest_attribution": "巴黎圣日耳曼俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_paris_saint_germain",
+        "name": "Paris Saint-Germain 官方",
+        "url": "https://www.psg.fr/en/news",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_paris_saint_germain",
+        "name": "The Guardian · Paris Saint-Germain",
+        "url": "https://www.theguardian.com/football/parisstgermain/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "juventus",
+    "name": "尤文图斯",
+    "english_name": "Juventus",
+    "short_name": "JUV",
+    "color": "#505362",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "都灵",
+    "aliases": [
+      "尤文",
+      "祖云达斯",
+      "Juventus FC"
+    ],
+    "official_url": "https://www.juventus.com/en/",
+    "founded": 1897,
+    "description": "1897 年 11 月 1 日由都灵的一群学生创立。Juventus 在拉丁语中意为青年，俱乐部官方历史保留了建队故事。",
+    "profile_sources": [
+      {
+        "name": "尤文图斯官方 · 俱乐部历史",
+        "url": "https://www.juventus.com/en/news/articles/juventus-is-born"
+      }
+    ],
+    "crest_url": "/assets/clubs/juventus.png",
+    "crest_source_url": "https://www.juventus.com/en/",
+    "crest_asset_url": "https://www.juventus.com/images/image/upload/f_auto/dev/assets/icons/128x128",
+    "crest_attribution": "尤文图斯俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_juventus",
+        "name": "Juventus 官方",
+        "url": "https://www.juventus.com/en/news/",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_juventus",
+        "name": "The Guardian · Juventus",
+        "url": "https://www.theguardian.com/football/juventus/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "ac-milan",
+    "name": "AC米兰",
+    "english_name": "AC Milan",
+    "short_name": "MIL",
+    "color": "#B33D45",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "米兰",
+    "aliases": [
+      "AC 米兰",
+      "米兰",
+      "Milan",
+      "ACM"
+    ],
+    "official_url": "https://www.acmilan.com/en",
+    "founded": 1899,
+    "description": "1899 年 12 月 16 日由赫伯特·吉尔平等人在米兰创立。红黑两色从建队之初便构成球队身份的重要部分。",
+    "profile_sources": [
+      {
+        "name": "AC米兰官方 · 俱乐部历史",
+        "url": "https://www.acmilan.com/en/club/history"
+      }
+    ],
+    "crest_url": "/assets/clubs/ac-milan.png",
+    "crest_source_url": "https://www.acmilan.com/en",
+    "crest_asset_url": "https://assets-eu-01.kc-usercontent.com:443/006f7528-416b-01e4-8ef2-ab6ab3f4e177/002bcea4-7693-4f1d-a5a4-aa157135a28e/Milan.png",
+    "crest_attribution": "AC米兰俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_ac_milan",
+        "name": "AC Milan 官方",
+        "url": "https://www.acmilan.com/en/news/articles/latest",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_ac_milan",
+        "name": "The Guardian · AC Milan",
+        "url": "https://www.theguardian.com/football/acmilan/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "atletico-madrid",
+    "name": "马德里竞技",
+    "english_name": "Atlético de Madrid",
+    "short_name": "ATM",
+    "color": "#B6404A",
+    "country": "西班牙",
+    "league": "西班牙",
+    "city": "马德里",
+    "aliases": [
+      "马竞",
+      "Atletico Madrid",
+      "Atletico de Madrid",
+      "Atlético Madrid",
+      "Atleti"
+    ],
+    "official_url": "https://www.atleticodemadrid.com/",
+    "founded": 1903,
+    "description": "1903 年 4 月 26 日由在马德里的巴斯克学生创立。俱乐部历史记录了球队从早期球场到大都会球场的发展。",
+    "profile_sources": [
+      {
+        "name": "马德里竞技官方 · 俱乐部历史",
+        "url": "https://www.atleticodemadrid.com/noticias/122-anos-de-pasion-rojiblanca"
+      }
+    ],
+    "crest_url": "/assets/clubs/atletico-madrid.png",
+    "crest_source_url": "https://www.realmadrid.com/en-US",
+    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/4ku8o6uf87yd8iecdalipo6wd?$Mobile$&fit=wrap&wid=144&hei=144",
+    "crest_attribution": "马德里竞技俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_atletico_madrid",
+        "name": "Atlético de Madrid 官方",
+        "url": "https://www.atleticodemadrid.com/noticias",
+        "kind": "html",
+        "description": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "restricted",
+          "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
+        }
+      },
+      {
+        "id": "guardian_atletico_madrid",
+        "name": "The Guardian · Atlético de Madrid",
+        "url": "https://www.theguardian.com/football/atleticomadrid/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "borussia-dortmund",
+    "name": "多特蒙德",
+    "english_name": "Borussia Dortmund",
+    "short_name": "BVB",
+    "color": "#9A8319",
+    "country": "德国",
+    "league": "德国",
+    "city": "多特蒙德",
+    "aliases": [
+      "多特",
+      "Dortmund",
+      "BVB",
+      "Borussia 09 Dortmund"
+    ],
+    "official_url": "https://www.bvb.de/de/en.html",
+    "founded": 1909,
+    "description": "1909 年 12 月 19 日在多特蒙德创立。俱乐部于 1911 年参加首场正式比赛，官网按年代保留了从早期组织到职业足球发展的记录。",
+    "profile_sources": [
+      {
+        "name": "多特蒙德官方 · 俱乐部历史",
+        "url": "https://www.bvb.de/de/en/borussia-dortmund/history/decades/1909.html"
+      }
+    ],
+    "crest_url": "/assets/clubs/borussia-dortmund.svg",
+    "crest_source_url": "https://www.bvb.de/de/en.html",
+    "crest_asset_url": "https://www.bvb.de/etc.clientlibs/bvbweb/clientlibs/clientlib-site/resources/images/bvb-logo.svg",
+    "crest_attribution": "多特蒙德俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_borussia_dortmund",
+        "name": "Borussia Dortmund 官方",
+        "url": "https://www.bvb.de/de/en/news/news-overview.html",
+        "kind": "html",
+        "description": "俱乐部官方新闻。部分页面依赖动态加载或可能限制自动访问；遇到限制请从原站阅读。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "page_available",
+          "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
+        }
+      },
+      {
+        "id": "guardian_borussia_dortmund",
+        "name": "The Guardian · Borussia Dortmund",
+        "url": "https://www.theguardian.com/football/borussiadortmund/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  },
+  {
+    "id": "roma",
+    "name": "罗马",
+    "english_name": "AS Roma",
+    "short_name": "ROM",
+    "color": "#994F36",
+    "country": "意大利",
+    "league": "意大利",
+    "city": "罗马",
+    "aliases": [
+      "罗马队",
+      "Roma",
+      "A.S. Roma"
+    ],
+    "official_url": "https://www.asroma.com/en",
+    "founded": 1927,
+    "description": "1927 年由罗马的三家体育俱乐部合并组建。队徽采用母狼象征，黄色与红色来自罗马城市的代表色。",
+    "profile_sources": [
+      {
+        "name": "罗马官方 · 俱乐部历史",
+        "url": "https://www.asroma.com/en/club/history/a-brief-history-of-as-roma"
+      }
+    ],
+    "crest_url": "/assets/clubs/roma.png",
+    "crest_source_url": "https://www.acmilan.com/en",
+    "crest_asset_url": "https://assets-eu-01.kc-usercontent.com:443/006f7528-416b-01e4-8ef2-ab6ab3f4e177/1d20420f-1510-43d3-ad47-15a329f30d36/Roma-2024.png",
+    "crest_attribution": "罗马俱乐部标识，取自AC米兰官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "research_sources": [
+      {
+        "id": "official_roma",
+        "name": "AS Roma 官方",
+        "url": "https://www.asroma.com/en/news",
+        "kind": "html",
+        "description": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "restricted",
+          "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
+        }
+      },
+      {
+        "id": "guardian_roma",
+        "name": "The Guardian · AS Roma",
+        "url": "https://www.theguardian.com/football/roma/rss",
+        "kind": "rss",
+        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
+        "reviewed_at": "2026-09-12",
+        "access_review": {
+          "checked_at": "2026-09-12",
+          "status": "feed_available",
+          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
+        }
+      }
+    ],
+    "profile_reviewed_at": "2026-09-12"
+  }
 ]

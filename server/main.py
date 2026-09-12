@@ -1,4 +1,4 @@
-"""Local single-user HTTP application and scheduler."""
+"""Private browser/server HTTP application and scheduler."""
 from __future__ import annotations
 
 import asyncio
@@ -74,6 +74,18 @@ class AutomationSettings(Model):
     generate_brief: bool | None = None
 
 
+class PersonalizationSettings(Model):
+    interests: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]] | None = Field(None, max_length=12)
+    reading_language: Literal["zh", "original"] | None = None
+    fan_level: Literal["beginner", "regular", "expert"] | None = None
+    briefing_window_hours: int | None = Field(None, ge=6, le=336)
+
+    @field_validator("interests")
+    @classmethod
+    def unique_interests(cls, value):
+        return list(dict.fromkeys(value)) if value is not None else None
+
+
 class SettingsPatch(Model):
     mode: Mode | None = None
     followed_teams: list[Identifier] | None = Field(None, min_length=1, max_length=30)
@@ -83,6 +95,7 @@ class SettingsPatch(Model):
     refresh_minutes: int | None = Field(None, ge=5, le=1440)
     llm: LLMSettings | None = None
     automation: AutomationSettings | None = None
+    personalization: PersonalizationSettings | None = None
     verification_enabled: bool | None = None
     verification_timeout_seconds: int | None = Field(None, ge=10, le=90)
 
@@ -210,7 +223,8 @@ class RunInput(Model):
     mode: Mode
     team_id: Identifier
     question: str = Field(min_length=1, max_length=5000)
-    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch"] = "auto"
+    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer"] = "auto"
+    evidence_ids: list[Identifier] = Field(default_factory=list, max_length=5)
     match_id: Identifier | None = None
     conversation_id: Identifier | None = None
     allow_network: bool = True
@@ -278,6 +292,9 @@ def safe_settings(settings):
 
 
 def create_app(db_path=None):
+    from .web_runtime import WebRuntime, PrivateAccess
+    runtime = WebRuntime.from_env()
+    access = PrivateAccess(runtime)
     store = Store(db_path or Path(os.environ.get("TOUCHLINE_DATA_DIR", str(ROOT / "data"))) / "touchline.sqlite3")
     seed(store)
     tasks = {}
@@ -329,21 +346,28 @@ def create_app(db_path=None):
         await asyncio.gather(scheduler, *(task for task, event in active), return_exceptions=True)
         store.close()
 
-    app = FastAPI(title="看台 Touchline", version="4.0.0", lifespan=lifespan)
+    app = FastAPI(title="看台 Touchline", version="5.0.0", lifespan=lifespan,
+                  docs_url=None if runtime.server_mode else "/docs", redoc_url=None,
+                  openapi_url=None if runtime.server_mode else "/openapi.json")
     app.state.store = store
     app.state.run_tasks = tasks
     app.state.automation = automation
+    app.state.runtime = runtime
+    app.state.access = access
+    access.register(app)
     from .team_profiles import register_team_profile_routes
     register_team_profile_routes(app, store)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=runtime.hosts)
 
     @app.middleware("http")
-    async def local_request_boundaries(request, call_next):
+    async def application_request_boundaries(request, call_next):
         origin = request.headers.get("origin")
-        if request.method not in {"GET", "HEAD", "OPTIONS"} and origin:
-            from urllib.parse import urlsplit
-            if urlsplit(origin).hostname not in {"localhost", "127.0.0.1", "::1", "testserver"}:
-                return JSONResponse({"detail": "仅允许本机应用发起修改请求"}, status_code=403)
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            if (origin and not runtime.allows_origin(origin)) or request.headers.get("sec-fetch-site") == "cross-site":
+                return JSONResponse({"detail": "仅允许当前网站发起修改请求"}, status_code=403)
+        if request.url.path.startswith("/api/") and request.url.path not in {"/api/health", "/api/auth/status", "/api/auth/login"}:
+            if not access.authenticated(request):
+                return JSONResponse({"detail": "请先登录你的私人看台。"}, status_code=401, headers={"Cache-Control": "no-store"})
         length = request.headers.get("content-length", "")
         if length.isdigit() and int(length) > 256 * 1024:
             return JSONResponse({"detail": "请求正文超过 256 KB 上限"}, status_code=413)
@@ -358,6 +382,8 @@ def create_app(db_path=None):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -493,10 +519,12 @@ def create_app(db_path=None):
     @app.get("/api/service")
     async def get_service():
         from .service_control import service_status
-        return service_status()
+        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "5.0.0"}
 
     @app.post("/api/service/shortcut")
     async def service_shortcut():
+        if runtime.server_mode:
+            raise HTTPException(409, "网站在服务器上运行，无需创建本机快捷方式。")
         from .service_control import create_desktop_shortcut
         try:
             return await asyncio.to_thread(create_desktop_shortcut)
@@ -505,6 +533,8 @@ def create_app(db_path=None):
 
     @app.put("/api/service/autostart")
     async def service_autostart(payload: AutostartInput):
+        if runtime.server_mode:
+            raise HTTPException(409, "网站由托管平台管理运行，无需设置本机自启。")
         from .service_control import set_autostart
         try:
             return await asyncio.to_thread(set_autostart, payload.enabled)
@@ -561,8 +591,10 @@ def create_app(db_path=None):
         from .service_control import service_status
         from .presentation import present_events
         events = present_events(store, events, evidence, runs, spoiler_free=settings["spoiler_free"])
+        evidence = [{**item, **{key: value for key, value in ingestion.content_details(item).items() if key != "paragraphs"}}
+                    for item in evidence]
         catalog = source_catalog(store, settings["followed_teams"][0]) if settings["followed_teams"] else []
-        return {"settings": safe_settings(settings), "teams": store.list("teams"),
+        return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
                 "events": sorted(events, key=lambda item: item["updated_at"], reverse=True),
                 "evidence": evidence, "matches": sorted(matches, key=lambda item: item["kickoff"]),
                 "sources": store.list("sources", mode), "runs": [run_response(run) for run in runs[-100:]],
@@ -570,7 +602,12 @@ def create_app(db_path=None):
                 "tracking": [tracking_response(item) for item in store.list("tracking", mode)],
                 "source_catalog": catalog, "setup": {"model_configured": bool(settings["llm"].get("base_url") and settings["llm"].get("model")),
                     "live_evidence_count": len(store.list("evidence", "live"))},
-                "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": service_status()}
+                "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": await get_service()}
+
+    @app.get("/api/evidence/{identifier}")
+    async def get_evidence(identifier: Identifier):
+        item = evidence_response(require("evidence", identifier))
+        return {**item, **ingestion.content_details(item)}
 
     @app.put("/api/settings")
     async def settings_update(payload: SettingsPatch):
@@ -860,6 +897,7 @@ def create_app(db_path=None):
     @app.post("/api/runs")
     async def create_run(payload: RunInput):
         team_exists(payload.team_id)
+        check_evidence(payload.evidence_ids, payload.team_id, payload.mode)
         if len(tasks) >= 3:
             raise HTTPException(503, "已有 3 个任务运行中，请停止或等待后再试")
         match = require("matches", payload.match_id) if payload.match_id else None
@@ -883,7 +921,7 @@ def create_app(db_path=None):
                 raise HTTPException(400, "跟进任务与当前球队或资料空间不一致。")
         run = {"id": "run_" + uuid.uuid4().hex[:16], **payload.model_dump(),
                "conversation_id": payload.conversation_id or "conversation_" + uuid.uuid4().hex[:16],
-               "status": "queued", "answer": "", "evidence_ids": [], "warnings": [], "steps": [], "error": None,
+               "status": "queued", "answer": "", "input_evidence_ids": list(dict.fromkeys(payload.evidence_ids)), "evidence_ids": [], "warnings": [], "steps": [], "error": None,
                "created_at": ingestion.now(), "finished_at": None,
                "model": "规则演示，未调用模型" if payload.mode == "demo" else store.settings()["llm"]["model"],
                "spoiler": payload.skill == "match_review" or not store.settings()["spoiler_free"],
@@ -904,7 +942,7 @@ def create_app(db_path=None):
         return await create_run(RunInput(mode=previous["mode"], team_id=previous["team_id"],
             question=previous["question"], skill=previous.get("skill", "auto"), match_id=previous.get("match_id"),
             conversation_id=previous.get("conversation_id"), allow_network=previous.get("allow_network", True),
-            parent_run_id=previous["id"]))
+            parent_run_id=previous["id"], evidence_ids=previous.get("input_evidence_ids", [])))
 
     @app.get("/api/runs/{identifier}")
     async def get_run(identifier: str):
@@ -932,7 +970,7 @@ def create_app(db_path=None):
         return CAPABILITIES
 
     prototype = ROOT / "prototype"
-    if prototype.is_dir():
+    if prototype.is_dir() and not runtime.server_mode:
         app.mount("/prototype", StaticFiles(directory=prototype, html=True), name="prototype")
     assets = ROOT / "dist" / "assets"
     if assets.is_dir():
