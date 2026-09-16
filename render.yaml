@@ -1,7 +1,7 @@
 services:
   - type: web
     name: touchline
-    branch: codex/five-leagues-reports
+    branch: main
     runtime: docker
     plan: starter
     healthCheckPath: /api/health
