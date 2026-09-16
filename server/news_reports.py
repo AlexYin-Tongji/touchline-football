@@ -73,6 +73,21 @@ def _configured(settings):
         return False
 
 
+def _report_settings(store):
+    from .model_config import role_settings
+    try:
+        return role_settings(store, "feed")
+    except AgentFailure:
+        return {**store.settings(), "llm": {}}
+
+
+def _configuration_revision(settings):
+    # Credential changes should resume exhausted jobs too. Only a one-way hash
+    # is persisted, never a copy of the configured key or its public prefix.
+    llm = settings.get("llm", {})
+    return _hash({key: llm.get(key) for key in ("base_url", "protocol", "model", "api_key")})
+
+
 def _boundary(settings):
     # Interests and writing style affect future editorial choices; they are not
     # access permissions and must not erase already verified Chinese articles.
@@ -264,26 +279,39 @@ def _public(store, row, settings, budget):
         # earlier versions. Safe text excerpts do not make an original image
         # safe: a photograph or scoreboard may reveal the removed result.
         cited = {source.get("id") for source in output["report"].get("sources", [])}
-        allowed = {source["id"]: {image.get("url") for image in source.get("images", [])}
-                   for source in snapshot["sources"] if source["id"] in cited and not source.get("spoiler_redacted")}
-        from .ingestion import safe_image_url
+        from .ingestion import image_identity, source_images
+        allowed = {source["id"]: {image["url"]: image for image in source_images(source)}
+                   for source in snapshot["sources"] if source["id"] in cited}
         def images_in_scope(images, evidence_ids=None):
-            return [image for image in (images or []) if isinstance(image, dict)
-                    and isinstance(image.get("evidence_id"), str) and isinstance(image.get("url"), str)
-                    and image.get("evidence_id") in allowed
-                    and (evidence_ids is None or image["evidence_id"] in evidence_ids)
-                    and image.get("url") in allowed[image["evidence_id"]]
-                    and safe_image_url(image["url"], image.get("source_url") if isinstance(image.get("source_url"), str) else "")]
+            result, seen = [], set()
+            for image in images or []:
+                if not isinstance(image, dict):
+                    continue
+                eid, url = image.get("evidence_id"), image.get("url")
+                if not isinstance(eid, str) or not isinstance(url, str) or eid not in allowed:
+                    continue
+                current = allowed[eid].get(url)
+                if not current or (evidence_ids is not None and eid not in evidence_ids) or image_identity(url) in seen:
+                    continue
+                # Use current attribution, so stale captions/links cannot leak.
+                result.append(current)
+                seen.add(image_identity(url))
+            return result
         output["report"]["images"] = images_in_scope(output["report"].get("images", []))
         for section in output["report"].get("sections", []):
             section["illustrations"] = images_in_scope(section.get("illustrations", []), section.get("evidence_ids", []))
     output.pop("images", None)
     output.pop("illustrations", None)
     output["budget"] = budget
-    output["queue_note"] = ("今日自动整理额度已用完，将在额度重置后继续。" if output.get("status") == "queued" and not budget["remaining_today"]
-                            else "等待后台整理" if output.get("status") == "queued" else None)
+    status = output.get("status")
+    output["queue_note"] = ("今日自动整理额度已用完，将在额度重置后继续。" if status == "queued" and not budget["remaining_today"]
+                            else "已加入整理队列，后台正在依次处理。" if status == "queued"
+                            else "正在阅读来源并整理中文消息。" if status == "generating"
+                            else "已安排稍后重试。" if status == "failed" and output.get("retry_at")
+                            else "多次整理未完成，可点击刷新动态重新尝试。" if status == "failed"
+                            else "请在设置中为球队动态选择可用模型。" if status == "needs_configuration" else None)
     # Internal version maps need not be sent to a browser.
-    for key in ("source_hashes", "fingerprint", "boundary_hash", "attempt_history", "manual_requested", "schema_version", "boundary_migration"):
+    for key in ("source_hashes", "fingerprint", "boundary_hash", "attempt_history", "manual_requested", "schema_version", "boundary_migration", "config_revision"):
         output.pop(key, None)
     return output
 
@@ -304,9 +332,45 @@ def get_report(store, report_id):
     return _public(store, row, store.settings(), report_budget(store)) if row else None
 
 
+def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
+    """Read-only editorial state, with mutually exclusive waiting reasons."""
+    budget = report_budget(store)
+    reports = list_reports(store, team_id=team_id) if reports is None else reports
+    result = dict.fromkeys(("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked"), 0)
+    result.update(waiting_sources=max(0, waiting_sources), next_retry_at=None)
+    times = []
+    for row in reports:
+        status = row.get("status")
+        if status == "completed":
+            continue
+        if status == "queued":
+            result["queued" if budget["remaining_today"] else "budget_blocked"] += 1
+        elif status == "failed" and parse_time(row.get("retry_at")):
+            result["retrying" if budget["remaining_today"] else "budget_blocked"] += 1
+            if budget["remaining_today"]:
+                times.append(row["retry_at"])
+        elif status in {"generating", "failed", "needs_configuration"}:
+            result[status] += 1
+        else:
+            result["waiting_sources"] += 1
+    if result["budget_blocked"]:
+        times.append(budget["resets_at"])
+    result["next_retry_at"] = min(times) if times else None
+    result["total_pending"] = sum(result[key] for key in ("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked", "waiting_sources"))
+    messages = []
+    for key, label in (("generating", "条正在整理"), ("queued", "条已排队"), ("retrying", "条稍后自动重试"),
+                       ("failed", "条暂未整理成功，可刷新重试"), ("needs_configuration", "条等待配置球队动态模型"),
+                       ("budget_blocked", "条等待本日自动整理额度重置"), ("waiting_sources", "条正在等待可用来源与整理")):
+        if result[key]:
+            messages.append(str(result[key]) + label)
+    result["note"] = "；".join(messages) or "中文动态已更新。"
+    result["can_retry"] = bool((result["failed"] or result["waiting_sources"]) and budget["remaining_today"])
+    return result
+
+
 def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=30, force=False):
     """Persist missing jobs only; callers own scheduling after ingestion/import."""
-    settings = store.settings()
+    settings = _report_settings(store)
     if mode != "live" or (not force and settings.get("reports", {}).get("auto_generate", True) is not True):
         return []
     events = store.list("events", mode=mode, team_id=team_id)
@@ -326,9 +390,11 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=3
             existing = store.get("reports", report_id) or next((item for item in store.list("reports", mode=mode, team_id=event["team_id"])
                        if item.get("event_id") == event["id"] and item.get("fingerprint") == snapshot["fingerprint"]), None)
             if existing:
-                if existing["status"] == "stale":
+                changed_config = existing.get("config_revision") != _configuration_revision(settings)
+                if existing["status"] == "stale" or existing["status"] == "failed" and changed_config:
                     existing.update(status="queued" if _configured(settings) else "needs_configuration",
-                                    attempts=0, report=None, error=None, retry_at=None, updated_at=_stamp())
+                                    attempts=0, report=None, error=None, retry_at=None, updated_at=_stamp(),
+                                    config_revision=_configuration_revision(settings))
                     store.put("reports", existing)
                     queued += 1
                     result.append(existing)
@@ -351,6 +417,7 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=3
                    "error": None if _configured(settings) else "请先在设置中填写模型服务地址、模型名称和所需密钥，连接成功后自动整理。",
                    "created_at": created, "updated_at": created, "attempts": 0, "attempt_history": [],
                    "report": None, "run_id": None, "retry_at": None, "manual_requested": force,
+                   "config_revision": _configuration_revision(settings),
                    "fingerprint": snapshot["fingerprint"], "source_hashes": snapshot["source_hashes"],
                    "boundary_hash": snapshot["boundary_hash"], **_source_fields(snapshot)}
             store.put("reports", row)
@@ -370,10 +437,27 @@ def retry_report(store, report_id):
         return get_report(store, replacements[0]["id"]) if replacements else get_report(store, report_id)
     if row["status"] in {"completed", "generating", "queued"}:
         return get_report(store, report_id)
-    row.update(status="queued" if _configured(store.settings()) else "needs_configuration", attempts=0,
-               retry_at=None, error=None, updated_at=_stamp(), manual_requested=True)
+    settings = _report_settings(store)
+    row.update(status="queued" if _configured(settings) else "needs_configuration", attempts=0,
+               retry_at=None, error=None, updated_at=_stamp(), manual_requested=True,
+               config_revision=_configuration_revision(settings))
     store.put("reports", row)
     return get_report(store, report_id)
+
+
+def retry_pending_reports(store, team_id=None, limit=12):
+    """Explicit refresh retries a bounded selection, preserving daily usage."""
+    teams = {team_id} if team_id else set(store.settings().get("followed_teams", []))
+    ids = []
+    for row in list_reports(store, team_id=team_id):
+        if len(ids) >= max(0, min(30, limit)):
+            break
+        if row.get("team_id") not in teams or row.get("status") not in {"failed", "stale", "needs_configuration"}:
+            continue
+        retried = retry_report(store, row["id"])
+        if retried and retried.get("status") == "queued":
+            ids.append(retried["id"])
+    return {"queued": len(ids), "report_ids": ids}
 
 
 def _finish(store, row, run, settings):
@@ -392,8 +476,16 @@ def _finish(store, row, run, settings):
         sources = [{key: item.get(key) for key in ("id", "title", "source_name", "url", "published_at")}
                    for item in snapshot["sources"] if item["id"] in cited]
         length = len(content.get("summary", "")) + sum(len(fact["detail"]) for fact in facts) + len(content.get("analysis", ""))
-        illustrations = [{**image, "evidence_id": item["id"]} for item in snapshot["sources"] if item["id"] in cited
-                         for image in item.get("images", [])[:2] if not item.get("spoiler_redacted")][:4]
+        from .ingestion import image_identity, source_images
+        illustrations, seen_images = [], set()
+        for item in snapshot["sources"]:
+            if item["id"] not in cited:
+                continue
+            for image in source_images(item, limit=2):
+                identity = image_identity(image["url"])
+                if identity not in seen_images and len(illustrations) < 4:
+                    illustrations.append(image)
+                    seen_images.add(identity)
         report = {"title": content["title"], "lead": content["summary"], "images": illustrations,
                   "sections": [{"heading": fact["title"], "body": fact["detail"], "kind": fact.get("kind", "development"), "evidence_ids": fact["evidence_ids"],
                                 "illustrations": [image for image in illustrations if image["evidence_id"] in fact["evidence_ids"]][:1] if index else []} for index, fact in enumerate(facts)],
@@ -443,18 +535,20 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
         return {"processed": 0, "completed": 0, "failed": 0, "busy": True}
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
     try:
-        settings = store.settings()
+        settings = _report_settings(store)
         limit = max(0, min(3, int(max_jobs if max_jobs is not None else settings.get("reports", {}).get("max_per_cycle", 3))))
-        queue = sorted(store.list("reports", mode="live"), key=lambda row: row.get("created_at", ""))
+        queue = sorted(store.list("reports", mode="live"),
+                       key=lambda row: (not row.get("manual_requested", False), row.get("status") == "failed", row.get("created_at", "")))
         for row in queue:
             if stats["processed"] >= limit:
                 break
             if row.get("status") not in {"queued", "needs_configuration", "failed"}:
                 continue
-            settings = store.settings()
+            settings = _report_settings(store)
             if not settings.get("reports", {}).get("auto_generate", True) and not row.get("manual_requested"):
                 continue
-            if row.get("status") == "failed" and (not row.get("retry_at") or parse_time(row["retry_at"]) > now()):
+            retry_at = parse_time(row.get("retry_at"))
+            if row.get("status") == "failed" and (not retry_at or retry_at > now()):
                 continue
             if not _current(store, row, settings):
                 row.update(status="stale", report=None, updated_at=_stamp())
@@ -469,6 +563,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
             run_id = "run_" + uuid.uuid4().hex[:20]
             row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
                        updated_at=_stamp(), started_at=_stamp(), retry_at=None,
+                       config_revision=_configuration_revision(settings),
                        attempt_history=[*row.get("attempt_history", []), _stamp()])
             store.put("reports", row)
             run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
@@ -476,7 +571,12 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
                    "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
                    "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；通常1至3节、全文300至650字，交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
                    "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
-                   "evidence_ids": [], "warnings": [], "error": None, "finished_at": None, "model": ""}
+                   "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
+                   "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}
+            from .model_config import role_selection
+            selection = role_selection(store, "feed")
+            if selection:
+                run.update(provider_id=selection["provider_id"], model=selection["model"])
             store.put("runs", run)
             stats["processed"] += 1
             try:

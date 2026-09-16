@@ -299,7 +299,7 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         responses = [tool_message("submit_answer", manuscript())]
         async def requester(config, messages, **kwargs):
             if kwargs.get("tool_choice", {}).get("function", {}).get("name") == "report_source_support":
-                self.assertEqual(kwargs["timeout"], 90)
+                self.assertEqual(kwargs["timeout"], 120)
                 return checked(config, messages, **kwargs)
             self.assertEqual(kwargs["tool_choice"]["function"]["name"], "submit_answer")
             self.assertEqual(kwargs["timeout"], 240)

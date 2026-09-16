@@ -274,6 +274,24 @@ export function TeamCenter({
           </button>
         </div>
       </div>
+      {center && (
+        <div className="material-status" aria-label="球队资料收录情况">
+          <span>
+            <Users size={13} /> {center.roster.length} 名已收录球员
+          </span>
+          <span>
+            <CalendarDays size={13} /> {center.matches.length} 场比赛记录
+          </span>
+          <span>
+            <Shield size={13} /> {center.sources?.length || 0} 个资料来源
+          </span>
+          <small>
+            {center.updated_at
+              ? `资料更新于${friendlyTime(center.updated_at)}`
+              : "等待资料同步"}
+          </small>
+        </div>
+      )}
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -862,7 +880,10 @@ export function TeamCenter({
 
 function PlayerPhoto({ player }: { player: Player }) {
   const [failed, setFailed] = useState(false);
-  const url = safeUrl(player.photo_url);
+  useEffect(() => setFailed(false), [player.id, player.photo_url]);
+  const url = safeUrl(player.photo_source_url)
+    ? safeUrl(player.photo_url)
+    : null;
   return url && !failed ? (
     <img
       className="player-photo"

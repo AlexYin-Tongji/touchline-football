@@ -7,9 +7,12 @@ import {
   Eye,
   EyeOff,
   LoaderCircle,
+  MessageCircle,
+  Newspaper,
   Plus,
   Search,
   Server,
+  Shield,
   Trash2,
 } from "lucide-react";
 import { api, errorText, post, put } from "./api";
@@ -31,7 +34,34 @@ interface Provider {
 interface ProviderState {
   providers: Provider[];
   active: { provider_id: string; model: string } | null;
+  roles?: Partial<Record<ModelRole, ModelSelection | null>>;
+  resolved_roles?: Partial<Record<ModelRole, ModelSelection | null>>;
 }
+type ModelSelection = { provider_id: string; model: string };
+type ModelRole = "feed" | "chat" | "team";
+const roleDescriptions = [
+  {
+    id: "feed" as const,
+    title: "球队动态",
+    icon: Newspaper,
+    text: "整理新闻、提炼中文消息",
+    context: "读取当前球队的新闻来源，不读取私人对话。",
+  },
+  {
+    id: "chat" as const,
+    title: "足球对话",
+    icon: MessageCircle,
+    text: "回答提问、持续追问",
+    context: "读取当前会话与球队资料；新会话有独立上下文。",
+  },
+  {
+    id: "team" as const,
+    title: "球队资料解读",
+    icon: Shield,
+    text: "解释球队与球员资料",
+    context: "读取可追溯的球队资料；比分与阵容由数据源更新。",
+  },
+];
 const empty = (): Provider => ({
   id: "",
   name: "",
@@ -78,6 +108,7 @@ export function ModelSettings({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [section, setSection] = useState<"roles" | "providers">("roles");
   const choose = (provider: Provider | null) => {
     setDraft(provider || empty());
     setEditing(provider?.id || null);
@@ -143,7 +174,7 @@ export function ModelSettings({
       else await post("/model-providers", body);
       await reload(body.id);
       await onChanged();
-      setMessage("服务商已保存。选择一个模型，即可开始对话。");
+      setMessage("服务商已保存。可在功能分工中为每项功能选择模型。");
     });
   const discover = () =>
     action("discover", async () => {
@@ -174,7 +205,9 @@ export function ModelSettings({
       });
       setState(result);
       await onChanged();
-      setMessage(`已启用 ${model.name || model.id}。`);
+      setMessage(
+        `默认模型已设为 ${model.name || model.id}。单独分配的功能模型保持不变。`,
+      );
     });
   const filtered = models.filter((item) =>
     `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase()),
@@ -183,7 +216,23 @@ export function ModelSettings({
     state?.providers.find((provider) => provider.id === editing)?.models || [];
   return (
     <div className="model-settings">
-      <p className="settings-intro">连接你自己的模型，让看台为你读懂足球。</p>
+      <p className="settings-intro">
+        一个服务商，多种分工。分别选择动态、对话和资料解读使用的模型。
+      </p>
+      <div className="settings-tabs filter-tabs" aria-label="模型设置分类">
+        <button
+          className={section === "roles" ? "active" : ""}
+          onClick={() => setSection("roles")}
+        >
+          功能分工
+        </button>
+        <button
+          className={section === "providers" ? "active" : ""}
+          onClick={() => setSection("providers")}
+        >
+          服务商与模型
+        </button>
+      </div>
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -198,375 +247,474 @@ export function ModelSettings({
       {!state && !error ? (
         <Spinner text="读取模型配置" />
       ) : (
-        <div className="provider-layout">
-          <aside className="provider-list">
-            <span className="small-heading">服务商</span>
-            {state?.providers.map((provider) => (
-              <button
-                key={provider.id}
-                disabled={!!busy}
-                className={editing === provider.id ? "active" : ""}
-                onClick={() => choose(provider)}
-              >
-                <span className="provider-avatar">
-                  {provider.name.slice(0, 1)}
-                </span>
-                <span>
-                  <strong>{provider.name}</strong>
-                  <small>
-                    {state.active?.provider_id === provider.id
-                      ? state.active.model
-                      : `${provider.models.length} 个模型`}
-                  </small>
-                </span>
-                {state.active?.provider_id === provider.id && (
-                  <span className="selected-dot" />
-                )}
-              </button>
-            ))}
-            <button
-              className="add-provider"
-              disabled={!!busy}
-              onClick={() => choose(null)}
-            >
-              <Plus size={17} />
-              添加服务商
-            </button>
-          </aside>
-          <section className="provider-editor">
-            <div className="provider-title">
-              <div>
-                <h3>{editing ? draft.name : "添加模型服务商"}</h3>
+        <>
+          {section === "roles" && (
+            <section className="model-role-settings">
+              <div className="role-intro">
+                <h3>每项功能，各司其职</h3>
                 <p>
-                  {editing
-                    ? "配置连接信息，管理可用模型。"
-                    : "选择常用服务商，或接入兼容的自定义接口。"}
+                  可以共用默认模型，也可以为不同功能单独选择。修改后用于新任务，已有对话保留原来的模型。
                 </p>
               </div>
-              <Server size={23} />
-            </div>
-            {!editing && (
-              <div className="provider-presets">
-                {presets.map((preset) => (
+              <div className="model-role-grid">
+                {roleDescriptions.map((role) => (
+                  <article className="model-role-card" key={role.id}>
+                    <span className="role-icon">
+                      <role.icon size={21} />
+                    </span>
+                    <h4>{role.title}</h4>
+                    <p>{role.text}</p>
+                    <label htmlFor={`role-${role.id}`}>使用模型</label>
+                    <select
+                      id={`role-${role.id}`}
+                      disabled={!!busy}
+                      value={
+                        state?.roles?.[role.id]
+                          ? `${state.roles[role.id]!.provider_id}\t${state.roles[role.id]!.model}`
+                          : ""
+                      }
+                      onChange={(event) => {
+                        const [provider_id, model] =
+                          event.target.value.split("\t");
+                        void action(`role-${role.id}`, async () => {
+                          const result = await put<ProviderState>(
+                            "/models/roles",
+                            {
+                              roles: {
+                                [role.id]: provider_id
+                                  ? { provider_id, model }
+                                  : null,
+                              },
+                            },
+                          );
+                          setState(result);
+                          await onChanged();
+                          setMessage(`${role.title}的模型已更新。`);
+                        });
+                      }}
+                    >
+                      <option value="">
+                        跟随默认
+                        {state?.active
+                          ? ` · ${state.active.model}`
+                          : "（尚未设置）"}
+                      </option>
+                      {state?.providers.map((provider) => (
+                        <optgroup key={provider.id} label={provider.name}>
+                          {provider.models.map((model) => (
+                            <option
+                              key={model.id}
+                              value={`${provider.id}\t${model.id}`}
+                            >
+                              {model.name || model.id}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <small className="role-context">{role.context}</small>
+                  </article>
+                ))}
+              </div>
+              <div className="context-boundary">
+                <Shield size={18} />
+                <div>
+                  <strong>上下文如何衔接</strong>
+                  <p>
+                    三项功能共享当前球队的公开、可追溯资料。动态中的“问问助手”会带入该条消息的来源；会话历史独立保存，不会自动进入新闻整理。切换球队会切换到该球队的对话记录。
+                  </p>
+                </div>
+              </div>
+              <button
+                className="button"
+                onClick={() => setSection("providers")}
+              >
+                <Plus size={15} /> 管理服务商与可用模型{" "}
+                <ChevronRight size={15} />
+              </button>
+            </section>
+          )}
+          {section === "providers" && (
+            <div className="provider-layout">
+              <aside className="provider-list">
+                <span className="small-heading">服务商</span>
+                {state?.providers.map((provider) => (
                   <button
-                    key={preset.id}
+                    key={provider.id}
                     disabled={!!busy}
-                    onClick={() => {
-                      setDraft({
-                        ...empty(),
-                        id: preset.id,
-                        name: preset.name,
-                        base_url: preset.url,
-                        protocol: preset.protocol,
-                      });
-                      setModels([]);
-                    }}
+                    className={editing === provider.id ? "active" : ""}
+                    onClick={() => choose(provider)}
                   >
-                    {preset.name}
+                    <span className="provider-avatar">
+                      {provider.name.slice(0, 1)}
+                    </span>
+                    <span>
+                      <strong>{provider.name}</strong>
+                      <small>
+                        {state.active?.provider_id === provider.id
+                          ? state.active.model
+                          : `${provider.models.length} 个模型`}
+                      </small>
+                    </span>
+                    {state.active?.provider_id === provider.id && (
+                      <span className="selected-dot" />
+                    )}
                   </button>
                 ))}
                 <button
+                  className="add-provider"
                   disabled={!!busy}
-                  onClick={() => {
-                    setDraft(empty());
-                    setModels([]);
+                  onClick={() => choose(null)}
+                >
+                  <Plus size={17} />
+                  添加服务商
+                </button>
+              </aside>
+              <section className="provider-editor">
+                <div className="provider-title">
+                  <div>
+                    <h3>{editing ? draft.name : "添加模型服务商"}</h3>
+                    <p>
+                      {editing
+                        ? "配置连接信息，管理可用模型。"
+                        : "选择常用服务商，或接入兼容的自定义接口。"}
+                    </p>
+                  </div>
+                  <Server size={23} />
+                </div>
+                {!editing && (
+                  <div className="provider-presets">
+                    {presets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        disabled={!!busy}
+                        onClick={() => {
+                          setDraft({
+                            ...empty(),
+                            id: preset.id,
+                            name: preset.name,
+                            base_url: preset.url,
+                            protocol: preset.protocol,
+                          });
+                          setModels([]);
+                        }}
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
+                    <button
+                      disabled={!!busy}
+                      onClick={() => {
+                        setDraft(empty());
+                        setModels([]);
+                      }}
+                    >
+                      自定义
+                    </button>
+                  </div>
+                )}
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void save();
                   }}
                 >
-                  自定义
-                </button>
-              </div>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save();
-              }}
-            >
-              <fieldset disabled={!!busy} className="provider-fields">
-                <div className="field-pair">
-                  <label>
-                    显示名称
-                    <input
-                      value={draft.name}
-                      required
-                      maxLength={80}
-                      onChange={(event) =>
-                        setDraft({ ...draft, name: event.target.value })
-                      }
-                      placeholder="例如：我的 DeepSeek"
-                    />
-                  </label>
-                  <label>
-                    服务商 ID
-                    <input
-                      value={draft.id}
-                      autoComplete="username"
-                      required
-                      pattern="([a-zA-Z0-9_]|-)+"
-                      maxLength={64}
-                      disabled={!!editing}
-                      onChange={(event) =>
-                        setDraft({ ...draft, id: event.target.value })
-                      }
-                      placeholder="例如：deepseek"
-                    />
-                    <small>
-                      {editing
-                        ? "创建后保持不变"
-                        : "使用英文字母、数字、短横线"}
-                    </small>
-                  </label>
-                </div>
-                <label>
-                  接口地址（Base URL）
-                  <input
-                    type="url"
-                    required
-                    value={draft.base_url}
-                    onChange={(event) =>
-                      setDraft({ ...draft, base_url: event.target.value })
-                    }
-                    placeholder="https://api.example.com/v1"
-                  />
-                </label>
-                <label>
-                  API 协议
-                  <select
-                    value={draft.protocol}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        protocol: event.target.value as Provider["protocol"],
-                      })
-                    }
-                  >
-                    <option value="chat_completions">
-                      OpenAI Chat Completions
-                    </option>
-                    <option value="responses">OpenAI Responses</option>
-                    <option value="anthropic_messages">
-                      Anthropic Messages
-                    </option>
-                  </select>
-                </label>
-                <label>
-                  API 密钥
-                  <div className="password-field">
-                    <input
-                      type={visible ? "text" : "password"}
-                      autoComplete="new-password"
-                      value={key}
-                      onChange={(event) => setKey(event.target.value)}
-                      placeholder={
-                        draft.api_key_set
-                          ? "已保存，留空即可保持原密钥"
-                          : "输入服务商提供的 API Key"
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={visible ? "隐藏密钥" : "显示密钥"}
-                      onClick={() => setVisible(!visible)}
-                    >
-                      {visible ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                </label>
-                <div className="models-heading">
-                  <div>
-                    <h4>可用模型</h4>
-                    <p>勾选你想使用的模型，也可以手动添加。</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={!draft.base_url}
-                    onClick={discover}
-                  >
-                    {busy === "discover" ? (
-                      <LoaderCircle size={15} className="spin" />
-                    ) : (
-                      <Download size={15} />
-                    )}
-                    获取模型
-                  </button>
-                </div>
-                {models.length > 0 && (
-                  <>
-                    <label className="search-input compact">
-                      <Search size={16} />
+                  <fieldset disabled={!!busy} className="provider-fields">
+                    <div className="field-pair">
+                      <label>
+                        显示名称
+                        <input
+                          value={draft.name}
+                          required
+                          maxLength={80}
+                          onChange={(event) =>
+                            setDraft({ ...draft, name: event.target.value })
+                          }
+                          placeholder="例如：我的 DeepSeek"
+                        />
+                      </label>
+                      <label>
+                        服务商 ID
+                        <input
+                          value={draft.id}
+                          autoComplete="username"
+                          required
+                          pattern="([a-zA-Z0-9_]|-)+"
+                          maxLength={64}
+                          disabled={!!editing}
+                          onChange={(event) =>
+                            setDraft({ ...draft, id: event.target.value })
+                          }
+                          placeholder="例如：deepseek"
+                        />
+                        <small>
+                          {editing
+                            ? "创建后保持不变"
+                            : "使用英文字母、数字、短横线"}
+                        </small>
+                      </label>
+                    </div>
+                    <label>
+                      接口地址（Base URL）
                       <input
-                        aria-label="搜索模型"
-                        placeholder="搜索模型名称"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
+                        type="url"
+                        required
+                        value={draft.base_url}
+                        onChange={(event) =>
+                          setDraft({ ...draft, base_url: event.target.value })
+                        }
+                        placeholder="https://api.example.com/v1"
                       />
                     </label>
-                    <div className="model-options">
-                      {filtered.map((model) => (
-                        <label key={model.id}>
-                          <input
-                            type="checkbox"
-                            checked={draft.models.some(
-                              (item) => item.id === model.id,
-                            )}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                models: event.target.checked
-                                  ? [...draft.models, model]
-                                  : draft.models.filter(
-                                      (item) => item.id !== model.id,
-                                    ),
-                              })
-                            }
-                          />
-                          <span>
-                            {model.name || model.id}
-                            <small>
-                              {model.name !== model.id ? model.id : ""}
-                            </small>
-                          </span>
-                          {state?.active?.provider_id === editing &&
-                            state.active.model === model.id && (
-                              <small className="active-model-tag">
-                                当前使用
-                              </small>
-                            )}
-                        </label>
-                      ))}
-                      {!filtered.length && (
-                        <p className="muted">没有匹配的模型。</p>
-                      )}
+                    <label>
+                      API 协议
+                      <select
+                        value={draft.protocol}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            protocol: event.target
+                              .value as Provider["protocol"],
+                          })
+                        }
+                      >
+                        <option value="chat_completions">
+                          OpenAI Chat Completions
+                        </option>
+                        <option value="responses">OpenAI Responses</option>
+                        <option value="anthropic_messages">
+                          Anthropic Messages
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      API 密钥
+                      <div className="password-field">
+                        <input
+                          type={visible ? "text" : "password"}
+                          autoComplete="new-password"
+                          value={key}
+                          onChange={(event) => setKey(event.target.value)}
+                          placeholder={
+                            draft.api_key_set
+                              ? "已保存，留空即可保持原密钥"
+                              : "输入服务商提供的 API Key"
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={visible ? "隐藏密钥" : "显示密钥"}
+                          onClick={() => setVisible(!visible)}
+                        >
+                          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                    </label>
+                    <div className="models-heading">
+                      <div>
+                        <h4>可用模型</h4>
+                        <p>勾选你想使用的模型，也可以手动添加。</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={!draft.base_url}
+                        onClick={discover}
+                      >
+                        {busy === "discover" ? (
+                          <LoaderCircle size={15} className="spin" />
+                        ) : (
+                          <Download size={15} />
+                        )}
+                        获取模型
+                      </button>
                     </div>
-                  </>
+                    {models.length > 0 && (
+                      <>
+                        <label className="search-input compact">
+                          <Search size={16} />
+                          <input
+                            aria-label="搜索模型"
+                            placeholder="搜索模型名称"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                          />
+                        </label>
+                        <div className="model-options">
+                          {filtered.map((model) => (
+                            <label key={model.id}>
+                              <input
+                                type="checkbox"
+                                checked={draft.models.some(
+                                  (item) => item.id === model.id,
+                                )}
+                                onChange={(event) =>
+                                  setDraft({
+                                    ...draft,
+                                    models: event.target.checked
+                                      ? [...draft.models, model]
+                                      : draft.models.filter(
+                                          (item) => item.id !== model.id,
+                                        ),
+                                  })
+                                }
+                              />
+                              <span>
+                                {model.name || model.id}
+                                <small>
+                                  {model.name !== model.id ? model.id : ""}
+                                </small>
+                              </span>
+                              {state?.active?.provider_id === editing &&
+                                state.active.model === model.id && (
+                                  <small className="active-model-tag">
+                                    默认模型
+                                  </small>
+                                )}
+                            </label>
+                          ))}
+                          {!filtered.length && (
+                            <p className="muted">没有匹配的模型。</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    <div className="manual-model">
+                      <input
+                        aria-label="手动添加模型 ID"
+                        value={manual}
+                        onChange={(event) => setManual(event.target.value)}
+                        placeholder="手动输入模型 ID"
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.preventDefault();
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={!manual.trim()}
+                        onClick={() => {
+                          const id = manual.trim();
+                          if (!draft.models.some((item) => item.id === id))
+                            setDraft({
+                              ...draft,
+                              models: [...draft.models, { id, name: id }],
+                            });
+                          if (!models.some((item) => item.id === id))
+                            setModels([...models, { id, name: id }]);
+                          setManual("");
+                        }}
+                      >
+                        <Plus size={15} />
+                        添加
+                      </button>
+                    </div>
+                    <button
+                      className="button primary save-provider"
+                      type="submit"
+                    >
+                      {busy === "save" ? (
+                        <LoaderCircle size={16} className="spin" />
+                      ) : (
+                        <Check size={16} />
+                      )}
+                      保存配置
+                    </button>
+                  </fieldset>
+                </form>
+                {editing && savedModels.length > 0 && (
+                  <section className="use-model">
+                    <h4>默认模型</h4>
+                    <p className="default-model-note">
+                      未单独指定模型的功能会使用这里的默认选择。
+                    </p>
+                    {savedModels.map((model) => (
+                      <div key={model.id}>
+                        <span>{model.name || model.id}</span>
+                        <button
+                          className="text-button"
+                          disabled={!!busy}
+                          onClick={() => activate(model)}
+                        >
+                          {state?.active?.provider_id === editing &&
+                          state.active.model === model.id ? (
+                            <>
+                              <Check size={14} />
+                              默认模型
+                            </>
+                          ) : (
+                            <>
+                              设为默认
+                              <ChevronRight size={14} />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      className="button test-model"
+                      disabled={!!busy}
+                      onClick={() =>
+                        action("test", async () => {
+                          const model =
+                            state?.active?.provider_id === editing
+                              ? state.active.model
+                              : savedModels[0].id;
+                          const result = await post<{
+                            ok: boolean;
+                            message: string;
+                          }>(
+                            `/model-providers/${encodeURIComponent(editing)}/test`,
+                            { model },
+                          );
+                          if (result.ok)
+                            setMessage(
+                              result.message || "连接正常，可以开始对话。",
+                            );
+                          else
+                            setError(
+                              result.message || "连接未成功，请检查配置。",
+                            );
+                        })
+                      }
+                    >
+                      {busy === "test" && (
+                        <LoaderCircle size={15} className="spin" />
+                      )}
+                      测试连接
+                    </button>
+                  </section>
                 )}
-                <div className="manual-model">
-                  <input
-                    aria-label="手动添加模型 ID"
-                    value={manual}
-                    onChange={(event) => setManual(event.target.value)}
-                    placeholder="手动输入模型 ID"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") event.preventDefault();
-                    }}
-                  />
+                {editing && (
                   <button
-                    type="button"
-                    className="button"
-                    disabled={!manual.trim()}
+                    className="delete-provider text-button"
+                    disabled={!!busy}
                     onClick={() => {
-                      const id = manual.trim();
-                      if (!draft.models.some((item) => item.id === id))
-                        setDraft({
-                          ...draft,
-                          models: [...draft.models, { id, name: id }],
-                        });
-                      if (!models.some((item) => item.id === id))
-                        setModels([...models, { id, name: id }]);
-                      setManual("");
+                      if (!deleteConfirm) {
+                        setDeleteConfirm(true);
+                        return;
+                      }
+                      void action("delete", async () => {
+                        await api(
+                          `/model-providers/${encodeURIComponent(editing)}`,
+                          { method: "DELETE" },
+                        );
+                        const result = await reload();
+                        choose(result.providers[0] || null);
+                        await onChanged();
+                        setMessage("服务商已移除。");
+                      });
                     }}
                   >
-                    <Plus size={15} />
-                    添加
+                    <Trash2 size={14} />
+                    {deleteConfirm ? "再次点击确认移除" : "移除此服务商"}
                   </button>
-                </div>
-                <button className="button primary save-provider" type="submit">
-                  {busy === "save" ? (
-                    <LoaderCircle size={16} className="spin" />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  保存配置
-                </button>
-              </fieldset>
-            </form>
-            {editing && savedModels.length > 0 && (
-              <section className="use-model">
-                <h4>开始使用</h4>
-                {savedModels.map((model) => (
-                  <div key={model.id}>
-                    <span>{model.name || model.id}</span>
-                    <button
-                      className="text-button"
-                      disabled={!!busy}
-                      onClick={() => activate(model)}
-                    >
-                      {state?.active?.provider_id === editing &&
-                      state.active.model === model.id ? (
-                        <>
-                          <Check size={14} />
-                          已启用
-                        </>
-                      ) : (
-                        <>
-                          使用此模型
-                          <ChevronRight size={14} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ))}
-                <button
-                  className="button test-model"
-                  disabled={!!busy}
-                  onClick={() =>
-                    action("test", async () => {
-                      const model =
-                        state?.active?.provider_id === editing
-                          ? state.active.model
-                          : savedModels[0].id;
-                      const result = await post<{
-                        ok: boolean;
-                        message: string;
-                      }>(
-                        `/model-providers/${encodeURIComponent(editing)}/test`,
-                        { model },
-                      );
-                      if (result.ok)
-                        setMessage(
-                          result.message || "连接正常，可以开始对话。",
-                        );
-                      else
-                        setError(result.message || "连接未成功，请检查配置。");
-                    })
-                  }
-                >
-                  {busy === "test" && (
-                    <LoaderCircle size={15} className="spin" />
-                  )}
-                  测试连接
-                </button>
+                )}
               </section>
-            )}
-            {editing && (
-              <button
-                className="delete-provider text-button"
-                disabled={!!busy}
-                onClick={() => {
-                  if (!deleteConfirm) {
-                    setDeleteConfirm(true);
-                    return;
-                  }
-                  void action("delete", async () => {
-                    await api(
-                      `/model-providers/${encodeURIComponent(editing)}`,
-                      { method: "DELETE" },
-                    );
-                    const result = await reload();
-                    choose(result.providers[0] || null);
-                    await onChanged();
-                    setMessage("服务商已移除。");
-                  });
-                }}
-              >
-                <Trash2 size={14} />
-                {deleteConfirm ? "再次点击确认移除" : "移除此服务商"}
-              </button>
-            )}
-          </section>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

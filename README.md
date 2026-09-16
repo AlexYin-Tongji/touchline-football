@@ -16,6 +16,8 @@ Windows 双击 `启动看台.cmd` 或已有桌面快捷方式，打开 **http://
 
 模型配置参考 DeepSeek 官方 Harness 的简洁流程：添加服务商 → 填写地址、协议和密钥 → 获取或手动添加模型 → 选择使用。支持 Chat Completions、Responses 和 Anthropic Messages。旧模型配置会自动迁移，密钥不回显。
 
+“功能分工”可分别选择球队动态、足球对话和球队资料解读的模型。对话记录按球队保存，刷新后可恢复；已有对话继续使用原来的模型。球队选择器可直接关注多支球队。动态中的等待提示会说明排队、失败、待配置或额度原因，刷新可重试失败任务。
+
 第一次请选择关注球队并配置模型。球队数字资料与消息来源自动更新；中文消息整理和问答使用你配置的模型。模型 API 是否收费取决于提供方；本地运行本身不收托管费，也不植入广告。
 
 ## 保存与来源
@@ -51,6 +53,7 @@ GitHub Actions 还检查 Linux 环境和 Docker 构建。Docker / Render 文件�
 
 - [本地与免费托管的选择](docs/FREE_HOSTING.md)
 - [V7 设计与验证](docs/PERSONAL_V7.md)
+- [V7 可靠性与模型上下文](docs/RELIABILITY_V7.md)
 - [V6 历史验证](docs/V6_VALIDATION.md)
 - [球队与来源素材](public/assets/clubs/README.md)
 

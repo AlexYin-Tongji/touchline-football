@@ -16,7 +16,7 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 from bs4 import BeautifulSoup
@@ -279,29 +279,153 @@ def safe_image_url(value, source_url):
         return None
 
 
+def image_identity(url):
+    """Identify the same publisher asset across known resizing/cropping URLs.
+
+    Unknown query parameters remain part of the identity: some CDNs use an id
+    or source URL in the query to select entirely different photographs.
+    """
+    parts = urlsplit(str(url or ""))
+    host = (parts.hostname or "").lower()
+    if host == "guim.co.uk" or host.endswith(".guim.co.uk"):
+        match = re.search(r"/img/media/([a-f0-9]{20,64})/", parts.path, re.I)
+        if match:
+            return "guim:" + match.group(1).lower()
+    transforms = {"width", "height", "w", "h", "quality", "q", "fit", "crop", "rect", "dpr", "auto", "format", "fm", "resize"}
+    pairs = sorted((key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                   if key.lower() not in transforms and not key.lower().startswith("utm_"))
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, urlencode(pairs), ""))
+
+
+def article_image_scope(url):
+    """Known landing pages cannot establish ownership of an article image."""
+    try:
+        parts = urlsplit(normalize_url(url))
+    except (ValueError, TypeError):
+        return False
+    segments = [part for part in parts.path.split("/") if part]
+    if len(segments) < 2:
+        return False
+    if parts.hostname in {"theguardian.com", "www.theguardian.com"}:
+        return bool(re.search(r"/\d{4}/[a-z]{3}/\d{1,2}/[^/]+", parts.path, re.I))
+    return segments[-1].lower() not in {"news", "latest", "football", "sport", "sports", "all", "index.html"}
+
+
+_MULTI_TEAM_TITLE = re.compile(
+    r"\b(?:round[ -]?up|review|live(?:[ -]?blog)?|as it happened|news digest|football daily)\b"
+    r"|综述|综览|汇总|集锦|直播|实时更新", re.I)
+
+
+def _image_mentions_team(value, team_id):
+    """Match catalog identities, never a feed label, a credit or an inferred player."""
+    from .club_library import TEAM_ALIASES
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    for value in TEAM_ALIASES.get(team_id, ()):
+        alias = unicodedata.normalize("NFKC", value).casefold()
+        if re.search(r"[\u3400-\u9fff]", alias):
+            if alias in text:
+                return True
+        elif re.search(r"(?<!\w)" + re.escape(alias) + r"(?!\w)", text):
+            return True
+    return False
+
+
+def source_images(source, limit=4):
+    """Return only attributable, current images from one visible document."""
+    if (source.get("private") or source.get("deleted") or source.get("spoiler_redacted")
+            or source.get("visibility") in {"hidden", "deleted"} or not article_image_scope(source.get("url"))):
+        return []
+    # Local import avoids a cycle: research uses ingestion to retrieve pages.
+    from .research import article_url
+    try:
+        document = article_url(source["url"])
+    except (ValueError, TypeError):
+        return []
+    # A roundup can legitimately contain this club while its generic lead
+    # montage illustrates entirely different teams. Article membership alone
+    # is insufficient for that image: require an explicit headline or caption
+    # identity. RSS names such as "Guardian · Barcelona" are routing metadata.
+    require_team_caption = bool(_MULTI_TEAM_TITLE.search(str(source.get("title") or ""))) and not _image_mentions_team(source.get("title"), source.get("team_id"))
+    results, seen = [], set()
+    for image in source.get("images") or []:
+        if not isinstance(image, dict) or image.get("evidence_id", source.get("id")) != source.get("id"):
+            continue
+        if require_team_caption and not _image_mentions_team(image.get("caption"), source.get("team_id")):
+            continue
+        try:
+            if not image.get("source_url") or article_url(image["source_url"]) != document:
+                continue
+        except (ValueError, TypeError):
+            continue
+        clean = safe_image_url(image.get("url"), source["url"])
+        if not clean or image_identity(clean) in seen:
+            continue
+        seen.add(image_identity(clean))
+        results.append({**image, "url": clean, "evidence_id": source.get("id"), "source_url": source["url"]})
+        if len(results) >= limit:
+            break
+    return results
+
+
 def extract_images(soup, url, source_name):
-    """Publisher-declared lead and article figures, with literal attribution."""
-    results = []
-    def add(value, caption="", credit=""):
-        clean = safe_image_url(value, url)
-        if clean and clean not in {row["url"] for row in results} and len(results) < 4:
-            results.append({"url": clean, "source_url": url, "caption": clean_text(str(caption))[:300],
-                            "credit": clean_text(str(credit or source_name))[:160]})
-    for meta in soup.select('meta[property="og:image"], meta[name="twitter:image"]'):
-        add(meta.get("content"))
+    """Article-owned figures and lead metadata; section artwork is not news."""
+    if not article_image_scope(url):
+        return []
+    results, seen, caption_priorities = [], set(), {}
+    articles = soup.find_all("article")
+    primary = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article__body, .article-body, .article-content, .story-body, .entry-content')
+    if primary is None and len(articles) == 1 and articles[0].find("p"):
+        primary = articles[0]
+    # A collection can carry NewsArticle JSON for related cards. Accept only
+    # nodes explicitly bound to this page, or a single root article body.
+    from .research import article_url
+    nodes = []
     for data in embedded_json(soup):
         for node in _json_articles(data):
-            images = node.get("image") or []
-            for image in images if isinstance(images, list) else [images]:
-                if isinstance(image, str):
-                    add(image)
-                elif isinstance(image, dict):
-                    add(image.get("url") or image.get("contentUrl"), image.get("caption", ""), image.get("creditText", ""))
-    for figure in soup.select("article figure")[:8]:
+            declared = node.get("url") or node.get("mainEntityOfPage")
+            if isinstance(declared, dict):
+                declared = declared.get("@id") or declared.get("url")
+            try:
+                matches = isinstance(declared, str) and article_url(urljoin(url, declared)) == article_url(url)
+            except ValueError:
+                matches = False
+            if matches or (not declared and primary is not None and node.get("articleBody")):
+                nodes.append(node)
+    if primary is None and not nodes:
+        return []
+    def add(value, caption="", credit="", caption_priority=1):
+        clean = safe_image_url(value, url)
+        identity = image_identity(clean) if clean else None
+        if clean and identity in seen and caption:
+            existing = next(row for row in results if image_identity(row["url"]) == identity)
+            if caption_priority > caption_priorities.get(identity, 0):
+                existing["caption"] = clean_text(str(caption))[:300]
+                caption_priorities[identity] = caption_priority
+        if clean and identity not in seen and len(results) < 4:
+            seen.add(identity)
+            caption_priorities[identity] = caption_priority if caption else 0
+            results.append({"url": clean, "source_url": url, "caption": clean_text(str(caption))[:300],
+                            "credit": clean_text(str(credit or source_name))[:160], "article_image": True})
+    for meta in soup.select('meta[property="og:image"], meta[name="twitter:image"]'):
+        add(meta.get("content"))
+    for node in nodes:
+        images = node.get("image") or []
+        for image in images if isinstance(images, list) else [images]:
+            if isinstance(image, str):
+                add(image)
+            elif isinstance(image, dict):
+                add(image.get("url") or image.get("contentUrl"), image.get("caption", ""), image.get("creditText", ""), caption_priority=2)
+    figures = primary.select("figure")[:8] if primary is not None else []
+    for figure in figures:
+        if figure.find_parent(["aside", "nav"]) or any(re.search(r"related|recommend|promo", " ".join(parent.get("class", [])), re.I) for parent in [figure, *figure.parents]):
+            continue
         img = figure.find("img")
         caption = figure.find("figcaption")
         if img:
-            add(img.get("src") or img.get("data-src"), caption.get_text(" ", strip=True) if caption else img.get("alt", ""))
+            srcset = img.get("srcset") or img.get("data-srcset") or ""
+            fallback = srcset.split(",")[-1].strip().split(" ")[0] if srcset else None
+            add(img.get("src") or img.get("data-src") or img.get("data-original") or fallback,
+                caption.get_text(" ", strip=True) if caption else img.get("alt", ""), caption_priority=3 if caption else 1)
     return results
 
 

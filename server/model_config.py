@@ -92,6 +92,34 @@ class SelectInput(StrictModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+class RoleAssignments(StrictModel):
+    feed: SelectInput | None = None
+    chat: SelectInput | None = None
+    team: SelectInput | None = None
+
+
+class RolesInput(StrictModel):
+    roles: RoleAssignments
+
+
+MODEL_ROLES = ("feed", "chat", "team")
+
+
+def role_selection(store, role):
+    if role not in MODEL_ROLES:
+        raise ValueError("Unknown model role")
+    read_meta = getattr(store, "get_meta", lambda key: None)
+    return copy.deepcopy((read_meta("model_roles") or {}).get(role) or read_meta("active_model"))
+
+
+def role_settings(store, role):
+    settings = copy.deepcopy(store.settings())
+    selected = role_selection(store, role)
+    if selected:
+        settings["llm"] = effective_config(store, selected["provider_id"], selected["model"])
+    return settings
+
+
 class TestInput(StrictModel):
     model: str = Field(min_length=1, max_length=200)
 
@@ -113,7 +141,10 @@ def migrate_legacy(store):
 def profiles_view(store):
     providers = [{**{k: copy.deepcopy(v) for k, v in row.items() if k != "api_key"}, "api_key_set": bool(store.get_secret("provider_" + row["id"]))}
                  for row in store.list("model_profiles")]
-    return {"providers": providers, "active": store.get_meta("active_model")}
+    assigned = store.get_meta("model_roles") or {}
+    return {"providers": providers, "active": store.get_meta("active_model"),
+            "roles": {role: assigned.get(role) for role in MODEL_ROLES},
+            "resolved_roles": {role: role_selection(store, role) for role in MODEL_ROLES}}
 
 
 def effective_config(store, provider_id, model):
@@ -134,7 +165,22 @@ def resolve_run_settings(store, run):
     settings = copy.deepcopy(store.settings())
     if run.get("provider_id"):
         settings["llm"] = effective_config(store, run["provider_id"], run.get("model") or run.get("model_id"))
+    elif not run.get("model"):
+        settings = role_settings(store, run.get("model_role") or ("feed" if run.get("internal_report") else "chat"))
     return settings
+
+
+def assign_roles(store, value: RolesInput):
+    changes = value.roles.model_dump(exclude_unset=True)
+    # Validate the entire edit before persisting any assignment.
+    for selected in changes.values():
+        if selected:
+            try:
+                endpoint_url(effective_config(store, selected["provider_id"], selected["model"]))
+            except AgentFailure as exc:
+                raise HTTPException(400, str(exc)) from None
+    store.set_meta("model_roles", {**(store.get_meta("model_roles") or {}), **changes})
+    return profiles_view(store)
 
 
 def select_model(store, provider_id, model):
@@ -173,6 +219,12 @@ def save_profile(store, value: ProviderInput, *, update=False):
     elif value.api_key:
         store.set_secret(key_name, value.api_key)
     store.put("model_profiles", data)
+    roles = store.get_meta("model_roles") or {}
+    for role, selected in roles.items():
+        if selected and selected.get("provider_id") == value.id and not any(m["id"] == selected.get("model") for m in data["models"]):
+            # Keep the explicitly chosen provider when its selected model is removed.
+            roles[role] = {"provider_id": value.id, "model": data["models"][0]["id"]}
+    store.set_meta("model_roles", roles)
     active = store.get_meta("active_model")
     if not active:
         return select_model(store, value.id, data["models"][0]["id"])
@@ -258,6 +310,9 @@ def register_routes(app, store):
             raise HTTPException(404, "模型服务不存在。")
         store.delete("model_profiles", identifier)
         store.set_secret("provider_" + identifier, None)
+        roles = store.get_meta("model_roles") or {}
+        store.set_meta("model_roles", {role: None if selected and selected.get("provider_id") == identifier else selected
+                                       for role, selected in roles.items()})
         if (store.get_meta("active_model") or {}).get("provider_id") == identifier:
             store.set_meta("active_model", None)
             store.save_settings({"llm": {"base_url": "", "model": "", "clear_api_key": True}})
@@ -266,6 +321,10 @@ def register_routes(app, store):
     @app.post("/api/models/select")
     async def select(value: SelectInput):
         return select_model(store, value.provider_id, value.model)
+
+    @app.put("/api/models/roles")
+    async def roles(value: RolesInput):
+        return assign_roles(store, value)
 
     @app.post("/api/models/discover")
     async def discover(value: DiscoverInput):

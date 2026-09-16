@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -13,6 +13,7 @@ import {
   Plus,
   RotateCcw,
   ScanSearch,
+  Search,
   Shield,
   Sparkles,
   Square,
@@ -32,7 +33,48 @@ export interface AssistantPrompt {
   evidenceIds?: string[];
   token?: number;
 }
+type AssistantContext = Pick<AssistantPrompt, "matchId" | "evidenceIds">;
+interface AssistantDraft {
+  text: string;
+  skill: string;
+  context: AssistantContext | null;
+  conversationId: string | null;
+}
 type ChatRun = Run & { provider_id?: string };
+interface ConversationRecord {
+  id: string;
+  team_id: string;
+  title: string;
+  created_at?: string;
+  updated_at?: string;
+  run_count: number;
+  last_status: string;
+  match_id?: string | null;
+  provider_id?: string;
+  model?: string;
+}
+type ModelSelection = { provider_id: string; model: string };
+const savedValue = (key: string) => {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+};
+const remember = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* Server history remains available. */
+  }
+};
+const conversationStatus: Record<string, string> = {
+  queued: "等待回答",
+  running: "回答中",
+  completed: "已完成",
+  failed: "可重试",
+  cancelled: "已停止",
+};
 const cards = [
   {
     id: "team_brief",
@@ -84,6 +126,49 @@ const cards = [
   },
 ];
 const activeRun = (run: Run) => ["queued", "running"].includes(run.status);
+function restoreDraft(teamId: string): AssistantDraft {
+  const text = savedValue(`touchline-draft-${teamId}`);
+  const conversationId = savedValue(`touchline-conversation-${teamId}`) || null;
+  const fallback = { text, skill: "auto", context: null, conversationId };
+  if (!text.trim()) return fallback;
+  try {
+    const saved = JSON.parse(savedValue(`touchline-draft-context-${teamId}`));
+    if (
+      saved?.version !== 1 ||
+      saved.team_id !== teamId ||
+      saved.conversation_id !== conversationId
+    )
+      return fallback;
+    const skill = [
+      "auto",
+      "ask",
+      "event_watch",
+      ...cards.map((card) => card.id),
+    ].includes(saved.skill)
+      ? saved.skill
+      : "auto";
+    const matchId =
+      typeof saved.match_id === "string" && saved.match_id.length <= 200
+        ? saved.match_id
+        : undefined;
+    const evidenceIds = Array.isArray(saved.evidence_ids)
+      ? saved.evidence_ids
+          .filter(
+            (id: unknown): id is string =>
+              typeof id === "string" && id.length > 0 && id.length <= 200,
+          )
+          .slice(0, 5)
+      : undefined;
+    return {
+      text,
+      skill,
+      conversationId,
+      context: matchId || evidenceIds?.length ? { matchId, evidenceIds } : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
 function responseError(value?: string | null) {
   if (!value) return "这次回答没有完成，可以重试。";
   if (/401|403|密钥|api.?key|未.*配置|未.*设置/i.test(value))
@@ -106,9 +191,12 @@ export function Assistant({
   openModel: () => void;
   onChanged: () => Promise<void>;
 }) {
-  const [question, setQuestion] = useState("");
-  const [skill, setSkill] = useState("auto");
-  const [context, setContext] = useState<AssistantPrompt | null>(null);
+  const [initialDraft] = useState(() => restoreDraft(team.id));
+  const [question, setQuestion] = useState(initialDraft.text);
+  const [skill, setSkill] = useState(initialDraft.skill);
+  const [context, setContext] = useState<AssistantContext | null>(
+    initialDraft.context,
+  );
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationMatchId, setConversationMatchId] = useState<string | null>(
     null,
@@ -117,6 +205,12 @@ export function Assistant({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [history, setHistory] = useState(false);
+  const [histories, setHistories] = useState<ConversationRecord[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [restoring, setRestoring] = useState(false);
   const [modelMenu, setModelMenu] = useState(false);
   const [models, setModels] = useState<
     { provider_id: string; provider_name: string; id: string; name: string }[]
@@ -125,26 +219,114 @@ export function Assistant({
     provider_id: string;
     model: string;
   } | null>(null);
+  const [roleModels, setRoleModels] = useState<
+    Partial<Record<"chat" | "team", ModelSelection | null>>
+  >({});
   const textarea = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const request = useRef(0);
+  const historyRequest = useRef(0);
   const mounted = useRef(true);
+  const modelOverride = useRef(false);
+  const currentConversation = useRef(conversationId);
+  const draftConversation = useRef(initialDraft.conversationId);
+  currentConversation.current = conversationId;
   const pending = runs.find(activeRun);
   const selectedCard = cards.find((item) => item.id === skill);
-  const histories = data.runs
-    .filter(
-      (run) =>
-        run.team_id === team.id &&
-        run.mode === "live" &&
-        !run.internal_report &&
-        String(run.skill) !== "news_report",
-    )
-    .filter(
-      (run, index, all) =>
-        all.findIndex(
-          (other) => other.conversation_id === run.conversation_id,
-        ) === index,
-    );
+  const modelReady =
+    (modelOverride.current && !!selectedModel) ||
+    (conversationId && !!selectedModel) ||
+    (data.setup?.model_roles_configured?.[
+      skill === "team_maintenance" ? "team" : "chat"
+    ] ??
+      data.setup?.model_configured);
+  const loadHistory = useCallback(
+    async (cursor?: string) => {
+      const serial = ++historyRequest.current;
+      setHistoryBusy(true);
+      try {
+        const result = await api<{
+          conversations: ConversationRecord[];
+          next_cursor?: string | null;
+        }>(
+          `/conversations?mode=live&team_id=${encodeURIComponent(team.id)}&limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        );
+        if (!mounted.current || serial !== historyRequest.current) return;
+        setHistories((previous) =>
+          cursor
+            ? [
+                ...previous,
+                ...result.conversations.filter(
+                  (item) => !previous.some((old) => old.id === item.id),
+                ),
+              ]
+            : result.conversations,
+        );
+        setHistoryCursor(result.next_cursor || null);
+        setHistoryError("");
+      } catch (err) {
+        if (mounted.current && serial === historyRequest.current)
+          setHistoryError(errorText(err));
+      } finally {
+        if (mounted.current && serial === historyRequest.current)
+          setHistoryBusy(false);
+      }
+    },
+    [team.id],
+  );
+  const loadConversation = useCallback(
+    async (id: string, preserveDraft = false) => {
+      setBusy(true);
+      setError("");
+      const serial = ++request.current;
+      try {
+        const result = await api<{
+          conversation: ConversationRecord;
+          runs: ChatRun[];
+        }>(`/conversations/${encodeURIComponent(id)}`);
+        if (serial !== request.current || !mounted.current) return;
+        if (result.conversation.team_id !== team.id)
+          throw new Error("该对话属于另一支球队，请先切换球队。");
+        setRuns(result.runs);
+        currentConversation.current = id;
+        setConversationId(id);
+        setConversationMatchId(
+          result.conversation.match_id ||
+            [...result.runs].reverse().find((run) => run.match_id)?.match_id ||
+            null,
+        );
+        remember(`touchline-conversation-${team.id}`, id);
+        draftConversation.current = id;
+        if (!preserveDraft) {
+          setQuestion("");
+          setContext(null);
+          setSkill("auto");
+        }
+        setHistory(false);
+        const saved = result.conversation;
+        const first = result.runs[0];
+        if (saved.provider_id && saved.model)
+          setSelectedModel({
+            provider_id: saved.provider_id,
+            model: saved.model,
+          });
+        else if (first?.provider_id && first?.model)
+          setSelectedModel({
+            provider_id: first.provider_id,
+            model: first.model,
+          });
+      } catch (err) {
+        if (mounted.current && serial === request.current)
+          setError(errorText(err));
+      } finally {
+        if (mounted.current && serial === request.current) {
+          setBusy(false);
+          setRestoring(false);
+        }
+      }
+    },
+    [team.id],
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -153,12 +335,44 @@ export function Assistant({
     };
   }, []);
   useEffect(() => {
+    void loadHistory();
+    const saved = savedValue(`touchline-conversation-${team.id}`);
+    if (saved && !incoming) {
+      setRestoring(true);
+      void loadConversation(saved, true);
+    }
+  }, [team.id, loadHistory, loadConversation]);
+  useEffect(() => {
+    remember(`touchline-draft-${team.id}`, question);
+    remember(
+      `touchline-draft-context-${team.id}`,
+      question.trim()
+        ? JSON.stringify({
+            version: 1,
+            team_id: team.id,
+            conversation_id: draftConversation.current,
+            skill,
+            match_id: context?.matchId,
+            evidence_ids: context?.evidenceIds?.slice(0, 5),
+          })
+        : "",
+    );
+  }, [question, skill, context, conversationId, team.id]);
+  useEffect(() => {
+    if (history) void loadHistory();
+  }, [history, loadHistory]);
+  useEffect(() => {
     if (!incoming) return;
     request.current++;
     setRuns([]);
+    currentConversation.current = null;
     setConversationId(null);
     setConversationMatchId(null);
     setBusy(false);
+    setRestoring(false);
+    modelOverride.current = false;
+    remember(`touchline-conversation-${team.id}`, "");
+    draftConversation.current = null;
     setError("");
     setQuestion(incoming.text);
     setSkill(incoming.skill || "auto");
@@ -174,6 +388,7 @@ export function Assistant({
         models: { id: string; name: string }[];
       }[];
       active: { provider_id: string; model: string } | null;
+      resolved_roles?: Partial<Record<"chat" | "team", ModelSelection | null>>;
     }>("/model-providers")
       .then((result) => {
         if (!valid) return;
@@ -186,13 +401,29 @@ export function Assistant({
             })),
           ),
         );
-        if (!conversationId) setSelectedModel(result.active);
+        setRoleModels({
+          chat: result.resolved_roles?.chat || result.active,
+          team: result.resolved_roles?.team || result.active,
+        });
+        if (!currentConversation.current && !modelOverride.current)
+          setSelectedModel(
+            (skill === "team_maintenance"
+              ? result.resolved_roles?.team
+              : result.resolved_roles?.chat) || result.active,
+          );
       })
       .catch(() => undefined);
     return () => {
       valid = false;
     };
-  }, [data.settings.llm.model, data.settings.llm.base_url]);
+  }, [data.settings]);
+  useEffect(() => {
+    if (!conversationId && !modelOverride.current)
+      setSelectedModel(
+        (skill === "team_maintenance" ? roleModels.team : roleModels.chat) ||
+          null,
+      );
+  }, [skill, conversationId, roleModels]);
   useEffect(() => {
     if (!pending) return;
     let valid = true;
@@ -207,7 +438,10 @@ export function Assistant({
           previous.map((run) => (run.id === next.id ? next : run)),
         );
         if (activeRun(next)) timer = window.setTimeout(tick, 1600);
-        else void onChanged();
+        else {
+          void onChanged();
+          void loadHistory();
+        }
       } catch (err) {
         if (valid) {
           setError(errorText(err));
@@ -220,7 +454,7 @@ export function Assistant({
       valid = false;
       clearTimeout(timer);
     };
-  }, [pending?.id, onChanged]);
+  }, [pending?.id, onChanged, loadHistory]);
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [runs.length]);
@@ -232,7 +466,7 @@ export function Assistant({
   const start = async (retry?: ChatRun) => {
     const text = retry?.question || question.trim();
     if (!text || busy || pending) return;
-    if (!data.setup?.model_configured) {
+    if (!modelReady) {
       openModel();
       return;
     }
@@ -241,6 +475,12 @@ export function Assistant({
     const serial = ++request.current;
     try {
       const chosenSkill = retry?.skill || skill;
+      const chosenModel =
+        conversationId || modelOverride.current
+          ? selectedModel
+          : chosenSkill === "team_maintenance"
+            ? roleModels.team
+            : roleModels.chat;
       const match =
         context?.matchId ||
         conversationMatchId ||
@@ -266,95 +506,76 @@ export function Assistant({
                   (b.kickoff || "").localeCompare(a.kickoff || ""),
                 )[0]?.id
             : undefined);
-      const next = await post<ChatRun>("/runs", {
-        mode: "live",
-        team_id: team.id,
-        question: text,
-        skill: chosenSkill,
-        allow_network: true,
-        conversation_id: conversationId || undefined,
-        match_id: retry?.match_id || match,
-        evidence_ids: retry?.evidence_ids || context?.evidenceIds,
-        provider_id: selectedModel?.provider_id,
-        model: selectedModel?.model,
-      });
+      const next = retry
+        ? await post<ChatRun>(`/runs/${encodeURIComponent(retry.id)}/resume`)
+        : await post<ChatRun>("/runs", {
+            mode: "live",
+            team_id: team.id,
+            question: text,
+            skill: chosenSkill,
+            allow_network: true,
+            conversation_id: conversationId || undefined,
+            match_id: match,
+            evidence_ids: context?.evidenceIds,
+            provider_id: chosenModel?.provider_id,
+            model: chosenModel?.model,
+          });
       if (serial !== request.current || !mounted.current) return;
       setRuns((previous) => [...previous, next]);
+      currentConversation.current = next.conversation_id;
       setConversationId(next.conversation_id);
+      if (next.provider_id && next.model)
+        setSelectedModel({ provider_id: next.provider_id, model: next.model });
+      remember(`touchline-conversation-${team.id}`, next.conversation_id);
+      draftConversation.current = next.conversation_id;
       setConversationMatchId(next.match_id || null);
       setQuestion("");
       setContext(null);
       setSkill("auto");
       void onChanged();
+      void loadHistory();
     } catch (err) {
       if (serial === request.current && mounted.current)
         setError(errorText(err));
     } finally {
-      if (mounted.current) setBusy(false);
+      if (mounted.current && serial === request.current) setBusy(false);
     }
   };
   const cancel = async () => {
     if (!pending || busy) return;
     setBusy(true);
+    const serial = request.current;
     try {
       const next = await post<ChatRun>(`/runs/${pending.id}/cancel`);
-      if (mounted.current)
+      if (mounted.current && serial === request.current)
         setRuns((previous) =>
           previous.map((run) => (run.id === next.id ? next : run)),
         );
+      void loadHistory();
+      void onChanged();
     } catch (err) {
-      if (mounted.current) setError(errorText(err));
+      if (mounted.current && serial === request.current)
+        setError(errorText(err));
     } finally {
-      if (mounted.current) setBusy(false);
-    }
-  };
-  const loadConversation = async (run: Run) => {
-    if (pending) return;
-    setHistory(false);
-    setBusy(true);
-    setError("");
-    const serial = ++request.current;
-    try {
-      const entries = data.runs
-        .filter(
-          (item) =>
-            item.conversation_id === run.conversation_id &&
-            item.team_id === team.id &&
-            !item.internal_report,
-        )
-        .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
-      const detailed = await Promise.all(
-        entries.map((item) =>
-          api<ChatRun>(`/runs/${encodeURIComponent(item.id)}`),
-        ),
-      );
-      if (serial !== request.current || !mounted.current) return;
-      setRuns(detailed);
-      setConversationId(run.conversation_id);
-      setConversationMatchId(run.match_id || null);
-      setQuestion("");
-      setContext(null);
-      setSkill("auto");
-      if (detailed[0]?.provider_id && detailed[0]?.model)
-        setSelectedModel({
-          provider_id: detailed[0].provider_id,
-          model: detailed[0].model,
-        });
-    } catch (err) {
-      if (mounted.current) setError(errorText(err));
-    } finally {
-      if (mounted.current) setBusy(false);
+      if (mounted.current && serial === request.current) setBusy(false);
     }
   };
   const newConversation = () => {
-    if (pending) return;
+    request.current++;
+    remember(`touchline-conversation-${team.id}`, "");
+    draftConversation.current = null;
+    modelOverride.current = false;
+    setSelectedModel(roleModels.chat || null);
     setRuns([]);
+    currentConversation.current = null;
     setConversationId(null);
     setConversationMatchId(null);
     setQuestion("");
     setContext(null);
     setSkill("auto");
     setError("");
+    setBusy(false);
+    setRestoring(false);
     textarea.current?.focus();
   };
   return (
@@ -369,24 +590,44 @@ export function Assistant({
         </div>
         <div className="chat-top-actions">
           <button
-            className="icon-button"
+            className="button history-toggle"
             title="历史对话"
             aria-label="历史对话"
             onClick={() => setHistory(true)}
           >
             <History size={19} />
+            <span>对话记录</span>
           </button>
-          <button
-            className="button"
-            disabled={!!pending || busy}
-            onClick={newConversation}
-          >
+          <button className="button" disabled={busy} onClick={newConversation}>
             <Plus size={16} />
             新对话
           </button>
         </div>
       </div>
-      {!data.setup?.model_configured && (
+      <div className="conversation-context">
+        <span>
+          <Shield size={13} /> {team.name} ·{" "}
+          {conversationId ? "会话已保存" : "独立新对话"}
+        </span>
+        <span>资料随提问更新 · 仅延续当前会话</span>
+      </div>
+      {!runs.length && histories.length > 0 && !restoring && (
+        <div className="resume-conversation">
+          <History size={17} />
+          <div>
+            <small>上次聊到</small>
+            <strong>{histories[0].title}</strong>
+          </div>
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => loadConversation(histories[0].id)}
+          >
+            继续对话 <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
+      {!modelReady && (
         <div className="model-connect">
           <span>
             <Sparkles size={18} />
@@ -399,7 +640,13 @@ export function Assistant({
         </div>
       )}
       <div className="conversation">
-        {!runs.length && (
+        {restoring && (
+          <div className="thinking-status">
+            <LoaderCircle size={18} className="spin" />
+            正在恢复完整对话记录
+          </div>
+        )}
+        {!runs.length && !restoring && (
           <section className="assistant-welcome">
             <span className="welcome-mark">
               <Sparkles size={28} />
@@ -459,11 +706,45 @@ export function Assistant({
                     <i />
                   </span>
                   <div>
-                    正在查找资料、整理思路
+                    {run.steps
+                      ?.filter((step) => step.status === "running")
+                      .slice(-1)[0]?.label || "正在查找资料、整理思路"}
                     <small>需要一点时间，可以先继续浏览其他页面。</small>
                   </div>
                 </div>
               ) : null}
+              {!!run.steps?.length && (
+                <details className="answer-process">
+                  <summary>
+                    <ScanSearch size={13} />
+                    资料查阅过程 <span>{run.steps.length} 项进展</span>
+                    <ChevronDown size={13} />
+                  </summary>
+                  <ol>
+                    {run.steps.map((step, index) => (
+                      <li
+                        key={`${index}-${step.at}`}
+                        className={`step-${step.status}`}
+                      >
+                        <span className="process-dot" />
+                        <span>{step.label}</span>
+                        <small>
+                          {(
+                            {
+                              completed: "完成",
+                              success: "完成",
+                              failed: "未完成",
+                              error: "未完成",
+                              running: "进行中",
+                              skipped: "跳过",
+                            } as Record<string, string>
+                          )[step.status] || step.status}
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
               {run.status === "failed" && (
                 <div className="notice error">
                   <span>{responseError(run.error)}</span>
@@ -598,6 +879,7 @@ export function Assistant({
                       type="button"
                       key={`${model.provider_id}/${model.id}`}
                       onClick={() => {
+                        modelOverride.current = true;
                         setSelectedModel({
                           provider_id: model.provider_id,
                           model: model.id,
@@ -641,9 +923,7 @@ export function Assistant({
               <button
                 className="send-button"
                 type="submit"
-                disabled={
-                  busy || !question.trim() || !data.setup?.model_configured
-                }
+                disabled={busy || !question.trim() || !modelReady}
                 aria-label="发送问题"
               >
                 {busy ? (
@@ -657,36 +937,88 @@ export function Assistant({
         </form>
         <p className="composer-note">
           {conversationId
-            ? "本次对话使用当前模型，新对话可切换。"
-            : "助手会查阅来源再回答。"}
+            ? "对话自动保存；本次对话继续使用当前模型。"
+            : "新对话不读取其他会话。助手会查阅来源再回答。"}
           Enter 发送，Shift + Enter 换行。
         </p>
       </div>
       {history && (
-        <Modal title="最近的对话" onClose={() => setHistory(false)}>
+        <Modal
+          title={`${team.name} · 对话记录`}
+          onClose={() => setHistory(false)}
+          wide
+        >
           <div className="chat-history">
-            {histories.map((run) => (
-              <button
-                key={run.id}
-                disabled={!!pending || busy}
-                onClick={() => loadConversation(run)}
-              >
-                <MessageCircle size={18} />
-                <span>
-                  <strong>{run.question}</strong>
-                  <small>{dateTime(run.created_at)}</small>
-                </span>
-                <ChevronRight size={16} />
-              </button>
-            ))}
-            {!histories.length && (
+            <p className="history-intro">
+              完整记录按球队保存，切换页面、刷新后仍可继续。当前正在生成的回答也会留在记录中。
+            </p>
+            <label className="search-input">
+              <Search size={17} />
+              <input
+                aria-label="搜索对话记录"
+                placeholder="搜索已加载对话"
+                value={historyQuery}
+                onChange={(event) => setHistoryQuery(event.target.value)}
+              />
+            </label>
+            {historyError && (
+              <div className="notice error">
+                {historyError}
+                <button onClick={() => loadHistory()}>重试</button>
+              </div>
+            )}
+            <div className="history-table-heading">
+              <span>对话</span>
+              <span>状态 / 更新时间</span>
+            </div>
+            {histories
+              .filter((run) =>
+                run.title.toLowerCase().includes(historyQuery.toLowerCase()),
+              )
+              .map((run) => (
+                <button
+                  key={run.id}
+                  className={run.id === conversationId ? "active" : ""}
+                  disabled={busy}
+                  onClick={() => loadConversation(run.id)}
+                >
+                  <MessageCircle size={18} />
+                  <span>
+                    <strong>{run.title || "足球对话"}</strong>
+                    <small>
+                      {run.run_count} 轮对话{run.model ? ` · ${run.model}` : ""}
+                    </small>
+                  </span>
+                  <span className="history-meta">
+                    <b
+                      className={`conversation-status status-${run.last_status}`}
+                    >
+                      {conversationStatus[run.last_status] || run.last_status}
+                    </b>
+                    <small>{dateTime(run.updated_at || run.created_at)}</small>
+                  </span>
+                  <ChevronRight size={16} />
+                </button>
+              ))}
+            {!histories.length && !historyBusy && !historyError && (
               <div className="empty-state">
                 <Clock3 size={30} />
                 <p>你的对话会留在这里，随时可以继续。</p>
               </div>
             )}
-            {pending && (
-              <p className="muted">请等待当前回答完成，或先停止回答。</p>
+            {historyBusy && (
+              <p className="history-loading">
+                <LoaderCircle size={15} className="spin" /> 正在读取对话记录
+              </p>
+            )}
+            {historyCursor && (
+              <button
+                className="button history-more"
+                disabled={historyBusy}
+                onClick={() => loadHistory(historyCursor)}
+              >
+                更早的对话 <ChevronDown size={14} />
+              </button>
             )}
           </div>
         </Modal>

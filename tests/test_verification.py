@@ -399,6 +399,7 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_verification_timeout_stops_request_and_delivers_insufficient(self):
         self.store.config["verification_timeout_seconds"] = 1
+        self.store.config["llm"]["timeout_seconds"] = 1
         cancelled = asyncio.Event()
         responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}), tool_message("submit_answer", quoted_submission())]
         async def provider(*args, **kwargs):

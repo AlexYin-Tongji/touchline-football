@@ -297,7 +297,11 @@ export interface AppState {
   runs: Run[];
   tracking?: Tracking[];
   source_catalog?: CatalogSource[];
-  setup?: { model_configured: boolean; live_evidence_count: number };
+  setup?: {
+    model_configured: boolean;
+    model_roles_configured?: { feed: boolean; chat: boolean; team: boolean };
+    live_evidence_count: number;
+  };
   last_refresh?: string | null;
   spoiler_hidden?: { events?: number; evidence?: number; runs?: number };
   recommendations?: Recommendation[];

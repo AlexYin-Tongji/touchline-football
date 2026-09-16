@@ -194,6 +194,7 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
     try:
         is_report = getattr(local, "skill", None) == "news_report"
         cfg = dict(config, max_output_tokens=min(4000 if is_report else 2400, int(config.get("max_output_tokens", 3000))),
+                   thinking_enabled=False,
                    _session_id=str(config.get("_session_id", "verify"))[:90] + "_support")
         check_tools = copy.deepcopy(CHECK_TOOL)
         check_tools[0]["function"]["parameters"]["properties"]["claims"]["maxItems"] = 10 if is_report else 7
@@ -230,8 +231,12 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
         status = "supported" if all(c["verdict"] == "supported" for c in claims) else (
             "partial" if any(c["id"].startswith("fact_") and c["verdict"] == "supported" for c in claims) else "insufficient")
         return report(status, claims)
-    except (AgentFailure, ValueError, KeyError, TypeError, IndexError, AttributeError):
-        return report("unavailable", claims, ["原文支持核对服务未完成或返回格式无效；未认证任何主张。"])
+    except AgentFailure as exc:
+        # AgentFailure is deliberately curated by the provider adapter, never
+        # an arbitrary upstream body or URL containing credentials.
+        return report("unavailable", claims, ["原文支持核对服务未完成；未认证任何主张。", str(exc)])
+    except (ValueError, KeyError, TypeError, IndexError, AttributeError):
+        return report("unavailable", claims, ["原文支持核对返回格式无效或缺少主张条目；未认证任何主张。"])
 
 
 def conservative_delivery(structured, verification):

@@ -541,26 +541,36 @@ def create_app(db_path=None):
                     "structured_answer": None, "steps": [], "verification": None, "warnings": [], "error": None}
         result = copy.deepcopy(run)
         protect = store.settings().get("spoiler_free", True)
+        source_ids = set(run.get("evidence_ids", [])) | {quote.get("evidence_id")
+            for claim in (run.get("verification") or {}).get("claims", []) for quote in claim.get("quotes", []) if quote.get("evidence_id")}
+        source_hidden = any(not (source := store.get("evidence", identifier)) or source.get("private") or source.get("deleted")
+                            or source.get("visibility") in {"hidden", "deleted"} for identifier in source_ids)
         hidden_answer = protect and run.get("skill") != "match_review" and (run.get("spoiler") or has_hidden_evidence(run))
-        if hidden_answer:
-            result.update(answer="这份历史回答可能包含赛果，已按当前避剧透设置隐藏。",
-                          evidence_ids=[], spoiler_hidden=True, steps=[], structured_answer=None,
+        if hidden_answer or source_hidden:
+            result.update(answer="这份回答的引用来源已不可见，内容暂时隐藏。" if source_hidden else "这份历史回答可能包含赛果，已按当前避剧透设置隐藏。",
+                          evidence_ids=[], spoiler_hidden=hidden_answer, source_hidden=source_hidden, steps=[], structured_answer=None,
+                          warnings=[], error=None,
                           verification={"status": "not_requested", "claims": [], "warnings": ["核对记录按避剧透设置隐藏。"]})
         if with_evidence:
             selected_match = store.get("matches", run.get("match_id")) if run.get("match_id") else None
             result["evidence"] = []
             for identifier in result.get("evidence_ids", []):
                 evidence = store.get("evidence", identifier)
-                if not evidence or evidence["mode"] != run["mode"] or evidence["team_id"] != run["team_id"]:
+                if (not evidence or evidence["mode"] != run["mode"] or evidence["team_id"] != run["team_id"]
+                        or evidence.get("private") or evidence.get("deleted") or evidence.get("visibility") in {"hidden", "deleted"}):
                     continue
                 explicit_review = run["skill"] == "match_review" and selected_match and identifier in selected_match.get("evidence_ids", [])
                 view = evidence if not protect or explicit_review else ingestion.safe_evidence_view(evidence)
                 if view:
                     result["evidence"].append(view)
-        secret = store.settings()["llm"].get("api_key", "")
+        secrets = {store.settings()["llm"].get("api_key", "")}
+        secrets.update(store.get_secret("provider_" + row["id"]) for row in store.list("model_profiles"))
+        secrets.discard("")
         def clean(value):
             if isinstance(value, str):
-                return value.replace(secret, "[密钥已隐藏]") if secret else value
+                for secret in secrets:
+                    value = value.replace(secret, "[密钥已隐藏]")
+                return value
             if isinstance(value, list):
                 return [clean(item) for item in value]
             if isinstance(value, dict):
@@ -670,6 +680,9 @@ def create_app(db_path=None):
         evidence = [{**item, "text": "", "paragraphs": []} if item.get("origin") in {"web", "rss"} and not item.get("fixture_record") else item for item in evidence]
         catalog_team = team_id or (settings["followed_teams"][0] if settings["followed_teams"] else None)
         catalog = source_catalog(store, catalog_team) if catalog_team else []
+        from .model_config import MODEL_ROLES, role_selection
+        legacy_configured = bool(settings["llm"].get("base_url") and settings["llm"].get("model"))
+        configured_roles = {role: bool(role_selection(store, role)) or legacy_configured for role in MODEL_ROLES}
         return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
                 "reports": news_reports.list_reports(store, team_id=team_id, mode=mode), "report_budget": news_reports.report_budget(store),
                 "events": sorted(events, key=lambda item: item["updated_at"], reverse=True),
@@ -677,7 +690,7 @@ def create_app(db_path=None):
                 "sources": store.list("sources", mode, team_id), "runs": [run_response(run) for run in runs[-100:]],
                 "last_refresh": store.get_meta("last_refresh_" + mode), "spoiler_hidden": hidden,
                 "tracking": [tracking_response(item) for item in store.list("tracking", mode, team_id)],
-                "source_catalog": catalog, "setup": {"model_configured": bool(settings["llm"].get("base_url") and settings["llm"].get("model")),
+                "source_catalog": catalog, "setup": {"model_configured": any(configured_roles.values()), "model_roles_configured": configured_roles,
                     "live_evidence_count": len(store.list("evidence", "live"))},
                 "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": await get_service()}
 
@@ -702,7 +715,11 @@ def create_app(db_path=None):
     async def refresh_feed(payload: PersonalRefreshInput):
         if payload.team_id:
             team_exists(payload.team_id)
-        return personal.start(payload.team_id, force=True)
+        result = personal.start(payload.team_id, force=True)
+        retried = news_reports.retry_pending_reports(store, team_id=payload.team_id)
+        queue_reports(payload.team_id)
+        report_wake.set()
+        return {**result, "reports_queued": retried["queued"]}
 
     @app.get("/api/teams/{team_id}/center")
     async def get_team_center(team_id: Identifier, reveal: bool = False):
@@ -1046,6 +1063,22 @@ def create_app(db_path=None):
         store.delete("tracking", identifier)
         return {"ok": True}
 
+    @app.get("/api/conversations")
+    async def conversations(team_id: Identifier | None = None, mode: Mode = "live",
+                            cursor: str | None = Query(None, max_length=512), limit: int = Query(30, ge=1, le=100)):
+        from .conversations import list_conversations
+        if team_id:
+            team_exists(team_id)
+        return list_conversations(store, team_id=team_id, mode=mode, cursor=cursor, limit=limit)
+
+    @app.get("/api/conversations/{identifier}")
+    async def conversation(identifier: Identifier):
+        from .conversations import conversation_runs, summarize
+        rows = conversation_runs(store, identifier)
+        if not rows:
+            raise HTTPException(404, "对话不存在。")
+        return {"conversation": summarize(rows, store), "runs": [run_response(row, with_evidence=True) for row in rows]}
+
     @app.post("/api/runs")
     async def create_run(payload: RunInput):
         team_exists(payload.team_id)
@@ -1081,13 +1114,24 @@ def create_app(db_path=None):
         if payload.skill == "match_review" and match["status"] != "finished":
             raise HTTPException(400, "比赛尚未标记结束，不能生成赛后复盘")
         if payload.conversation_id:
-            prior = [run for run in store.list("runs") if run.get("conversation_id") == payload.conversation_id]
+            from .conversations import conversation_runs
+            prior = conversation_runs(store, payload.conversation_id)
+            if not prior:
+                # Do not join a background job's context by guessing its identifier.
+                reserved = [run for run in store.list("runs") if run.get("conversation_id") == payload.conversation_id]
+                if reserved:
+                    raise HTTPException(400, "后台任务不能作为个人对话继续，请开始新对话。")
             if any(run["mode"] != payload.mode or run["team_id"] != payload.team_id for run in prior):
                 raise HTTPException(400, "会话不属于当前球队及模式，请开始新会话")
+            if any(run.get("status") in {"queued", "running"} for run in prior):
+                raise HTTPException(409, "这段对话仍在回答中，请等待完成或先停止回答。")
         else:
             prior = []
-        active_model = store.get_meta("active_model") or {}
-        bound = next((item for item in prior if item.get("provider_id")), None)
+        from .model_config import role_selection
+        model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill == "team_maintenance" else "chat")
+        active_model = role_selection(store, model_role) or {}
+        from .conversations import conversation_binding
+        bound = conversation_binding(store, prior, strict=True) if payload.mode == "live" else None
         provider_id = bound["provider_id"] if bound else payload.provider_id or active_model.get("provider_id")
         chosen_model = bound["model"] if bound else payload.model or active_model.get("model")
         if bound and ((payload.provider_id and payload.provider_id != provider_id) or (payload.model and payload.model != chosen_model)):
@@ -1102,8 +1146,12 @@ def create_app(db_path=None):
                 raise HTTPException(400, str(exc)) from None
         if payload.parent_run_id:
             parent = require("runs", payload.parent_run_id)
+            if parent.get("internal_report") or parent.get("report_id") or parent.get("tracking_id"):
+                raise HTTPException(400, "后台任务不能作为个人对话上下文继续。")
             if parent["mode"] != payload.mode or parent["team_id"] != payload.team_id or parent.get("match_id") != payload.match_id:
                 raise HTTPException(400, "延续任务必须属于同一球队、资料空间和比赛。")
+            if parent.get("model_role", "chat") != model_role or (payload.conversation_id and (parent.get("conversation_id") or parent["id"]) != payload.conversation_id):
+                raise HTTPException(400, "延续任务必须来自当前对话及同一模型分工。")
         if payload.tracking_id:
             tracking = require("tracking", payload.tracking_id)
             if tracking["team_id"] != payload.team_id or payload.mode != "live":
@@ -1113,6 +1161,7 @@ def create_app(db_path=None):
                "status": "queued", "answer": "", "input_evidence_ids": list(dict.fromkeys(payload.evidence_ids)), "evidence_ids": [], "warnings": [], "steps": [], "error": None,
                "created_at": ingestion.now(), "finished_at": None,
                "provider_id": provider_id if payload.mode == "live" else None,
+               "model_role": model_role,
                "model": "规则演示，未调用模型" if payload.mode == "demo" else model_config["model"],
                "spoiler": payload.skill == "match_review" or not store.settings()["spoiler_free"],
                "skills_used": [], "protocol": model_config.get("protocol", "chat_completions")}
