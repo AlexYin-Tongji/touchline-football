@@ -163,5 +163,8 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
                 card.update(display_title=report["title"], display_summary=report["lead"],
                             summary_origin="report", display_status="supported", source_run_id=editorial.get("run_id"),
                             reading_minutes=report.get("reading_minutes"), section_count=len(report.get("sections", [])))
-        result.append({**copy.deepcopy(event), **card})
+        images = [{**image, "evidence_id": record["id"]} for record in records if not record.get("spoiler_redacted")
+                  for image in record.get("images", [])[:2]][:4]
+        sources = [{key: record.get(key) for key in ("id", "title", "source_name", "url", "published_at")} for record in records]
+        result.append({**copy.deepcopy(event), **card, "images": images, "sources": sources})
     return result

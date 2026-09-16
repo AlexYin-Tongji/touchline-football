@@ -16,6 +16,9 @@ ARTICLE = b'<html><title>Saka injury update</title><meta property="article:publi
 
 class ResearchTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        espn = patch("server.research._espn_news_index", new=AsyncMock(return_value=([], [], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": ingestion.now()})))
+        espn.start()
+        self.addCleanup(espn.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "research.db")
         seed(self.store)

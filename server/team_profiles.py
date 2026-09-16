@@ -41,11 +41,15 @@ def _normalized(text):
     return " ".join(str(text or "").split())
 
 
-def _evidence_hash(evidence):
+def _evidence_hash(evidence, *, legacy=False):
     # Include metadata as well as text so a corrected source is not silently
     # treated as support for an older extracted claim.
     value = {key: evidence.get(key) for key in (
-        "text", "title", "url", "source_name", "published_at", "fetched_at", "origin", "spoiler")}
+        "title", "url", "source_name", "published_at", "origin", "spoiler")}
+    if legacy:
+        value.update(text=evidence.get("text"), fetched_at=evidence.get("fetched_at"))
+    else:
+        value["body_hash"] = evidence.get("body_hash") or hashlib.sha256(str(evidence.get("text") or "").encode()).hexdigest()
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 

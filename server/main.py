@@ -40,7 +40,7 @@ class LLMSettings(Model):
     api_key: str | None = Field(None, max_length=8192)
     api_key_set: bool | None = None
     clear_api_key: bool = False
-    protocol: Literal["chat_completions", "responses"] | None = None
+    protocol: Literal["chat_completions", "responses", "anthropic_messages"] | None = None
     send_temperature: bool | None = None
     max_output_tokens: int | None = Field(None, ge=256, le=16000)
     use_env_proxy: bool | None = None
@@ -97,7 +97,7 @@ class LeagueSyncInput(Model):
 
 class SettingsPatch(Model):
     mode: Mode | None = None
-    followed_teams: list[Identifier] | None = Field(None, min_length=1, max_length=100)
+    followed_teams: list[Identifier] | None = Field(None, max_length=100)
     spoiler_free: bool | None = None
     explanation_depth: Literal["brief", "standard", "deep"] | None = None
     auto_refresh: bool | None = None
@@ -233,7 +233,9 @@ class RunInput(Model):
     mode: Mode
     team_id: Identifier
     question: str = Field(min_length=1, max_length=5000)
-    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report"] = "auto"
+    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report", "team_maintenance"] = "auto"
+    provider_id: str | None = Field(None, pattern=r"^[a-z][a-z0-9_-]{0,47}$")
+    model: str | None = Field(None, min_length=1, max_length=200)
     evidence_ids: list[Identifier] = Field(default_factory=list, max_length=5)
     match_id: Identifier | None = None
     conversation_id: Identifier | None = None
@@ -295,6 +297,10 @@ class AutostartInput(Model):
     enabled: bool
 
 
+class PersonalRefreshInput(Model):
+    team_id: Identifier | None = None
+
+
 def safe_settings(settings):
     result = copy.deepcopy(settings)
     result["llm"]["api_key_set"] = bool(result["llm"].pop("api_key", ""))
@@ -307,6 +313,11 @@ def create_app(db_path=None):
     access = PrivateAccess(runtime)
     store = Store(db_path or Path(os.environ.get("TOUCHLINE_DATA_DIR", str(ROOT / "data"))) / "touchline.sqlite3")
     seed(store)
+    from .personal_app import install_personal_defaults, PersonalRefreshManager
+    from .team_center import TeamMaintenanceManager
+    install_personal_defaults(store)
+    team_maintenance = TeamMaintenanceManager(store)
+    personal = PersonalRefreshManager(store, team_maintenance)
     tasks = {}
     refresh_lock = asyncio.Lock()
     from .automation import AutomationManager
@@ -342,7 +353,9 @@ def create_app(db_path=None):
 
     async def scheduled_refresh():
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(30)
+            if store.settings().get("mode") == "live":
+                personal.start()
             from .tracking import is_due
             for item in store.list("tracking", "live"):
                 if len(tasks) >= 3:
@@ -381,6 +394,8 @@ def create_app(db_path=None):
         reporter.cancel()
         await automation.close()
         await league_sync.close()
+        await personal.close()
+        await team_maintenance.close()
         active = list(tasks.values())
         for task, event in active:
             event.set()
@@ -388,16 +403,20 @@ def create_app(db_path=None):
         await asyncio.gather(scheduler, reporter, *(task for task, event in active), return_exceptions=True)
         store.close()
 
-    app = FastAPI(title="看台 Touchline", version="6.0.0", lifespan=lifespan,
+    app = FastAPI(title="看台 Touchline", version="7.0.0", lifespan=lifespan,
                   docs_url=None if runtime.server_mode else "/docs", redoc_url=None,
                   openapi_url=None if runtime.server_mode else "/openapi.json")
     app.state.store = store
     app.state.run_tasks = tasks
     app.state.automation = automation
     app.state.league_sync = league_sync
+    app.state.personal = personal
+    app.state.team_maintenance = team_maintenance
     app.state.runtime = runtime
     app.state.access = access
     access.register(app)
+    from .model_config import register_routes as register_model_routes
+    register_model_routes(app, store)
     from .team_profiles import register_team_profile_routes
     register_team_profile_routes(app, store)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=runtime.hosts)
@@ -568,7 +587,7 @@ def create_app(db_path=None):
     @app.get("/api/service")
     async def get_service():
         from .service_control import service_status
-        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "6.0.0"}
+        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "7.0.0"}
 
     @app.post("/api/service/shortcut")
     async def service_shortcut():
@@ -647,6 +666,8 @@ def create_app(db_path=None):
         events = present_events(store, events, evidence, runs, spoiler_free=settings["spoiler_free"])
         evidence = [{**item, **{key: value for key, value in ingestion.content_details(item).items() if key != "paragraphs"}}
                     for item in evidence]
+        # User-facing state contains references, never externally copied bodies.
+        evidence = [{**item, "text": "", "paragraphs": []} if item.get("origin") in {"web", "rss"} and not item.get("fixture_record") else item for item in evidence]
         catalog_team = team_id or (settings["followed_teams"][0] if settings["followed_teams"] else None)
         catalog = source_catalog(store, catalog_team) if catalog_team else []
         return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
@@ -662,8 +683,38 @@ def create_app(db_path=None):
 
     @app.get("/api/evidence/{identifier}")
     async def get_evidence(identifier: Identifier):
-        item = evidence_response(require("evidence", identifier))
+        raw = require("evidence", identifier)
+        if raw.get("private") or raw.get("deleted") or raw.get("visibility") in {"hidden", "deleted"}:
+            raise HTTPException(404, "来源不可用。")
+        item = evidence_response(raw)
+        if item.get("origin") in {"web", "rss"} and not item.get("fixture_record"):
+            return {**item, "text": "", "paragraphs": [], "link_only": True}
         return {**item, **ingestion.content_details(item)}
+
+    @app.get("/api/feed")
+    async def get_feed(team_id: Identifier | None = None, cursor: str | None = Query(None, max_length=512), limit: int = Query(20, ge=1, le=40)):
+        from .personal_app import feed_view
+        if team_id:
+            team_exists(team_id)
+        return feed_view(store, team_id, cursor, limit)
+
+    @app.post("/api/feed/refresh", status_code=202)
+    async def refresh_feed(payload: PersonalRefreshInput):
+        if payload.team_id:
+            team_exists(payload.team_id)
+        return personal.start(payload.team_id, force=True)
+
+    @app.get("/api/teams/{team_id}/center")
+    async def get_team_center(team_id: Identifier, reveal: bool = False):
+        from .team_center import center_view
+        team_exists(team_id)
+        team_maintenance.start(team_id)
+        return center_view(store, team_id, reveal=reveal)
+
+    @app.post("/api/teams/{team_id}/maintain", status_code=202)
+    async def maintain_team_center(team_id: Identifier):
+        team_exists(team_id)
+        return team_maintenance.start(team_id, force=True)
 
     @app.get("/api/leagues")
     async def get_leagues(season_start_year: int | None = Query(None, ge=2000, le=2100)):
@@ -1001,7 +1052,28 @@ def create_app(db_path=None):
         check_evidence(payload.evidence_ids, payload.team_id, payload.mode)
         if len(tasks) >= 3:
             raise HTTPException(503, "已有 3 个任务运行中，请停止或等待后再试")
-        match = require("matches", payload.match_id) if payload.match_id else None
+        match = store.get("matches", payload.match_id) if payload.match_id else None
+        if payload.match_id and not match:
+            league_match = store.get("league_matches", payload.match_id)
+            if not league_match:
+                raise HTTPException(404, "比赛不存在。")
+            if payload.mode != "live" or payload.team_id not in {league_match["home_team_id"], league_match["away_team_id"]}:
+                raise HTTPException(400, "比赛不属于当前球队及资料模式。")
+            from .league_data import materialize_team
+            materialize_team(store, payload.team_id, league_match["season_id"])
+            match = store.get("matches", league_match["id"] + "-" + payload.team_id)
+            if not match:
+                home = league_match["home_team_id"] == payload.team_id
+                opponent = store.get("teams", league_match["away_team_id"] if home else league_match["home_team_id"]) or {}
+                names = {str(name).casefold() for name in [opponent.get("name", ""), opponent.get("english_name", ""), *opponent.get("aliases", [])] if name}
+                candidates = [row for row in store.list("matches", "live", payload.team_id)
+                              if row.get("venue") == ("home" if home else "away") and row.get("kickoff") == league_match.get("kickoff")
+                              and str(row.get("opponent", "")).casefold() in names]
+                if len(candidates) == 1:
+                    match = candidates[0]
+            if not match:
+                raise HTTPException(409, "这场比赛的资料正在更新，请稍后再试。")
+            payload = payload.model_copy(update={"match_id": match["id"]})
         if match and (match["mode"] != payload.mode or match["team_id"] != payload.team_id):
             raise HTTPException(400, "比赛不属于当前球队及资料模式")
         if payload.skill in {"match_preview", "match_review"} and not match:
@@ -1012,6 +1084,22 @@ def create_app(db_path=None):
             prior = [run for run in store.list("runs") if run.get("conversation_id") == payload.conversation_id]
             if any(run["mode"] != payload.mode or run["team_id"] != payload.team_id for run in prior):
                 raise HTTPException(400, "会话不属于当前球队及模式，请开始新会话")
+        else:
+            prior = []
+        active_model = store.get_meta("active_model") or {}
+        bound = next((item for item in prior if item.get("provider_id")), None)
+        provider_id = bound["provider_id"] if bound else payload.provider_id or active_model.get("provider_id")
+        chosen_model = bound["model"] if bound else payload.model or active_model.get("model")
+        if bound and ((payload.provider_id and payload.provider_id != provider_id) or (payload.model and payload.model != chosen_model)):
+            raise HTTPException(409, "当前对话使用原先选择的模型；切换模型请开启新对话。")
+        model_config = store.settings()["llm"]
+        if provider_id and payload.mode == "live":
+            from .model_config import effective_config
+            from .provider import AgentFailure
+            try:
+                model_config = effective_config(store, provider_id, chosen_model)
+            except AgentFailure as exc:
+                raise HTTPException(400, str(exc)) from None
         if payload.parent_run_id:
             parent = require("runs", payload.parent_run_id)
             if parent["mode"] != payload.mode or parent["team_id"] != payload.team_id or parent.get("match_id") != payload.match_id:
@@ -1024,9 +1112,10 @@ def create_app(db_path=None):
                "conversation_id": payload.conversation_id or "conversation_" + uuid.uuid4().hex[:16],
                "status": "queued", "answer": "", "input_evidence_ids": list(dict.fromkeys(payload.evidence_ids)), "evidence_ids": [], "warnings": [], "steps": [], "error": None,
                "created_at": ingestion.now(), "finished_at": None,
-               "model": "规则演示，未调用模型" if payload.mode == "demo" else store.settings()["llm"]["model"],
+               "provider_id": provider_id if payload.mode == "live" else None,
+               "model": "规则演示，未调用模型" if payload.mode == "demo" else model_config["model"],
                "spoiler": payload.skill == "match_review" or not store.settings()["spoiler_free"],
-               "skills_used": [], "protocol": store.settings()["llm"].get("protocol", "chat_completions")}
+               "skills_used": [], "protocol": model_config.get("protocol", "chat_completions")}
         store.put("runs", run)
         event = asyncio.Event()
         task = asyncio.create_task(execute(run["id"], event))
@@ -1096,7 +1185,20 @@ def create_app(db_path=None):
     return app
 
 
-app = create_app()
+_application = None
+
+
+async def app(scope, receive, send):
+    """Initialize storage when serving, never merely when importing test helpers."""
+    global _application
+    if _application is None:
+        _application = create_app()
+    application = _application
+    try:
+        await application(scope, receive, send)
+    finally:
+        if scope["type"] == "lifespan":
+            _application = None
 
 if __name__ == "__main__":
     import uvicorn

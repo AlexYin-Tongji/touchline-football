@@ -255,8 +255,59 @@ def _body_blocks(value):
     return ""
 
 
+def safe_image_url(value, source_url):
+    """Accept only public HTTPS image metadata; never fetch untrusted images."""
+    if not isinstance(value, str) or len(value) > 4096:
+        return None
+    try:
+        candidate = normalize_url(urljoin(source_url, value))
+        parsed = urlsplit(candidate)
+        if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in {None, 443}:
+            return None
+        host = parsed.hostname or ""
+        if "." not in host or host.endswith((".local", ".localhost", ".internal", ".test", ".invalid")):
+            return None
+        try:
+            if not ipaddress.ip_address(host).is_global:
+                return None
+        except ValueError:
+            pass
+        if re.search(r"\.(?:svg|html?)(?:$|\?)", parsed.path, re.I):
+            return None
+        return candidate
+    except (ValueError, IngestionError):
+        return None
+
+
+def extract_images(soup, url, source_name):
+    """Publisher-declared lead and article figures, with literal attribution."""
+    results = []
+    def add(value, caption="", credit=""):
+        clean = safe_image_url(value, url)
+        if clean and clean not in {row["url"] for row in results} and len(results) < 4:
+            results.append({"url": clean, "source_url": url, "caption": clean_text(str(caption))[:300],
+                            "credit": clean_text(str(credit or source_name))[:160]})
+    for meta in soup.select('meta[property="og:image"], meta[name="twitter:image"]'):
+        add(meta.get("content"))
+    for data in embedded_json(soup):
+        for node in _json_articles(data):
+            images = node.get("image") or []
+            for image in images if isinstance(images, list) else [images]:
+                if isinstance(image, str):
+                    add(image)
+                elif isinstance(image, dict):
+                    add(image.get("url") or image.get("contentUrl"), image.get("caption", ""), image.get("creditText", ""))
+    for figure in soup.select("article figure")[:8]:
+        img = figure.find("img")
+        caption = figure.find("figcaption")
+        if img:
+            add(img.get("src") or img.get("data-src"), caption.get_text(" ", strip=True) if caption else img.get("alt", ""))
+    return results
+
+
 def extract_html(body, url, source_name):
     soup = BeautifulSoup(body, "html.parser")
+    images = extract_images(soup, url, source_name)
     title = soup.find("meta", property="og:title")
     title = title.get("content") if title else None
     title = title or (soup.title.get_text(" ", strip=True) if soup.title else None) or source_name
@@ -325,7 +376,7 @@ def extract_html(body, url, source_name):
             "仅提取到较短正文或通用页面文本，完整性尚不能确认。")
     return [{"title": clean_text(str(title))[:200], "text": text, "url": url, "published_at": date,
              "content_status": "full_text" if full else "partial", "content_method": method,
-             "content_note": note, "text_truncated": len(raw_text) > MAX_ARTICLE_TEXT}]
+             "content_note": note, "text_truncated": len(raw_text) > MAX_ARTICLE_TEXT, "images": images}]
 
 
 def extract_feed(body, url, source_name):
@@ -428,6 +479,12 @@ def safe_evidence_view(item):
     if spoiler_title(item.get("title", "")) or spoiler_sensitive(unquote(urlsplit(item.get("url") or "").path)):
         return None
     raw = str(item.get("text") or "").strip()
+    if not raw and item.get("body_storage") == "transient" and item.get("safe_view_meta"):
+        result = copy.deepcopy(item)
+        result.update(item["safe_view_meta"])
+        result.update(text="", spoiler=False, original_spoiler=True, spoiler_redacted=True,
+                      redaction_note="原文需要重新读取；当前仅保存避剧透来源记录。")
+        return result
     paragraphs = [paragraph.strip() for paragraph in re.split(r"\n+", raw) if paragraph.strip()]
     # Legacy extractors separated every inline text node, sometimes one word
     # per line. Such fragments cannot safely serve as independent paragraphs.
@@ -450,12 +507,14 @@ def safe_evidence_view(item):
     result.update({"text": text, "spoiler": False, "original_spoiler": True, "spoiler_redacted": True,
                    "redacted_paragraph_count": removed,
                    "redaction_note": "避剧透节选：已隐藏含比分、赛果或比赛过程线索的完整段落。此处仅引用保留下来的原文；不能根据删去的内容推断比赛。"})
+    if result.get("body_hash"):
+        result["body_hash"] = hashlib.sha256(text.encode()).hexdigest()
     return result
 
 
 def ingest(store, *, team_id, title, text, url="", source_name="手动导入", published_at=None,
            kind="team", stage=None, spoiler=False, event_id=None, source_id=None, origin="manual",
-           content_status=None, content_method=None, content_note=None, text_truncated=False):
+           content_status=None, content_method=None, content_note=None, text_truncated=False, images=None):
     text = clean_text(text)
     digest = fingerprint(text)
     with store.atomic():
@@ -463,8 +522,15 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
         if event_id and (not event or event["mode"] != "live" or event["team_id"] != team_id):
             raise IngestionError("追加事件不存在，或不属于当前球队的真实资料")
         evidence_list = store.list("evidence", "live", team_id)
-        duplicate = next((item for item in evidence_list if item.get("fingerprint", fingerprint(item["text"])) == digest), None)
+        duplicate = next((item for item in evidence_list if item.get("fingerprint", fingerprint(item.get("text", ""))) == digest
+                          and (not url or not item.get("url") or item.get("url") == url)), None)
         if duplicate:
+            # Repopulate the short-lived body after restart. Reading the same
+            # article never changes its source version or editorial provenance.
+            duplicate["text"] = text
+            if images:
+                duplicate["images"] = images
+            store.put("evidence", duplicate)
             parent = next((item for item in store.list("events", "live", team_id) if duplicate["id"] in item["evidence_ids"]), None)
             if content_status and url and url == duplicate.get("url") and source_id == duplicate.get("source_id"):
                 duplicate.update({"content_status": content_status, "content_method": content_method,
@@ -488,7 +554,7 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
         evidence = {"id": "ev_" + uuid.uuid4().hex[:16], "mode": "live", "team_id": team_id,
                     "title": title, "text": text, "url": url or "", "source_name": source_name,
                     "published_at": published_at, "fetched_at": timestamp, "source_id": source_id,
-                    "origin": origin, "spoiler": spoiler, "fingerprint": digest}
+                    "origin": origin, "spoiler": spoiler, "fingerprint": digest, "images": images or []}
         evidence.update({"content_status": content_status or ("imported" if origin == "manual" else "partial"),
                          "content_method": content_method or origin, "content_note": content_note,
                          "text_truncated": bool(text_truncated)})

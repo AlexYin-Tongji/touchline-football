@@ -6,13 +6,14 @@ Only ordinary assistant text and function calls leave the adapter for display.
 from __future__ import annotations
 
 import json
+import copy
 import re
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
 MAX_RESPONSE_BYTES = 2_000_000
-PROTOCOLS = {"chat_completions": "/chat/completions", "responses": "/responses"}
+PROTOCOLS = {"chat_completions": "/chat/completions", "responses": "/responses", "anthropic_messages": "/messages"}
 
 
 class AgentFailure(Exception):
@@ -57,7 +58,7 @@ def assistant_context(message):
     result = {"role": "assistant", "content": message.get("content")}
     if message.get("tool_calls"):
         result["tool_calls"] = message["tool_calls"]
-    for field in ("_response_output", "_chat_reasoning"):
+    for field in ("_response_output", "_chat_reasoning", "_anthropic_content"):
         if field in message:
             result[field] = message[field]
     return result
@@ -90,7 +91,36 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
     payload = {"model": config["model"].strip(), "stream": False}
     if config.get("send_temperature", False):
         payload["temperature"] = float(config.get("temperature", 0.2))
-    if protocol == "responses":
+    if protocol == "anthropic_messages":
+        system, wire = [], []
+        for message in messages:
+            role = message.get("role")
+            if role in {"system", "developer"}:
+                system.append(str(message.get("content") or ""))
+                continue
+            if role == "tool":
+                role, content = "user", [{"type": "tool_result", "tool_use_id": message["tool_call_id"], "content": str(message.get("content") or "")}]
+            elif message.get("_anthropic_content") is not None:
+                content = copy.deepcopy(message["_anthropic_content"])
+            else:
+                content = [{"type": "text", "text": message["content"]}] if message.get("content") else []
+                for call in message.get("tool_calls", []):
+                    content.append({"type": "tool_use", "id": call["id"], "name": call["function"]["name"], "input": json.loads(call["function"]["arguments"])})
+            if not content:
+                continue
+            if wire and wire[-1]["role"] == role:
+                wire[-1]["content"].extend(content)
+            else:
+                wire.append({"role": role, "content": content})
+        payload.update(messages=wire, max_tokens=limit)
+        payload.pop("stream", None)
+        if system:
+            payload["system"] = "\n\n".join(system)
+        if tools:
+            payload["tools"] = [{"name": tool["function"]["name"], "description": tool["function"].get("description", ""), "input_schema": tool["function"]["parameters"]} for tool in tools]
+            payload["tool_choice"] = ({"type": "tool", "name": tool_choice["function"]["name"]} if isinstance(tool_choice, dict)
+                                      else {"type": "none" if tool_choice == "none" else "any" if tool_choice == "required" else "auto"})
+    elif protocol == "responses":
         payload.update(input=responses_input(messages), store=False, max_output_tokens=limit,
                        include=["reasoning.encrypted_content"])
         if tools:
@@ -118,7 +148,18 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
 def response_message(data, protocol):
     if not isinstance(data, dict):
         raise ValueError()
-    if protocol == "responses":
+    if protocol == "anthropic_messages":
+        if data.get("stop_reason") == "max_tokens":
+            raise AgentFailure("模型输出达到令牌限制，未完成回答。请提高最大输出令牌或缩小任务范围。", response_received=True)
+        parts = data["content"]
+        if not isinstance(parts, list) or any(not isinstance(part, dict) for part in parts):
+            raise ValueError()
+        content = [part["text"] for part in parts if part.get("type") == "text" and isinstance(part.get("text"), str)]
+        calls = [{"type": "function", "id": part["id"], "function": {"name": part["name"], "arguments": json.dumps(part["input"], ensure_ascii=False)}} for part in parts if part.get("type") == "tool_use"]
+        result = {"role": "assistant", "content": "\n".join(content) or None, "_anthropic_content": parts}
+        if calls:
+            result["tool_calls"] = calls
+    elif protocol == "responses":
         if data.get("status") == "incomplete":
             raise AgentFailure("模型输出达到令牌限制，未完成回答。请提高最大输出令牌或缩小任务范围。", response_received=True)
         if data.get("status") in {"failed", "cancelled"} or data.get("error"):
@@ -200,7 +241,12 @@ async def request_completion(config, messages, *, tools=None, tool_choice="auto"
     if isinstance(session, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,120}", session):
         headers["x-opencode-session"] = session
     if config.get("api_key"):
-        headers["Authorization"] = "Bearer " + config["api_key"]
+        if protocol_name(config) == "anthropic_messages":
+            headers["x-api-key"] = config["api_key"]
+        else:
+            headers["Authorization"] = "Bearer " + config["api_key"]
+    if protocol_name(config) == "anthropic_messages":
+        headers["anthropic-version"] = "2023-06-01"
     try:
         async with httpx.AsyncClient(timeout=seconds, follow_redirects=False,
                                      trust_env=bool(config.get("use_env_proxy", True))) as client:

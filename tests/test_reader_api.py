@@ -13,6 +13,7 @@ class ArticleReaderAPITests(unittest.TestCase):
         self.app = create_app(Path(self.tmp.name) / "reader.db")
         self.client = TestClient(self.app)
         self.client.__enter__()
+        self.client.put("/api/settings", json={"spoiler_free": True})
 
     def tearDown(self):
         self.client.__exit__(None, None, None)

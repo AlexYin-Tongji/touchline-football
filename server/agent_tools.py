@@ -54,14 +54,17 @@ TOOL_DEFINITIONS = [
 ]
 TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 TOOL_DEFINITIONS.extend([
+    {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "maintain_team_data", "description": "按需更新当前球队的真实阵容、球员图像、赛程与统计；失败保留已有资料，返回来源覆盖。遵守本任务避剧透范围。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "research_news", "description": "围绕一个足球问题一次完成多来源搜索和原文阅读，返回本轮可以引用的材料、来源覆盖、读取失败与后续线索。优先用于最新新闻、伤病、转会等联网研究；不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 4}}, "required": ["query"], "additionalProperties": False}},
     {"name": "reader_profile", "description": "读取用户主动设置的关注主题、阅读语言、足球熟悉度和简报时间窗口，及当前球队可见跟进主题。仅调整选题与解释，不能改变证据判断或避剧透权限。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_passages", "description": "在当前可见长文中定位关键词段落，返回上下文和字符offset。只是定位索引，不增加已读证据；随后read_evidence(offset)阅读该处。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 300}, "evidence_id": {"type": "string", "maxLength": 120}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "compare_sources", "description": "比较2至6篇本轮已读材料的时间、来源域名、正文覆盖和可引用片段；标出同一网址及可能转载，独立性仍须核对。不会自动判定哪个说法属实。", "parameters": {"type": "object", "properties": {"evidence_ids": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "string", "minLength": 1, "maxLength": 120}}, "query": {"type": "string", "maxLength": 300}}, "required": ["evidence_ids"], "additionalProperties": False}},
 ])
 for _definition in TOOL_DEFINITIONS:
     if _definition["name"] == "use_skill":
-        _definition["parameters"]["properties"]["skill"]["enum"].extend(["transfer_check", "tactics_explainer"])
-    if _definition["name"] in {"search_evidence", "discover_news", "refresh_team_sources"}:
+        _definition["parameters"]["properties"]["skill"]["enum"].extend(["transfer_check", "tactics_explainer", "team_maintenance"])
+    if _definition["name"] in {"search_evidence", "discover_news", "refresh_team_sources", "research_news"}:
         _definition["parameters"]["properties"].update({
             "category": {"type": "string", "enum": ["all", "injury", "training", "transfer", "squad", "preview", "review", "tactics", "interview", "discipline"],
                          "description": "分类：全部、伤病、训练恢复、转会、阵容、赛前、赛后、战术、发布会、纪律。默认全部。"},
@@ -84,7 +87,7 @@ def tool_definitions(skill="ask"):
     fields["facts"]["maxItems"] = 6
     fact = fields["facts"]["items"]
     fact["properties"]["title"]["maxLength"] = 64
-    fact["properties"]["detail"].update(maxLength=900, description="一节完整中文叙事，至少两句，交代原文事实及其关系。报告全文目标900至1400字，通常4节，每节精炼而完整；禁止用重复警告或虚构背景凑篇幅。")
+    fact["properties"]["detail"].update(maxLength=900, description="一节完整中文叙事，交代原文事实及其关系。个人动态通常1至3节，全文约300至650字，长材料可详细解释；严禁重复、凑章节或虚构背景。")
     fact["properties"]["kind"] = {"type": "string", "enum": ["development", "context", "impact"]}
     fact["required"].extend(["kind", "quotes"])
     fact["properties"]["quotes"]["maxItems"] = 8
@@ -92,7 +95,7 @@ def tool_definitions(skill="ask"):
     report_quotes["description"] = "只填写evidence_id和已读passages里的passage_id。禁止输出quote或复制原文；服务器在核验时自行取得对应真实原文。每节选择足够支持正文的1至3个片段，不重复堆积。"
     report_quotes["items"]["properties"].pop("quote")
     report_quotes["items"]["required"] = ["evidence_id", "passage_id"]
-    fields["analysis"].update(maxLength=900, description="解释对球队和球迷的可能影响，通常150至250字，明确假设及其有依据的前提，不新增事实。")
+    fields["analysis"].update(maxLength=900, description="简洁解释对球队和球迷的可能影响，明确假设及有依据的前提，不新增事实；没有必要可留空。")
     fields["unknowns"].update(maxItems=5)
     fields["unknowns"]["items"]["maxLength"] = 240
     return definitions
@@ -289,7 +292,7 @@ class LocalTools:
         item, cache = self.evidence_view(self.scoped_get("evidence", eid)), self.read_cache.get(eid)
         if not item or not cache:
             return False
-        return (cache.get("document_fingerprint") == hashlib.sha256(str(item.get("text") or "").encode()).hexdigest()
+        return (cache.get("document_fingerprint") == (item.get("body_hash") or hashlib.sha256(str(item.get("text") or "").encode()).hexdigest())
                 and all(item.get(key) == cache.get(key) for key in ("title", "url", "source_name", "published_at", "fetched_at", "origin")))
 
     def remember_page(self, item, page):
@@ -443,15 +446,13 @@ class LocalTools:
         if any(not clean_delivery_text(value) or "\n" in value or re.search(r"\[[A-Za-z0-9_-]+\]", value) for value in strings):
             raise ToolError("最终答复只能包含简洁的用户正文，不可包含过程叙述、工具预算、换行或引用括号；引用请放入 evidence_ids。请重新提交。")
         if sum(len(value) for value in strings) > (6000 if is_report else 1000):
-            raise ToolError("报告全文目标900至1400字，安全上限6000字，请删去重复内容后重试。" if is_report else "最终答复过长，请缩短到合计1000字以内后重新提交。")
+            raise ToolError("中文动态超过6000字安全上限，请删去重复内容后重试。" if is_report else "最终答复过长，请缩短到合计1000字以内后重新提交。")
         if is_report and arguments["status"] == "complete":
-            if not 3 <= len(arguments["facts"]) <= 6:
-                raise ToolError("完整报告需要3至6节有实际内容的叙事；材料不足时提交insufficient，不能伪造背景补足章节。")
+            if not 1 <= len(arguments["facts"]) <= 6:
+                raise ToolError("中文动态需要1至6节有实际内容的叙事；材料不足时提交insufficient，不能伪造背景补足章节。")
             if not re.search(r"[\u3400-\u9fff]", arguments.get("title", "")) or any(
                     len(re.findall(r"[\u3400-\u9fff]", fact["detail"])) < 25 for fact in arguments["facts"]):
                 raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
-            if not any(fact.get("kind") == "context" for fact in arguments["facts"]):
-                raise ToolError("报告应有一节原文支持的背景。若原文缺少外部背景，可解释本次报道涉及的时间和来源范围，不得调用记忆编造。")
             if not arguments["analysis"].strip() and not arguments["unknowns"]:
                 raise ToolError("报告需说明有依据的可能影响，或明确下一步需要关注的信息。")
         if len({fact["title"].strip() for fact in arguments["facts"]}) != len(arguments["facts"]):
@@ -585,6 +586,8 @@ class LocalTools:
                                for event in events[:12]],
                     "matches": [self.safe_match(item) for item in self.scoped_list("matches")[:8]],
                     "visible_evidence_count": len(self.visible_evidence())}
+        if name == "get_team_data":
+            return self.team_data_result()
         if name == "search_evidence":
             from .events import ENTITY_ALIASES, contains, entities
             from .research import article_categories, within_days, OPPONENT_ALIASES, TEAM_ALIASES
@@ -627,6 +630,8 @@ class LocalTools:
                                                    "spoiler_redacted", "redaction_note", "redacted_paragraph_count", "original_spoiler")}
             from .ingestion import content_details
             raw = str(item.get("text") or "")
+            if not raw.strip():
+                raise ToolError("这条来源只保存了链接；本轮需要联网重新读取原文，不能用旧中文结论代替证据。")
             offset, length = arguments.get("offset", 0), arguments.get("length", 12000)
             if offset >= len(raw) and offset:
                 raise ToolError("阅读位置超出当前可见正文，请使用上一页返回的next_offset。")
@@ -673,11 +678,38 @@ class LocalTools:
 
     async def acall(self, name, arguments):
         self.validate(name, arguments)
-        if name not in {"discover_news", "read_article", "refresh_team_sources"}:
+        if name == "maintain_team_data":
+            self.network_guard()
+            if self.match or self.run.get("report_id"):
+                raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
+            if self.network_queries >= 3:
+                raise ToolError("本次联网维护次数已用完，可读取已有球队资料。")
+            self.network_queries += 1
+            from .team_center import maintain_team
+            await maintain_team(self.store, self.team_id)
+            return self.team_data_result()
+        if name == "read_evidence":
+            item = self.scoped_get("evidence", arguments["evidence_id"])
+            if not self.evidence_allowed(item):
+                raise ToolError("证据不在本次可见范围。")
+            if item.get("body_storage") == "transient" and not item.get("text"):
+                # Fixed-input editorial jobs may reread their original links;
+                # this never grants discovery of unrelated sources.
+                if not self.allow_network and not self.run.get("report_id"):
+                    self.network_guard()
+                if self.cutoff and datetime.now(timezone.utc) >= self.cutoff:
+                    raise ToolError("历史赛前证据已过期，不能引入比赛后的原文。")
+                if self.article_reads >= 8:
+                    raise ToolError("本次原文读取预算已用完。")
+                self.article_reads += 1
+                from .research import read_evidence_source
+                await read_evidence_source(self.store, item["id"])
+            return self.call(name, arguments)
+        if name not in {"discover_news", "read_article", "refresh_team_sources", "research_news"}:
             return self.call(name, arguments)
         self.network_guard()
         from . import research
-        if name in {"discover_news", "refresh_team_sources"}:
+        if name in {"discover_news", "refresh_team_sources", "research_news"}:
             if self.network_queries >= 3:
                 raise ToolError("本次任务已达到 3 次联网发现/收集预算，请基于已取得资料回答。")
             self.network_queries += 1
@@ -711,14 +743,47 @@ class LocalTools:
             return {"evidence": self.call("read_evidence", {"evidence_id": evidence["id"]}),
                     "duplicate": bool(result.get("duplicate")), "cached": bool(result.get("cached")), "budget": self.budget()}
         limit = min(arguments.get("limit", 3), remaining)
-        self.article_reads += limit  # Reserve attempted reads, including fetch errors.
+        reserved = min(remaining, limit + 3)
+        self.article_reads += reserved  # Protect the cap even if a fetch raises.
         filters = {key: arguments[key] for key in ("category", "max_age_days") if key in arguments}
         result = await research.collect_team(self.store, self.team_id, arguments["query"], limit=limit,
-                                             event_id=self.run.get("event_id"), match_id=self.run.get("match_id"), **filters)
+                                             event_id=self.run.get("event_id"), match_id=self.run.get("match_id"), max_attempts=remaining, **filters)
+        actual = result.get("attempted_reads", limit)
+        if type(actual) is int:
+            self.article_reads -= reserved - max(0, min(reserved, actual))
         ids = [eid for eid in result.get("evidence_ids", []) if self.evidence_allowed(self.scoped_get("evidence", eid))]
-        return {"evidence_ids": ids, "added": result.get("added", 0), "unchanged": result.get("unchanged", 0),
+        output = {"evidence_ids": ids, "added": result.get("added", 0), "unchanged": result.get("unchanged", 0),
                 "errors": result.get("errors", []), "sources": result.get("sources", []), "cached": result.get("cached", 0), "budget": self.budget(),
-                "notice": "资料已经入库；请 read_evidence 阅读这些原文后再引用。"}
+                "coverage": result.get("coverage"),
+                "notice": "来源链接已保存；请 read_evidence 阅读原文后引用。"}
+        if name == "research_news":
+            output["evidence"] = [self.call("read_evidence", {"evidence_id": eid}) for eid in ids]
+            output["notice"] = "evidence是本轮实际读取的来源材料，可以按passages引用；来源失败或没有标题命中不代表没有新闻。" if ids else "本轮未取得可读材料，请根据errors和coverage说明检索限制，不能声称没有相关新闻。"
+        return output
+
+    def team_data_result(self):
+        """Give structured sports snapshots the same literal citation contract."""
+        if self.mode != "live" or self.match or self.run.get("report_id"):
+            raise ToolError("完整球队数据仅用于真实球队问答；比赛与文章任务须使用其固定资料范围。")
+        from .team_center import team_context_payload
+        from .ingestion import now
+        payload = team_context_payload(self.store, self.team_id, reveal=not self.spoiler_free)
+        has_data = bool(payload.get("roster") or payload.get("recent_matches") or payload.get("upcoming_matches") or (payload.get("stats") or {}).get("standing"))
+        if not has_data:
+            return {**payload, "evidence": None, "notice": "球队资料尚未完成更新，不能把空表或默认零值当成球队事实。"}
+        sources = payload.get("sources") or []
+        evidence_id = "team_data_" + self.team_id + ("_safe" if self.spoiler_free else "_full")
+        previous = self.store.get("evidence", evidence_id)
+        body = "ESPN 媒体结构化球队资料，按所列赛季和更新时间读取；不是球队官方公告。\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+        item = {"id": evidence_id, "mode": "live", "team_id": self.team_id, "title": "球队阵容、赛程与统计资料",
+                "text": body, "source_name": "ESPN 足球数据", "url": sources[0].get("url", "") if sources else "",
+                "published_at": None, "fetched_at": payload.get("updated_at") or payload.get("roster_updated_at") or (previous or {}).get("fetched_at") or now(),
+                "origin": "structured", "fixture_record": True, "spoiler": not self.spoiler_free,
+                "content_status": "full_text", "content_method": "structured_team_data",
+                "content_note": "结构化快照中的缺失字段不是零；仅适用于所列赛季和来源更新时间。"}
+        self.store.put("evidence", item)
+        return {**payload, "evidence": self.call("read_evidence", {"evidence_id": evidence_id}),
+                "notice": "数据及其中的证据片段已实际读取；引用以evidence中的ID和passages为准，未读后续页须继续read_evidence。"}
 
     def budget(self):
         return {"queries_used": self.network_queries, "queries_limit": 3,

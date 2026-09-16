@@ -45,12 +45,17 @@ class PresentationTests(unittest.TestCase):
 
     def test_source_text_or_metadata_change_invalidates_old_knowledge(self):
         self.archive()
-        for field in ("text", "title", "url", "source_name", "published_at", "fetched_at"):
+        for field in ("text", "title", "url", "source_name", "published_at"):
             changed = copy.deepcopy(self.source)
             changed[field] = str(changed.get(field) or "") + "changed"
             self.store.put("evidence", changed)
             self.assertEqual(self.present()["summary_origin"], "pending", field)
             self.store.put("evidence", self.source)
+
+    def test_same_source_checked_again_keeps_chinese_card_current(self):
+        self.archive()
+        self.store.put("evidence", {**self.source, "fetched_at": "2026-09-16T00:00:00Z"})
+        self.assertEqual(self.present()["summary_origin"], "assistant")
 
     def test_unversioned_historical_run_is_not_current_support(self):
         result = self.present()

@@ -1,0 +1,77 @@
+{
+  "_source": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams/83/schedule?season=2026",
+  "_note": "Reduced public provider response; no synthesized player, score or competition fields.",
+  "timestamp": "2026-09-16T03:04:05Z",
+  "season": {
+    "year": 2026
+  },
+  "requestedSeason": {
+    "year": 2026
+  },
+  "team": {
+    "id": "83",
+    "seasonSummary": "2026-27"
+  },
+  "events": [
+    {
+      "id": "401882883",
+      "date": "2026-09-13T14:15Z",
+      "season": {
+        "year": 2026,
+        "displayName": "2026-27 Spanish LALIGA"
+      },
+      "league": {
+        "id": "740",
+        "slug": "esp.1"
+      },
+      "competitions": [
+        {
+          "date": "2026-09-13T14:15Z",
+          "timeValid": true,
+          "status": {
+            "clock": 5400.0,
+            "addedClock": 480.0,
+            "displayClock": "90'+8'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "venue": {
+            "fullName": "Estadi Ciutat de València"
+          },
+          "competitors": [
+            {
+              "id": "1538",
+              "type": "team",
+              "homeAway": "home",
+              "team": {
+                "displayName": "Levante"
+              },
+              "score": {
+                "value": 2.0
+              }
+            },
+            {
+              "id": "83",
+              "type": "team",
+              "homeAway": "away",
+              "team": {
+                "displayName": "Barcelona"
+              },
+              "score": {
+                "value": 4.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,9 @@ from tests.test_research import SOURCE, ARTICLE
 
 class DiscoveryEnhancementTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        espn = patch("server.research._espn_news_index", new=AsyncMock(return_value=([], [], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": ingestion.now()})))
+        espn.start()
+        self.addCleanup(espn.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "collection.db")
         seed(self.store)
@@ -40,7 +43,11 @@ class DiscoveryEnhancementTests(unittest.IsolatedAsyncioTestCase):
         with patch("server.research.source_catalog", return_value=[source]), patch("server.research._fetch", new=AsyncMock(return_value=(feed, source["url"], "application/rss+xml"))) as fetch:
             first = await research.discover_news(self.store, "arsenal", "萨卡伤情")
             second = await research.discover_news(self.store, "arsenal", "赖斯续约")
-        self.assertEqual(fetch.await_count, 1)
+        # Direct publisher index is shared; each new research question also
+        # consults its separate public news-search index.
+        direct_calls = [call for call in fetch.await_args_list if call.args[1]["id"] == source["id"]]
+        self.assertEqual(len(direct_calls), 1)
+        self.assertEqual(fetch.await_count, 3)
         self.assertEqual(first["candidates"][0]["title"], "Saka injury assessment")
         self.assertEqual(second["candidates"][0]["title"], "Rice signs a new contract")
         self.assertEqual(second["sources"][0]["state"], "cached")

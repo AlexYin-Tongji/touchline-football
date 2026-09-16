@@ -312,6 +312,7 @@ class LeagueAPITests(unittest.TestCase):
         self.app = create_app(Path(self.directory.name) / "api-leagues.sqlite3")
         self.client = TestClient(self.app)
         self.client.__enter__()
+        self.client.put("/api/settings", json={"spoiler_free": True})
         self.store = self.app.state.store
         self.store.save_settings({"mode": "live", "reports": {"auto_generate": False}, "followed_teams": []})
 

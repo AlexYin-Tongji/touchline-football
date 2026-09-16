@@ -162,6 +162,156 @@ def _sync_key(season_id):
     return "league_sync_" + season_id
 
 
+def team_schedule_key(season_id, team_id):
+    return f"team_schedule_{season_id}_{team_id}"
+
+
+def parse_team_schedule(payload, league, season, mapping, provider_team_id):
+    """Validate the fixed team's feed, then reuse the normal match parser.
+
+    Team schedules can also contain cups and continental competitions. Only an
+    explicit matching league slug is accepted; another competition is skipped,
+    and a missing/contradictory identity invalidates the import.
+    """
+    if not isinstance(payload, dict):
+        raise IngestionError("球队赛程格式无法识别，已保留旧记录。")
+    expected_year = season["season_start_year"]
+    for field in ("season", "requestedSeason"):
+        year = (payload.get(field) or {}).get("year")
+        if type(year) is not int or year != expected_year:
+            raise IngestionError("球队赛程没有确认所选赛季，已保留旧记录。")
+    identity = str(provider_team_id)
+    team = payload.get("team") or {}
+    if not identity.isdigit() or identity not in mapping or str(team.get("id")) != identity:
+        raise IngestionError("球队赛程的来源编号不匹配，已保留旧记录。")
+    expected_label = f"{expected_year}-{str(expected_year + 1)[-2:]}"
+    if team.get("seasonSummary") and team["seasonSummary"] not in {expected_label, season["label"]}:
+        raise IngestionError("球队赛程的赛季标签互相冲突。")
+    events = payload.get("events")
+    if not isinstance(events, list) or len(events) > 250:
+        raise IngestionError("球队赛程没有返回可读取的比赛列表。")
+    selected = []
+    league_provider_id = str(league.get("provider_league_uid", "")).rsplit(":", 1)[-1]
+    for event in events:
+        if not isinstance(event, dict):
+            raise IngestionError("球队赛程包含格式不完整的记录。")
+        competition_league = event.get("league") or {}
+        slug = competition_league.get("slug")
+        if not slug:
+            raise IngestionError("球队赛程缺少可核对的赛事归属。")
+        if slug != league["provider_code"]:
+            continue
+        if competition_league.get("id") is not None and league_provider_id.isdigit() and str(competition_league["id"]) != league_provider_id:
+            raise IngestionError("球队赛程的联赛编号互相冲突。")
+        competitors = [row for game in event.get("competitions", []) for row in game.get("competitors", [])]
+        if not any(str(row.get("id")) == identity for row in competitors):
+            raise IngestionError("球队赛程混入了另一支球队的比赛。")
+        selected.append(event)
+    if not selected:
+        raise IngestionError("球队来源暂未返回本赛季的联赛比赛，已保留旧记录。")
+    # Header identity is established above from the fixed request, the response
+    # team/season and each event's explicit league. No score is synthesized.
+    return parse_scoreboard({"leagues": [{"slug": league["provider_code"], "season": {"year": expected_year}}],
+                             "events": selected}, league, season, mapping)
+
+
+async def sync_team_recent(store, team_id, year=None, *, force=False):
+    """Supplement one team's matches without replacing the full league snapshot."""
+    memberships = [m for m in store.list("league_memberships") if m.get("team_id") == team_id
+                   and (year is None or m.get("season_start_year") == year)]
+    if not memberships:
+        raise IngestionError("球队没有可核对的赛季目录。")
+    membership = max(memberships, key=lambda item: item["season_start_year"])
+    league, season, mapping = season_context(store, membership["league_id"], membership["season_start_year"])
+    provider_id = str(membership.get("provider_team_id", ""))
+    if not provider_id.isdigit() or mapping.get(provider_id) != team_id:
+        raise IngestionError("球队来源编号与赛季目录不一致。")
+    key = team_schedule_key(season["id"], team_id)
+    if not hasattr(store, "_team_schedule_locks"):
+        store._team_schedule_locks = {}
+    async with store._team_schedule_locks.setdefault(key, asyncio.Lock()):
+        prior = store.get_meta(key, {})
+        recent = published_time(prior.get("last_sync"))
+        attempted = published_time(prior.get("last_attempt"))
+        current_time = datetime.now(timezone.utc)
+        if (not force and recent and (current_time - datetime.fromisoformat(recent)).total_seconds() < CACHE_SECONDS
+                or attempted and (current_time - datetime.fromisoformat(attempted)).total_seconds() < 60):
+            return {**prior, "cached": True}
+        attempt_at = now()
+        source_url = f"https://www.espn.com/soccer/team/results/_/id/{provider_id}/league/{league['provider_code']}/season/{season['season_start_year']}"
+        upcoming_source_url = f"https://www.espn.com/soccer/team/fixtures/_/id/{provider_id}/league/{league['provider_code']}/season/{season['season_start_year']}"
+        store.set_meta(key, {**prior, "sync_status": "running", "last_attempt": attempt_at, "errors": []})
+        url = f"{API}/apis/site/v2/sports/soccer/{league['provider_code']}/teams/{provider_id}/schedule?season={season['season_start_year']}"
+        try:
+            responses = await asyncio.gather(fetch_json(url), fetch_json(url + "&fixture=true"), return_exceptions=True)
+            combined, errors, checked = {}, [], {}
+            for part, payload in zip(("results", "upcoming"), responses):
+                try:
+                    if isinstance(payload, BaseException):
+                        raise payload
+                    parsed = parse_team_schedule(payload, league, season, mapping, provider_id)
+                    candidate = dict(combined)
+                    for row in parsed:
+                        previous = candidate.get(row["id"])
+                        if previous:
+                            # The game may finish between these two responses;
+                            # a results entry takes precedence over its stale
+                            # scheduled counterpart, never the reverse.
+                            if previous["status"] == "finished" and row["status"] != "finished":
+                                continue
+                            if row["status"] == "finished" and previous["status"] != "finished":
+                                candidate[row["id"]] = row
+                                continue
+                            if any(previous.get(field) != row.get(field) for field in ("home_team_id", "away_team_id", "status", "home_score", "away_score", "kickoff")):
+                                raise IngestionError("球队两个赛程来源中的同一比赛互相冲突。")
+                        candidate[row["id"]] = row
+                    combined = candidate
+                    checked[part] = now()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    errors.append(("已赛：" if part == "results" else "未来赛程：") + (str(exc) if isinstance(exc, IngestionError) else "来源暂不可用，已保留旧记录。"))
+            records = list(combined.values())
+            if not records:
+                raise IngestionError("；".join(errors) or "球队赛程暂未返回有效比赛，已保留旧记录。")
+            if not hasattr(store, "_league_locks"):
+                store._league_locks = {}
+            # Serialize snapshot-ID merges with the full-league writer. A
+            # concurrent refresh must not discard either writer's new matches.
+            async with store._league_locks.setdefault(season["id"], asyncio.Lock()):
+                existing = {row["id"]: row for row in store.list("league_matches") if row.get("season_id") == season["id"]}
+                for row in records:
+                    old = existing.get(row["id"])
+                    if old and old.get("status") == "finished" and row["status"] != "finished":
+                        raise IngestionError("球队来源把已完赛比赛退回未开赛，已保留旧记录。")
+                    if old and (old.get("home_team_id"), old.get("away_team_id")) != (row["home_team_id"], row["away_team_id"]):
+                        raise IngestionError("球队赛程与已有比赛的对阵不一致，已保留旧记录。")
+                    row["source_method"] = "team_schedule"
+                league_status = store.get_meta(_sync_key(season["id"]), {})
+                ids = list(dict.fromkeys([*league_status.get("snapshot_match_ids", list(existing)), *(row["id"] for row in records)]))
+                store.put_many("league_matches", records)
+                # Deliberately retain full-league errors and timestamps. Only
+                # this team's checked matches were refreshed by this endpoint.
+                store.set_meta(_sync_key(season["id"]), {**league_status, "snapshot_match_ids": ids,
+                               "fixture_count": len(ids)})
+                materialize_team(store, team_id, season["id"])
+            result = {"team_id": team_id, "season_id": season["id"], "sync_status": "partial" if errors else "completed", "errors": errors,
+                      "last_attempt": attempt_at, "last_sync": now(), "source_url": source_url,
+                      "upcoming_source_url": upcoming_source_url,
+                      "results_updated_at": checked.get("results") or prior.get("results_updated_at"),
+                      "upcoming_updated_at": checked.get("upcoming") or prior.get("upcoming_updated_at"),
+                      "match_count": len(records), "completed_match_count": sum(row["status"] == "finished" for row in records),
+                      "scope": "team_schedule", "provider": "ESPN"}
+        except asyncio.CancelledError:
+            store.set_meta(key, {**prior, "sync_status": "interrupted", "last_attempt": attempt_at, "errors": ["球队赛程更新中断，已保留旧记录。"]})
+            raise
+        except Exception as exc:
+            result = {**prior, "team_id": team_id, "season_id": season["id"], "sync_status": "failed", "last_attempt": attempt_at,
+                      "errors": [str(exc) if isinstance(exc, IngestionError) else "球队赛程暂不可用，已保留旧记录。"]}
+        store.set_meta(key, result)
+        return result
+
+
 async def sync_league(store, league_id, year=None, *, force=False):
     _, season, _ = season_context(store, league_id, year)
     if not hasattr(store, "_league_locks"):
@@ -183,7 +333,7 @@ async def _sync_league(store, league_id, year=None, *, force=False):
     fixtures_url = f"{API}/apis/site/v2/sports/soccer/{code}/scoreboard?dates={year}0601-{year+1}0601&limit=1000"
     table_url = f"{API}/apis/v2/sports/soccer/{code}/standings?season={year}"
     results = await asyncio.gather(fetch_json(fixtures_url), fetch_json(table_url), return_exceptions=True)
-    errors, updated = [], 0
+    errors, updated, part_status = [], 0, {}
     for kind, payload in zip(("fixtures", "standings"), results):
         try:
             if isinstance(payload, BaseException):
@@ -205,13 +355,16 @@ async def _sync_league(store, league_id, year=None, *, force=False):
                 store.put("standings", {"id": season["id"], "league_id": league_id, "season_id": season["id"], "rows": rows, "fetched_at": now(), "source_url": f"https://www.espn.com/soccer/standings/_/league/{code}/season/{year}"})
                 prior["standings_at"] = now()
             updated += 1
+            part_status[kind + "_status"] = "completed"
         except asyncio.CancelledError:
             raise
         except (IngestionError, ValueError, TypeError, KeyError) as exc:
+            part_status[kind + "_status"] = "failed"
             errors.append(("赛程：" if kind == "fixtures" else "积分：") + str(exc))
         except Exception:
+            part_status[kind + "_status"] = "failed"
             errors.append(("赛程" if kind == "fixtures" else "积分") + "来源暂不可用，已保留上次数据。")
-    status = {**prior, "sync_status": "completed" if not errors else "partial" if updated else "failed", "errors": errors, "last_attempt": now()}
+    status = {**prior, **part_status, "sync_status": "completed" if not errors else "partial" if updated else "failed", "errors": errors, "last_attempt": now()}
     if updated:
         status["last_sync"] = now()
     store.set_meta(key, status)

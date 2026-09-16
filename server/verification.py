@@ -105,7 +105,10 @@ def prepare_claims(local, structured):
                     continue
                 quote = selected["text"]
             passage = normalized(quote)
-            cached, visible = normalized(cache.get("text")), normalized(current.get("text"))
+            cached = normalized(cache.get("text"))
+            # A page already read in this run is valid after the shared TTL
+            # cache evicts it, only while its durable body hash still matches.
+            visible = normalized(current.get("text")) if current.get("text") else cached if local.cache_is_current(eid) else ""
             if not 8 <= len(passage) <= 700 or passage not in cached or passage not in visible:
                 errors.append("摘录并非本轮可见原文中的连续片段；不得翻译、删词、拼接或补写原文。")
                 continue

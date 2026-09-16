@@ -19,6 +19,7 @@ class V3AppTests(unittest.TestCase):
         self.app = create_app(Path(self.directory.name) / 'app.sqlite3')
         self.client = TestClient(self.app)
         self.client.__enter__()
+        self.client.put("/api/settings", json={"spoiler_free": True})
 
     def tearDown(self):
         self.client.__exit__(None, None, None)

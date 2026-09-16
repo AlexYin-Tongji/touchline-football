@@ -79,6 +79,30 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(clean["verification_status"], "supported")
         model.assert_not_called()
 
+    async def test_report_images_are_rechecked_for_redaction_and_source_privacy(self):
+        source = self.store.get("evidence", "ev_injury")
+        image = {"url": "https://cdn.example.com/team.jpg", "source_url": "https://example.com/news/training", "evidence_id": source["id"]}
+        source.update(origin="web", url=image["source_url"], images=[image],
+                      title="Medical update", spoiler=True,
+                      text="Medical staff are assessing the midfielder's injury and will review availability before the next training session. " * 4 + "\n\nThe team won 2-1.")
+        self.store.put("evidence", source)
+        row = await self.generate()
+        self.assertEqual(row["report"]["images"], [])
+        # Legacy or modified report metadata cannot bypass the public boundary.
+        stored = self.store.get("reports", row["id"])
+        stored["report"]["images"] = [image]
+        stored["report"]["sections"][0]["illustrations"] = [image]
+        self.store.put("reports", stored)
+        public = news_reports.get_report(self.store, row["id"])
+        self.assertEqual(public["status"], "completed")
+        self.assertEqual(public["report"]["images"], [])
+        self.assertEqual(public["report"]["sections"][0]["illustrations"], [])
+        for change in ({"private": True}, {"deleted": True}):
+            self.store.put("evidence", {**source, **change})
+            public = news_reports.get_report(self.store, row["id"])
+            self.assertIsNone(public["report"])
+            self.assertNotIn("images", public)
+
     async def test_source_edits_deletion_and_preferences_invalidate_without_leaking_old_prose(self):
         row = await self.generate()
         original = self.store.get("evidence", "ev_injury")
@@ -91,9 +115,10 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(current["source_excerpt"], "")
             self.store.put("evidence", original)
         self.store.config["personalization"] = {"fan_level": "beginner"}
-        self.assertEqual(news_reports.get_report(self.store, row["id"])["status"], "stale")
+        self.store.config["explanation_depth"] = "brief"
+        self.assertEqual(news_reports.get_report(self.store, row["id"])["status"], "completed")
         replacement = news_reports.enqueue_reports(self.store)[0]
-        self.assertNotEqual(replacement["id"], row["id"])
+        self.assertEqual(replacement["id"], row["id"])
         self.store.data["evidence"].pop("ev_injury")
         self.assertEqual(news_reports.get_report(self.store, replacement["id"])["source_excerpt"], "")
 

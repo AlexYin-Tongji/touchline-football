@@ -24,6 +24,7 @@ class BackendTests(unittest.TestCase):
         self.app = create_app(self.path)
         self.client_context = TestClient(self.app)
         self.client = self.client_context.__enter__()
+        self.client.put("/api/settings", json={"spoiler_free": True})
 
     def tearDown(self):
         self.client_context.__exit__(None, None, None)
@@ -112,7 +113,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.app.state.store.settings()["llm"]["model"], "saved")
 
     def test_settings_bounds_and_import_timestamp_validation(self):
-        for payload in ({"llm": {"max_rounds": 17}}, {"refresh_minutes": 4}, {"spoiler_free": "false"}, {"followed_teams": []}, {"explanation_depth": "verbose"}):
+        for payload in ({"llm": {"max_rounds": 17}}, {"refresh_minutes": 4}, {"spoiler_free": "false"}, {"explanation_depth": "verbose"}):
             self.assertEqual(self.client.put("/api/settings", json=payload).status_code, 422)
         response = self.client.post("/api/import", json={"team_id": "arsenal", "title": "时间不能推测", "text": TEXT, "published_at": "2026-09-09T10:00:00"})
         self.assertEqual(response.status_code, 422)
