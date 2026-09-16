@@ -23,30 +23,33 @@ class ManualReportTests(unittest.IsolatedAsyncioTestCase):
         self.store = MemoryStore()
         event(self.store)
 
-    def exhaust_automatic_budget(self):
+    def existing_attempt_history(self):
         row = news_reports.enqueue_reports(self.store)[0]
         row["attempt_history"] = [news_reports.now().isoformat()] * 12
         self.store.put("reports", row)
         return row
 
-    async def test_manual_batch_is_three_once_and_preserves_automatic_history(self):
-        for number in range(4):
+    async def test_manual_request_finishes_all_pending_and_preserves_attempt_history(self):
+        for number in range(15):
             event(self.store, str(number))
-        original = self.exhaust_automatic_budget()
+        original = self.existing_attempt_history()
         request = news_reports.organize_reports(self.store, "arsenal")
-        self.assertEqual((request["started"], request["queued"]), (True, 3))
+        self.assertEqual((request["started"], request["queued"]), (True, 16))
         public = news_reports.get_report(self.store, original["id"])
         self.assertTrue(public["manual_organize"])
         self.assertNotIn("manual_once", public)
         self.assertNotIn("manual_stop_after_attempt", public)
         self.assertNotIn("attempt_history", public)
         summary = personal_app.feed_view(self.store, "arsenal")["processing"]
-        self.assertEqual((summary["manual_count"], summary["queued"]), (3, 3))
+        self.assertEqual((summary["manual_count"], summary["queued"]), (16, 16))
         self.assertFalse(summary["can_organize"])
-        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["completed"], 3)
+        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["completed"], 16)
         self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 0)
         budget = news_reports.report_budget(self.store)
-        self.assertEqual((budget["used_today"], budget["remaining_today"], budget["manual_used_today"]), (12, 0, 3))
+        self.assertEqual((budget["used_today"], budget["remaining_today"], budget["manual_used_today"]), (12, None, 16))
+        self.assertIsNone(budget["daily_limit"])
+        self.assertIsNone(budget["manual_batch_limit"])
+        self.assertIsNone(budget["resets_at"])
         saved = self.store.get("reports", original["id"])
         self.assertEqual(saved["attempt_history"][:12], original["attempt_history"])
         self.assertEqual(saved["attempt_history"][-1]["kind"], "manual")
@@ -54,7 +57,7 @@ class ManualReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(run["internal_report"] and run["manual_report"] and run["model_role"] == "feed"
                             for run in self.store.list("runs")))
         self.assertEqual(personal_app.feed_view(self.store, "arsenal")["processing"]["manual_count"], 0)
-        self.assertEqual(news_reports.organize_reports(self.store, "arsenal")["queued"], 2)
+        self.assertEqual(news_reports.organize_reports(self.store, "arsenal")["queued"], 0)
 
     async def test_duplicate_clicks_while_queued_and_running_do_not_extend_batch(self):
         for number in range(4):
@@ -66,17 +69,18 @@ class ManualReportTests(unittest.IsolatedAsyncioTestCase):
             seen.append(news_reports.organize_reports(store, "arsenal"))
             await successful_runner(store, run_id, cancel)
         result = await news_reports.process_report_queue(self.store, runner=observing_runner)
-        self.assertEqual(result["completed"], 3)
+        self.assertEqual(result["completed"], 5)
         self.assertTrue(all(item["status"] == "busy" for item in seen))
-        self.assertEqual(len(self.store.list("runs")), 3)
+        self.assertEqual(len(self.store.list("runs")), 5)
 
-    async def test_legacy_refresh_markers_cannot_spend_manual_budget(self):
-        row = self.exhaust_automatic_budget()
+    async def test_legacy_refresh_preserves_auto_audit_without_daily_block(self):
+        row = self.existing_attempt_history()
         row.update(status="failed", manual_requested=True, attempts=3)
         self.store.put("reports", row)
         news_reports.retry_report(self.store, row["id"])
-        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 0)
+        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 1)
         self.assertEqual(news_reports.report_budget(self.store)["manual_used_today"], 0)
+        self.assertEqual(news_reports.report_budget(self.store)["used_today"], 13)
 
     async def test_failed_manual_attempt_does_not_retry_after_config_or_refresh(self):
         news_reports.organize_reports(self.store, "arsenal")
@@ -133,11 +137,21 @@ class ManualReportTests(unittest.IsolatedAsyncioTestCase):
             if first:
                 first = False
                 request = news_reports.organize_reports(store, "arsenal")
-                self.assertEqual(request["queued"], 3)
+                self.assertEqual(request["queued"], 4)
             await successful_runner(store, run_id, cancel)
         await news_reports.process_report_queue(self.store, runner=request_during_automatic_job)
-        self.assertEqual([run["manual_report"] for run in self.store.list("runs")], [False, True, True])
-        self.assertEqual(personal_app.feed_view(self.store, "arsenal")["processing"]["manual_count"], 1)
+        self.assertEqual([run["manual_report"] for run in self.store.list("runs")], [False, True, True, True, True])
+        self.assertEqual(personal_app.feed_view(self.store, "arsenal")["processing"]["manual_count"], 0)
+
+    async def test_manual_request_does_not_keep_authorizing_later_events(self):
+        self.store.config["reports"]["auto_generate"] = False
+        news_reports.organize_reports(self.store, "arsenal")
+        event(self.store, "arrived_later")
+        news_reports.enqueue_reports(self.store)
+        result = await news_reports.process_report_queue(self.store, runner=successful_runner)
+        self.assertEqual(result["completed"], 1)
+        self.assertEqual({row["event_id"] for row in self.store.list("reports")}, {"event_one"})
+        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 0)
 
     async def test_source_privacy_team_scope_and_completed_reports_are_preserved(self):
         source = self.store.get("evidence", "ev_injury")

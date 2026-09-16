@@ -119,7 +119,7 @@ class LocalToolTests(unittest.TestCase):
         with self.assertRaises(ToolError):
             LocalTools(self.store, self.run, self.store.settings())
 
-    def test_match_context_prior_observations_filter_scope_time_and_limit(self):
+    def test_match_context_prior_observations_preserve_all_scoped_history(self):
         for mode in ("live", "demo"):
             with self.subTest(mode=mode):
                 store = FakeStore()
@@ -146,8 +146,8 @@ class LocalToolTests(unittest.TestCase):
                     store.put("runs", row)
                 local = LocalTools(store, run, store.settings())
                 result = local.call("match_context", {"match_id": "match_one"})["prior_observations"]
-                self.assertEqual([item["run_id"] for item in result], ["prior_2", "prior_1"])
-                self.assertTrue(all(len(item["answer"]) == 3000 and item["truncated"] for item in result))
+                self.assertEqual([item["run_id"] for item in result], ["prior_2", "prior_1", "prior_0"])
+                self.assertTrue(all(item["answer"] == base["answer"] and not item["truncated"] for item in result))
                 self.assertTrue(all("不是事实" in item["notice"] and "read_evidence" in item["notice"] for item in result))
                 self.assertFalse(local.read_ids, "historical observations do not grant evidence citations")
 
@@ -238,12 +238,22 @@ class AgentLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("9比8", result["answer"])
         self.assertIn("资料不足", result["answer"])
 
-    async def test_tool_loop_round_budget_is_finite(self):
+    async def test_repeated_tool_loop_without_progress_stops(self):
         self.store.config["llm"]["max_rounds"] = 2
-        result, provider = await self.run_with([tool_message("team_context", {}), tool_message("team_context", {})])
+        result, provider = await self.run_with([tool_message("team_context", {})] * agent.MAX_REPEATED_TOOL_REQUESTS)
         self.assertEqual(result["status"], "failed")
-        self.assertIn("最大模型轮次", result["error"])
-        self.assertEqual(provider.await_count, 2)
+        self.assertIn("没有新进展", result["error"])
+        self.assertEqual(provider.await_count, agent.MAX_REPEATED_TOOL_REQUESTS)
+
+    async def test_progressing_research_can_continue_past_old_round_setting(self):
+        self.store.config["llm"]["max_rounds"] = 2
+        responses = [tool_message("search_evidence", {"query": "injury " + str(index)}) for index in range(18)]
+        responses.extend([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+                          {"content": "来源提到这名中场目前有伤情，需要继续关注。[ev_injury]"}])
+        result, provider = await self.run_with(responses)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(provider.await_count, 20)
+        self.assertEqual(result["progress"]["round"], 20)
 
     async def test_cancel_interrupts_inflight_request(self):
         started = asyncio.Event()

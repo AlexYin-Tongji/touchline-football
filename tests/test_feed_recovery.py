@@ -158,7 +158,7 @@ class FeedRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(feed["processing"]["total_pending"], 1)
         self.assertIn("球队动态模型", feed["processing"]["note"])
 
-    async def test_budget_and_retry_cooldown_are_distinguished(self):
+    async def test_retry_cooldown_is_visible_without_daily_quota_block(self):
         row = news_reports.enqueue_reports(self.store)[0]
         row.update(status="failed", retry_at=(news_reports.now() + timedelta(minutes=5)).isoformat())
         self.store.put("reports", row)
@@ -166,10 +166,11 @@ class FeedRecoveryTests(unittest.IsolatedAsyncioTestCase):
         row["attempt_history"] = [news_reports.now().isoformat()] * 12
         self.store.put("reports", row)
         summary = personal_app.feed_view(self.store, "arsenal")["processing"]
-        self.assertEqual(summary["budget_blocked"], 1)
-        self.assertEqual(summary["retrying"], 0)
-        self.assertFalse(summary["can_retry"])
-        self.assertEqual(summary["next_retry_at"], news_reports.report_budget(self.store)["resets_at"])
+        self.assertEqual(summary["budget_blocked"], 0)
+        self.assertEqual(summary["retrying"], 1)
+        self.assertTrue(summary["can_retry"])
+        self.assertEqual(summary["next_retry_at"], row["retry_at"])
+        self.assertNotIn("额度", summary["note"])
 
     async def test_cited_new_capture_keeps_link_when_old_capture_has_same_url(self):
         first = self.store.get("evidence", "ev_transfer")

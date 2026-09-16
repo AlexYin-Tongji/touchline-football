@@ -21,11 +21,11 @@ class ToolContractTests(unittest.TestCase):
 
     def test_nested_validation_names_repairable_field_and_limit(self):
         value = submission()
-        value["facts"][0]["detail"] = "字" * 181
-        with self.assertRaisesRegex(ToolError, r"arguments\.facts\[0\]\.detail.*180"):
+        value["facts"][0]["detail"] = "字" * 12001
+        with self.assertRaisesRegex(ToolError, r"arguments\.facts\[0\]\.detail.*12000"):
             self.local.call("submit_answer", value)
-        value = submission(unknowns=["a"] * 4)
-        with self.assertRaisesRegex(ToolError, r"arguments\.unknowns.*3"):
+        value = submission(unknowns=["a" * 2001])
+        with self.assertRaisesRegex(ToolError, r"arguments\.unknowns\[0\].*2000"):
             self.local.call("submit_answer", value)
         value = submission()
         value["private-secret-value"] = "never echo this"
@@ -44,8 +44,9 @@ class ToolContractTests(unittest.TestCase):
         report = LocalTools(self.store, dict(self.run, skill="news_report", report_id="r", input_evidence_ids=["ev_injury"]), self.store.settings())
         self.assertFalse({"get_team_data", "maintain_team_data", "research_news", "conversation_history", "search_team_knowledge"} & names(report))
         self.assertTrue({"read_evidence", "submit_answer", "compare_sources"} <= names(report))
-        self.local.network_queries = 3
-        self.assertNotIn("research_news", names(self.local))
+        self.local.network_queries = 30
+        self.local.article_reads = 80
+        self.assertTrue({"research_news", "read_article"} <= names(self.local))
         self.assertEqual(len({item["name"] for item in TOOL_DEFINITIONS}), len(TOOL_DEFINITIONS))
 
     def test_history_isolated_by_conversation_role_match_and_current_source_visibility(self):
@@ -66,6 +67,26 @@ class ToolContractTests(unittest.TestCase):
         self.assertEqual([row["run_id"] for row in result["messages"]], ["old"])
         self.assertEqual(len(agent.history_messages(self.store, self.run, local)), 2)
         self.assertFalse(local.read_ids)
+
+    def test_history_keeps_early_messages_and_full_answers_with_optional_pagination(self):
+        base = dict(self.run, status="completed", answer="较长的历史回答。" * 500,
+                    question="需要保留的早期问题" * 200, evidence_ids=["ev_injury"])
+        for index in range(8):
+            self.store.put("runs", dict(base, id=f"old_{index}", created_at=f"2026-09-{index + 1:02d}"))
+        full = self.local.call("conversation_history", {})
+        self.assertEqual(len(full["messages"]), 8)
+        self.assertIsNone(full["next_offset"])
+        self.assertEqual(full["messages"][0]["answer"], base["answer"])
+        self.assertEqual(full["messages"][0]["question"], base["question"])
+        messages = agent.history_messages(self.store, self.run, self.local)
+        self.assertEqual(len(messages), 16)
+        self.assertIn(base["answer"], messages[1]["content"])
+        first = self.local.call("conversation_history", {"limit": 3})
+        second = self.local.call("conversation_history", {"offset": first["next_offset"], "limit": 3})
+        final = self.local.call("conversation_history", {"offset": second["next_offset"], "limit": 3})
+        self.assertEqual([row["run_id"] for page in (first, second, final) for row in page["messages"]],
+                         [f"old_{index}" for index in range(8)])
+        self.assertIsNone(final["next_offset"])
 
     def test_parent_pointer_cannot_import_background_or_other_role_context(self):
         for changes in ({"internal_report": True}, {"report_id": "report_one"}, {"model_role": "team"}):

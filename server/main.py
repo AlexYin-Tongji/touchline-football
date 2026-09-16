@@ -88,7 +88,8 @@ class PersonalizationSettings(Model):
 
 class ReportSettings(Model):
     auto_generate: bool | None = None
-    max_per_cycle: int | None = Field(None, ge=1, le=3)
+    # Accepted for older clients; the worker now drains all due reports.
+    max_per_cycle: int | None = Field(None, ge=1)
 
 
 class LeagueSyncInput(Model):
@@ -337,7 +338,7 @@ def create_app(db_path=None):
         targets = [team_id] if team_id else store.settings().get("followed_teams", [])
         if store.settings().get("reports", {}).get("auto_generate", True):
             for target in targets:
-                news_reports.enqueue_reports(store, team_id=target, limit=12)
+                news_reports.enqueue_reports(store, team_id=target)
 
     async def scheduled_reports():
         while True:

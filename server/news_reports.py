@@ -1,4 +1,4 @@
-"""Durable, bounded editorial jobs; HTTP reads never invoke a model.
+"""Durable editorial jobs; HTTP reads never invoke a model.
 
 Source documents remain immutable evidence. Reports are separate derived records
 keyed by current source versions and the reader's visibility/preferences. Only a
@@ -22,10 +22,7 @@ from .provider import AgentFailure, endpoint_url
 from .research import article_url
 from .team_profiles import _evidence_hash
 
-MAX_DAILY_ATTEMPTS = 12
-MAX_MANUAL_BATCH = 3
 MAX_ATTEMPTS = 3
-MAX_SOURCE_DOCUMENTS = 5
 _WORKER_LOCK = threading.Lock()
 # Remove only parenthesized machine-key scalar annotations. The surrounding
 # Chinese qualification and all source/factual wording remain unchanged.
@@ -130,10 +127,14 @@ def _snapshot(store, event, settings, *, legacy=False, legacy_boundary=False):
         previous = latest.get(key)
         if not previous or str(view.get("fetched_at") or "") >= str(previous.get("fetched_at") or ""):
             latest[key] = view
-    sources = sorted(latest.values(), key=lambda row: (row.get("published_at") or "", row.get("fetched_at") or ""), reverse=True)[:MAX_SOURCE_DOCUMENTS]
+    sources = sorted(latest.values(), key=lambda row: (row.get("published_at") or "", row.get("fetched_at") or ""), reverse=True)
     boundary = _legacy_boundary(settings) if legacy or legacy_boundary else _boundary(settings)
+    # Preserve the existing fingerprint format so removing the old retrieval
+    # cap does not invalidate verified Chinese reports. All source versions and
+    # permissions remain fingerprinted in all_hashes; the actual source list
+    # returned below is complete and has no five-document retrieval limit.
     key = _hash({"version": 1 if legacy or legacy_boundary else 2, "team_id": event["team_id"], "mode": event["mode"], "event_id": event["id"],
-                 "sources": all_hashes, "visible": {row["id"]: _evidence_hash(row, legacy=legacy) for row in sources},
+                 "sources": all_hashes, "visible": {row["id"]: _evidence_hash(row, legacy=legacy) for row in sources[:5]},
                  "boundary": boundary})
     return {"fingerprint": key, "sources": sources, "source_hashes": all_hashes,
             "boundary_hash": _hash(boundary)}
@@ -256,6 +257,7 @@ def _current(store, row, settings):
 
 
 def report_budget(store):
+    """Usage audit only; report generation has no daily or per-click quota."""
     today = now().date()
     counts = {"auto": 0, "manual": 0}
     for row in store.list("reports"):
@@ -265,10 +267,9 @@ def report_budget(store):
                 kind = "manual" if isinstance(value, dict) and value.get("kind") == "manual" else "auto"
                 counts[kind] += 1
     used = counts["auto"]
-    resets = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
-    return {"daily_limit": MAX_DAILY_ATTEMPTS, "used_today": used,
-            "remaining_today": max(0, MAX_DAILY_ATTEMPTS - used), "resets_at": resets.isoformat(), "concurrency": 1,
-            "manual_used_today": counts["manual"], "manual_batch_limit": MAX_MANUAL_BATCH}
+    return {"daily_limit": None, "used_today": used,
+            "remaining_today": None, "resets_at": None, "concurrency": 1,
+            "manual_used_today": counts["manual"], "manual_batch_limit": None}
 
 
 def _manual_active(row):
@@ -319,7 +320,6 @@ def _public(store, row, settings, budget):
     output["manual_organize"] = _manual_active(output)
     output["can_refresh_retry"] = status == "failed" and not output.get("manual_stop_after_attempt")
     output["queue_note"] = ("已加入本次手动整理，后台将优先处理。" if status == "queued" and output["manual_organize"]
-                            else "今日自动整理额度已用完，将在额度重置后继续，也可点击手动整理。" if status == "queued" and not budget["remaining_today"]
                             else "已加入整理队列，后台正在依次处理。" if status == "queued"
                             else "正在阅读来源并整理中文消息。" if status == "generating"
                             else "已安排稍后重试。" if status == "failed" and output.get("retry_at")
@@ -350,7 +350,6 @@ def get_report(store, report_id):
 
 def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
     """Read-only editorial state, with mutually exclusive waiting reasons."""
-    budget = report_budget(store)
     reports = list_reports(store, team_id=team_id) if reports is None else reports
     result = dict.fromkeys(("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked"), 0)
     result.update(waiting_sources=max(0, waiting_sources), next_retry_at=None, manual_count=0)
@@ -363,33 +362,30 @@ def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
         if manual:
             result["manual_count"] += 1
         if status == "queued":
-            result["queued" if manual or budget["remaining_today"] else "budget_blocked"] += 1
+            result["queued"] += 1
         elif status == "failed" and parse_time(row.get("retry_at")):
-            result["retrying" if budget["remaining_today"] else "budget_blocked"] += 1
-            if budget["remaining_today"]:
-                times.append(row["retry_at"])
+            result["retrying"] += 1
+            times.append(row["retry_at"])
         elif status in {"generating", "failed", "needs_configuration"}:
             result[status] += 1
         else:
             result["waiting_sources"] += 1
-    if result["budget_blocked"]:
-        times.append(budget["resets_at"])
     result["next_retry_at"] = min(times) if times else None
     result["total_pending"] = sum(result[key] for key in ("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked", "waiting_sources"))
     messages = []
     for key, label in (("generating", "条正在整理"), ("queued", "条已排队"), ("retrying", "条稍后自动重试"),
                        ("failed", "条暂未整理成功，可点击手动整理重试"), ("needs_configuration", "条等待配置球队动态模型"),
-                       ("budget_blocked", "条等待本日自动整理额度重置"), ("waiting_sources", "条正在等待可用来源与整理")):
+                       ("waiting_sources", "条正在等待可用来源与整理")):
         if result[key]:
             messages.append(str(result[key]) + label)
     result["note"] = "；".join(messages) or "中文动态已更新。"
-    result["can_retry"] = bool((any(row.get("can_refresh_retry", row.get("status") == "failed" and not row.get("manual_stop_after_attempt"))
-                                    for row in reports) or result["waiting_sources"]) and budget["remaining_today"])
+    result["can_retry"] = bool(any(row.get("can_refresh_retry", row.get("status") == "failed" and not row.get("manual_stop_after_attempt"))
+                                   for row in reports) or result["waiting_sources"])
     result["can_organize"] = bool(result["total_pending"] and not result["manual_count"] and _configured(_report_settings(store)))
     return result
 
 
-def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=30, force=False):
+def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=None, force=False):
     """Persist missing jobs only; callers own scheduling after ingestion/import."""
     settings = _report_settings(store)
     if mode != "live" or (not force and settings.get("reports", {}).get("auto_generate", True) is not True):
@@ -399,9 +395,9 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=3
         events = [event for event in events if event["id"] in set(event_ids)]
     events.sort(key=lambda item: item.get("updated_at") or item.get("created_at") or "", reverse=True)
     result, existing_rows, queued = [], [], 0
-    limit = max(0, min(100, int(limit)))
+    limit = max(0, int(limit)) if limit is not None else None
     for event in events:
-        if queued >= limit:
+        if limit is not None and queued >= limit:
             break
         snapshot = _snapshot(store, event, settings)
         if not snapshot["sources"]:
@@ -470,12 +466,12 @@ def retry_report(store, report_id):
     return get_report(store, report_id)
 
 
-def retry_pending_reports(store, team_id=None, limit=12):
-    """Explicit refresh retries a bounded selection, preserving daily usage."""
+def retry_pending_reports(store, team_id=None, limit=None):
+    """Explicit refresh retries eligible failures, preserving attempt history."""
     teams = {team_id} if team_id else set(store.settings().get("followed_teams", []))
     ids = []
     for row in list_reports(store, team_id=team_id):
-        if len(ids) >= max(0, min(30, limit)):
+        if limit is not None and len(ids) >= max(0, limit):
             break
         if row.get("team_id") not in teams or row.get("status") not in {"failed", "stale", "needs_configuration"}:
             continue
@@ -488,7 +484,7 @@ def retry_pending_reports(store, team_id=None, limit=12):
 
 
 def organize_reports(store, team_id):
-    """Authorize exactly one bounded batch; source refresh never grants this."""
+    """Authorize the current pending-source snapshot, with no item quota."""
     settings = _report_settings(store)
     if not _configured(settings):
         raise ValueError("请先在设置中为“球队动态”选择可用模型，再手动整理。")
@@ -502,8 +498,6 @@ def organize_reports(store, team_id):
                         key=lambda row: row.get("updated_at") or row.get("created_at") or "", reverse=True)
         selected = []
         for event in events:
-            if len(selected) >= MAX_MANUAL_BATCH:
-                break
             snapshot = _snapshot(store, event, settings)
             if not snapshot["sources"]:
                 continue
@@ -541,7 +535,7 @@ def _finish(store, row, run, settings):
         facts = content.get("facts", [])
         cited = set(run.get("evidence_ids", []))
         read = set(run.get("read_evidence_ids", []))
-        valid = bool(content.get("title") and 1 <= len(facts) <= 6 and cited and cited.issubset(read & set(row["evidence_ids"])))
+        valid = bool(content.get("title") and facts and cited and cited.issubset(read & set(row["evidence_ids"])))
         if not valid:
             return _fail(store, row, "报告结构或阅读引用不完整，未发布。")
         sources = [{key: item.get(key) for key in ("id", "title", "source_name", "url", "published_at")}
@@ -604,15 +598,16 @@ def recover_reports(store):
 
 
 async def process_report_queue(store, *, max_jobs=None, runner=None):
-    """One serial worker; auto attempts are capped, manual grants are one-use."""
+    """Drain due work serially; explicit manual source snapshots take priority."""
     if not _WORKER_LOCK.acquire(blocking=False):
         return {"processed": 0, "completed": 0, "failed": 0, "busy": True}
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
     try:
-        settings = _report_settings(store)
-        limit = max(0, min(3, int(max_jobs if max_jobs is not None else settings.get("reports", {}).get("max_per_cycle", 3))))
+        # A caller may page work for diagnostics/tests. The scheduled worker
+        # drains due work; old saved max_per_cycle values are no longer quotas.
+        limit = max(0, int(max_jobs)) if max_jobs is not None else None
         examined = set()
-        while stats["processed"] < limit:
+        while limit is None or stats["processed"] < limit:
             # Re-read between model calls so a new explicit batch takes priority
             # over automatic jobs that were waiting when this cycle began.
             queue = sorted((row for row in store.list("reports", mode="live") if row["id"] not in examined
@@ -643,8 +638,6 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
                            error="模型尚未配置，请在设置中选择球队动态模型。", updated_at=_stamp())
                 store.put("reports", row)
                 continue
-            if not manual and report_budget(store)["remaining_today"] <= 0:
-                continue
             run_id = "run_" + uuid.uuid4().hex[:20]
             row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
                        updated_at=_stamp(), started_at=_stamp(), retry_at=None,
@@ -655,7 +648,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
             run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
                    "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
                    "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
-                   "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；通常1至3节、全文300至650字，交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
+                   "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；根据事件复杂度和原文材料自行安排篇幅与章节，充分交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
                    "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
                    "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
                    "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}

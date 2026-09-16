@@ -18,7 +18,7 @@ def install_personal_defaults(store):
     # Personal use has no separate demo workspace or operational setup wizard.
     existing = store.get_meta("settings", {})
     store.save_settings({"mode": "live", "spoiler_free": existing.get("spoiler_free", False),
-                         "reports": {"auto_generate": True, "max_per_cycle": 3},
+                         "reports": {"auto_generate": True},
                          "automation": {"enabled": False}})
     store.set_meta("personal_v7_defaults", True)
 
@@ -184,7 +184,7 @@ class PersonalRefreshManager:
         try:
             self.team_maintenance.start(team_id)
             result = await asyncio.wait_for(collect_team(self.store, team_id, query="", limit=10, max_age_days=7), timeout=180)
-            enqueue_reports(self.store, team_id=team_id, limit=20)
+            enqueue_reports(self.store, team_id=team_id)
             errors = result.get("errors", [])
             self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle", "last_updated": ingestion.now(),
                                       "error": "部分消息来源暂时不可用，稍后会继续更新。" if errors and not result.get("evidence_ids") else None})

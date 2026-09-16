@@ -133,7 +133,7 @@ export interface Source {
 }
 export interface Settings {
   mode: Mode;
-  reports?: { auto_generate: boolean; max_per_cycle: number };
+  reports?: { auto_generate: boolean; max_per_cycle?: number };
   followed_teams: string[];
   spoiler_free: boolean;
   auto_refresh: boolean;
@@ -344,7 +344,7 @@ export interface AutoReport {
   };
   verification_status?: string;
   queue_note?: string;
-  budget?: { daily_limit: number; used_today: number; remaining_today: number; resets_at: string; concurrency: number };
+  budget?: { daily_limit: number | null; used_today: number; remaining_today: number | null; resets_at: string | null; concurrency: number };
 }
 export interface League {
   id: string;

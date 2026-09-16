@@ -143,7 +143,7 @@ def migrate_legacy(store):
     llm = store.settings()["llm"]
     if llm.get("base_url") and llm.get("model") and not store.list("model_profiles"):
         profile = {"id": "existing", "name": "现有模型服务", "base_url": llm["base_url"], "protocol": llm.get("protocol", "chat_completions"),
-                   "models": [{"id": llm["model"], "name": llm["model"], "max_output_tokens": llm.get("max_output_tokens", 3000)}],
+                   "models": [{"id": llm["model"], "name": llm["model"], "max_output_tokens": llm.get("max_output_tokens", 16000)}],
                    "created_at": datetime.now(timezone.utc).isoformat()}
         store.put("model_profiles", profile)
         store.set_secret("provider_existing", llm.get("api_key", ""))

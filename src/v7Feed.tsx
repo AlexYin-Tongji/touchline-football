@@ -106,18 +106,28 @@ export function FeedView({
   const [readError, setReadError] = useState("");
   const [asking, setAsking] = useState<string | null>(null);
   const serial = useRef(0);
+  const loadedItems = useRef(20);
+  loadedItems.current = Math.max(20, feed?.items.length || 0);
   const readSerial = useRef(0);
   const activeTeam = useRef(team.id);
   activeTeam.current = team.id;
   const load = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, preservePages = false) => {
       const request = ++serial.current;
       const requestedTeam = team.id;
       setLoading(true);
       try {
-        const result = await api<FeedResponse>(
-          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        const target = preservePages ? loadedItems.current : 20;
+        let result = await api<FeedResponse>(
+          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         );
+        while (preservePages && result.next_cursor && result.items.length < target) {
+          if (request !== serial.current || activeTeam.current !== requestedTeam) return;
+          const page = await api<FeedResponse>(
+            `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target - result.items.length)}&cursor=${encodeURIComponent(result.next_cursor)}`,
+          );
+          result = { ...page, items: [...result.items, ...page.items.filter(item => !result.items.some(old => old.id === item.id))] };
+        }
         if (request !== serial.current || activeTeam.current !== requestedTeam)
           return;
         setFeed((previous) =>
@@ -161,11 +171,7 @@ export function FeedView({
   useEffect(() => {
     const timer = window.setInterval(
       () => {
-        if (
-          document.visibilityState === "visible" &&
-          ((feed?.items.length || 0) <= 20 || (feed?.processing?.manual_count || 0) > 0)
-        )
-          void load();
+        if (document.visibilityState === "visible") void load(undefined, true);
       },
       refreshing ||
         (feed?.processing?.generating || 0) > 0 ||
@@ -351,7 +357,7 @@ export function FeedView({
               className="button primary"
               disabled={organizing || manualRunning || !feed}
               onClick={modelReady ? organize : openModel}
-              title="使用球队动态模型整理最多3条消息，不受自动整理日上限影响"
+              title="让球队动态模型整理当前球队所有待处理消息"
             >
               {organizing || manualRunning ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}
               {organizing || manualRunning ? "手动整理中" : "手动整理"}
@@ -359,7 +365,7 @@ export function FeedView({
           </div>
         </div>
         <p className="feed-manual-help">
-          手动整理每次最多 3 条，使用“球队动态”模型，完成后加入动态。自动整理达到上限时也可使用；没有新来源时先刷新来源。
+          由“球队动态”模型根据可用资料整理消息，完成后陆续加入动态。没有可用来源时，先刷新来源。
         </p>
         {manualMessage && <div className="notice success" role="status">{manualMessage}</div>}
         <div className="feed-toolbar">
@@ -401,9 +407,9 @@ export function FeedView({
                   (feed?.processing?.needs_configuration || !modelReady
                     ? "连接动态模型后，才能生成中文内容。"
                     : manualRunning
-                      ? "当前手动批次正在处理，完成后逐条显示；不会自动接着整理下一批。"
+                      ? "正在整理本队待处理消息，已完成的内容会陆续显示。"
                     : feed?.processing?.next_retry_at
-                      ? `自动整理下次尝试：${dateTime(feed.processing.next_retry_at)}。也可点击上方“手动整理”。`
+                      ? `下次重试：${dateTime(feed.processing.next_retry_at)}。也可点击上方“手动整理”。`
                       : "后台会提取来源并整理中文内容，已完成的消息会逐条出现。")}
               </small>
             </div>
