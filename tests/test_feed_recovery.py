@@ -118,7 +118,7 @@ class FeedRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.store.put("reports", row)
         feed = personal_app.feed_view(self.store, "arsenal")
         self.assertEqual(feed["processing"]["failed"], 1)
-        self.assertIn("刷新", feed["processing"]["note"])
+        self.assertIn("手动整理", feed["processing"]["note"])
         retried = news_reports.retry_pending_reports(self.store, "arsenal")
         self.assertEqual(retried["queued"], 1)
         self.assertEqual(news_reports.report_budget(self.store)["used_today"], 3)

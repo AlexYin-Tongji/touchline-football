@@ -301,6 +301,10 @@ class PersonalRefreshInput(Model):
     team_id: Identifier | None = None
 
 
+class ManualOrganizeInput(Model):
+    team_id: Identifier
+
+
 def safe_settings(settings):
     result = copy.deepcopy(settings)
     result["llm"]["api_key_set"] = bool(result["llm"].pop("api_key", ""))
@@ -720,6 +724,17 @@ def create_app(db_path=None):
         queue_reports(payload.team_id)
         report_wake.set()
         return {**result, "reports_queued": retried["queued"]}
+
+    @app.post("/api/feed/organize")
+    async def organize_feed(payload: ManualOrganizeInput):
+        team_exists(payload.team_id)
+        try:
+            result = news_reports.organize_reports(store, payload.team_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+        if result["started"]:
+            report_wake.set()
+        return result
 
     @app.get("/api/teams/{team_id}/center")
     async def get_team_center(team_id: Identifier, reveal: bool = False):

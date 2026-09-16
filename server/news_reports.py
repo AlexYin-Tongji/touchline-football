@@ -23,6 +23,7 @@ from .research import article_url
 from .team_profiles import _evidence_hash
 
 MAX_DAILY_ATTEMPTS = 12
+MAX_MANUAL_BATCH = 3
 MAX_ATTEMPTS = 3
 MAX_SOURCE_DOCUMENTS = 5
 _WORKER_LOCK = threading.Lock()
@@ -256,11 +257,22 @@ def _current(store, row, settings):
 
 def report_budget(store):
     today = now().date()
-    used = sum(1 for row in store.list("reports") for value in row.get("attempt_history", [])
-               if (stamp := parse_time(value)) and stamp.astimezone(timezone.utc).date() == today)
+    counts = {"auto": 0, "manual": 0}
+    for row in store.list("reports"):
+        for value in row.get("attempt_history", []):
+            stamp = parse_time(value.get("at") if isinstance(value, dict) else value)
+            if stamp and stamp.astimezone(timezone.utc).date() == today:
+                kind = "manual" if isinstance(value, dict) and value.get("kind") == "manual" else "auto"
+                counts[kind] += 1
+    used = counts["auto"]
     resets = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
     return {"daily_limit": MAX_DAILY_ATTEMPTS, "used_today": used,
-            "remaining_today": max(0, MAX_DAILY_ATTEMPTS - used), "resets_at": resets.isoformat(), "concurrency": 1}
+            "remaining_today": max(0, MAX_DAILY_ATTEMPTS - used), "resets_at": resets.isoformat(), "concurrency": 1,
+            "manual_used_today": counts["manual"], "manual_batch_limit": MAX_MANUAL_BATCH}
+
+
+def _manual_active(row):
+    return row.get("status") in {"queued", "generating"} and bool(row.get("manual_once") or row.get("manual_report"))
 
 
 def _public(store, row, settings, budget):
@@ -304,14 +316,18 @@ def _public(store, row, settings, budget):
     output.pop("illustrations", None)
     output["budget"] = budget
     status = output.get("status")
-    output["queue_note"] = ("今日自动整理额度已用完，将在额度重置后继续。" if status == "queued" and not budget["remaining_today"]
+    output["manual_organize"] = _manual_active(output)
+    output["can_refresh_retry"] = status == "failed" and not output.get("manual_stop_after_attempt")
+    output["queue_note"] = ("已加入本次手动整理，后台将优先处理。" if status == "queued" and output["manual_organize"]
+                            else "今日自动整理额度已用完，将在额度重置后继续，也可点击手动整理。" if status == "queued" and not budget["remaining_today"]
                             else "已加入整理队列，后台正在依次处理。" if status == "queued"
                             else "正在阅读来源并整理中文消息。" if status == "generating"
                             else "已安排稍后重试。" if status == "failed" and output.get("retry_at")
-                            else "多次整理未完成，可点击刷新动态重新尝试。" if status == "failed"
+                            else "本次手动整理未完成，可点击手动整理重试。" if status == "failed" and output.get("manual_stop_after_attempt")
+                            else "多次整理未完成，可点击手动整理重试。" if status == "failed"
                             else "请在设置中为球队动态选择可用模型。" if status == "needs_configuration" else None)
     # Internal version maps need not be sent to a browser.
-    for key in ("source_hashes", "fingerprint", "boundary_hash", "attempt_history", "manual_requested", "schema_version", "boundary_migration", "config_revision"):
+    for key in ("source_hashes", "fingerprint", "boundary_hash", "attempt_history", "manual_requested", "manual_once", "manual_report", "manual_stop_after_attempt", "schema_version", "boundary_migration", "config_revision"):
         output.pop(key, None)
     return output
 
@@ -337,14 +353,17 @@ def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
     budget = report_budget(store)
     reports = list_reports(store, team_id=team_id) if reports is None else reports
     result = dict.fromkeys(("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked"), 0)
-    result.update(waiting_sources=max(0, waiting_sources), next_retry_at=None)
+    result.update(waiting_sources=max(0, waiting_sources), next_retry_at=None, manual_count=0)
     times = []
     for row in reports:
         status = row.get("status")
         if status == "completed":
             continue
+        manual = row.get("manual_organize", _manual_active(row))
+        if manual:
+            result["manual_count"] += 1
         if status == "queued":
-            result["queued" if budget["remaining_today"] else "budget_blocked"] += 1
+            result["queued" if manual or budget["remaining_today"] else "budget_blocked"] += 1
         elif status == "failed" and parse_time(row.get("retry_at")):
             result["retrying" if budget["remaining_today"] else "budget_blocked"] += 1
             if budget["remaining_today"]:
@@ -359,12 +378,14 @@ def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
     result["total_pending"] = sum(result[key] for key in ("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked", "waiting_sources"))
     messages = []
     for key, label in (("generating", "条正在整理"), ("queued", "条已排队"), ("retrying", "条稍后自动重试"),
-                       ("failed", "条暂未整理成功，可刷新重试"), ("needs_configuration", "条等待配置球队动态模型"),
+                       ("failed", "条暂未整理成功，可点击手动整理重试"), ("needs_configuration", "条等待配置球队动态模型"),
                        ("budget_blocked", "条等待本日自动整理额度重置"), ("waiting_sources", "条正在等待可用来源与整理")):
         if result[key]:
             messages.append(str(result[key]) + label)
     result["note"] = "；".join(messages) or "中文动态已更新。"
-    result["can_retry"] = bool((result["failed"] or result["waiting_sources"]) and budget["remaining_today"])
+    result["can_retry"] = bool((any(row.get("can_refresh_retry", row.get("status") == "failed" and not row.get("manual_stop_after_attempt"))
+                                    for row in reports) or result["waiting_sources"]) and budget["remaining_today"])
+    result["can_organize"] = bool(result["total_pending"] and not result["manual_count"] and _configured(_report_settings(store)))
     return result
 
 
@@ -391,7 +412,9 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=3
                        if item.get("event_id") == event["id"] and item.get("fingerprint") == snapshot["fingerprint"]), None)
             if existing:
                 changed_config = existing.get("config_revision") != _configuration_revision(settings)
-                if existing["status"] == "stale" or existing["status"] == "failed" and changed_config:
+                if existing.get("manual_stop_after_attempt") and not existing.get("manual_once"):
+                    existing_rows.append(existing)
+                elif existing["status"] == "stale" or existing["status"] == "failed" and changed_config:
                     existing.update(status="queued" if _configured(settings) else "needs_configuration",
                                     attempts=0, report=None, error=None, retry_at=None, updated_at=_stamp(),
                                     config_revision=_configuration_revision(settings))
@@ -437,6 +460,8 @@ def retry_report(store, report_id):
         return get_report(store, replacements[0]["id"]) if replacements else get_report(store, report_id)
     if row["status"] in {"completed", "generating", "queued"}:
         return get_report(store, report_id)
+    if row.get("manual_stop_after_attempt"):
+        return get_report(store, report_id)
     settings = _report_settings(store)
     row.update(status="queued" if _configured(settings) else "needs_configuration", attempts=0,
                retry_at=None, error=None, updated_at=_stamp(), manual_requested=True,
@@ -454,10 +479,56 @@ def retry_pending_reports(store, team_id=None, limit=12):
             break
         if row.get("team_id") not in teams or row.get("status") not in {"failed", "stale", "needs_configuration"}:
             continue
+        if (store.get("reports", row["id"]) or {}).get("manual_stop_after_attempt"):
+            continue
         retried = retry_report(store, row["id"])
         if retried and retried.get("status") == "queued":
             ids.append(retried["id"])
     return {"queued": len(ids), "report_ids": ids}
+
+
+def organize_reports(store, team_id):
+    """Authorize exactly one bounded batch; source refresh never grants this."""
+    settings = _report_settings(store)
+    if not _configured(settings):
+        raise ValueError("请先在设置中为“球队动态”选择可用模型，再手动整理。")
+    from .presentation import readable_chinese
+    with _atomic(store):
+        active = [row for row in store.list("reports", "live", team_id) if _manual_active(row)]
+        if active:
+            return {"started": False, "status": "busy", "queued": len(active),
+                    "note": "本队已有手动整理任务，请等待这一批完成。"}
+        events = sorted(store.list("events", "live", team_id),
+                        key=lambda row: row.get("updated_at") or row.get("created_at") or "", reverse=True)
+        selected = []
+        for event in events:
+            if len(selected) >= MAX_MANUAL_BATCH:
+                break
+            snapshot = _snapshot(store, event, settings)
+            if not snapshot["sources"]:
+                continue
+            # Already readable source material needs no model request.
+            if any(readable_chinese(source.get("title", "")) and readable_chinese(source.get("text", ""))
+                   for source in snapshot["sources"]):
+                continue
+            existing = next((row for row in store.list("reports", "live", team_id)
+                             if row.get("event_id") == event["id"] and row.get("fingerprint") == snapshot["fingerprint"]), None)
+            if existing and existing.get("status") in {"completed", "generating"}:
+                continue
+            rows = enqueue_reports(store, team_id=team_id, event_ids=[event["id"]], limit=1, force=True)
+            if not rows:
+                continue
+            row = rows[0]
+            if not _current(store, row, settings):
+                continue
+            row.update(status="queued", manual_once=True, manual_report=True, manual_stop_after_attempt=True,
+                       attempts=0, retry_at=None, error=None, updated_at=_stamp(),
+                       config_revision=_configuration_revision(settings))
+            store.put("reports", row)
+            selected.append(row["id"])
+        return {"started": bool(selected), "status": "queued" if selected else "idle", "queued": len(selected),
+                "note": f"已安排手动整理 {len(selected)} 条消息，完成后会加入动态。" if selected
+                        else "暂无可手动整理的消息。可以先刷新来源，再手动整理。"}
 
 
 def _finish(store, row, run, settings):
@@ -502,7 +573,8 @@ def _finish(store, row, run, settings):
 
 def _fail(store, row, error):
     row.update(status="failed", report=None, error=error, updated_at=_stamp(),
-               retry_at=(now() + timedelta(minutes=5 * 2 ** max(0, row.get("attempts", 1) - 1))).isoformat() if row.get("attempts", 0) < MAX_ATTEMPTS else None)
+               retry_at=(now() + timedelta(minutes=5 * 2 ** max(0, row.get("attempts", 1) - 1))).isoformat()
+               if row.get("attempts", 0) < MAX_ATTEMPTS and not row.get("manual_stop_after_attempt") else None)
     store.put("reports", row)
     return row
 
@@ -518,9 +590,11 @@ def recover_reports(store):
             _finish(store, row, run, store.settings())
         else:
             if run and run.get("status") in {"running", "queued"}:
-                run.update(status="cancelled", error="服务重启，报告整理任务将从当前原文恢复。", finished_at=_stamp())
+                run.update(status="cancelled", error="服务重启，手动整理已中断，请重新手动整理。" if row.get("manual_stop_after_attempt")
+                           else "服务重启，报告整理任务将从当前原文恢复。", finished_at=_stamp())
                 store.put("runs", run)
-            _fail(store, row, "上次整理被服务重启中断，已安排恢复。")
+            _fail(store, row, "上次手动整理被服务重启中断，请再次手动整理。" if row.get("manual_stop_after_attempt")
+                  else "上次整理被服务重启中断，已安排恢复。")
             row = store.get("reports", row["id"])
             if row.get("retry_at"):
                 row.update(status="queued", retry_at=None)
@@ -530,44 +604,56 @@ def recover_reports(store):
 
 
 async def process_report_queue(store, *, max_jobs=None, runner=None):
-    """One serial worker, <=3 jobs/cycle, <=12 billed attempts/UTC day."""
+    """One serial worker; auto attempts are capped, manual grants are one-use."""
     if not _WORKER_LOCK.acquire(blocking=False):
         return {"processed": 0, "completed": 0, "failed": 0, "busy": True}
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
     try:
         settings = _report_settings(store)
         limit = max(0, min(3, int(max_jobs if max_jobs is not None else settings.get("reports", {}).get("max_per_cycle", 3))))
-        queue = sorted(store.list("reports", mode="live"),
-                       key=lambda row: (not row.get("manual_requested", False), row.get("status") == "failed", row.get("created_at", "")))
-        for row in queue:
-            if stats["processed"] >= limit:
+        examined = set()
+        while stats["processed"] < limit:
+            # Re-read between model calls so a new explicit batch takes priority
+            # over automatic jobs that were waiting when this cycle began.
+            queue = sorted((row for row in store.list("reports", mode="live") if row["id"] not in examined
+                            and row.get("status") in {"queued", "needs_configuration", "failed"}),
+                           key=lambda row: (not row.get("manual_once", False), not row.get("manual_requested", False),
+                                            row.get("status") == "failed", row.get("created_at", "")))
+            if not queue:
                 break
+            row = queue[0]
+            examined.add(row["id"])
             if row.get("status") not in {"queued", "needs_configuration", "failed"}:
                 continue
+            manual = bool(row.get("manual_once"))
+            if row.get("manual_stop_after_attempt") and not manual:
+                continue
             settings = _report_settings(store)
-            if not settings.get("reports", {}).get("auto_generate", True) and not row.get("manual_requested"):
+            if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
                 continue
             retry_at = parse_time(row.get("retry_at"))
             if row.get("status") == "failed" and (not retry_at or retry_at > now()):
                 continue
             if not _current(store, row, settings):
-                row.update(status="stale", report=None, updated_at=_stamp())
+                row.update(status="stale", report=None, updated_at=_stamp(), manual_once=False)
                 store.put("reports", row)
                 continue
             if not _configured(settings):
-                row.update(status="needs_configuration", error="模型尚未配置，完成设置后将自动整理。", updated_at=_stamp())
+                row.update(status="needs_configuration", manual_once=False,
+                           error="模型尚未配置，请在设置中选择球队动态模型。", updated_at=_stamp())
                 store.put("reports", row)
                 continue
-            if report_budget(store)["remaining_today"] <= 0:
-                break
+            if not manual and report_budget(store)["remaining_today"] <= 0:
+                continue
             run_id = "run_" + uuid.uuid4().hex[:20]
             row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
                        updated_at=_stamp(), started_at=_stamp(), retry_at=None,
+                       manual_once=False, manual_report=manual,
                        config_revision=_configuration_revision(settings),
-                       attempt_history=[*row.get("attempt_history", []), _stamp()])
+                       attempt_history=[*row.get("attempt_history", []), {"at": _stamp(), "kind": "manual" if manual else "auto"}])
             store.put("reports", row)
             run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
-                   "conversation_id": "conversation_" + row["id"], "internal_report": True,
+                   "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
                    "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
                    "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；通常1至3节、全文300至650字，交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
                    "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
@@ -595,10 +681,10 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
                 row = store.get("reports", row["id"]) or row
                 final = _finish(store, row, store.get("runs", run_id) or {}, store.settings())
             except asyncio.CancelledError:
-                _fail(store, row, "整理被服务停止中断，下次启动会恢复。")
+                _fail(store, row, "手动整理被服务停止中断，请再次手动整理。" if manual else "整理被服务停止中断，下次启动会恢复。")
                 raise
             except Exception:
-                final = _fail(store, row, "后台整理未完成，已安排有限次数重试。")
+                final = _fail(store, row, "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
             stats["completed" if final.get("status") == "completed" else "failed"] += 1
         return {**stats, "budget": report_budget(store)}
     finally:

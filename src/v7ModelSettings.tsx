@@ -162,17 +162,24 @@ export function ModelSettings({
   const save = () =>
     action("save", async () => {
       const body = {
-        id: draft.id.trim(),
+        ...(editing ? { id: editing } : {}),
         name: draft.name.trim(),
         base_url: draft.base_url.trim(),
         protocol: draft.protocol,
         ...(key ? { api_key: key } : {}),
         models: draft.models,
       };
+      let savedId = editing;
       if (editing)
         await put(`/model-providers/${encodeURIComponent(editing)}`, body);
-      else await post("/model-providers", body);
-      await reload(body.id);
+      else {
+        const result = await post<ProviderState & { saved_provider_id: string }>(
+          "/model-providers",
+          body,
+        );
+        savedId = result.saved_provider_id;
+      }
+      await reload(savedId || undefined);
       await onChanged();
       setMessage("服务商已保存。可在功能分工中为每项功能选择模型。");
     });
@@ -391,7 +398,6 @@ export function ModelSettings({
                         onClick={() => {
                           setDraft({
                             ...empty(),
-                            id: preset.id,
                             name: preset.name,
                             base_url: preset.url,
                             protocol: preset.protocol,
@@ -420,40 +426,19 @@ export function ModelSettings({
                   }}
                 >
                   <fieldset disabled={!!busy} className="provider-fields">
-                    <div className="field-pair">
-                      <label>
-                        显示名称
-                        <input
-                          value={draft.name}
-                          required
-                          maxLength={80}
-                          onChange={(event) =>
-                            setDraft({ ...draft, name: event.target.value })
-                          }
-                          placeholder="例如：我的 DeepSeek"
-                        />
-                      </label>
-                      <label>
-                        服务商 ID
-                        <input
-                          value={draft.id}
-                          autoComplete="username"
-                          required
-                          pattern="([a-zA-Z0-9_]|-)+"
-                          maxLength={64}
-                          disabled={!!editing}
-                          onChange={(event) =>
-                            setDraft({ ...draft, id: event.target.value })
-                          }
-                          placeholder="例如：deepseek"
-                        />
-                        <small>
-                          {editing
-                            ? "创建后保持不变"
-                            : "使用英文字母、数字、短横线"}
-                        </small>
-                      </label>
-                    </div>
+                    <label>
+                      显示名称
+                      <input
+                        value={draft.name}
+                        required
+                        maxLength={100}
+                        onChange={(event) =>
+                          setDraft({ ...draft, name: event.target.value })
+                        }
+                        placeholder="例如：我的 DeepSeek"
+                      />
+                      <small>方便自己辨认即可，支持中文；也可以为同一服务商添加多份配置。</small>
+                    </label>
                     <label>
                       接口地址（Base URL）
                       <input

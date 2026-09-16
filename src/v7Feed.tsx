@@ -59,6 +59,8 @@ interface FeedResponse {
     next_retry_at?: string | null;
     note: string;
     can_retry: boolean;
+    manual_count?: number;
+    can_organize?: boolean;
   };
 }
 type IllustratedReport = Omit<AutoReport, "report"> & {
@@ -95,6 +97,9 @@ export function FeedView({
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [organizing, setOrganizing] = useState(false);
+  const [manualMessage, setManualMessage] = useState("");
+  const manualRequests = useRef(new Set<string>());
   const [selected, setSelected] = useState<FeedItem | null>(null);
   const [report, setReport] = useState<IllustratedReport | null>(null);
   const [reading, setReading] = useState(false);
@@ -146,6 +151,8 @@ export function FeedView({
     setTopic("");
     setSelected(null);
     setRefreshing(false);
+    setOrganizing(false);
+    setManualMessage("");
     void load();
     return () => {
       serial.current++;
@@ -156,7 +163,7 @@ export function FeedView({
       () => {
         if (
           document.visibilityState === "visible" &&
-          (feed?.items.length || 0) <= 20
+          ((feed?.items.length || 0) <= 20 || (feed?.processing?.manual_count || 0) > 0)
         )
           void load();
       },
@@ -173,7 +180,29 @@ export function FeedView({
     feed?.items.length,
     feed?.processing?.generating,
     feed?.processing?.queued,
+    feed?.processing?.manual_count,
   ]);
+  const organize = async () => {
+    const requestedTeam = team.id;
+    if (manualRequests.current.has(requestedTeam) || (feed?.processing?.manual_count || 0) > 0) return;
+    manualRequests.current.add(requestedTeam);
+    setOrganizing(true);
+    setError("");
+    setManualMessage("");
+    try {
+      const result = await post<{ started: boolean; status: string; queued: number; note: string }>(
+        "/feed/organize", { team_id: requestedTeam },
+      );
+      if (activeTeam.current !== requestedTeam) return;
+      setManualMessage(result.note);
+      await load();
+    } catch (err) {
+      if (activeTeam.current === requestedTeam) setError(errorText(err));
+    } finally {
+      manualRequests.current.delete(requestedTeam);
+      if (activeTeam.current === requestedTeam) setOrganizing(false);
+    }
+  };
   const refresh = async () => {
     if (refreshing) return;
     const requestedTeam = team.id;
@@ -284,6 +313,7 @@ export function FeedView({
   const pending = feed?.pending_count || feed?.refresh?.pending || 0;
   const modelReady =
     data.setup?.model_roles_configured?.feed ?? data.setup?.model_configured;
+  const manualRunning = (feed?.processing?.manual_count || 0) > 0;
   const seenStoryImages = new Set<string>();
   const sections = report?.report?.sections.map((section) => ({
     ...section,
@@ -308,15 +338,30 @@ export function FeedView({
             </h1>
             <p>值得知道的消息，都在这里。</p>
           </div>
-          <button
-            className="button refresh-button"
-            disabled={refreshing || loading}
-            onClick={refresh}
-          >
-            <RefreshCw size={15} className={refreshing ? "spin" : ""} />
-            <span>{refreshing ? "更新中" : "刷新动态"}</span>
-          </button>
+          <div className="feed-heading-actions">
+            <button
+              className="button refresh-button"
+              disabled={refreshing || loading}
+              onClick={refresh}
+            >
+              <RefreshCw size={15} className={refreshing ? "spin" : ""} />
+              <span>{refreshing ? "更新中" : "刷新来源"}</span>
+            </button>
+            <button
+              className="button primary"
+              disabled={organizing || manualRunning || !feed}
+              onClick={modelReady ? organize : openModel}
+              title="使用球队动态模型整理最多3条消息，不受自动整理日上限影响"
+            >
+              {organizing || manualRunning ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}
+              {organizing || manualRunning ? "手动整理中" : "手动整理"}
+            </button>
+          </div>
         </div>
+        <p className="feed-manual-help">
+          手动整理每次最多 3 条，使用“球队动态”模型，完成后加入动态。自动整理达到上限时也可使用；没有新来源时先刷新来源。
+        </p>
+        {manualMessage && <div className="notice success" role="status">{manualMessage}</div>}
         <div className="feed-toolbar">
           <div className="filter-tabs">
             {topics.map((item) => (
@@ -355,8 +400,10 @@ export function FeedView({
                 {feed?.refresh?.error ||
                   (feed?.processing?.needs_configuration || !modelReady
                     ? "连接动态模型后，才能生成中文内容。"
+                    : manualRunning
+                      ? "当前手动批次正在处理，完成后逐条显示；不会自动接着整理下一批。"
                     : feed?.processing?.next_retry_at
-                      ? `下次尝试：${dateTime(feed.processing.next_retry_at)}。已完成的消息会逐条出现。`
+                      ? `自动整理下次尝试：${dateTime(feed.processing.next_retry_at)}。也可点击上方“手动整理”。`
                       : "后台会提取来源并整理中文内容，已完成的消息会逐条出现。")}
               </small>
             </div>
@@ -365,10 +412,10 @@ export function FeedView({
                 连接模型
                 <ArrowRight size={13} />
               </button>
-            ) : !refreshing &&
-              (feed?.processing ? feed.processing.can_retry : pending > 0) ? (
-              <button className="text-button" onClick={refresh}>
-                重新尝试 <RefreshCw size={13} />
+            ) : !organizing && !manualRunning &&
+              (feed?.processing?.can_organize ?? pending > 0) ? (
+              <button className="text-button" onClick={organize}>
+                手动整理 <Sparkles size={13} />
               </button>
             ) : null}
           </div>
@@ -465,16 +512,16 @@ export function FeedView({
             {!topic && (
               <button
                 className="button primary"
-                disabled={refreshing}
-                onClick={refresh}
+                disabled={refreshing || organizing || manualRunning}
+                onClick={pending > 0 ? (modelReady ? organize : openModel) : refresh}
               >
-                {refreshing ? "正在整理" : "获取最新动态"}
+                {organizing || manualRunning ? "手动整理中" : refreshing ? "正在刷新来源" : pending > 0 ? "手动整理这些消息" : "查找最新来源"}
                 <ArrowRight size={16} />
               </button>
             )}
             {!modelReady && !topic && (
               <button className="text-button" onClick={openModel}>
-                连接模型，开启自动整理
+                连接球队动态模型
               </button>
             )}
           </div>

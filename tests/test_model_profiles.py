@@ -81,6 +81,71 @@ class ModelProfileTests(unittest.TestCase):
         self.assertEqual(self.store.get("model_profiles", "alpha")["name"], "Alpha")
         self.assertEqual(self.store.get_secret("provider_alpha"), SECRET)
 
+    def test_custom_provider_uses_automatic_id_and_accepts_chinese_display_name(self):
+        payload = profile(name="我的本地模型", base_url="http://localhost:11434/v1", api_key=None,
+                          models=[{"id": "Qwen/Model.V4:latest", "name": "中文模型"}]).model_dump()
+        payload.pop("id")
+        with self.client() as client:
+            response = client.post("/api/model-providers", json=payload)
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        identifier = result["saved_provider_id"]
+        self.assertRegex(identifier, r"^[a-z][a-z0-9_-]{0,47}$")
+        saved = self.store.get("model_profiles", identifier)
+        self.assertEqual(saved["name"], "我的本地模型")
+        self.assertEqual(saved["models"][0]["id"], "Qwen/Model.V4:latest")
+        self.assertEqual(result["active"], {"provider_id": identifier, "model": "Qwen/Model.V4:latest"})
+        self.assertFalse(result["providers"][0]["api_key_set"])
+
+    def test_repeated_preset_creates_independent_profiles_and_credentials(self):
+        payload = profile(name="DeepSeek", base_url="https://api.deepseek.com/v1").model_dump()
+        payload.pop("id")
+        with self.client() as client:
+            first = client.post("/api/model-providers", json=payload)
+            second = client.post("/api/model-providers", json={**payload, "api_key": "separate-test-key"})
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        first_id, second_id = first.json()["saved_provider_id"], second.json()["saved_provider_id"]
+        self.assertNotEqual(first_id, second_id)
+        self.assertEqual(len(second.json()["providers"]), 2)
+        self.assertEqual(self.store.get_secret("provider_" + first_id), SECRET)
+        self.assertEqual(self.store.get_secret("provider_" + second_id), "separate-test-key")
+        self.assertNotIn(SECRET, second.text)
+        self.assertNotIn("separate-test-key", second.text)
+
+    def test_display_name_edit_keeps_automatic_id_and_saved_credentials(self):
+        payload = profile(name="中文服务商").model_dump()
+        payload.pop("id")
+        with self.client() as client:
+            result = client.post("/api/model-providers", json=payload).json()
+            identifier = result["saved_provider_id"]
+            saved = result["providers"][0]
+            edit = {**payload, "id": identifier, "name": "改名后的服务商", "api_key": None}
+            response = client.put("/api/model-providers/" + identifier, json=edit)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["providers"][0]["id"], saved["id"])
+        self.assertEqual(self.store.get_secret("provider_" + identifier), SECRET)
+
+    def test_invalid_provider_id_has_chinese_diagnostic_without_sensitive_input(self):
+        # Exercise the production validation handler, which deliberately omits
+        # request inputs (including credentials) from its response.
+        from server.main import create_app
+        app = create_app(Path(self.directory.name) / "validation.sqlite3")
+        client = TestClient(app)
+        payload = profile().model_dump()
+        invalid_secret = "Secret-" + SECRET
+        try:
+            for identifier in ("DeepSeek", "123model", "中文名称", "", "provider name", "a" * 49, invalid_secret):
+                with self.subTest(identifier=identifier if identifier != invalid_secret else "sensitive"):
+                    response = client.post("/api/model-providers", json={**payload, "id": identifier})
+                    self.assertEqual(response.status_code, 422)
+                    self.assertIn("服务商内部标识须以小写英文字母开头", response.json()["detail"])
+                    self.assertNotIn("String should match pattern", response.text)
+                    self.assertNotIn(SECRET, response.text)
+            self.assertEqual(app.state.store.list("model_profiles"), [])
+        finally:
+            client.close()
+            app.state.store.close()
+
     def test_same_origin_edit_preserves_key_but_cross_origin_edit_clears_it(self):
         model_config.save_profile(self.store, profile())
         model_config.save_profile(self.store, profile(base_url="https://alpha.example:443/custom/v1", api_key=None), update=True)

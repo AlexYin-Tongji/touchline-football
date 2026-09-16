@@ -3957,6 +3957,28 @@ button:focus:not(:focus-visible) {
     scroll-behavior: auto !important;
   }
 }
+
+.feed-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.feed-heading-actions > .button { min-height: 44px; }
+.feed-manual-help {
+  color: var(--text-secondary, #788568);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: -6px 0 22px;
+  max-width: 780px;
+}
+@media (max-width: 640px) {
+  .feed-main > .page-heading { flex-wrap: wrap; gap: 18px; }
+  .feed-heading-actions { width: 100%; }
+  .feed-heading-actions > .button { flex: 1; justify-content: center; }
+  .feed-manual-help { font-size: 11px; margin-top: 0; }
+}
 .feed-summary .markdown {
   font-size: 15px;
   color: #53604e;

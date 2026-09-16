@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import copy
+import re
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from .ingestion import normalize_url
 from .provider import PROTOCOLS, AgentFailure, endpoint_url, http_failure
@@ -32,13 +35,23 @@ class ModelEntry(StrictModel):
 
 
 class ProviderInput(StrictModel):
-    id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,47}$")
+    id: str = Field(default_factory=lambda: "provider_" + uuid.uuid4().hex)
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=8, max_length=4096)
     protocol: str = "chat_completions"
     api_key: str | None = Field(None, max_length=8192)
     clear_api_key: bool = False
     models: list[ModelEntry] = Field(min_length=1, max_length=100)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def identifier(cls, value):
+        if not isinstance(value, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", value):
+            raise PydanticCustomError(
+                "provider_id",
+                "服务商内部标识须以小写英文字母开头，只能包含小写字母、数字、短横线或下划线，最多 48 个字符。新增服务商会自动生成标识，请刷新页面后重试。",
+            )
+        return value
 
     @field_validator("name")
     @classmethod
@@ -203,7 +216,7 @@ def save_profile(store, value: ProviderInput, *, update=False):
     if update and not previous:
         raise HTTPException(404, "模型服务不存在。")
     if not update and previous:
-        raise HTTPException(409, "这个服务商ID已经存在，请使用其他ID。")
+        raise HTTPException(409, "这个服务商已存在。请编辑已有配置，或通过“添加服务商”新建一份配置。")
     data = value.model_dump(exclude_none=True, exclude={"api_key", "clear_api_key"})
     data["created_at"] = (previous or {}).get("created_at") or datetime.now(timezone.utc).isoformat()
     try:
@@ -296,7 +309,7 @@ def register_routes(app, store):
 
     @app.post("/api/model-providers")
     async def create(value: ProviderInput):
-        return save_profile(store, value)
+        return {**save_profile(store, value), "saved_provider_id": value.id}
 
     @app.put("/api/model-providers/{identifier}")
     async def edit(identifier: str, value: ProviderInput):
