@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-VERSION = "7.2.0"
+VERSION = "7.3.0"
 ROOT = Path(__file__).resolve().parent.parent
 PARTS = ("python", "node", "frontend")
 

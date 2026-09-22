@@ -2,6 +2,9 @@ export type Mode = "demo" | "live";
 export type Page =
   "home" | "matches" | "tracking" | "chat" | "sources" | "settings";
 export type Skill =
+  | "team-news"
+  | "team-information"
+  | "football-assistant"
   | "auto"
   | "ask"
   | "team_brief"

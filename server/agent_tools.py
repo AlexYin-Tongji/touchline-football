@@ -7,10 +7,22 @@ import hashlib
 import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from .skill_catalog import PRIMARY_SKILLS, WORKFLOWS, resolve_workflow
 
 
 class ToolError(ValueError):
     pass
+
+
+def parse_tool_arguments(raw, content_limit):
+    # The same Chinese text may arrive literally or as six-character \uXXXX
+    # escapes. Bound wire data before parsing, then enforce one decoded limit.
+    if not isinstance(raw, str) or len(raw) > content_limit * 6:
+        raise ToolError("工具参数过长或不是 JSON 文本。")
+    arguments = json.loads(raw)
+    if len(json.dumps(arguments, ensure_ascii=False, separators=(",", ":"))) > content_limit:
+        raise ToolError("工具参数内容超过安全大小，请分开处理独立任务。")
+    return arguments
 
 
 def parse_time(value):
@@ -32,7 +44,7 @@ TOOL_DEFINITIONS = [
     {"name": "discover_news", "description": "从当前球队配置来源及已知公开来源发现相关新闻候选。真实任务可用；片段不可引用，之后须 read_article 阅读原文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_article", "description": "按已发现的 candidate_id 抓取公开原文并保存证据。通过范围校验并实际返回的原文才可引用。不能输入任意网址。", "parameters": {"type": "object", "properties": {"candidate_id": {"type": "string", "maxLength": 120}}, "required": ["candidate_id"], "additionalProperties": False}},
     {"name": "refresh_team_sources", "description": "按当前问题从球队来源发现并收集少量相关资料，返回可读证据 ID。结果中 ID 必须再 read_evidence 才能引用。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 6}}, "required": ["query"], "additionalProperties": False}},
-    {"name": "use_skill", "description": "加载本地白名单中的附加工作规程以组合任务。不会改变球队、联网、避剧透或比赛授权。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": ["ask", "team_brief", "event_watch", "match_preview", "match_review"]}}, "required": ["skill"], "additionalProperties": False}},
+    {"name": "use_skill", "description": "按需加载球队动态、球队信息或问答助手规程，workflow可选专项流程。不会改变球队、联网、避剧透或比赛授权；已有规程不必重复加载。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": list(PRIMARY_SKILLS)}, "workflow": {"type": "string", "enum": list(WORKFLOWS), "maxLength": 40}}, "required": ["skill"], "additionalProperties": False}},
     {"name": "submit_answer", "description": "阅读原文并完成研究后，单独调用此工具提交唯一最终答复。提交通过即结束，无需再写文字。正文不得写思考过程、工具预算或引用括号；引用仅填evidence_ids。", "parameters": {
         "type": "object", "properties": {
             "status": {"type": "string", "enum": ["complete", "insufficient"]},
@@ -64,8 +76,6 @@ TOOL_DEFINITIONS.extend([
     {"name": "compare_sources", "description": "比较2至6篇本轮已读材料的时间、来源域名、正文覆盖和可引用片段；标出同一网址及可能转载，独立性仍须核对。不会自动判定哪个说法属实。", "parameters": {"type": "object", "properties": {"evidence_ids": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "string", "minLength": 1, "maxLength": 120}}, "query": {"type": "string", "maxLength": 300}}, "required": ["evidence_ids"], "additionalProperties": False}},
 ])
 for _definition in TOOL_DEFINITIONS:
-    if _definition["name"] == "use_skill":
-        _definition["parameters"]["properties"]["skill"]["enum"].extend(["transfer_check", "tactics_explainer", "team_maintenance"])
     if _definition["name"] in {"search_evidence", "discover_news", "refresh_team_sources", "research_news"}:
         _definition["parameters"]["properties"].update({
             "category": {"type": "string", "enum": ["all", "injury", "training", "transfer", "squad", "preview", "review", "tactics", "interview", "discipline"],
@@ -94,7 +104,8 @@ def tool_definitions(skill="ask"):
     report_quotes["description"] = "只填写evidence_id和已读passages里的passage_id。禁止输出quote或复制原文；服务器在核验时自行取得对应真实原文。每节选择足够支持正文的片段。"
     report_quotes["items"]["properties"].pop("quote")
     report_quotes["items"]["required"] = ["evidence_id", "passage_id"]
-    fields["analysis"].update(description="解释对球队和球迷的可能影响，明确假设及有依据的前提，不新增事实；没有必要可留空。")
+    fields["analysis"].update(description="仅有必要且有来源依据的进一步解释才填写。信息已在正文交代或没有额外依据时留空，不重复正文或泛谈影响。")
+    fields["unknowns"].update(description="只保留影响读者理解的具体未决事项；正文已交代条件或没有相关缺口时用空数组，不罗列报道未涉及的名单、赛程等。")
     return definitions
 
 
@@ -494,6 +505,11 @@ class LocalTools:
                 raise ToolError(f"{path} 必须是 {rule['minimum']} 至 {rule['maximum']} 的整数。")
             if "enum" in rule and value not in rule["enum"]:
                 raise ToolError(f"{path} 参数不在允许列表中。")
+        if name == "use_skill" and isinstance(arguments, dict) and arguments.get("skill") in WORKFLOWS:
+            # Historic clients may still send task-mode IDs; advertise only the
+            # three primary entrypoints without breaking saved conversations.
+            arguments = {**arguments, "skill": WORKFLOWS[arguments["skill"]][0],
+                         "workflow": arguments.get("workflow", arguments["skill"])}
         check(arguments, definition["parameters"])
 
     def available_tools(self):
@@ -571,8 +587,6 @@ class LocalTools:
             if not re.search(r"[\u3400-\u9fff]", arguments.get("title", "")) or any(
                     len(re.findall(r"[\u3400-\u9fff]", fact["detail"])) < 25 for fact in arguments["facts"]):
                 raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
-            if not arguments["analysis"].strip() and not arguments["unknowns"]:
-                raise ToolError("报告需说明有依据的可能影响，或明确下一步需要关注的信息。")
         if len({fact["title"].strip() for fact in arguments["facts"]}) != len(arguments["facts"]):
             raise ToolError("请合并重复主题，每个事实主题只提交一次。")
         if arguments["status"] == "complete" and not arguments["facts"]:
@@ -695,17 +709,24 @@ class LocalTools:
                     "possible_shared_origin": copies,
                     "notice": "对照相同人物、具体说法与发布时间，分别列一致、冲突和缺口。不同域名不等于独立消息源；本工具不裁定真伪，不将更晚采集等同于更新报道。"}
         if name == "use_skill":
-            selected = arguments["skill"]
+            try:
+                selected = resolve_workflow(arguments["skill"], arguments.get("workflow"))
+            except ValueError as exc:
+                raise ToolError(str(exc)) from None
             if selected == "match_review" and not self.review:
                 raise ToolError("附加技能不能开启赛果揭示。请通过比赛复盘入口明确选择比赛。")
             if selected == "match_preview" and not self.cutoff:
                 raise ToolError("赛前技能需要任务开始时已经固定的比赛和赛前时间范围。")
             if not self.skill_loader:
                 raise ToolError("本次任务没有配置技能加载器。")
+            if selected in self.skills_used:
+                return {"skill": WORKFLOWS[selected][0], "workflow": selected, "already_loaded": True,
+                        "instructions": "", "scope_unchanged": True,
+                        "notice": "本任务已加载该工作规程，继续使用已有说明即可。"}
             text = self.skill_loader(selected)
             if selected not in self.skills_used:
                 self.skills_used.append(selected)
-            return {"skill": selected, "instructions": text, "scope_unchanged": True,
+            return {"skill": WORKFLOWS[selected][0], "workflow": selected, "instructions": text, "scope_unchanged": True,
                     "notice": "这是系统维护的本地工作规程，仅补充流程；原有范围、权限和预算保持不变。"}
         if name == "team_context":
             from .team_profiles import knowledge_for_team
@@ -937,10 +958,9 @@ class LocalTools:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
             delegated = self.delegation and function.get("name") in {tool["name"] for tool in self.delegation.definitions}
-            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 24000 if delegated else 3000):
-                raise ToolError("工具参数过长或不是 JSON 文本。")
+            arguments = parse_tool_arguments(raw, 64000 if function.get("name") == "submit_answer" else 24000 if delegated else 3000)
             self._tool_request_id = f"{self.run.get('agent_generation', 1)}:{getattr(self, '_tool_epoch', 0)}:{call.get('id', '')}"
-            return await self.acall(function.get("name"), json.loads(raw))
+            return await self.acall(function.get("name"), arguments)
         except (json.JSONDecodeError, TypeError):
             return {"error": "工具参数不是有效 JSON 对象。"}
         except ToolError as exc:
@@ -955,9 +975,7 @@ class LocalTools:
         try:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
-            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 3000):
-                raise ToolError("工具参数过长或不是 JSON 文本。")
-            arguments = json.loads(raw)
+            arguments = parse_tool_arguments(raw, 64000 if function.get("name") == "submit_answer" else 3000)
             return self.call(function.get("name"), arguments)
         except (json.JSONDecodeError, TypeError):
             return {"error": "工具参数不是有效 JSON 对象。"}

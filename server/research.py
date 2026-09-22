@@ -17,10 +17,12 @@ from bs4 import BeautifulSoup
 from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
 from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
+from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, feed_published_time,
+                           global_feed_mentions_team, readable_publisher_entry)
 
 
 CATALOG = RESEARCH_CATALOG
-TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk", "www.espn.com", "espn.com", "www.skysports.com", "skysports.com", "www.reuters.com", "reuters.com", "www.bing.com", "bing.com", "site.api.espn.com"}
+TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | FEED_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk", "www.espn.com", "espn.com", "www.skysports.com", "skysports.com", "www.reuters.com", "reuters.com", "www.bing.com", "bing.com", "site.api.espn.com"}
 for _host in ("football.london", "espn.co.uk", "goal.com", "eurosport.com", "lequipe.fr", "kicker.de", "marca.com", "as.com", "sport.es", "gazzetta.it", "corrieredellosport.it"):
     TRUSTED_HOSTS.update({_host, "www." + _host})
 TOPICS = [
@@ -56,17 +58,23 @@ def source_catalog(store, team_id):
     _check_team(store, team_id)
     configured = store.list("sources", "live", team_id)
     disabled_urls = {ingestion.normalize_url(item["url"]) for item in configured if not item.get("enabled", True)}
-    sources = [{**source, "team_id": team_id, "builtin": True} for source in CATALOG.get(team_id, [])
-               if ingestion.normalize_url(source["url"]) not in disabled_urls]
+    sources, urls = [], set()
     team_name = store.get("teams", team_id).get("name", "球队")
-    for source in sources:
-        source["name"] = (team_name + "官网" if source["id"].startswith("official_") else
-                          "卫报 · " + team_name if source["id"].startswith("guardian_") else "BBC 体育 · " + team_name)
-    urls = {item["url"] for item in sources}
+    for source in [*CATALOG.get(team_id, []), *additional_sources(team_id)]:
+        url = ingestion.normalize_url(source["url"])
+        if url in disabled_urls or url in urls:
+            continue
+        name = (team_name + "官网" if source["id"].startswith("official_") else
+                "卫报 · " + team_name if source["id"].startswith("guardian_") else
+                source.get("name") or ("BBC 体育 · " + team_name if source["id"].startswith("bbc_") else urlsplit(url).hostname))
+        sources.append({**source, "name": name, "team_id": team_id, "builtin": True})
+        urls.add(url)
     for source in configured:
-        if source.get("enabled", True) and source.get("url") not in urls:
+        url = ingestion.normalize_url(source["url"])
+        if source.get("enabled", True) and url not in urls:
             sources.append({**source, "description": "你配置的公开来源", "builtin": False})
-    return sources[:8]
+            urls.add(url)
+    return sources
 
 
 def _source_hosts(source):
@@ -75,7 +83,7 @@ def _source_hosts(source):
     if source.get("builtin"):
         hosts.update(source.get("allowed_hosts") or [])
         if source["id"].startswith("bbc_"):
-            hosts.update({"feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com", "bbc.co.uk", "bbc.com"})
+            hosts.update(BBC_HOSTS)
         elif host and host.startswith("www."):
             hosts.add(host[4:])
         if not hosts <= TRUSTED_HOSTS:
@@ -125,8 +133,12 @@ def article_categories(entry):
 def _first_team_entry(entry):
     # Club news landing pages also contain youth and women's fixtures. Do not
     # silently mix those squads into this men's first-team workspace.
-    value = entry.get("title", "") + " " + unquote(urlsplit(entry.get("url", "")).path).replace("-", " ")
-    return not re.search(r"\b(?:women|womens|femeni|femení|u\d{2}|under[ -]?\d{2}|youth league|youth sector)\b|女足|青年队|青年联赛", value, re.I)
+    value = " ".join(str(entry.get(key) or "") for key in ("title", "description"))
+    value += " " + unquote(urlsplit(entry.get("url", "")).path).replace("-", " ")
+    return (readable_publisher_entry(entry) and not re.search(
+        r"\b(?:women|womens|wsl|femeni|femení|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
+        r"youth[ -]+(?:teams?|squads?|league|sector|cup)(?![ -]+(?:graduates?|products?|alumni)\b))\b|女足|青年队|青年联赛",
+        value, re.I))
 
 
 async def _fetch(url, source):
@@ -212,7 +224,7 @@ def _feed_candidates(body, url):
             result.append({"url": urljoin(url, link), "title": ingestion.html_text(values["title"]),
                            "description": ingestion.html_text(values.get("description") or values.get("summary") or "")[:1200],
                            "publisher": values.get("Source") or values.get("source"),
-                           "published_at": ingestion.published_time(values.get("pubDate") or values.get("published"))})
+                           "published_at": feed_published_time(values.get("pubDate") or values.get("published"), url)})
         if len(result) >= 100:
             break
     return result
@@ -348,7 +360,8 @@ def relevance(team_id, query, candidate):
 def _index_key(team_id, source):
     location = source.get("index_url") or source["url"]
     digest = hashlib.sha256((source["id"] + "\n" + location).encode()).hexdigest()[:20]
-    return "news_index:" + team_id + ":" + digest
+    scope = "shared" if source.get("builtin") and source.get("shared_index") else team_id
+    return "news_index:" + scope + ":" + digest
 
 
 def source_status(store, team_id):
@@ -517,7 +530,8 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
                               "title": entry["title"][:200], "team_id": team_id, "mode": "live",
                               "index_state": status["state"], "index_checked_at": status["checked_at"],
                               "categories": article_categories(entry)})
-                if (_first_team_entry(entry) and within_days(entry, max_age_days)
+                if (_first_team_entry(entry) and (not source.get("global_feed") or global_feed_mentions_team(team_id, entry))
+                        and within_days(entry, max_age_days)
                         and (category == "all" or category in entry["categories"]) and relevance(team_id, query, entry)):
                     clean.append(entry)
             return clean, failures, {"id": source["id"], "name": source["name"], **status, "matched_count": len(clean)}

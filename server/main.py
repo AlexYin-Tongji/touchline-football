@@ -239,7 +239,7 @@ class RunInput(Model):
     mode: Mode
     team_id: Identifier
     question: str = Field(min_length=1, max_length=5000)
-    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report", "team_maintenance"] = "auto"
+    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report", "team_maintenance", "team-news", "team-information", "football-assistant"] = "auto"
     provider_id: str | None = Field(None, pattern=r"^[a-z][a-z0-9_-]{0,47}$")
     model: str | None = Field(None, min_length=1, max_length=200)
     evidence_ids: list[Identifier] = Field(default_factory=list, max_length=5)
@@ -1195,7 +1195,7 @@ def create_app(db_path=None):
         else:
             prior = []
         from .model_config import role_selection
-        model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill == "team_maintenance" else "chat")
+        model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill in {"team_maintenance", "team-information"} else "feed" if payload.skill == "team-news" else "chat")
         active_model = role_selection(store, model_role) or {}
         from .conversations import conversation_binding
         bound = conversation_binding(store, prior, strict=True) if payload.mode == "live" else None

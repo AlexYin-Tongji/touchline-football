@@ -169,7 +169,11 @@ class Delegation:
         try:
             if name == "spawn_agent":
                 from .agent import SKILLS
-                skill = args.get("skill", "ask")
+                from .skill_catalog import resolve_workflow
+                try:
+                    skill = resolve_workflow(args.get("skill", "ask"))
+                except ValueError:
+                    raise ToolError("子任务技能不存在。") from None
                 if skill not in SKILLS:
                     raise ToolError("子任务技能不存在。")
                 if skill in {"match_preview", "match_review"} and skill != self.local.scope_skill:

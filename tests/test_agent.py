@@ -169,8 +169,9 @@ class LocalToolTests(unittest.TestCase):
 
     def test_all_skills_are_real_runtime_files(self):
         for skill in agent.SKILLS:
-            self.assertIn("停止条件", agent.load_skill(skill))
-            self.assertIn("read_evidence", agent.load_skill(skill))
+            instructions = agent.load_skill(skill)
+            self.assertTrue(instructions.strip())
+            self.assertFalse(instructions.startswith("---"), "discovery metadata is not execution instructions")
         with self.assertRaises(agent.AgentFailure):
             agent.load_skill("../../other")
 

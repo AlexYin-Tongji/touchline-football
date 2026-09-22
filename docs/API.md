@@ -1,5 +1,13 @@
 # 看台 MVP 接口与模块约定
 
+## V7.3 增量
+
+- `/api/capabilities` 的skills为team-news、team-information、football-assistant三个主入口；workflows保留九个历史模式说明。创建任务仍接受旧skill值，也接受三个新入口。
+- `use_skill`可传主skill与对应workflow；旧模式别名兼容。重复加载返回already_loaded，不重复插入指令；不能改变任务权限或比赛揭示范围。
+- 新运行的metrics记录模型排队、生成与核验请求数/耗时，以及初始资料阅读耗时和成功/失败数；不进入模型工具结果，不干扰无进展检测。
+- 完整新闻允许analysis为空字符串、unknowns为空数组。事实段、引文与整稿核验继续强制要求。
+- 来源目录增加BBC全足球和已验证的Sky Arsenal RSS；公共索引原始元数据共享缓存，按目标球队过滤后才返回候选。
+
 ## V7.2 增量
 
 - `GET /api/harness` 保持原模型请求字段，新增 `agents`，提供任务树的脱敏 limits/active/recent；不包含提示词、结果或邮箱正文。
