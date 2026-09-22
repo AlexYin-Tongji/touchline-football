@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import threading
 import time
@@ -42,9 +43,11 @@ class Store:
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
+        existing_database = self.path.is_file()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self._bodies = OrderedDict()
+        self._transaction_depth = 0
         key_path = self.path.with_suffix(".key")
         try:
             with key_path.open("xb") as key_file:
@@ -62,9 +65,41 @@ class Store:
         self._db.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, body TEXT NOT NULL)")
         self._db.execute("CREATE TABLE IF NOT EXISTS secrets (key TEXT PRIMARY KEY, encrypted BLOB NOT NULL)")
         self._db.commit()
-        self._migrate_external_bodies()
-        from .news_reports import migrate_report_boundaries
-        migrate_report_boundaries(self)
+        try:
+            old_reports = self._db.execute("SELECT 1 FROM documents WHERE collection='reports' AND json_extract(body, '$.schema_version') IS NOT 2 AND json_extract(body, '$.boundary_migration.version') IS NOT 2 LIMIT 1").fetchone()
+            if existing_database and (not self.get_meta("transient_bodies_v1", False) or old_reports):
+                self.backup("before-migration")
+            from .news_reports import migrate_report_boundaries
+            with self.atomic():
+                removed_bodies = self._migrate_external_bodies()
+                migrate_report_boundaries(self)
+            if removed_bodies:
+                self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self._db.execute("VACUUM")
+                self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except BaseException:
+            self._db.close()
+            raise
+
+    def backup(self, reason="manual"):
+        """Keep a consistent, private database and its encryption key together."""
+        directory = self.path.parent / "backups"
+        directory.mkdir(exist_ok=True)
+        target_path = directory / f"{self.path.stem}-{reason}-{time.time_ns()}.sqlite3"
+        with self.lock:
+            target = sqlite3.connect(target_path)
+            try:
+                self._db.backup(target)
+            finally:
+                target.close()
+            shutil.copyfile(self.path.with_suffix(".key"), target_path.with_suffix(".key"))
+            os.chmod(target_path, 0o600)
+            os.chmod(target_path.with_suffix(".key"), 0o600)
+        return target_path
+
+    def _commit(self):
+        if not self._transaction_depth:
+            self._db.commit()
 
     @staticmethod
     def external_evidence(item):
@@ -124,7 +159,7 @@ class Store:
         from .news_reports import _hash, source_version_hash
         rows = self.list("evidence")
         old_hashes = {row["id"]: _evidence_hash(row, legacy=True) for row in rows}
-        with self.lock, self._db:
+        with self.atomic():
             for row in rows:
                 if self.external_evidence(row):
                     clean = self._prepare("evidence", row)
@@ -157,17 +192,27 @@ class Store:
         for (key,) in self._db.execute("SELECT key FROM metadata WHERE key LIKE 'news_index:%'").fetchall():
             self.set_meta(key, self.get_meta(key))
         self.set_meta("transient_bodies_v1", True)
-        if any(self.external_evidence(row) for row in rows):
-            # Reclaim the removed body pages; secure_delete also clears freed
-            # SQLite cells. Startup owns this connection before background work.
-            self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            self._db.execute("VACUUM")
-            self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        return any(self.external_evidence(row) for row in rows)
 
     @contextmanager
     def atomic(self):
+        """Synchronous nested transaction; callers must not await inside it."""
         with self.lock:
-            yield
+            savepoint = f"store_{self._transaction_depth}"
+            bodies = self._bodies.copy()
+            self._db.execute(f"SAVEPOINT {savepoint}")
+            self._transaction_depth += 1
+            try:
+                yield
+            except BaseException:
+                self._db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                self._db.execute(f"RELEASE SAVEPOINT {savepoint}")
+                self._bodies = bodies
+                raise
+            else:
+                self._db.execute(f"RELEASE SAVEPOINT {savepoint}")
+            finally:
+                self._transaction_depth -= 1
 
     @staticmethod
     def _collection(collection):
@@ -194,6 +239,15 @@ class Store:
             row = self._db.execute("SELECT body FROM documents WHERE collection=? AND id=?", (collection, id)).fetchone()
             return self._hydrate(collection, json.loads(row[0])) if row else None
 
+    def count(self, collection: str, mode: str | None = None):
+        self._collection(collection)
+        query, values = "SELECT count(*) FROM documents WHERE collection=?", [collection]
+        if mode is not None:
+            query += " AND json_extract(body, '$.mode')=?"
+            values.append(mode)
+        with self.lock:
+            return self._db.execute(query, values).fetchone()[0]
+
     def put(self, collection: str, item: dict):
         self._collection(collection)
         if not isinstance(item.get("id"), str) or not item["id"]:
@@ -201,21 +255,21 @@ class Store:
         with self.lock:
             body = json.dumps(self._prepare(collection, item), ensure_ascii=False)
             self._db.execute("INSERT INTO documents(collection,id,body) VALUES(?,?,?) ON CONFLICT(collection,id) DO UPDATE SET body=excluded.body", (collection, item["id"], body))
-            self._db.commit()
+            self._commit()
         return copy.deepcopy(item)
 
     def delete(self, collection: str, id: str):
         self._collection(collection)
         with self.lock:
             self._db.execute("DELETE FROM documents WHERE collection=? AND id=?", (collection, id))
-            self._db.commit()
+            self._commit()
 
     def put_many(self, collection: str, items: list[dict]):
         """Commit a validated provider snapshot together, never a partial table."""
         self._collection(collection)
         if any(not isinstance(item.get("id"), str) or not item["id"] for item in items):
             raise ValueError("Document requires an id")
-        with self.lock, self._db:
+        with self.atomic():
             rows = [(collection, item["id"], json.dumps(self._prepare(collection, item), ensure_ascii=False)) for item in items]
             self._db.executemany("INSERT INTO documents(collection,id,body) VALUES(?,?,?) ON CONFLICT(collection,id) DO UPDATE SET body=excluded.body", rows)
 
@@ -235,7 +289,7 @@ class Store:
                 self._db.execute("INSERT INTO secrets(key,encrypted) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET encrypted=excluded.encrypted", (name, self._cipher.encrypt(value.encode())))
             else:
                 self._db.execute("DELETE FROM secrets WHERE key=?", (name,))
-            self._db.commit()
+            self._commit()
 
     def set_meta(self, key: str, value):
         if key.startswith("news_index:") and isinstance(value, dict):
@@ -247,7 +301,7 @@ class Store:
                         entry["description"] = str(entry["description"] or "")[:280]
         with self.lock:
             self._db.execute("INSERT INTO metadata(key,body) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body", (key, json.dumps(value, ensure_ascii=False)))
-            self._db.commit()
+            self._commit()
 
     def settings(self):
         with self.lock:
@@ -283,7 +337,7 @@ class Store:
             current["llm"].update(llm)
             current["llm"].pop("api_key", None)
             self.set_meta("settings", current)
-            self._db.commit()
+            self._commit()
             return self.settings()
 
     def close(self):

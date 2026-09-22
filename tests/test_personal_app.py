@@ -93,6 +93,17 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(barcelona["id"], seen)
         self.assertEqual([item["id"] for item in (await self.feed(team_id="barcelona"))["items"]], [barcelona["id"]])
 
+    async def test_topic_filter_precedes_pagination(self):
+        with self.store.atomic():
+            for index in range(21):
+                self.event(f"new_{index}", completed=True, stamp="2026-09-16T12:00:00Z")
+            _, injury, report = self.event("older_injury", completed=True, stamp="2026-09-15T10:00:00Z")
+            report["report"]["title"] = "球队伤病情况更新"
+            self.store.put("reports", report)
+        result = await self.feed(team_id="arsenal", topic="injury", limit=2)
+        self.assertEqual([row["id"] for row in result["items"]], [injury["id"]])
+        self.assertIsNone(result["next_cursor"])
+
     async def test_completed_feed_remains_readable_after_external_body_cache_expires(self):
         source, event, report = self.event("expired_body", completed=True)
         self.store._bodies.clear()

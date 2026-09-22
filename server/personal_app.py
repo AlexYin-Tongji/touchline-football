@@ -72,7 +72,7 @@ def message_topic(title):
     return "team"
 
 
-def feed_view(store, team_id=None, cursor=None, limit=20):
+def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
     from .news_reports import list_reports, queue_summary
     settings = store.settings()
     teams = {team_id} if team_id else set(settings.get("followed_teams", []))
@@ -130,6 +130,8 @@ def feed_view(store, team_id=None, cursor=None, limit=20):
                       "images": safe_images(images), "sources": sources,
                       "report_id": report["id"] if ready else None, "status": "ready" if ready else "source",
                       "evidence_ids": [s["id"] for s in sources]})
+    if topic:
+        items = [row for row in items if row["topic"] == topic]
     items.sort(key=lambda row: (row.get("updated_at") or "", row["id"]), reverse=True)
     if cursor:
         try:
@@ -170,24 +172,27 @@ class PersonalRefreshManager:
                 age = (datetime.now(timezone.utc) - datetime.fromisoformat(status["last_attempt"])).total_seconds()
             except (KeyError, ValueError, TypeError):
                 age = float("inf")
-            if age < (30 if force else 3600):
+            if not force and age < 3600:
                 continue
             self.store.set_meta("personal_refresh_" + identity, {**status, "status": "running", "last_attempt": ingestion.now(), "error": None})
-            self.tasks[identity] = asyncio.create_task(self._run(identity))
+            self.tasks[identity] = asyncio.create_task(self._run(identity, force=force))
             started = True
         return {"started": started, "status": "running" if self.tasks else "idle"}
 
-    async def _run(self, team_id):
+    async def _run(self, team_id, *, force=False):
         from .research import collect_team
         from .news_reports import enqueue_reports
         key = "personal_refresh_" + team_id
         try:
             self.team_maintenance.start(team_id)
-            result = await asyncio.wait_for(collect_team(self.store, team_id, query="", limit=10, max_age_days=7), timeout=180)
+            result = await asyncio.wait_for(collect_team(self.store, team_id, query="", limit=10, max_age_days=7, force=force), timeout=180)
             enqueue_reports(self.store, team_id=team_id)
             errors = result.get("errors", [])
             self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle", "last_updated": ingestion.now(),
-                                      "error": "部分消息来源暂时不可用，稍后会继续更新。" if errors and not result.get("evidence_ids") else None})
+                                      "coverage": result.get("coverage"), "source_errors": errors,
+                                      "collected_count": len(result.get("evidence_ids", [])),
+                                      "error": "部分消息来源暂时不可用，已保留成功取得的资料。" if errors and result.get("evidence_ids") else
+                                               "消息来源暂时不可用，可刷新来源后重试。" if errors else None})
         except asyncio.CancelledError:
             self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle"})
             raise

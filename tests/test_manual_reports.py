@@ -120,7 +120,7 @@ class ManualReportTests(unittest.IsolatedAsyncioTestCase):
         self.store.config["reports"]["auto_generate"] = False
         settings = {**self.store.settings(), "llm": {**self.store.settings()["llm"], "model": "editorial-model"}}
         with patch("server.model_config.role_settings", return_value=settings), \
-                patch("server.model_config.role_selection", return_value={"provider_id": "editorial", "model": "editorial-model"}):
+                patch("server.model_config.role_selection", side_effect=lambda store, role: {"provider_id": "editorial", "model": "editorial-model"} if role == "feed" else None):
             self.assertEqual(news_reports.organize_reports(self.store, "arsenal")["queued"], 1)
             self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["completed"], 1)
         run = self.store.list("runs")[0]

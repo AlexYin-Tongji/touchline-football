@@ -57,7 +57,7 @@ TOOL_DEFINITIONS.extend([
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
-    {"name": "maintain_team_data", "description": "按需更新当前球队的真实阵容、球员图像、赛程与统计；失败保留已有资料，返回来源覆盖。遵守本任务避剧透范围。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "maintain_team_data", "description": "按需补全当前球队缺失或过期资料，可选阵容、赛程、积分或照片；失败保留旧快照并说明范围。先用get_team_data看缺项，避免重复刷新。", "parameters": {"type": "object", "properties": {"parts": {"type": "array", "items": {"type": "string", "enum": ["roster", "schedule", "standings", "portraits"]}, "minItems": 1, "maxItems": 4}}, "additionalProperties": False}},
     {"name": "research_news", "description": "围绕一个足球问题一次完成多来源搜索和原文阅读，返回本轮可以引用的材料、来源覆盖、读取失败与后续线索。优先用于最新新闻、伤病、转会等联网研究；不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 4}}, "required": ["query"], "additionalProperties": False}},
     {"name": "reader_profile", "description": "读取用户主动设置的关注主题、阅读语言、足球熟悉度和简报时间窗口，及当前球队可见跟进主题。仅调整选题与解释，不能改变证据判断或避剧透权限。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_passages", "description": "在当前可见长文中定位关键词段落，返回上下文和字符offset。只是定位索引，不增加已读证据；随后read_evidence(offset)阅读该处。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 300}, "evidence_id": {"type": "string", "maxLength": 120}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
@@ -811,7 +811,7 @@ class LocalTools:
                 raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
             self.network_queries += 1
             from .team_center import maintain_team
-            await maintain_team(self.store, self.team_id)
+            await maintain_team(self.store, self.team_id, **({"parts": arguments["parts"]} if arguments.get("parts") else {}))
             return self.team_data_result()
         if name == "read_evidence":
             item = self.scoped_get("evidence", arguments["evidence_id"])

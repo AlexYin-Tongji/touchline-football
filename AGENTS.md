@@ -8,8 +8,8 @@
 - 修改迁移前备份数据库及配套key，备份只能放在Git忽略目录。已有中文结果应按源数据证明迁移；不得仅凭completed状态复活失效稿。
 - 所有凭据仅通过服务端加密存储处理，接口不回显密钥。`data/`、`output/`、`tmp/`、`.env`与生成索引不得提交Git。
 - 代码仓库是 `AlexYin-Tongji/touchline-football`（私有）。不要修改另一个 `football-ai-harness-loop` 仓库。
-- 使用 `codex/` 工作分支；提交前检查差异、测试和构建。不要改写已共享历史。
+- 按维护者要求只保留 `main` 主线；交付前保存可回退标签，提交前检查差异、测试和构建。不要改写已共享历史。
 - `npm run build` 会先生成轻量球队索引；完整球队目录以 `public/assets/clubs/catalog.json` 为准。
-- 必要验证：`python -m unittest discover -s tests -v`、`npm run build`。界面改动还须验桌面与窄屏。
+- 日常用 `python scripts/check.py --suite fast`，局部修改用 `--module test_模块名`。交付必须跑 `python scripts/check.py --suite full`（包含全部 unittest）、`npm run test:ui`、`npm run build`。界面改动还须验桌面与窄屏。新增测试优先复用 `tests/support.py`，保留安全/事实/取消边界，避免同义用例和源码文本断言。
 - 自动化测试使用临时数据库和本地/mock模型，不调用真实付费模型或修改用户数据。真实联网/模型验收应限量、明确区分测试资料与真实资料。
 - `agent_skills/` 是应用自身的工作规程，不会扩大工具的数据权限、比赛范围或联网权限。

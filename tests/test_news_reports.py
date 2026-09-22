@@ -38,6 +38,23 @@ async def successful_runner(store, run_id, cancel):
 
 
 class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
+    async def test_fixing_checker_assignment_resumes_exhausted_automatic_job(self):
+        roles = {"verify": {"provider_id": "checker", "model": "old"}}
+        self.store.get_meta = lambda key: roles if key == "model_roles" else None
+        self.store.get_secret = lambda key: "synthetic-checker-key"
+        self.store.put("model_profiles", {"id": "checker", "base_url": "https://checker.example/v1",
+                                         "protocol": "chat_completions", "models": [{"id": "old"}, {"id": "new"}]})
+        row = news_reports.enqueue_reports(self.store)[0]
+        self.store.put("reports", {**row, "status": "failed", "attempts": 3, "retry_at": None})
+        news_reports.enqueue_reports(self.store)
+        self.assertEqual(self.store.get("reports", row["id"])["status"], "failed")
+        roles["verify"]["model"] = "new"
+        news_reports.enqueue_reports(self.store)
+        resumed = self.store.get("reports", row["id"])
+        self.assertEqual(resumed["status"], "queued")
+        self.assertEqual(resumed["attempts"], 0)
+        self.assertNotIn("synthetic-checker-key", json.dumps(resumed))
+
     def setUp(self):
         self.store = FakeStore()
         self.store.config["reports"] = {"auto_generate": True, "max_per_cycle": 3}
@@ -309,8 +326,9 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         worker.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await worker
-        self.assertEqual(len(self.store.list("runs")), 1)
-        self.assertFalse(news_reports._WORKER_LOCK.locked())
+        self.assertEqual(len(self.store.list("runs")), 2)
+        self.assertFalse(any(row["status"] == "generating" for row in self.store.list("reports")))
+        self.assertFalse(news_reports._worker_lock(self.store).locked())
 
 
 class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):

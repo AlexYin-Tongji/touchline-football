@@ -12,23 +12,14 @@ from fastapi.testclient import TestClient
 from server import ingestion
 from server.main import create_app
 from server.storage import Store
+from tests.support import IsolatedAppCase
 
 
 TEXT = "球队训练消息只确认球员完成部分合练，教练没有宣布正式比赛名单。目前仍然需要等待后续消息，不能将训练参与等同于出场许可。"
 
 
-class BackendTests(unittest.TestCase):
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.path = Path(self.directory.name) / "test.sqlite3"
-        self.app = create_app(self.path)
-        self.client_context = TestClient(self.app)
-        self.client = self.client_context.__enter__()
-        self.client.put("/api/settings", json={"spoiler_free": True})
-
-    def tearDown(self):
-        self.client_context.__exit__(None, None, None)
-        self.directory.cleanup()
+class BackendTests(IsolatedAppCase):
+    spoiler_free = True
 
     def import_item(self, **values):
         response = self.client.post("/api/import", json={"team_id": "arsenal", "title": "训练情况与后续确认", "text": TEXT, **values})

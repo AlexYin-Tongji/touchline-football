@@ -139,7 +139,7 @@ class FeedRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_worker_pins_feed_role_and_uses_its_configuration(self):
         self.store.config["llm"]["model"] = ""
         settings = {**self.store.settings(), "llm": {**self.store.settings()["llm"], "model": "news-model"}}
-        with patch("server.model_config.role_settings", return_value=settings), patch("server.model_config.role_selection", return_value={"provider_id": "news", "model": "news-model"}):
+        with patch("server.model_config.role_settings", return_value=settings), patch("server.model_config.role_selection", side_effect=lambda store, role: {"provider_id": "news", "model": "news-model"} if role == "feed" else None):
             row = news_reports.enqueue_reports(self.store)[0]
             self.assertEqual(row["status"], "queued")
             await news_reports.process_report_queue(self.store, runner=successful_runner)

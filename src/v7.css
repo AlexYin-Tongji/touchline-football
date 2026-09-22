@@ -1,16 +1,17 @@
 :root {
-  font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   color: #26352f;
   background: #f6f7f4;
   font-synthesis: none;
   font-weight: 400;
-  font-size: 14px;
+  font-size: 16px;
   --ink: #20372d;
   --muted: #7b857e;
   --line: #e8ebe5;
   --green: #276348;
   --lime: #d3eaad;
   --white: #fff;
+  line-height: 1.7;
 }
 * {
   box-sizing: border-box;
@@ -148,7 +149,7 @@ button:focus:not(:focus-visible) {
 }
 .brand small {
   font-weight: 400;
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 2.5px;
   color: #879181;
   margin-top: 6px;
@@ -203,7 +204,7 @@ button:focus:not(:focus-visible) {
   justify-content: flex-end;
 }
 .personal-label {
-  font-size: 12px;
+  font-size: 14px;
   color: #8a948b;
   letter-spacing: 1px;
 }
@@ -242,7 +243,7 @@ button:focus:not(:focus-visible) {
   padding: 0 10px;
   margin-bottom: 13px;
   color: #8b9389;
-  font-size: 11px;
+  font-size: 14px;
   letter-spacing: 2px;
 }
 .rail-title .icon-button {
@@ -266,7 +267,7 @@ button:focus:not(:focus-visible) {
 }
 .favorite-teams > button > span:not(.crest):not(.selected-dot) {
   flex: 1;
-  font-size: 13px;
+  font-size: 14px;
 }
 .favorite-teams > button.active {
   background: #e6ecdf;
@@ -288,7 +289,7 @@ button:focus:not(:focus-visible) {
   gap: 9px;
   align-items: center;
   color: #7c887e;
-  font-size: 12px;
+  font-size: 14px;
   padding: 17px 13px;
   margin-top: 8px;
 }
@@ -296,7 +297,7 @@ button:focus:not(:focus-visible) {
   margin-left: auto;
 }
 .rail-hint {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.9;
   color: #939a90;
   padding: 12px;
@@ -313,7 +314,7 @@ button:focus:not(:focus-visible) {
   margin: 18px 0 15px;
 }
 .rail-bottom small {
-  font-size: 9px;
+  font-size: 14px;
   color: #b0b8aa;
   letter-spacing: 0.3px;
 }
@@ -359,13 +360,13 @@ button:focus:not(:focus-visible) {
   padding: 5px 0;
 }
 .current-team strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 .current-team svg {
   color: #899182;
 }
 .team-context-league {
-  font-size: 11px;
+  font-size: 14px;
   color: #949c90;
   border-left: 1px solid #dfe4da;
   padding-left: 13px;
@@ -374,7 +375,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   gap: 6px;
   align-items: center;
-  font-size: 11px;
+  font-size: 14px;
   margin-left: auto;
   border: 1px solid #dce3d5;
   border-radius: 7px;
@@ -422,7 +423,7 @@ button:focus:not(:focus-visible) {
 .eyebrow {
   display: block;
   color: #9ba590;
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 2.1px;
   margin-bottom: 7px;
@@ -442,7 +443,7 @@ button:focus:not(:focus-visible) {
   margin-top: 6px;
 }
 .page-heading p {
-  font-size: 12px;
+  font-size: 14px;
   color: #90998b;
   margin-bottom: 0;
 }
@@ -455,7 +456,7 @@ button:focus:not(:focus-visible) {
   padding: 10px 14px;
   border-radius: 8px;
   background: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   line-height: 1.4;
@@ -476,7 +477,7 @@ button:focus:not(:focus-visible) {
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
+  font-size: 14px;
   padding: 0;
   color: #678261;
   line-height: 1.6;
@@ -486,7 +487,7 @@ button:focus:not(:focus-visible) {
 }
 .refresh-button {
   color: #727e6b;
-  font-size: 11px;
+  font-size: 14px;
   padding: 8px 11px;
 }
 .feed-layout {
@@ -513,7 +514,7 @@ button:focus:not(:focus-visible) {
   flex-wrap: wrap;
 }
 .filter-tabs button {
-  font-size: 12px;
+  font-size: 14px;
   color: #88917f;
   padding: 8px 13px;
   border-radius: 6px;
@@ -529,7 +530,7 @@ button:focus:not(:focus-visible) {
   color: #55713f;
 }
 .feed-order {
-  font-size: 10px;
+  font-size: 14px;
   color: #a1a895;
   white-space: nowrap;
 }
@@ -558,17 +559,17 @@ button:focus:not(:focus-visible) {
   flex-direction: column;
 }
 .feed-card-meta strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 .feed-card-meta > div > span {
-  font-size: 9px;
+  font-size: 14px;
   color: #a1a896;
 }
 .topic-tag {
   margin-left: auto;
   padding: 4px 7px;
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.5;
   border-radius: 5px;
   background: #f1f3ea;
@@ -616,7 +617,7 @@ button:focus:not(:focus-visible) {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.5;
 }
 .source-links > span {
@@ -644,7 +645,7 @@ button:focus:not(:focus-visible) {
   padding: 15px 0;
 }
 .feed-card-actions button {
-  font-size: 11px;
+  font-size: 14px;
   color: #87977a;
 }
 .feed-card-actions button:hover {
@@ -683,7 +684,7 @@ button:focus:not(:focus-visible) {
 }
 .photo figcaption {
   padding: 5px 7px;
-  font-size: 9px;
+  font-size: 14px;
   color: #8c957f;
   display: flex;
   gap: 5px;
@@ -699,7 +700,7 @@ button:focus:not(:focus-visible) {
   background: #f0f3eb;
   color: #a4b094;
   min-height: 120px;
-  font-size: 10px;
+  font-size: 14px;
 }
 .feed-aside {
   padding-top: 7px;
@@ -712,7 +713,7 @@ button:focus:not(:focus-visible) {
   padding: 21px;
 }
 .small-heading {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: #8b967f;
   display: flex;
@@ -740,30 +741,30 @@ button:focus:not(:focus-visible) {
   height: 43px;
 }
 .next-match-clubs strong {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.6;
   text-align: center;
 }
 .next-match-clubs > span {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: #a1ac91;
 }
 .next-match > p {
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   color: #78856c;
   margin: 23px 0 17px;
 }
 .next-match > p small {
   display: block;
-  font-size: 9px;
+  font-size: 14px;
   margin-top: 4px;
   color: #abb59c;
 }
 .next-match > .button {
   width: 100%;
-  font-size: 10px;
+  font-size: 14px;
   background: #f6f8f1;
   border: 0;
 }
@@ -791,7 +792,7 @@ button:focus:not(:focus-visible) {
   margin-bottom: 13px;
 }
 .assistant-invitation p {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 2;
   color: #8d9b7b;
   margin-bottom: 24px;
@@ -801,14 +802,14 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 14px;
   color: #5a7d42;
   font-weight: 600;
   gap: 14px;
   width: 100%;
 }
 .aside-note {
-  font-size: 10px;
+  font-size: 14px;
   color: #a3ad97;
   line-height: 2;
   padding: 0 6px;
@@ -820,7 +821,7 @@ button:focus:not(:focus-visible) {
   padding: 13px 15px;
   border-radius: 8px;
   margin-bottom: 16px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   background: #eef4e7;
   overflow-wrap: anywhere;
@@ -841,7 +842,7 @@ button:focus:not(:focus-visible) {
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 14px;
   text-decoration: underline;
   color: inherit;
 }
@@ -849,7 +850,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 11px;
+  font-size: 14px;
   color: #89a176;
   background: #ecf1e4;
   border: 1px solid #e1e8d7;
@@ -870,7 +871,7 @@ button:focus:not(:focus-visible) {
   align-items: center;
   gap: 8px;
   color: #7c9569;
-  font-size: 12px;
+  font-size: 14px;
 }
 .page-loading {
   padding: 70px 0;
@@ -895,7 +896,7 @@ button:focus:not(:focus-visible) {
   margin: 2px 0 0;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: 14px;
   margin: 0 0 8px;
   color: #97a789;
 }
@@ -909,7 +910,7 @@ button:focus:not(:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 13px;
-  font-size: 10px;
+  font-size: 14px;
   color: #b1baa6;
   margin: 32px 0;
 }
@@ -1028,7 +1029,7 @@ button:focus:not(:focus-visible) {
   outline: 0;
   padding: 0;
   width: 100%;
-  font-size: 13px;
+  font-size: 14px;
 }
 .search-input input:focus-visible {
   outline: 0;
@@ -1037,7 +1038,7 @@ button:focus:not(:focus-visible) {
   margin-top: 20px;
 }
 .picker-count {
-  font-size: 11px;
+  font-size: 14px;
   color: #a0af8f;
   margin: 20px 0 12px;
 }
@@ -1073,12 +1074,12 @@ button:focus:not(:focus-visible) {
 }
 .picker-grid strong {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
 }
 .picker-grid small {
   display: block;
   color: #a1ab94;
-  font-size: 9px;
+  font-size: 14px;
   margin-top: 5px;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1102,7 +1103,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 14px;
   max-width: 90vw;
 }
 .toast .icon-button {
@@ -1113,7 +1114,7 @@ button:focus:not(:focus-visible) {
   background: #49683d;
 }
 .markdown {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.95;
   overflow-wrap: anywhere;
 }
@@ -1162,7 +1163,7 @@ button:focus:not(:focus-visible) {
 .markdown table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12px;
+  font-size: 14px;
   display: block;
   overflow: auto;
 }
@@ -1175,7 +1176,7 @@ button:focus:not(:focus-visible) {
   min-width: 75px;
 }
 .markdown code {
-  font-size: 12px;
+  font-size: 14px;
   background: #f0f4e8;
   padding: 2px 4px;
   border-radius: 3px;
@@ -1194,7 +1195,7 @@ button:focus:not(:focus-visible) {
 .story-meta {
   display: flex;
   gap: 16px;
-  font-size: 11px;
+  font-size: 14px;
   color: #9aa889;
   margin-bottom: 25px;
 }
@@ -1237,315 +1238,41 @@ button:focus:not(:focus-visible) {
 .story-ask {
   margin-top: 30px;
 }
-.settings-intro {
-  font-size: 12px;
-  color: #92a080;
-  padding: 0 28px;
-  margin: 22px 0;
-}
-.model-settings > .notice {
-  margin: 16px 28px;
-}
-.provider-layout {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  border-top: 1px solid var(--line);
-}
-.provider-list {
-  padding: 25px 14px;
-  background: #f6f8f0;
-  border-right: 1px solid var(--line);
-  border-bottom-left-radius: 17px;
-}
-.provider-list > .small-heading {
-  padding: 0 10px;
-  margin-bottom: 15px;
-}
-.provider-list > button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  text-align: left;
-  width: 100%;
-  padding: 12px 10px;
-  border-radius: 8px;
-  margin-bottom: 5px;
-  min-width: 0;
-}
-.provider-list > button.active {
-  background: #e6efda;
-}
-.provider-avatar {
-  height: 31px;
-  width: 31px;
-  flex-shrink: 0;
-  background: #dee8d1;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #7a995e;
-  font-size: 12px;
-  font-weight: 600;
-}
-.provider-list > button > span:nth-child(2) {
-  min-width: 0;
-  flex: 1;
-}
-.provider-list strong {
-  font-size: 12px;
-  display: block;
-}
-.provider-list small {
-  font-size: 9px;
-  color: #96a47f;
-  margin-top: 5px;
-  display: block;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.provider-list .add-provider {
-  color: #79965b;
-  font-size: 11px;
-  padding-top: 17px;
-}
-.provider-editor {
-  padding: 26px 28px;
-  min-width: 0;
-}
-.provider-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  color: #a6b893;
-}
-.provider-title h3 {
-  font-size: 19px;
-  margin: 0 0 6px;
-}
-.provider-title p {
-  font-size: 11px;
-  color: #92a27f;
-  margin-bottom: 19px;
-}
-.provider-presets {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin: 3px 0 22px;
-}
-.provider-presets button {
-  padding: 7px 12px;
-  font-size: 11px;
-  border: 1px solid #dce8cf;
-  border-radius: 6px;
-  color: #829b65;
-}
-.provider-presets button:hover {
-  background: #edf5e1;
-}
-.provider-fields {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.provider-fields > label,
-.provider-fields .field-pair > label {
-  display: block;
-  color: #6e8556;
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 20px;
-}
-.provider-fields > label:not(.search-input) > input,
-.provider-fields .field-pair > label > input,
-.provider-fields > label > select {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-  padding: 11px 12px;
-  border: 1px solid #dfe7d5;
-  border-radius: 7px;
-  background: #fafbf7;
-  font-size: 12px;
-  font-weight: 400;
-}
-.provider-fields input:disabled {
-  background: #f0f3e9;
-  color: #a0ac90;
-}
-.provider-fields label > small {
-  font-size: 9px;
-  font-weight: 400;
-  display: block;
-  color: #a4b194;
-  margin-top: 6px;
-}
-.field-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-.password-field {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  border: 1px solid #dfe7d5;
-  border-radius: 7px;
-  background: #fafbf7;
-  overflow: hidden;
-}
-.password-field input {
-  border: 0;
-  background: transparent;
-  width: 100%;
-  padding: 11px 12px;
-  font-size: 12px;
-}
-.password-field .icon-button {
-  width: 39px;
-  height: 36px;
-  color: #9aa98a;
-}
-.models-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 29px 0 13px;
-}
-.models-heading h4 {
-  font-size: 13px;
-  margin: 0 0 6px;
-}
-.models-heading p {
-  font-size: 10px;
-  color: #a1af90;
-  margin: 0;
-}
-.models-heading .button {
-  padding: 8px 10px;
-  font-size: 10px;
-}
 .search-input.compact {
   padding: 9px 12px;
   border-radius: 6px;
 }
 .search-input.compact input {
-  font-size: 11px;
-}
-.model-options {
-  max-height: 215px;
-  overflow: auto;
-  border: 1px solid #e5ecde;
-  border-radius: 7px;
-  margin-top: 9px;
-}
-.model-options > label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #edf2e7;
-  cursor: pointer;
-}
-.model-options > label:last-child {
-  border: 0;
-}
-.model-options > label > span {
-  flex: 1;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.model-options input {
-  accent-color: #628b3d;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
-  margin: 0;
-  padding: 0;
-}
-.model-options small {
-  display: block;
-  font-size: 9px;
-  color: #a6b395;
-  margin-top: 3px;
-}
-.model-options .active-model-tag {
-  padding: 3px 6px;
-  font-size: 8px;
-  border-radius: 4px;
-  background: #edf5e5;
-  color: #8baa6c;
-  white-space: nowrap;
-}
-.manual-model {
-  display: flex;
-  gap: 7px;
-  margin: 12px 0 23px;
-}
-.manual-model > input {
-  flex: 1;
-  border: 1px solid #e0e8d6;
-  border-radius: 7px;
-  padding: 9px 12px;
-  font-size: 11px;
-}
-.manual-model > .button {
-  padding: 9px 12px;
-  font-size: 11px;
-}
-.save-provider {
-  width: 100%;
-  font-size: 12px;
-}
-.use-model {
-  border-top: 1px solid #e4ecd8;
-  padding-top: 22px;
-  margin-top: 24px;
-}
-.use-model h4 {
-  font-size: 12px;
-  margin-bottom: 9px;
-}
-.use-model > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 11px 0;
-  border-bottom: 1px solid #eff3e9;
-}
-.use-model > div > span {
-  font-size: 12px;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.use-model > div > .text-button {
-  font-size: 10px;
-  white-space: nowrap;
-}
-.test-model {
-  margin-top: 16px;
-  font-size: 11px;
-}
-.delete-provider {
-  font-size: 10px;
-  margin-top: 24px;
-  color: #ba9b83;
+  font-size: 14px;
 }
 .muted {
-  font-size: 12px;
+  font-size: 14px;
   color: #98a889;
   line-height: 1.9;
 }
-.model-options > .muted {
-  padding: 12px;
+.model-recovery {
+  padding: 20px;
+  border: 1px solid #d2decd;
+  background: #f1f6ed;
+  border-radius: 10px;
+  margin: 0 0 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
+.model-recovery > div { flex: 1 1 100%; }
+.model-recovery p { color: #5c6d63; font-size: 14px; margin: 8px 0 0; }
+.team-data-status { border: 1px solid #dbe4dd; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; background: #fff; }
+.team-data-status summary { cursor: pointer; font-size: 16px; color: #24352d; }
+.team-data-status summary > span { color: #5c6d63; font-size: 14px; margin-left: 12px; }
+.data-component-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; padding-top: 18px; }
+.data-component-grid > div { min-width: 0; }
+.data-component-grid strong, .data-component-grid small { display: block; }
+.data-component-grid small, .data-component-grid p { font-size: 14px; line-height: 1.7; color: #5c6d63; margin: 6px 0 0; overflow-wrap: anywhere; }
+.data-state { font-size: 14px; color: #5c6d63; }
+.data-state-running, .data-state-fresh { color: #26704d; }
+.data-state-failed { color: #9d4c38; }
+.team-coverage { font-size: 14px; color: #5c6d63; margin: 0 0 20px; }
 .club-hero {
   border-radius: 14px;
   background: #25402f;
@@ -1584,11 +1311,11 @@ button:focus:not(:focus-visible) {
 }
 .club-hero .eyebrow {
   color: #96b185;
-  font-size: 8px;
+  font-size: 14px;
   letter-spacing: 2.6px;
 }
 .club-english {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
   letter-spacing: 0.7px;
   color: #9eb78d;
@@ -1598,7 +1325,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   gap: 15px;
   flex-wrap: wrap;
-  font-size: 10px;
+  font-size: 14px;
   color: #b1c39f;
   align-items: center;
 }
@@ -1617,14 +1344,14 @@ button:focus:not(:focus-visible) {
   border-top: 1px solid #d5e4c41f;
   background: #122b1e20;
   z-index: 1;
-  font-size: 11px;
+  font-size: 14px;
   color: #abc193;
 }
 .club-hero-footer > a {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 14px;
   color: #cae0ad;
 }
 .club-hero-art {
@@ -1708,11 +1435,11 @@ button:focus:not(:focus-visible) {
   letter-spacing: -0.3px;
 }
 .section-heading > span {
-  font-size: 10px;
+  font-size: 14px;
   color: #9caa8f;
 }
 .section-heading p {
-  font-size: 10px;
+  font-size: 14px;
   color: #a3b195;
   margin: 7px 0 0;
 }
@@ -1723,7 +1450,7 @@ button:focus:not(:focus-visible) {
   margin-bottom: 20px;
 }
 .club-about > p {
-  font-size: 12px;
+  font-size: 16px;
   color: #87977a;
   line-height: 2;
   margin-bottom: 20px;
@@ -1738,19 +1465,19 @@ button:focus:not(:focus-visible) {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 11px;
+  font-size: 14px;
 }
 .club-details span {
-  font-size: 9px;
+  font-size: 14px;
   color: #a9b69c;
 }
 .club-details strong {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 500;
   color: #81936f;
 }
 .club-about > .text-button {
-  font-size: 10px;
+  font-size: 14px;
   padding-top: 15px;
   border-top: 1px solid #edf2e6;
   width: 100%;
@@ -1779,7 +1506,7 @@ button:focus:not(:focus-visible) {
   color: #42652c;
 }
 .season-numbers span {
-  font-size: 10px;
+  font-size: 14px;
   color: #a5b294;
 }
 .result-line {
@@ -1790,7 +1517,7 @@ button:focus:not(:focus-visible) {
   margin: 15px 0 21px;
 }
 .result-line > span {
-  font-size: 10px;
+  font-size: 14px;
   color: #9bac89;
 }
 .result-line > div {
@@ -1804,12 +1531,12 @@ button:focus:not(:focus-visible) {
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 500;
   color: #fff;
 }
 .result-line small {
-  font-size: 10px;
+  font-size: 14px;
   color: #a8b699;
 }
 .result-W {
@@ -1827,7 +1554,7 @@ button:focus:not(:focus-visible) {
   border-top: 1px solid #edf2e5;
   padding-top: 15px;
   gap: 10px;
-  font-size: 10px;
+  font-size: 14px;
   color: #8b9b77;
 }
 .win-draw-loss > span {
@@ -1850,7 +1577,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   justify-content: flex-end;
   gap: 14px;
-  font-size: 9px;
+  font-size: 14px;
   color: #9daa8c;
   margin: 0 0 32px;
 }
@@ -1907,11 +1634,11 @@ button:focus:not(:focus-visible) {
   top: -19px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: 14px;
   color: #91a27b;
 }
 .goal-chart-label {
-  font-size: 8px;
+  font-size: 14px;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1930,7 +1657,7 @@ button:focus:not(:focus-visible) {
   color: #b5c2a5;
 }
 .chart-empty p {
-  font-size: 11px;
+  font-size: 14px;
   color: #a9b59b;
   text-align: center;
   line-height: 2;
@@ -1943,17 +1670,17 @@ button:focus:not(:focus-visible) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  font-size: 14px;
   margin-bottom: 10px;
 }
 .performance-row strong {
-  font-size: 11px;
+  font-size: 14px;
   color: #849968;
   font-weight: 500;
 }
 .performance-row span {
   color: #a1b08e;
-  font-size: 9px;
+  font-size: 14px;
 }
 .performance-track {
   display: flex;
@@ -1964,7 +1691,7 @@ button:focus:not(:focus-visible) {
 }
 .performance-row > small {
   display: block;
-  font-size: 9px;
+  font-size: 14px;
   color: #afba9f;
   margin-top: 7px;
   text-align: right;
@@ -1988,7 +1715,7 @@ button:focus:not(:focus-visible) {
   color: #7d965f;
 }
 .goals-total span {
-  font-size: 9px;
+  font-size: 14px;
   color: #acb799;
 }
 .team-assistant-banner {
@@ -2018,11 +1745,11 @@ button:focus:not(:focus-visible) {
   flex: 1;
 }
 .team-assistant-banner strong {
-  font-size: 13px;
+  font-size: 14px;
   color: #6f8b4f;
 }
 .team-assistant-banner p {
-  font-size: 10px;
+  font-size: 14px;
   color: #a1b087;
   margin: 6px 0 0;
 }
@@ -2041,7 +1768,7 @@ button:focus:not(:focus-visible) {
 }
 .team-sources > span {
   color: #abb69e;
-  font-size: 9px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .squad-section {
@@ -2097,7 +1824,7 @@ button:focus:not(:focus-visible) {
   background: #ffffffaa;
   border-radius: 4px;
   padding: 3px 6px;
-  font-size: 8px;
+  font-size: 14px;
   color: #8ba26a;
 }
 .player-photo {
@@ -2117,21 +1844,21 @@ button:focus:not(:focus-visible) {
   color: #b7c9a0;
 }
 .player-no-photo > span {
-  font-size: 8px;
+  font-size: 14px;
   color: #afc09b;
 }
 .player-card-info {
   padding: 15px 14px;
 }
 .player-card-info h3 {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   margin-bottom: 4px;
   color: #6e8553;
   overflow-wrap: anywhere;
 }
 .player-card-info p {
-  font-size: 9px;
+  font-size: 14px;
   color: #a5b491;
   margin-bottom: 15px;
   min-height: 16px;
@@ -2140,7 +1867,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 14px;
   color: #a3b58b;
   border-top: 1px solid #f0f4ea;
   padding-top: 10px;
@@ -2169,16 +1896,16 @@ button:focus:not(:focus-visible) {
   flex-shrink: 0;
 }
 .match-date strong {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: #82966a;
 }
 .match-date span {
-  font-size: 9px;
+  font-size: 14px;
   color: #a2b18e;
 }
 .venue-tag {
-  font-size: 9px;
+  font-size: 14px;
   color: #a7b496;
   border: 1px solid #e5edda;
   border-radius: 4px;
@@ -2193,7 +1920,7 @@ button:focus:not(:focus-visible) {
   min-width: 0;
 }
 .match-opponent strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #738b5a;
 }
@@ -2205,7 +1932,7 @@ button:focus:not(:focus-visible) {
   text-align: center;
 }
 .match-row > .text-button {
-  font-size: 10px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 .player-detail {
@@ -2235,10 +1962,10 @@ button:focus:not(:focus-visible) {
   border-radius: 5px;
   background: #edf4e3;
   color: #8da76d;
-  font-size: 11px;
+  font-size: 14px;
 }
 .player-bio {
-  font-size: 12px;
+  font-size: 14px;
   color: #91a079;
   margin: 17px 0;
   line-height: 2;
@@ -2255,12 +1982,12 @@ button:focus:not(:focus-visible) {
   gap: 7px;
 }
 .player-detail dt {
-  font-size: 9px;
+  font-size: 14px;
   color: #abb896;
 }
 .player-detail dd {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   color: #799260;
 }
 .player-detail > .button {
@@ -2285,7 +2012,7 @@ button:focus:not(:focus-visible) {
   font-weight: 400;
 }
 .player-stat-row span {
-  font-size: 10px;
+  font-size: 14px;
   color: #b0bc9b;
 }
 .assistant-page {
@@ -2312,7 +2039,7 @@ button:focus:not(:focus-visible) {
   color: #93a37f;
 }
 .chat-top-actions .button {
-  font-size: 11px;
+  font-size: 14px;
   padding: 9px 12px;
 }
 .model-connect {
@@ -2323,7 +2050,7 @@ button:focus:not(:focus-visible) {
   border-radius: 9px;
   background: #eaf2df;
   padding: 15px 17px;
-  font-size: 11px;
+  font-size: 14px;
   color: #8da773;
   margin: 8px 0 20px;
 }
@@ -2334,7 +2061,7 @@ button:focus:not(:focus-visible) {
   gap: 8px;
 }
 .model-connect button {
-  font-size: 11px;
+  font-size: 14px;
   color: #658746;
   flex-shrink: 0;
 }
@@ -2364,7 +2091,7 @@ button:focus:not(:focus-visible) {
   color: #526d3c;
 }
 .assistant-welcome > p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 2;
   color: #9daa8e;
   margin-bottom: 30px;
@@ -2421,13 +2148,13 @@ button:focus:not(:focus-visible) {
   min-width: 0;
 }
 .skill-grid strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #718d54;
   display: block;
 }
 .skill-grid small {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.7;
   color: #a3b18e;
   display: block;
@@ -2464,7 +2191,7 @@ button:focus:not(:focus-visible) {
   width: 100%;
   min-height: 52px;
   line-height: 1.85;
-  font-size: 13px;
+  font-size: 16px;
   padding: 3px 0;
   color: #587044;
   max-height: 160px;
@@ -2476,7 +2203,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: 14px;
   color: #849f62;
   margin: 0 0 10px;
   width: fit-content;
@@ -2500,7 +2227,7 @@ button:focus:not(:focus-visible) {
   min-width: 0;
 }
 .chat-model-picker > .text-button {
-  font-size: 10px;
+  font-size: 14px;
   color: #92a780;
   max-width: 100%;
 }
@@ -2530,7 +2257,7 @@ button:focus:not(:focus-visible) {
   justify-content: space-between;
   gap: 15px;
   text-align: left;
-  font-size: 11px;
+  font-size: 14px;
   padding: 10px;
   border-radius: 5px;
   width: 100%;
@@ -2541,7 +2268,7 @@ button:focus:not(:focus-visible) {
 }
 .chat-model-menu small {
   display: block;
-  font-size: 9px;
+  font-size: 14px;
   color: #acba98;
   margin-top: 5px;
 }
@@ -2549,7 +2276,7 @@ button:focus:not(:focus-visible) {
   border-top: 1px solid #e9f0df;
   margin-top: 4px;
   border-radius: 0;
-  font-size: 10px;
+  font-size: 14px;
 }
 .send-button {
   display: flex;
@@ -2576,7 +2303,7 @@ button:focus:not(:focus-visible) {
 }
 .composer-note {
   text-align: center;
-  font-size: 9px;
+  font-size: 14px;
   color: #b2bea3;
   margin: 10px 0 0;
   padding-bottom: 10px;
@@ -2594,7 +2321,7 @@ button:focus:not(:focus-visible) {
   color: #617b48;
   border-radius: 13px 13px 3px 13px;
   padding: 15px 20px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.9;
   white-space: pre-wrap;
 }
@@ -2618,18 +2345,18 @@ button:focus:not(:focus-visible) {
   color: #88a765;
 }
 .answer-byline strong {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: #718d54;
 }
 .answer-byline small {
-  font-size: 9px;
+  font-size: 14px;
   color: #adba9a;
   margin-left: 5px;
 }
 .assistant-answer .markdown {
   color: #758765;
-  font-size: 13px;
+  font-size: 16px;
 }
 .answer-footer {
   display: flex;
@@ -2641,24 +2368,24 @@ button:focus:not(:focus-visible) {
   border-top: 1px solid #e4ecd9;
 }
 .answer-footer > span {
-  font-size: 9px;
+  font-size: 14px;
   color: #adba99;
 }
 .answer-footer > .text-button {
-  font-size: 10px;
+  font-size: 14px;
 }
 .thinking-status {
   display: flex;
   align-items: center;
   gap: 16px;
   color: #93a97c;
-  font-size: 12px;
+  font-size: 14px;
   padding: 22px 0 25px;
 }
 .thinking-status small {
   display: block;
   margin-top: 7px;
-  font-size: 10px;
+  font-size: 14px;
   color: #b1bea0;
 }
 .thinking-dots {
@@ -2709,7 +2436,7 @@ button:focus:not(:focus-visible) {
 }
 .chat-history strong {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: #849d67;
   line-height: 1.7;
   font-weight: 500;
@@ -2718,7 +2445,7 @@ button:focus:not(:focus-visible) {
   text-overflow: ellipsis;
 }
 .chat-history small {
-  font-size: 9px;
+  font-size: 14px;
   color: #b6c0a4;
   display: block;
   margin-top: 6px;
@@ -2751,7 +2478,7 @@ button:focus:not(:focus-visible) {
   margin: 20px 0 25px;
 }
 .login-intro .overline {
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 2px;
   color: #a7c08c;
 }
@@ -2785,12 +2512,12 @@ button:focus:not(:focus-visible) {
   color: #6d8a50;
 }
 .login-panel p {
-  font-size: 12px;
+  font-size: 14px;
   color: #9daf88;
 }
 .login-panel label {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: #8ba570;
   margin: 25px 0 10px;
 }
@@ -2809,10 +2536,10 @@ button:focus:not(:focus-visible) {
   background: #3a5d2c;
   color: #fff;
   padding: 13px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .login-panel small {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.9;
   color: #a8b597;
   margin-top: 22px;
@@ -2865,7 +2592,7 @@ button:focus:not(:focus-visible) {
     gap: 7px;
   }
   .feed-summary {
-    font-size: 13px;
+    font-size: 14px;
   }
   .rail-bottom {
     padding-left: 10px;
@@ -2970,7 +2697,7 @@ button:focus:not(:focus-visible) {
     height: 33px;
   }
   .skill-grid small {
-    font-size: 9px;
+    font-size: 14px;
   }
   .skill-grid > button > svg {
     display: none;
@@ -3003,7 +2730,7 @@ button:focus:not(:focus-visible) {
     justify-content: center;
   }
   .main-tabs button {
-    font-size: 12px;
+    font-size: 14px;
     padding: 0 9px;
     gap: 6px;
   }
@@ -3033,10 +2760,10 @@ button:focus:not(:focus-visible) {
     gap: 11px;
   }
   .team-context-league {
-    font-size: 10px;
+    font-size: 14px;
   }
   .follow-button {
-    font-size: 10px;
+    font-size: 14px;
     padding: 6px 8px;
   }
   .page-heading {
@@ -3046,11 +2773,11 @@ button:focus:not(:focus-visible) {
     font-size: 26px;
   }
   .page-heading .eyebrow {
-    font-size: 8px;
+    font-size: 14px;
     letter-spacing: 1.8px;
   }
   .page-heading p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .feed-toolbar {
     margin-bottom: 15px;
@@ -3060,7 +2787,7 @@ button:focus:not(:focus-visible) {
     gap: 4px;
   }
   .filter-tabs button {
-    font-size: 11px;
+    font-size: 14px;
     padding: 7px 11px;
   }
   .feed-card {
@@ -3070,7 +2797,7 @@ button:focus:not(:focus-visible) {
     font-size: 21px;
   }
   .feed-summary .markdown {
-    font-size: 14px;
+    font-size: 16px;
   }
   .modal-backdrop {
     padding: 17px;
@@ -3090,48 +2817,6 @@ button:focus:not(:focus-visible) {
   }
   .team-picker {
     padding: 21px;
-  }
-  .provider-layout {
-    grid-template-columns: 1fr;
-  }
-  .provider-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    border-right: 0;
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--line);
-  }
-  .provider-list > .small-heading {
-    display: none;
-  }
-  .provider-list > button {
-    width: auto;
-    padding: 7px 10px;
-    margin: 0;
-  }
-  .provider-list > button .provider-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 7px;
-    font-size: 10px;
-  }
-  .provider-list > button small {
-    display: none;
-  }
-  .provider-list .add-provider {
-    font-size: 10px;
-    padding: 8px;
-  }
-  .provider-editor {
-    padding: 23px;
-  }
-  .settings-intro {
-    padding: 0 22px;
-    font-size: 11px;
-  }
-  .provider-list strong {
-    font-size: 11px;
   }
   .story-reader {
     padding: 24px 24px 30px;
@@ -3157,23 +2842,23 @@ button:focus:not(:focus-visible) {
     font-size: 27px;
   }
   .club-english {
-    font-size: 10px;
+    font-size: 14px;
     margin-bottom: 12px;
   }
   .club-facts {
     gap: 10px;
-    font-size: 9px;
+    font-size: 14px;
   }
   .club-hero .eyebrow {
-    font-size: 7px;
+    font-size: 14px;
     letter-spacing: 2px;
   }
   .club-hero-footer {
     padding: 13px 25px;
-    font-size: 10px;
+    font-size: 14px;
   }
   .club-hero-footer > a {
-    font-size: 9px;
+    font-size: 14px;
   }
   .center-toolbar {
     margin-top: 22px;
@@ -3215,7 +2900,7 @@ button:focus:not(:focus-visible) {
     padding: 17px 15px;
   }
   .skill-grid small {
-    font-size: 9px;
+    font-size: 14px;
   }
   .chat-model-picker > .text-button > span {
     max-width: 260px;
@@ -3239,7 +2924,7 @@ button:focus:not(:focus-visible) {
     font-size: 25px;
   }
   .login-intro p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .login-panel {
     padding: 40px 25px;
@@ -3279,7 +2964,7 @@ button:focus:not(:focus-visible) {
     gap: 3px;
   }
   .main-tabs button {
-    font-size: 12px;
+    font-size: 14px;
     padding: 0 10px;
     gap: 0;
   }
@@ -3302,14 +2987,14 @@ button:focus:not(:focus-visible) {
     gap: 9px;
   }
   .current-team strong {
-    font-size: 12px;
+    font-size: 14px;
   }
   .current-team .crest {
     width: 24px;
     height: 24px;
   }
   .team-context-league {
-    font-size: 9px;
+    font-size: 14px;
     padding-left: 9px;
     max-width: 110px;
     overflow: hidden;
@@ -3317,7 +3002,7 @@ button:focus:not(:focus-visible) {
     white-space: nowrap;
   }
   .follow-button {
-    font-size: 9px;
+    font-size: 14px;
     gap: 5px;
   }
   .follow-button svg {
@@ -3335,15 +3020,15 @@ button:focus:not(:focus-visible) {
     gap: 10px;
   }
   .page-heading p {
-    font-size: 10px;
+    font-size: 14px;
   }
   .eyebrow {
-    font-size: 7px !important;
+    font-size: 14px !important;
     letter-spacing: 1.5px !important;
   }
   .refresh-button {
     padding: 7px 9px;
-    font-size: 9px;
+    font-size: 14px;
     gap: 5px;
     margin-bottom: 3px;
   }
@@ -3358,7 +3043,7 @@ button:focus:not(:focus-visible) {
     gap: 1px;
   }
   .filter-tabs button {
-    font-size: 10px;
+    font-size: 14px;
     padding: 7px 11px;
   }
   .feed-order {
@@ -3376,17 +3061,17 @@ button:focus:not(:focus-visible) {
     gap: 9px;
   }
   .feed-card-meta strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .feed-card-meta > div > span {
-    font-size: 8px;
+    font-size: 14px;
   }
   .feed-card-meta .crest {
     width: 27px;
     height: 27px;
   }
   .topic-tag {
-    font-size: 9px;
+    font-size: 14px;
     padding: 3px 6px;
   }
   .feed-card h2 {
@@ -3396,7 +3081,7 @@ button:focus:not(:focus-visible) {
     letter-spacing: -0.4px;
   }
   .feed-summary .markdown {
-    font-size: 13px;
+    font-size: 16px;
     line-height: 1.95;
   }
   .feed-card-actions {
@@ -3404,10 +3089,10 @@ button:focus:not(:focus-visible) {
     margin-top: 15px;
   }
   .feed-card-actions .text-button {
-    font-size: 10px;
+    font-size: 14px;
   }
   .source-links {
-    font-size: 9px;
+    font-size: 14px;
     gap: 6px;
     margin-top: 13px;
   }
@@ -3422,10 +3107,10 @@ button:focus:not(:focus-visible) {
     aspect-ratio: 1.5;
   }
   .photo figcaption {
-    font-size: 8px;
+    font-size: 14px;
   }
   .feed-progress {
-    font-size: 10px;
+    font-size: 14px;
     padding: 10px 12px;
   }
   .modal-backdrop {
@@ -3453,7 +3138,7 @@ button:focus:not(:focus-visible) {
     padding: 11px 12px;
   }
   .search-input input {
-    font-size: 11px;
+    font-size: 14px;
   }
   .team-picker > .filter-tabs {
     gap: 2px;
@@ -3461,11 +3146,11 @@ button:focus:not(:focus-visible) {
   }
   .team-picker > .filter-tabs button {
     padding: 7px 9px;
-    font-size: 9px;
+    font-size: 14px;
   }
   .picker-count {
     margin: 18px 0 11px;
-    font-size: 10px;
+    font-size: 14px;
   }
   .picker-grid {
     gap: 7px;
@@ -3479,10 +3164,10 @@ button:focus:not(:focus-visible) {
     width: 27px;
   }
   .picker-grid strong {
-    font-size: 10px;
+    font-size: 14px;
   }
   .picker-grid small {
-    font-size: 8px;
+    font-size: 14px;
   }
   .picker-grid > button > svg {
     width: 12px;
@@ -3492,7 +3177,7 @@ button:focus:not(:focus-visible) {
     padding: 20px 19px 28px;
   }
   .story-meta {
-    font-size: 9px;
+    font-size: 14px;
     gap: 12px;
     margin-bottom: 19px;
   }
@@ -3505,81 +3190,10 @@ button:focus:not(:focus-visible) {
     font-size: 17px;
   }
   .story-reader .markdown {
-    font-size: 13px;
+    font-size: 16px;
   }
   .story-analysis {
     padding: 18px;
-  }
-  .model-settings .settings-intro {
-    padding: 0 19px;
-    margin: 18px 0;
-    font-size: 11px;
-  }
-  .provider-list {
-    padding: 10px 14px;
-    gap: 3px;
-  }
-  .provider-list > button {
-    gap: 6px;
-    padding: 7px;
-  }
-  .provider-list strong {
-    font-size: 10px;
-  }
-  .provider-editor {
-    padding: 20px 19px;
-  }
-  .provider-title h3 {
-    font-size: 17px;
-  }
-  .provider-title p {
-    font-size: 10px;
-  }
-  .provider-presets {
-    gap: 6px;
-  }
-  .provider-presets button {
-    font-size: 10px;
-    padding: 6px 9px;
-  }
-  .field-pair {
-    gap: 12px;
-  }
-  .provider-fields > label:not(.search-input) > input,
-  .provider-fields .field-pair > label > input,
-  .provider-fields > label > select {
-    font-size: 11px;
-    padding: 10px;
-  }
-  .provider-fields > label,
-  .provider-fields .field-pair > label {
-    font-size: 10px;
-  }
-  .provider-fields label > small {
-    font-size: 8px;
-  }
-  .password-field input {
-    font-size: 11px;
-  }
-  .model-options > label {
-    font-size: 11px;
-  }
-  .models-heading p {
-    font-size: 9px;
-  }
-  .models-heading .button {
-    font-size: 9px;
-    padding: 8px;
-  }
-  .models-heading h4 {
-    font-size: 12px;
-  }
-  .manual-model > input {
-    font-size: 10px;
-    padding: 9px 10px;
-  }
-  .use-model > div > .text-button {
-    font-size: 9px;
   }
   .club-hero-content {
     align-items: flex-start;
@@ -3603,13 +3217,13 @@ button:focus:not(:focus-visible) {
     margin: 3px 0;
   }
   .club-english {
-    font-size: 9px;
+    font-size: 14px;
     letter-spacing: 0.4px;
     margin-bottom: 11px;
   }
   .club-facts {
     gap: 8px;
-    font-size: 8px;
+    font-size: 14px;
     line-height: 1.6;
   }
   .club-facts > span {
@@ -3621,11 +3235,11 @@ button:focus:not(:focus-visible) {
   }
   .club-hero-footer {
     padding: 13px 21px;
-    font-size: 9px;
+    font-size: 14px;
     gap: 10px;
   }
   .club-hero-footer > a {
-    font-size: 8px;
+    font-size: 14px;
     flex-shrink: 0;
   }
   .club-hero-art {
@@ -3640,7 +3254,7 @@ button:focus:not(:focus-visible) {
     padding-bottom: 11px;
   }
   .center-toolbar > .filter-tabs button {
-    font-size: 11px;
+    font-size: 14px;
     padding: 7px 11px;
   }
   .panel {
@@ -3650,17 +3264,17 @@ button:focus:not(:focus-visible) {
     font-size: 16px;
   }
   .section-heading > span {
-    font-size: 9px;
+    font-size: 14px;
   }
   .club-about > p {
-    font-size: 12px;
+    font-size: 16px;
     line-height: 2;
   }
   .club-details {
     gap: 18px;
   }
   .club-about > .text-button {
-    font-size: 10px;
+    font-size: 14px;
   }
   .club-overview-grid,
   .charts-grid {
@@ -3671,7 +3285,7 @@ button:focus:not(:focus-visible) {
     font-size: 32px;
   }
   .season-numbers span {
-    font-size: 10px;
+    font-size: 14px;
   }
   .team-assistant-banner {
     padding: 18px 16px;
@@ -3683,11 +3297,11 @@ button:focus:not(:focus-visible) {
     border-radius: 10px;
   }
   .team-assistant-banner strong {
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1.8;
   }
   .team-assistant-banner p {
-    font-size: 9px;
+    font-size: 14px;
   }
   .team-assistant-banner > svg {
     width: 16px;
@@ -3704,10 +3318,10 @@ button:focus:not(:focus-visible) {
     padding: 13px;
   }
   .player-card-info h3 {
-    font-size: 12px;
+    font-size: 14px;
   }
   .player-card-info p {
-    font-size: 9px;
+    font-size: 14px;
   }
   .match-row {
     gap: 9px;
@@ -3718,13 +3332,13 @@ button:focus:not(:focus-visible) {
     width: 63px;
   }
   .match-date strong {
-    font-size: 10px;
+    font-size: 14px;
   }
   .match-date span {
-    font-size: 8px;
+    font-size: 14px;
   }
   .venue-tag {
-    font-size: 8px;
+    font-size: 14px;
     padding: 3px 4px;
   }
   .match-opponent {
@@ -3735,15 +3349,15 @@ button:focus:not(:focus-visible) {
     height: 22px;
   }
   .match-opponent strong {
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1.6;
   }
   .match-score {
     min-width: 38px;
-    font-size: 13px;
+    font-size: 14px;
   }
   .match-row > .text-button {
-    font-size: 9px;
+    font-size: 14px;
     margin-left: auto;
     gap: 3px;
   }
@@ -3761,20 +3375,20 @@ button:focus:not(:focus-visible) {
     height: 205px;
   }
   .team-sources > span {
-    font-size: 8px;
+    font-size: 14px;
   }
   .goal-chart {
     gap: 10px;
     padding: 0;
   }
   .goal-chart-label {
-    font-size: 8px;
+    font-size: 14px;
   }
   .goal-chart-column {
     min-width: 23px;
   }
   .chart-legend {
-    font-size: 9px;
+    font-size: 14px;
   }
   .assistant-page {
     min-height: calc(100dvh - 180px);
@@ -3786,7 +3400,7 @@ button:focus:not(:focus-visible) {
     gap: 5px;
   }
   .chat-top-actions .button {
-    font-size: 10px;
+    font-size: 14px;
     padding: 8px 10px;
   }
   .chat-top-actions > .icon-button {
@@ -3814,7 +3428,7 @@ button:focus:not(:focus-visible) {
     margin-bottom: 10px;
   }
   .assistant-welcome > p {
-    font-size: 11px;
+    font-size: 14px;
     line-height: 2;
     margin-bottom: 24px;
   }
@@ -3837,22 +3451,22 @@ button:focus:not(:focus-visible) {
     height: 17px;
   }
   .skill-grid strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .skill-grid small {
-    font-size: 9px;
+    font-size: 14px;
     line-height: 1.7;
     margin-top: 5px;
   }
   .model-connect {
     padding: 13px;
-    font-size: 10px;
+    font-size: 14px;
     align-items: flex-start;
     flex-direction: column;
     gap: 9px;
   }
   .model-connect button {
-    font-size: 10px;
+    font-size: 14px;
     padding-left: 25px;
   }
   .composer {
@@ -3860,12 +3474,12 @@ button:focus:not(:focus-visible) {
     border-radius: 12px;
   }
   .composer textarea {
-    font-size: 12px;
+    font-size: 16px;
     line-height: 1.85;
     min-height: 49px;
   }
   .chat-model-picker > .text-button {
-    font-size: 9px;
+    font-size: 14px;
   }
   .chat-model-picker > .text-button > span {
     max-width: 215px;
@@ -3879,51 +3493,51 @@ button:focus:not(:focus-visible) {
     width: 32px;
   }
   .composer-note {
-    font-size: 8px;
+    font-size: 14px;
     line-height: 1.8;
     margin-top: 8px;
   }
   .user-bubble {
-    font-size: 12px;
+    font-size: 14px;
     max-width: 92%;
     padding: 13px 15px;
   }
   .answer-byline small {
-    font-size: 8px;
+    font-size: 14px;
     max-width: 150px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .assistant-answer .markdown {
-    font-size: 13px;
+    font-size: 16px;
   }
   .thinking-status {
     gap: 12px;
-    font-size: 11px;
+    font-size: 14px;
   }
   .thinking-status small {
-    font-size: 9px;
+    font-size: 14px;
   }
   .answer-footer > .text-button {
-    font-size: 9px;
+    font-size: 14px;
   }
   .chat-history {
     padding: 8px 18px 22px;
   }
   .chat-history strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .chat-history small {
-    font-size: 8px;
+    font-size: 14px;
   }
   .notice {
-    font-size: 11px;
+    font-size: 14px;
     padding: 11px 12px;
     gap: 7px;
   }
   .notice button {
-    font-size: 10px;
+    font-size: 14px;
   }
   .notice svg {
     width: 15px;
@@ -3936,10 +3550,10 @@ button:focus:not(:focus-visible) {
     font-size: 16px;
   }
   .empty-state p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .toast {
-    font-size: 11px;
+    font-size: 14px;
     padding: 9px 10px 9px 14px;
     bottom: 18px;
     gap: 7px;
@@ -3968,7 +3582,7 @@ button:focus:not(:focus-visible) {
 .feed-heading-actions > .button { min-height: 44px; }
 .feed-manual-help {
   color: var(--text-secondary, #788568);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   margin: -6px 0 22px;
   max-width: 780px;
@@ -3977,10 +3591,10 @@ button:focus:not(:focus-visible) {
   .feed-main > .page-heading { flex-wrap: wrap; gap: 18px; }
   .feed-heading-actions { width: 100%; }
   .feed-heading-actions > .button { flex: 1; justify-content: center; }
-  .feed-manual-help { font-size: 11px; margin-top: 0; }
+  .feed-manual-help { font-size: 14px; margin-top: 0; }
 }
 .feed-summary .markdown {
-  font-size: 15px;
+  font-size: 16px;
   color: #53604e;
 }
 .source-links > span,
@@ -4007,7 +3621,7 @@ button:focus:not(:focus-visible) {
   color: #53634a;
 }
 .club-about > p {
-  font-size: 14px;
+  font-size: 16px;
 }
 .club-details strong,
 .club-details span,
@@ -4044,25 +3658,10 @@ button:focus:not(:focus-visible) {
   font-size: 14px;
 }
 .skill-grid strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 .skill-grid small {
-  font-size: 11px;
-}
-.provider-title p,
-.settings-intro,
-.models-heading p,
-.provider-fields label > small,
-.provider-fields > label,
-.provider-fields .field-pair > label,
-.model-options small,
-.use-model > div > .text-button,
-.provider-list small {
-  color: #738364;
-}
-.provider-fields > label,
-.provider-fields .field-pair > label {
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-welcome > p {
   font-size: 14px;
@@ -4080,7 +3679,7 @@ button:focus:not(:focus-visible) {
   color: #728363;
 }
 .chart-basis-note {
-  font-size: 11px;
+  font-size: 14px;
   color: #839375;
   margin: 15px 3px 0;
   line-height: 1.8;
@@ -4095,7 +3694,7 @@ button:focus:not(:focus-visible) {
   color: #6f8a55;
 }
 .composer textarea {
-  font-size: 14px;
+  font-size: 16px;
 }
 .composer textarea::placeholder {
   color: #8a987c;
@@ -4107,13 +3706,10 @@ button:focus:not(:focus-visible) {
   color: #7c8b6c;
 }
 .assistant-answer .markdown {
-  font-size: 15px;
+  font-size: 16px;
 }
 .goal-chart-label {
   max-width: 75px;
-}
-.provider-title p {
-  line-height: 1.8;
 }
 .center-controls {
   display: flex;
@@ -4121,14 +3717,14 @@ button:focus:not(:focus-visible) {
   gap: 9px;
 }
 .center-controls > .text-button {
-  font-size: 10px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .center-controls > .icon-button {
   color: #81966b;
 }
 .sample-note {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.8;
   color: #849575;
   margin: 0 0 12px;
@@ -4136,62 +3732,58 @@ button:focus:not(:focus-visible) {
 }
 .feed-progress > .text-button {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 14px;
   white-space: nowrap;
 }
 @media (max-width: 480px) {
   .feed-summary .markdown {
-    font-size: 14px;
+    font-size: 16px;
   }
   .assistant-answer .markdown {
-    font-size: 14px;
+    font-size: 16px;
   }
   .skill-grid strong {
-    font-size: 12px;
+    font-size: 14px;
   }
   .skill-grid small {
-    font-size: 10px;
+    font-size: 14px;
     line-height: 1.8;
   }
   .assistant-welcome > p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .club-about > p {
-    font-size: 13px;
+    font-size: 16px;
   }
   .player-card-info h3 {
-    font-size: 13px;
-  }
-  .provider-fields > label,
-  .provider-fields .field-pair > label {
-    font-size: 11px;
+    font-size: 14px;
   }
   .composer textarea {
-    font-size: 13px;
+    font-size: 16px;
   }
   .source-links {
-    font-size: 10px;
+    font-size: 14px;
   }
   .page-heading p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .feed-card-actions .text-button {
-    font-size: 11px;
+    font-size: 14px;
   }
   .story-reader .markdown {
-    font-size: 14px;
+    font-size: 16px;
   }
   .story-lead {
     font-size: 15px;
   }
   .club-details strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .match-opponent strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .team-assistant-banner p {
-    font-size: 10px;
+    font-size: 14px;
   }
   .skill-grid > button {
     padding: 17px 13px;
@@ -4264,7 +3856,7 @@ button:focus:not(:focus-visible) {
 }
 .picker-intro,
 .history-intro {
-  font-size: 12px;
+  font-size: 14px;
   color: #647361;
   line-height: 1.9;
   margin: 0 0 18px;
@@ -4312,7 +3904,7 @@ button:focus:not(:focus-visible) {
 }
 .picker-grid strong {
   color: #314b3a;
-  font-size: 13px;
+  font-size: 14px;
 }
 .picker-grid small {
   color: #75816f;
@@ -4322,7 +3914,7 @@ button:focus:not(:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   border-radius: 6px;
   padding: 7px 10px;
@@ -4352,13 +3944,13 @@ button:focus:not(:focus-visible) {
   min-width: 0;
 }
 .feed-processing-copy strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   display: block;
 }
 .feed-processing-copy small {
   display: block;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   color: #6e7b66;
   margin-top: 4px;
@@ -4375,144 +3967,13 @@ button:focus:not(:focus-visible) {
   object-fit: cover;
   aspect-ratio: 1.9;
 }
-.provider-fields > .search-input {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 12px;
-}
-.provider-fields > .search-input input {
-  flex: 1;
-  width: 100%;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.provider-fields .model-options > label {
-  display: flex;
-  min-height: 48px;
-  margin: 0;
-}
-.provider-fields .model-options > label > span {
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.65;
-  color: #334839;
-}
-.provider-fields .model-options > label > .active-model-tag {
-  flex: 0 0 auto;
-  margin: 0;
-  color: #4e743b;
-}
-.settings-tabs {
-  padding: 0 28px 18px;
-  gap: 8px;
-}
-.model-role-settings {
-  border-top: 1px solid var(--line);
-  padding: 25px 28px 28px;
-}
-.role-intro h3 {
-  margin: 0 0 7px;
-  font-size: 19px;
-}
-.role-intro > p {
-  font-size: 12px;
-  color: #697961;
-  line-height: 1.9;
-}
-.model-role-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 22px;
-}
-.model-role-card {
-  background: linear-gradient(150deg, #fafcf7, #f0f5e9);
-  border: 1px solid #e0e8d7;
-  border-radius: 13px;
-  padding: 21px 17px;
-  min-width: 0;
-}
-.role-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 39px;
-  height: 39px;
-  border-radius: 11px;
-  background: #e0ebd4;
-  color: #567a42;
-  margin-bottom: 18px;
-}
-.model-role-card h4 {
-  margin: 0 0 7px;
-  font-size: 16px;
-}
-.model-role-card > p {
-  font-size: 11px;
-  color: #68775e;
-  margin-bottom: 22px;
-}
-.model-role-card > label {
-  display: block;
-  font-size: 10px;
-  color: #728167;
-  margin-bottom: 7px;
-}
-.model-role-card select {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-height: 40px;
-  font-size: 11px;
-  background: #fff;
-  border: 1px solid #d3dfc9;
-  border-radius: 7px;
-  padding: 9px 7px;
-  text-overflow: ellipsis;
-}
-.role-context {
-  display: block;
-  font-size: 10px;
-  line-height: 1.9;
-  margin-top: 13px;
-  color: #708166;
-}
-.context-boundary {
-  display: flex;
-  gap: 12px;
-  padding: 21px 0;
-  margin-top: 9px;
-}
-.context-boundary > svg {
-  color: #789461;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.context-boundary strong {
-  font-size: 12px;
-  color: #446136;
-}
-.context-boundary p {
-  font-size: 11px;
-  color: #6b7c62;
-  line-height: 1.9;
-  margin: 7px 0 0;
-}
-.default-model-note {
-  font-size: 11px;
-  color: #728167;
-}
 .conversation-context {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: 14px;
   color: #758669;
   padding: 0 0 17px;
   margin-top: -8px;
@@ -4541,12 +4002,12 @@ button:focus:not(:focus-visible) {
   min-width: 0;
 }
 .resume-conversation small {
-  font-size: 10px;
+  font-size: 14px;
   display: block;
   margin-bottom: 5px;
 }
 .resume-conversation strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #49623b;
   display: block;
@@ -4556,10 +4017,10 @@ button:focus:not(:focus-visible) {
 }
 .resume-conversation > .text-button {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 14px;
 }
 .answer-process {
-  font-size: 11px;
+  font-size: 14px;
   margin: 18px 0;
   border: 1px solid #e4eadc;
   border-radius: 8px;
@@ -4580,7 +4041,7 @@ button:focus:not(:focus-visible) {
 }
 .answer-process summary > span {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 14px;
 }
 .answer-process[open] summary > svg:last-child {
   transform: rotate(180deg);
@@ -4604,7 +4065,7 @@ button:focus:not(:focus-visible) {
   flex: 1;
 }
 .answer-process li > small {
-  font-size: 10px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 .process-dot {
@@ -4631,7 +4092,7 @@ button:focus:not(:focus-visible) {
 .history-table-heading {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 14px;
   color: #7e8c74;
   padding: 0 24px 10px 31px;
   border-bottom: 1px solid #e6ecdf;
@@ -4645,11 +4106,11 @@ button:focus:not(:focus-visible) {
   background: #f2f6eb;
 }
 .chat-history strong {
-  font-size: 13px;
+  font-size: 14px;
   color: #435f36;
 }
 .chat-history small {
-  font-size: 10px;
+  font-size: 14px;
   color: #7d8c72;
 }
 .chat-history > button > .history-meta {
@@ -4657,7 +4118,7 @@ button:focus:not(:focus-visible) {
   text-align: right;
 }
 .conversation-status {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 400;
   background: #edf2e7;
   color: #6e815e;
@@ -4679,7 +4140,7 @@ button:focus:not(:focus-visible) {
   justify-content: center;
   padding: 20px 0;
   gap: 7px;
-  font-size: 11px;
+  font-size: 14px;
   color: #7b8b6e;
 }
 .chat-history > .history-more {
@@ -4705,47 +4166,14 @@ button:focus:not(:focus-visible) {
   border: 1px solid #e3e9db;
   border-radius: 6px;
   color: #6a7f58;
-  font-size: 10px;
+  font-size: 14px;
 }
 .material-status > small {
   margin-left: auto;
   color: #829074;
-  font-size: 10px;
+  font-size: 14px;
 }
 @media (max-width: 760px) {
-  .model-role-grid {
-    grid-template-columns: 1fr;
-    gap: 11px;
-  }
-  .model-role-card {
-    display: grid;
-    grid-template-columns: 39px minmax(0, 1fr);
-    gap: 0 13px;
-    padding: 18px;
-  }
-  .role-icon {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    margin: 0;
-  }
-  .model-role-card h4,
-  .model-role-card > p {
-    grid-column: 2;
-  }
-  .model-role-card > p {
-    margin-bottom: 15px;
-  }
-  .model-role-card > label,
-  .model-role-card > select,
-  .role-context {
-    grid-column: 1 / -1;
-  }
-  .model-role-card select {
-    font-size: 12px;
-  }
-  .role-context {
-    font-size: 11px;
-  }
   .history-toggle > span {
     display: inline;
   }
@@ -4774,10 +4202,10 @@ button:focus:not(:focus-visible) {
     height: 34px;
   }
   .picker-grid strong {
-    font-size: 12px;
+    font-size: 14px;
   }
   .picker-grid small {
-    font-size: 10px;
+    font-size: 14px;
   }
   .picker-follow {
     flex-shrink: 0;
@@ -4786,34 +4214,19 @@ button:focus:not(:focus-visible) {
   }
   .picker-intro,
   .history-intro {
-    font-size: 11px;
-  }
-  .settings-tabs {
-    padding: 0 19px 16px;
-  }
-  .model-role-settings {
-    padding: 19px;
-  }
-  .role-intro h3 {
-    font-size: 17px;
-  }
-  .role-intro > p {
-    font-size: 11px;
-  }
-  .context-boundary p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .conversation-context {
-    font-size: 10px;
+    font-size: 14px;
     gap: 8px;
     margin-top: 0;
     margin-bottom: 18px;
   }
   .conversation-context > span:last-child {
-    font-size: 9px;
+    font-size: 14px;
   }
   .chat-top-actions .button {
-    font-size: 10px;
+    font-size: 14px;
     padding: 8px;
     min-height: 36px;
   }
@@ -4834,13 +4247,13 @@ button:focus:not(:focus-visible) {
     display: none;
   }
   .resume-conversation > .text-button {
-    font-size: 10px;
+    font-size: 14px;
   }
   .feed-processing-copy strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .feed-processing-copy small {
-    font-size: 10px;
+    font-size: 14px;
   }
   .feed-progress > .text-button {
     padding-top: 2px;
@@ -4856,10 +4269,10 @@ button:focus:not(:focus-visible) {
     display: none;
   }
   .chat-history strong {
-    font-size: 11px;
+    font-size: 14px;
   }
   .chat-history small {
-    font-size: 9px;
+    font-size: 14px;
   }
   .history-table-heading {
     padding: 0 0 10px 27px;
@@ -4868,7 +4281,7 @@ button:focus:not(:focus-visible) {
     gap: 6px;
   }
   .material-status > span {
-    font-size: 9px;
+    font-size: 14px;
     padding: 6px 8px;
   }
   .material-status > small {

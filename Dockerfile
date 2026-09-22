@@ -11,8 +11,8 @@ RUN npm run build
 FROM python:3.12-slim-bookworm AS app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TOUCHLINE_SERVER_MODE=true TOUCHLINE_DATA_DIR=/var/lib/touchline PORT=8765
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home --uid 10001 touchline && mkdir -p /var/lib/touchline && chown touchline:touchline /var/lib/touchline
+COPY requirements.txt requirements.lock.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -c requirements.lock.txt && useradd --create-home --uid 10001 touchline && mkdir -p /var/lib/touchline && chown touchline:touchline /var/lib/touchline
 COPY server ./server
 COPY agent_skills ./agent_skills
 COPY public ./public

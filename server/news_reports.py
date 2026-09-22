@@ -23,7 +23,15 @@ from .research import article_url
 from .team_profiles import _evidence_hash
 
 MAX_ATTEMPTS = 3
-_WORKER_LOCK = threading.Lock()
+REPORT_CONCURRENCY = 2
+
+
+def _worker_lock(store):
+    lock = getattr(store, "_report_worker_lock", None)
+    if lock is None:
+        lock = threading.Lock()
+        store._report_worker_lock = lock
+    return lock
 # Remove only parenthesized machine-key scalar annotations. The surrounding
 # Chinese qualification and all source/factual wording remain unchanged.
 _READER_METADATA = re.compile(
@@ -72,9 +80,11 @@ def _configured(settings):
 
 
 def _report_settings(store):
-    from .model_config import role_settings
+    from .model_config import role_settings, verification_config
     try:
-        return role_settings(store, "feed")
+        settings = role_settings(store, "feed")
+        settings["verification_llm"] = verification_config(store, settings.get("llm", {}))
+        return settings
     except AgentFailure:
         return {**store.settings(), "llm": {}}
 
@@ -83,7 +93,12 @@ def _configuration_revision(settings):
     # Credential changes should resume exhausted jobs too. Only a one-way hash
     # is persisted, never a copy of the configured key or its public prefix.
     llm = settings.get("llm", {})
-    return _hash({key: llm.get(key) for key in ("base_url", "protocol", "model", "api_key")})
+    fields = ("base_url", "protocol", "model", "api_key")
+    draft = {key: llm.get(key) for key in fields}
+    checker = {key: settings.get("verification_llm", llm).get(key) for key in fields}
+    # Preserve the old identity when verification follows the task model.
+    # Selecting/fixing a separate checker can resume failed automatic jobs.
+    return _hash(draft if checker == draft else {"draft": draft, "verify": checker})
 
 
 def _boundary(settings):
@@ -167,8 +182,15 @@ def register_legacy_source_proof(store, report_id, legacy_source):
     if not legacy_body or hashlib.sha256(legacy_body.encode()).hexdigest() != current_body_hash:
         raise ValueError("当前来源正文版本与旧快照不一致。")
     proofs = store.get_meta("legacy_source_provenance_v1", {})
-    proofs[eid] = {"legacy_record_hash": _hash(legacy_source), "stable_record_hash": source_version_hash(current)}
-    store.set_meta("legacy_source_provenance_v1", proofs)
+    proof = {"legacy_record_hash": _hash(legacy_source), "stable_record_hash": source_version_hash(current)}
+    if proofs.get(eid) != proof:
+        # A newly supplied proof can change the next migration's outcome even
+        # after a prior audit rejected this report. Preserve that earlier state.
+        backup = getattr(store, "backup", None)
+        if callable(backup):
+            backup("before-provenance")
+        proofs[eid] = proof
+        store.set_meta("legacy_source_provenance_v1", proofs)
     return {"registered": True, "evidence_id": eid, "report_id": report_id}
 
 
@@ -268,7 +290,7 @@ def report_budget(store):
                 counts[kind] += 1
     used = counts["auto"]
     return {"daily_limit": None, "used_today": used,
-            "remaining_today": None, "resets_at": None, "concurrency": 1,
+            "remaining_today": None, "resets_at": None, "concurrency": REPORT_CONCURRENCY,
             "manual_used_today": counts["manual"], "manual_batch_limit": None}
 
 
@@ -598,15 +620,26 @@ def recover_reports(store):
 
 
 async def process_report_queue(store, *, max_jobs=None, runner=None):
-    """Drain due work serially; explicit manual source snapshots take priority."""
-    if not _WORKER_LOCK.acquire(blocking=False):
+    """Bound independent reports, sharing model capacity through the harness."""
+    limit = max(0, int(max_jobs)) if max_jobs is not None else None
+    lock = _worker_lock(store)
+    if not lock.acquire(blocking=False):
         return {"processed": 0, "completed": 0, "failed": 0, "busy": True}
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
-    try:
-        # A caller may page work for diagnostics/tests. The scheduled worker
-        # drains due work; old saved max_per_cycle values are no longer quotas.
-        limit = max(0, int(max_jobs)) if max_jobs is not None else None
-        examined = set()
+    # Claiming is synchronous until executor awaits. All workers share this
+    # set and limit; a report can only enter this batch once.
+    examined, active = set(), {}
+
+    def interrupted(row, manual):
+        message = "手动整理被服务停止中断，请再次手动整理。" if manual else "整理被服务停止中断，下次启动会恢复。"
+        current = store.get("reports", row["id"])
+        run = store.get("runs", row.get("run_id"))
+        if run and run.get("status") in {"queued", "running"}:
+            store.put("runs", {**run, "status": "cancelled", "finished_at": _stamp(), "error": message})
+        if current and current.get("status") == "generating" and current.get("run_id") == row.get("run_id"):
+            _fail(store, current, message)
+
+    async def worker():
         while limit is None or stats["processed"] < limit:
             # Re-read between model calls so a new explicit batch takes priority
             # over automatic jobs that were waiting when this cycle began.
@@ -644,7 +677,6 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
                        manual_once=False, manual_report=manual,
                        config_revision=_configuration_revision(settings),
                        attempt_history=[*row.get("attempt_history", []), {"at": _stamp(), "kind": "manual" if manual else "auto"}])
-            store.put("reports", row)
             run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
                    "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
                    "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
@@ -656,7 +688,10 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
             selection = role_selection(store, "feed")
             if selection:
                 run.update(provider_id=selection["provider_id"], model=selection["model"])
-            store.put("runs", run)
+            with _atomic(store):
+                store.put("reports", row)
+                store.put("runs", run)
+            active[run_id] = (row, manual)
             stats["processed"] += 1
             try:
                 if runner is None:
@@ -674,11 +709,29 @@ async def process_report_queue(store, *, max_jobs=None, runner=None):
                 row = store.get("reports", row["id"]) or row
                 final = _finish(store, row, store.get("runs", run_id) or {}, store.settings())
             except asyncio.CancelledError:
-                _fail(store, row, "手动整理被服务停止中断，请再次手动整理。" if manual else "整理被服务停止中断，下次启动会恢复。")
+                interrupted(row, manual)
                 raise
             except Exception:
-                final = _fail(store, row, "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
+                current_run = store.get("runs", run_id)
+                if current_run and current_run.get("status") in {"queued", "running"}:
+                    store.put("runs", {**current_run, "status": "failed", "finished_at": _stamp(),
+                                       "error": "后台整理未完成，已保留来源和失败状态。"})
+                row = store.get("reports", row["id"]) or row
+                final = row if row.get("status") == "stale" else _fail(store, row, "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
+            finally:
+                active.pop(run_id, None)
             stats["completed" if final.get("status") == "completed" else "failed"] += 1
+
+    workers = []
+    try:
+        workers = [asyncio.create_task(worker()) for _ in range(REPORT_CONCURRENCY)]
+        await asyncio.gather(*workers)
         return {**stats, "budget": report_budget(store)}
     finally:
-        _WORKER_LOCK.release()
+        for task in workers:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+        for row, manual in list(active.values()):
+            interrupted(row, manual)
+        lock.release()

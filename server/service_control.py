@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from .build_info import BUILD_ID, VERSION
+
 ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE_ID = hashlib.sha256(str(ROOT).lower().encode()).hexdigest()[:12]
 STARTED = datetime.now(timezone.utc).isoformat()
@@ -25,7 +27,7 @@ def startup_path():
 
 def service_status():
     path = startup_path()
-    return {"version": "4.0.0", "running": True, "autostart_enabled": bool(path and path.is_file()),
+    return {"version": VERSION, "build_id": BUILD_ID, "running": True, "autostart_enabled": bool(path and path.is_file()),
             "workspace_id": WORKSPACE_ID, "started_at": STARTED, "pid": os.getpid(), "url": "http://127.0.0.1:8765/"}
 
 

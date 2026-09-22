@@ -4,7 +4,17 @@ V4 增加球队资料编辑、助手消息归档和中文卡片投影，详见 [
 
 V3 新增官方比赛同步、自动推荐、原文支持核对与桌面启动控制，契约见 [V3.md](V3.md)。[V2.md](V2.md) 记录双模型协议、联网研究等增量；以下保留首版字段与兼容接口说明。
 
-设计版本 2026-09-09。Python FastAPI + SQLite JSON 文档存储；React + Vite，生产由本地后端提供静态文件。此版本仅供本机单用户使用，不部署为公开多用户服务。默认 `127.0.0.1:8765`。演示原型独立于应用。
+以下保留早期接口契约，V7.1增量见本节。Python FastAPI + SQLite 文档存储；React + Vite，默认本地个人使用 `127.0.0.1:8765`，可选私有服务器模式。
+
+## V7.1 增量
+
+- `GET /api/state?mode=live&team_id=arsenal&view=summary`：壳层与比赛上下文；历史事件、证据、运行、报告等重字段为空数组且不做全量读取。默认view=full保持兼容。
+- `GET /api/feed?...&topic=match|transfer|injury|team`：先筛主题，再应用游标分页；全部主题时省略topic。
+- `GET /api/teams/{id}/center`：增加components（各部分状态、时间、错误）和coverage（收录数、应有场数、完整性及范围依据）。
+- `POST /api/teams/{id}/maintain`：可选 `{parts:["roster","schedule","standings","portraits"]}`，省略时选择缺失或过期部分。
+- `PUT /api/models/roles`：roles增加verify；null表示跟随当前任务模型，独立核验上下文不变。
+- `GET /api/harness`：脱敏并发限制、活动与最近请求记录，不含正文、密钥或推理过程。
+- `GET /api/service`：增加启动时固定的build_id，用于拒绝旧后端与新版页面混用。
 
 ## 数据模型（所有时间 ISO 8601，UTC 存储，北京时间显示）
 

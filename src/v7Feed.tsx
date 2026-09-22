@@ -12,7 +12,7 @@ import {
 import { api, errorText, post } from "./api";
 import { Crest, dateTime, Modal, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
-import { clubName } from "./teamHub";
+import { clubName } from "./clubNames";
 import {
   friendlyTime,
   Markdown,
@@ -110,21 +110,32 @@ export function FeedView({
   loadedItems.current = Math.max(20, feed?.items.length || 0);
   const readSerial = useRef(0);
   const activeTeam = useRef(team.id);
+  const mounted = useRef(true);
+  const loadingRequest = useRef(false);
   activeTeam.current = team.id;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      readSerial.current++;
+    };
+  }, []);
   const load = useCallback(
     async (cursor?: string, preservePages = false) => {
+      if (!mounted.current || (preservePages && loadingRequest.current)) return;
       const request = ++serial.current;
+      loadingRequest.current = true;
       const requestedTeam = team.id;
       setLoading(true);
       try {
         const target = preservePages ? loadedItems.current : 20;
         let result = await api<FeedResponse>(
-          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         );
         while (preservePages && result.next_cursor && result.items.length < target) {
           if (request !== serial.current || activeTeam.current !== requestedTeam) return;
           const page = await api<FeedResponse>(
-            `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target - result.items.length)}&cursor=${encodeURIComponent(result.next_cursor)}`,
+            `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target - result.items.length)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}&cursor=${encodeURIComponent(result.next_cursor)}`,
           );
           result = { ...page, items: [...result.items, ...page.items.filter(item => !result.items.some(old => old.id === item.id))] };
         }
@@ -151,14 +162,16 @@ export function FeedView({
       } catch (err) {
         if (request === serial.current) setError(errorText(err));
       } finally {
-        if (request === serial.current) setLoading(false);
+        if (request === serial.current) {
+          loadingRequest.current = false;
+          setLoading(false);
+        }
       }
     },
-    [team.id],
+    [team.id, topic],
   );
   useEffect(() => {
     setFeed(null);
-    setTopic("");
     setSelected(null);
     setRefreshing(false);
     setOrganizing(false);
@@ -199,7 +212,7 @@ export function FeedView({
       const result = await post<{ started: boolean; status: string; queued: number; note: string }>(
         "/feed/organize", { team_id: requestedTeam },
       );
-      if (activeTeam.current !== requestedTeam) return;
+       if (!mounted.current || activeTeam.current !== requestedTeam) return;
       setManualMessage(result.note);
       await load();
     } catch (err) {
@@ -275,7 +288,7 @@ export function FeedView({
             `/reports/${encodeURIComponent(item.report_id)}`,
           )
         : null;
-      if (activeTeam.current !== requestedTeam) return;
+      if (!mounted.current || activeTeam.current !== requestedTeam) return;
       if (item.report_id && (fresh?.status !== "completed" || !fresh.report))
         throw new Error("这条消息的资料已变化，请刷新动态后重试。");
       ask({
@@ -286,7 +299,7 @@ export function FeedView({
           .slice(0, 5),
       });
     } catch (err) {
-      if (activeTeam.current === requestedTeam) {
+      if (mounted.current && activeTeam.current === requestedTeam) {
         setError(errorText(err));
         setFeed((previous) =>
           previous
@@ -298,12 +311,10 @@ export function FeedView({
         );
       }
     } finally {
-      if (activeTeam.current === requestedTeam) setAsking(null);
+      if (mounted.current && activeTeam.current === requestedTeam) setAsking(null);
     }
   };
-  const items = (feed?.items || [])
-    .filter((item) => !topic || item.topic === topic)
-    .map((item) => ({
+  const items = (feed?.items || []).map((item) => ({
       ...item,
       images: uniqueImages(item.images).slice(0, 1),
     }));
@@ -337,7 +348,6 @@ export function FeedView({
       <section className="feed-main">
         <div className="page-heading">
           <div>
-            <span className="eyebrow">YOUR DAILY TOUCHLINE</span>
             <h1>
               主场动态
               <span className="heading-dot" />

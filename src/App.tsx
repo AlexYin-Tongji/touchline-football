@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -18,12 +18,13 @@ import { api, errorText, put } from "./api";
 import { Crest, Modal, Spinner } from "./components";
 import { clubCatalog } from "./clubCatalog";
 import { FeedView } from "./v7Feed";
-import { TeamCenter } from "./v7TeamCenter";
-import { Assistant, type AssistantPrompt } from "./v7Assistant";
-import { ModelSettings } from "./v7ModelSettings";
+import type { AssistantPrompt } from "./v7Assistant";
 import type { AppState, Team } from "./types";
 
 type Page = "feed" | "team" | "assistant";
+const TeamCenter = lazy(() => import("./v7TeamCenter").then((module) => ({ default: module.TeamCenter })));
+const Assistant = lazy(() => import("./v7Assistant").then((module) => ({ default: module.Assistant })));
+const ModelSettings = lazy(() => import("./v7ModelSettings").then((module) => ({ default: module.ModelSettings })));
 const navigation = [
   { id: "feed" as const, label: "动态", icon: Newspaper },
   { id: "team" as const, label: "球队", icon: Shield },
@@ -53,16 +54,21 @@ export default function App() {
   const [followBusy, setFollowBusy] = useState(false);
   const [prompt, setPrompt] = useState<AssistantPrompt | null>(null);
   const [notice, setNotice] = useState("");
+  const [assistantTeam, setAssistantTeam] = useState(page === "assistant" ? teamId : "");
+  const [modelRevision, setModelRevision] = useState(0);
   const followLock = useRef(false);
   const scope = useRef(teamId);
   const loadSerial = useRef(0);
+  const loadingSummary = useRef(false);
+  const previousPage = useRef(page);
   scope.current = teamId;
   const load = useCallback(async () => {
     const requested = scope.current;
     const serial = ++loadSerial.current;
+    loadingSummary.current = true;
     try {
       const next = await api<AppState>(
-        `/state?mode=live${requested ? `&team_id=${encodeURIComponent(requested)}` : ""}`,
+        `/state?mode=live&view=summary${requested ? `&team_id=${encodeURIComponent(requested)}` : ""}`,
       );
       if (scope.current !== requested || serial !== loadSerial.current) return;
       setData(next);
@@ -78,18 +84,28 @@ export default function App() {
     } catch (err) {
       if (scope.current === requested && serial === loadSerial.current)
         setError(errorText(err));
+    } finally {
+      if (serial === loadSerial.current) loadingSummary.current = false;
     }
   }, []);
   useEffect(() => {
+    if (page === "assistant") setAssistantTeam(teamId);
     try {
       localStorage.setItem("touchline-page", page);
     } catch {
       /* Optional preference. */
     }
-  }, [page]);
+  }, [page, teamId]);
   useEffect(() => {
     void load();
   }, [teamId, load]);
+  useEffect(() => {
+    if (previousPage.current === page) return;
+    previousPage.current = page;
+    // These entry points use shell match context for the next-match card and
+    // assistant shortcuts. Team maintenance can update it while we are away.
+    if (page === "feed" || page === "assistant") void load();
+  }, [page, load]);
   useEffect(() => {
     if (!teamId) return;
     try {
@@ -100,9 +116,21 @@ export default function App() {
     setPrompt(null);
   }, [teamId]);
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    const reconnect = () => {
       if (document.visibilityState === "visible") void load();
-    }, 45000);
+    };
+    document.addEventListener("visibilitychange", reconnect);
+    window.addEventListener("online", reconnect);
+    return () => {
+      document.removeEventListener("visibilitychange", reconnect);
+      window.removeEventListener("online", reconnect);
+    };
+  }, [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && !loadingSummary.current)
+        void load();
+    }, 60000);
     return () => clearInterval(timer);
   }, [load]);
   useEffect(() => {
@@ -297,9 +325,12 @@ export default function App() {
                 />
               )}
               {page === "team" && (
-                <TeamCenter key={team.id} team={team} data={data} ask={ask} />
+                <Suspense fallback={<Spinner text="正在打开球队资料" />}>
+                  <TeamCenter key={team.id} team={team} data={data} ask={ask} />
+                </Suspense>
               )}
-              <div hidden={page !== "assistant"}>
+              {(page === "assistant" || assistantTeam === team.id) && <div hidden={page !== "assistant"}>
+                <Suspense fallback={<Spinner text="正在打开足球助手" />}>
                 <Assistant
                   key={team.id}
                   team={team}
@@ -307,8 +338,11 @@ export default function App() {
                   incoming={prompt}
                   openModel={() => setSettings(true)}
                   onChanged={load}
+                  active={page === "assistant"}
+                  modelRevision={modelRevision}
                 />
-              </div>
+                </Suspense>
+              </div>}
             </>
           ) : (
             <div className="empty-state">
@@ -342,7 +376,12 @@ export default function App() {
       )}
       {settings && (
         <Modal title="模型配置" onClose={() => setSettings(false)} wide>
-          <ModelSettings onChanged={load} />
+          <Suspense fallback={<Spinner text="正在打开模型配置" />}>
+            <ModelSettings onChanged={async () => {
+              setModelRevision((value) => value + 1);
+              await load();
+            }} />
+          </Suspense>
         </Modal>
       )}
       {notice && (

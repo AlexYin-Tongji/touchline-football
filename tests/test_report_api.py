@@ -1,21 +1,7 @@
-import tempfile
-import unittest
-from pathlib import Path
-
-from fastapi.testclient import TestClient
-from server.main import create_app
+from tests.support import IsolatedAppCase
 
 
-class ReportAPITests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.app = create_app(Path(self.tmp.name) / "data.db")
-        self.client = TestClient(self.app)
-        self.client.__enter__()
-
-    def tearDown(self):
-        self.client.__exit__(None, None, None)
-        self.tmp.cleanup()
+class ReportAPITests(IsolatedAppCase):
 
     def test_import_queues_report_without_model_and_settings_can_pause(self):
         article = {"team_id": "arsenal", "title": "训练安排的后续观察", "text": "这是接口验证材料，记录一次训练计划与参加训练的范围。材料没有宣布下一场的正式名单，仍需等待正式发布。"}

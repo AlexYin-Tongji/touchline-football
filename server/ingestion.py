@@ -255,6 +255,48 @@ def _body_blocks(value):
     return ""
 
 
+def _article_location(node):
+    value = node.get("url") or node.get("mainEntityOfPage") or node.get("@id")
+    if isinstance(value, dict):
+        return value.get("@id") or value.get("url")
+    return value
+
+
+def _article_matches(node, url):
+    from .research import article_url
+    value = _article_location(node)
+    try:
+        return isinstance(value, str) and article_url(urljoin(url, value)) == article_url(url)
+    except ValueError:
+        return False
+
+
+def _primary_article_node(soup, url):
+    """Select one page-owned object before using any of its factual fields."""
+    nodes, seen = [], set()
+    for data in embedded_json(soup):
+        for node in _json_articles(data):
+            signature = json.dumps(node, sort_keys=True, ensure_ascii=False)
+            if signature not in seen:
+                seen.add(signature)
+                nodes.append(node)
+    matched = [node for node in nodes if _article_matches(node, url)]
+    if matched:
+        # Multiple representations of this same page may differ in completeness.
+        return max(matched, key=lambda node: len(_body_blocks(node.get("articleBody") or node.get("blocks"))))
+    unbound = [node for node in nodes if not _article_location(node)]
+    if len(unbound) == 1:
+        return unbound[0]
+    titles = [tag.get_text(" ", strip=True) for tag in (soup.title, soup.find("h1")) if tag]
+    meta = soup.find("meta", property="og:title")
+    if meta and meta.get("content"):
+        titles.append(meta["content"])
+    normalize = lambda value: re.sub(r"\s+", " ", str(value)).strip().casefold()
+    matching_titles = [node for node in unbound if normalize(node.get("headline") or node.get("title"))
+                       in {normalize(title) for title in titles}]
+    return matching_titles[0] if len(matching_titles) == 1 else None
+
+
 def safe_image_url(value, source_url):
     """Accept only public HTTPS image metadata; never fetch untrusted images."""
     if not isinstance(value, str) or len(value) > 4096:
@@ -378,19 +420,9 @@ def extract_images(soup, url, source_name):
         primary = articles[0]
     # A collection can carry NewsArticle JSON for related cards. Accept only
     # nodes explicitly bound to this page, or a single root article body.
-    from .research import article_url
-    nodes = []
-    for data in embedded_json(soup):
-        for node in _json_articles(data):
-            declared = node.get("url") or node.get("mainEntityOfPage")
-            if isinstance(declared, dict):
-                declared = declared.get("@id") or declared.get("url")
-            try:
-                matches = isinstance(declared, str) and article_url(urljoin(url, declared)) == article_url(url)
-            except ValueError:
-                matches = False
-            if matches or (not declared and primary is not None and node.get("articleBody")):
-                nodes.append(node)
+    node = _primary_article_node(soup, url)
+    nodes = [node] if node and (_article_matches(node, url) or
+                               (not _article_location(node) and primary is not None and node.get("articleBody"))) else []
     if primary is None and not nodes:
         return []
     def add(value, caption="", credit="", caption_priority=1):
@@ -445,36 +477,14 @@ def extract_html(body, url, source_name):
     if not date:
         tag = soup.find("time", datetime=True)
         date = published_time(tag.get("datetime")) if tag else None
-    if not date:
-        def article_date(value):
-            if isinstance(value, list):
-                return next((result for node in value if (result := article_date(node))), None)
-            if isinstance(value, dict):
-                types = value.get("@type", [])
-                types = [types] if isinstance(types, str) else types
-                if isinstance(types, list) and any(kind in {"Article", "NewsArticle", "BlogPosting", "ReportageNewsArticle", "SportsNewsArticle"} for kind in types):
-                    result = published_time(value.get("datePublished"))
-                    if result:
-                        return result
-                return article_date(value.get("@graph", []))
-            return None
-        for script in soup.find_all("script", type="application/ld+json"):
-            try:
-                date = article_date(json.loads(script.string or script.get_text()))
-            except (ValueError, TypeError, RecursionError):
-                continue
-            if date:
-                break
     structured_text = ""
-    for data in embedded_json(soup):
-        for node in _json_articles(data):
-            body_text = _body_blocks(node.get("articleBody") or node.get("blocks"))
-            if body_text and node.get("byline"):
-                body_text = html_text(node["byline"]) + "\n" + body_text
-            if body_text and len(body_text) > len(structured_text):
-                structured_text = body_text
-            title = node.get("headline") or node.get("title") or title
-            date = date or published_time(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt"))
+    node = _primary_article_node(soup, url)
+    if node:
+        structured_text = _body_blocks(node.get("articleBody") or node.get("blocks"))
+        if structured_text and isinstance(node.get("byline"), str):
+            structured_text = html_text(node["byline"]) + "\n" + structured_text
+        title = node.get("headline") or node.get("title") or title
+        date = published_time(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt")) or date
     # Prefer publisher article bodies, then semantic containers. Generic page
     # fallbacks remain partial: a long menu is not evidence of a complete story.
     container = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article-body-viewer-selector, .article__body, .article-body, .article-content, .story-body, .entry-content')

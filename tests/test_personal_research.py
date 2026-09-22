@@ -187,6 +187,30 @@ class PersonalRetentionTests(unittest.IsolatedAsyncioTestCase):
         proof = self.store.get_meta("legacy_source_provenance_v1")
         self.assertNotIn(BODY, json.dumps(proof))
 
+    def test_new_provenance_is_backed_up_before_write_and_duplicate_is_idempotent(self):
+        import sqlite3
+        row, legacy = self.legacy_completed()
+        with patch.object(self.store, "backup", wraps=self.store.backup) as backup:
+            with self.assertRaises(ValueError):
+                news_reports.register_legacy_source_proof(self.store, row["id"], {**legacy, "text": "changed"})
+            backup.assert_not_called()
+            news_reports.register_legacy_source_proof(self.store, row["id"], legacy)
+            news_reports.register_legacy_source_proof(self.store, row["id"], legacy)
+            backup.assert_called_once_with("before-provenance")
+            current = self.store.get("evidence", legacy["id"])
+            self.store.put("evidence", {**current, "private": True})
+            with self.assertRaises(ValueError):
+                news_reports.register_legacy_source_proof(self.store, row["id"], legacy)
+            self.assertEqual(backup.call_count, 1)
+        saved = next((self.path.parent / "backups").glob("*-before-provenance-*.sqlite3"))
+        self.assertEqual(saved.with_suffix(".key").read_bytes(), self.path.with_suffix(".key").read_bytes())
+        connection = sqlite3.connect(saved)
+        try:
+            previous = connection.execute("SELECT body FROM metadata WHERE key='legacy_source_provenance_v1'").fetchone()
+            self.assertNotIn(legacy["id"], json.loads(previous[0]) if previous else {})
+        finally:
+            connection.close()
+
     def test_legacy_proof_rejects_changed_body_private_source_and_changed_event_membership(self):
         row, legacy = self.legacy_completed()
         with self.assertRaises(ValueError):

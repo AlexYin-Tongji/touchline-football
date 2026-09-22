@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { api, errorText, post, put } from "./api";
 import { Spinner } from "./components";
+import "./modelSettings.css";
 
 interface Model {
   id: string;
@@ -38,7 +39,7 @@ interface ProviderState {
   resolved_roles?: Partial<Record<ModelRole, ModelSelection | null>>;
 }
 type ModelSelection = { provider_id: string; model: string };
-type ModelRole = "feed" | "chat" | "team";
+type ModelRole = "feed" | "chat" | "team" | "verify";
 const roleDescriptions = [
   {
     id: "feed" as const,
@@ -60,6 +61,13 @@ const roleDescriptions = [
     icon: Shield,
     text: "解释球队与球员资料",
     context: "读取可追溯的球队资料；比分与阵容由数据源更新。",
+  },
+  {
+    id: "verify" as const,
+    title: "原文核验",
+    icon: CheckCircle2,
+    text: "核对证据与候选答复",
+    context: "只核对本次已读证据和候选答复，不读取私人对话。",
   },
 ];
 const empty = (): Provider => ({
@@ -116,6 +124,7 @@ export function ModelSettings({
     setVisible(false);
     setModels(provider?.models || []);
     setQuery("");
+    setManual("");
     setError("");
     setMessage("");
     setDeleteConfirm(false);
@@ -223,21 +232,24 @@ export function ModelSettings({
     state?.providers.find((provider) => provider.id === editing)?.models || [];
   return (
     <div className="model-settings">
-      <p className="settings-intro">
-        一个服务商，多种分工。分别选择动态、对话和资料解读使用的模型。
-      </p>
-      <div className="settings-tabs filter-tabs" aria-label="模型设置分类">
+      <div className="settings-intro">
+        <p>为动态整理、足球对话、球队解读和原文核验，选择合适的模型。</p>
+        {state && <span className="settings-inventory">{state.providers.length} 个服务商 · {state.providers.reduce((count, provider) => count + provider.models.length, 0)} 个可用模型</span>}
+      </div>
+      <div className="settings-tabs" aria-label="模型设置分类">
         <button
           className={section === "roles" ? "active" : ""}
+          aria-pressed={section === "roles"}
           onClick={() => setSection("roles")}
         >
-          功能分工
+          <Shield size={18} />功能分工
         </button>
         <button
           className={section === "providers" ? "active" : ""}
+          aria-pressed={section === "providers"}
           onClick={() => setSection("providers")}
         >
-          服务商与模型
+          <Server size={18} />服务商与模型
         </button>
       </div>
       {error && (
@@ -258,10 +270,11 @@ export function ModelSettings({
           {section === "roles" && (
             <section className="model-role-settings">
               <div className="role-intro">
-                <h3>每项功能，各司其职</h3>
+                <h3>安排模型分工</h3>
                 <p>
-                  可以共用默认模型，也可以为不同功能单独选择。修改后用于新任务，已有对话保留原来的模型。
+                  共用一个默认模型，或为每项功能单独选择。修改用于新任务，已有对话保留原模型。
                 </p>
+                <p>不同工作可以并行处理，内容通过来源核验后再发布。</p>
               </div>
               <div className="model-role-grid">
                 {roleDescriptions.map((role) => (
@@ -274,6 +287,7 @@ export function ModelSettings({
                     <label htmlFor={`role-${role.id}`}>使用模型</label>
                     <select
                       id={`role-${role.id}`}
+                      aria-label={`${role.title}使用模型`}
                       disabled={!!busy}
                       value={
                         state?.roles?.[role.id]
@@ -301,10 +315,7 @@ export function ModelSettings({
                       }}
                     >
                       <option value="">
-                        跟随默认
-                        {state?.active
-                          ? ` · ${state.active.model}`
-                          : "（尚未设置）"}
+                        {role.id === "verify" ? "跟随当前任务模型" : `跟随默认${state?.active ? ` · ${state.active.model}` : "（尚未设置）"}`}
                       </option>
                       {state?.providers.map((provider) => (
                         <optgroup key={provider.id} label={provider.name}>
@@ -326,9 +337,9 @@ export function ModelSettings({
               <div className="context-boundary">
                 <Shield size={18} />
                 <div>
-                  <strong>上下文如何衔接</strong>
+                  <strong>你的对话有自己的上下文</strong>
                   <p>
-                    三项功能共享当前球队的公开、可追溯资料。动态中的“问问助手”会带入该条消息的来源；会话历史独立保存，不会自动进入新闻整理。切换球队会切换到该球队的对话记录。
+                    动态中的“问问助手”会带入消息来源。个人对话独立保存，不会进入新闻整理；切换球队后，只查看该队的对话记录。
                   </p>
                 </div>
               </div>
@@ -344,7 +355,7 @@ export function ModelSettings({
           {section === "providers" && (
             <div className="provider-layout">
               <aside className="provider-list">
-                <span className="small-heading">服务商</span>
+                <h3 className="provider-list-heading">我的服务商</h3>
                 {state?.providers.map((provider) => (
                   <button
                     key={provider.id}
@@ -426,7 +437,7 @@ export function ModelSettings({
                   }}
                 >
                   <fieldset disabled={!!busy} className="provider-fields">
-                    <label>
+                    <label className="provider-name">
                       显示名称
                       <input
                         value={draft.name}
@@ -439,7 +450,7 @@ export function ModelSettings({
                       />
                       <small>方便自己辨认即可，支持中文；也可以为同一服务商添加多份配置。</small>
                     </label>
-                    <label>
+                    <label className="provider-address">
                       接口地址（Base URL）
                       <input
                         type="url"
@@ -451,7 +462,7 @@ export function ModelSettings({
                         placeholder="https://api.example.com/v1"
                       />
                     </label>
-                    <label>
+                    <label className="provider-protocol">
                       API 协议
                       <select
                         value={draft.protocol}
@@ -472,7 +483,7 @@ export function ModelSettings({
                         </option>
                       </select>
                     </label>
-                    <label>
+                    <label className="provider-key">
                       API 密钥
                       <div className="password-field">
                         <input

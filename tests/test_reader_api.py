@@ -1,23 +1,8 @@
-import tempfile
-import unittest
-from pathlib import Path
-
-from fastapi.testclient import TestClient
-
-from server.main import create_app
+from tests.support import IsolatedAppCase
 
 
-class ArticleReaderAPITests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.app = create_app(Path(self.tmp.name) / "reader.db")
-        self.client = TestClient(self.app)
-        self.client.__enter__()
-        self.client.put("/api/settings", json={"spoiler_free": True})
-
-    def tearDown(self):
-        self.client.__exit__(None, None, None)
-        self.tmp.cleanup()
+class ArticleReaderAPITests(IsolatedAppCase):
+    spoiler_free = True
 
     def import_article(self, **kwargs):
         response = self.client.post("/api/import", json={"team_id": "arsenal", "title": "训练观察与待确认信息", "text": "训练消息仅确认球员参与了当天的公开训练，没有公布接下来一场比赛的正式名单。\n教练谈到了保持耐心的必要性，更多情况仍需等待俱乐部随后发布的正式消息。", **kwargs})

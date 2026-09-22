@@ -94,7 +94,21 @@ interface CenterData {
   refresh_status?: string | { status?: string };
   errors?: string[];
   sources?: SourceLink[];
+  components?: Partial<Record<"roster" | "schedule" | "standings" | "portraits", {
+    status: string;
+    updated_at: string | null;
+    stale: boolean;
+    available: boolean;
+    errors: string[];
+    available_count?: number;
+    total_count?: number;
+  }>>;
+  coverage?: { matches: number; expected_matches: number | null; has_full_schedule: boolean; results_complete: boolean | null; basis: string };
 }
+const componentNames = { roster: "球员阵容", schedule: "联赛赛程", standings: "积分榜", portraits: "球员照片" };
+const componentStatuses: Record<string, string> = {
+  missing: "等待收录", fresh: "已更新", stale: "待更新", running: "更新中", partial: "部分收录", failed: "更新未完成", unavailable: "来源暂无资料",
+};
 const results: Record<string, string> = { W: "胜", D: "平", L: "负" };
 const numberOrDash = (value?: number) =>
   value === undefined || value === null ? "—" : value;
@@ -122,8 +136,10 @@ export function TeamCenter({
   const active = useRef(team.id);
   active.current = team.id;
   const request = useRef(0);
+  const loadingRequest = useRef(false);
   const load = useCallback(async () => {
     const serial = ++request.current;
+    loadingRequest.current = true;
     setLoading(true);
     try {
       const next = await api<CenterData>(
@@ -136,11 +152,15 @@ export function TeamCenter({
         typeof next.refresh_status === "object"
           ? next.refresh_status.status
           : next.refresh_status;
-      setRefreshing(["running", "queued", "refreshing"].includes(status || ""));
+      setRefreshing(["running", "queued", "refreshing"].includes(status || "") ||
+        Object.values(next.components || {}).some((part) => part?.status === "running"));
     } catch (err) {
       if (serial === request.current) setError(errorText(err));
     } finally {
-      if (serial === request.current) setLoading(false);
+      if (serial === request.current) {
+        loadingRequest.current = false;
+        setLoading(false);
+      }
     }
   }, [team.id, reveal]);
   useEffect(() => {
@@ -158,7 +178,9 @@ export function TeamCenter({
   }, [load]);
   useEffect(() => {
     if (!refreshing) return;
-    const timer = window.setInterval(() => void load(), 5000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && !loadingRequest.current) void load();
+    }, 5000);
     return () => clearInterval(timer);
   }, [refreshing, load]);
   const refresh = async () => {
@@ -206,7 +228,6 @@ export function TeamCenter({
             <Crest team={profile} />
           </div>
           <div>
-            <span className="eyebrow">THE CLUB, UP CLOSE</span>
             <h1>{team.name}</h1>
             <p className="club-english">{profile.english_name}</p>
             <div className="club-facts">
@@ -292,6 +313,28 @@ export function TeamCenter({
           </small>
         </div>
       )}
+      {center?.components && (
+        <details className="team-data-status">
+          <summary>资料更新情况<span>{Object.values(center.components).some((part) => part?.status === "running") ? "正在补充资料" : "查看各项来源状态"}</span></summary>
+          <div className="data-component-grid">
+            {(Object.keys(componentNames) as (keyof typeof componentNames)[]).map((key) => {
+              const part = center.components?.[key];
+              if (!part) return null;
+              return <div key={key}>
+                <strong>{componentNames[key]}</strong>
+                <span className={`data-state data-state-${part.status}`}>{componentStatuses[part.status] || part.status}</span>
+                <small>{key === "portraits" && part.total_count != null ? `${part.available_count || 0} / ${part.total_count} 张有来源照片` : part.updated_at ? `更新于${friendlyTime(part.updated_at)}` : "尚无有效快照"}</small>
+                {!!part.errors?.length && <p>{part.errors.join("；")}</p>}
+              </div>;
+            })}
+          </div>
+        </details>
+      )}
+      {center?.coverage && <p className="team-coverage">
+        本赛季联赛已收录 {center.coverage.matches}{center.coverage.expected_matches != null ? ` / ${center.coverage.expected_matches}` : ""} 场赛程。
+        {center.coverage.expected_matches != null && !center.coverage.has_full_schedule && "其余赛程待补充。"}
+        {center.coverage.basis}
+      </p>}
       {error && (
         <div className="notice error" role="alert">
           {error}

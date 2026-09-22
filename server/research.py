@@ -44,6 +44,7 @@ STOP_WORDS = {"the", "and", "for", "with", "what", "how", "does", "about", "plea
 DISCOVERY_NOTICE = ("检索范围为球队官网、媒体订阅和公开新闻搜索，搜索结果仅接受已允许的足球新闻域名。候选只按索引、标题和摘要筛选，调用 read_article 后才能引用。"
                     "人名未命中不代表综合新闻正文没有该球员的信息；必要时可改用球队加赛事、对手或赛前主题查找官方综合发布会，再阅读核对。"
                     "不得把其他球员的消息当作目标球员的进展。")
+ARTICLE_CONCURRENCY = 3
 
 
 def _check_team(store, team_id):
@@ -175,6 +176,15 @@ async def _fetch(url, source):
     except httpx.HTTPError:
         raise ingestion.IngestionError("无法读取来源，请检查网络或系统代理") from None
     raise ingestion.IngestionError("来源重定向次数过多")
+
+
+async def _fetch_shared(store, url, source, *, force=False):
+    from .research_transport import shared_request
+    hosts = _source_hosts(source)
+    checked = _checked_url(url, hosts)
+    key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)))
+    return await shared_request(store, key, urlsplit(checked).hostname,
+                                lambda: _fetch(checked, source), force=force)
 
 
 def _xml(body):
@@ -352,16 +362,26 @@ def source_status(store, team_id):
     return result
 
 
-async def _source_index(store, team_id, source):
+async def _source_index(store, team_id, source, *, force=False):
+    from .research_transport import FAILURE_COOLDOWN_SECONDS
     key = _index_key(team_id, source)
     cached = store.get_meta(key, {})
     fetched = _stamp(cached.get("fetched_at"))
     age = (datetime.now(timezone.utc) - fetched).total_seconds() if fetched else float("inf")
-    if 0 <= age < INDEX_CACHE_SECONDS and not cached.get("last_error"):
+    if not force and 0 <= age < INDEX_CACHE_SECONDS and not cached.get("last_error"):
         return copy.deepcopy(cached.get("entries", [])), [], {"state": "cached", "checked_at": cached["fetched_at"]}
+    last_attempt = _stamp(cached.get("last_checked"))
+    if (not force and cached.get("last_error") and last_attempt
+            and 0 <= (datetime.now(timezone.utc) - last_attempt).total_seconds() < FAILURE_COOLDOWN_SECONDS):
+        stale = 0 <= age <= STALE_INDEX_SECONDS and bool(cached.get("entries"))
+        errors = [source["name"] + "：" + cached["last_error"]]
+        if stale:
+            errors.append(source["name"] + "：暂用此前保存的文章索引，尚未确认是否有更新。")
+        return (copy.deepcopy(cached["entries"]) if stale else [], errors,
+                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached["last_checked"]})
     checked_at = ingestion.now()
     try:
-        body, url, _ = await _fetch(source.get("index_url") or source["url"], source)
+        body, url, _ = await _fetch_shared(store, source.get("index_url") or source["url"], source, force=force)
         entries = (_sitemap_candidates(body) if source.get("index_url") else
                    _feed_candidates(body, url) if source["kind"] == "rss" else _html_candidates(body, url, source))
         for entry in entries:
@@ -403,12 +423,12 @@ def _publisher_source(url, name=None):
             "allowed_hosts": sorted(siblings), "kind": "html", "builtin": True}
 
 
-async def _web_news_index(store, team_id, query):
+async def _web_news_index(store, team_id, query, *, force=False):
     """No key required. Search indexes are leads, never article evidence."""
     search = _search_query(store, team_id, query)
     provider = {"id": "bing_news", "name": "公开新闻搜索", "url": "https://www.bing.com/news/search?" + urlencode({"q": search, "format": "rss", "setlang": "en-US", "mkt": "en-US", "cc": "us"}),
                 "kind": "rss", "builtin": True}
-    entries, errors, status = await _source_index(store, team_id, provider)
+    entries, errors, status = await _source_index(store, team_id, provider, force=force)
     result, rejected = [], 0
     for raw in entries:
         link = raw.get("url", "")
@@ -429,7 +449,7 @@ async def _web_news_index(store, team_id, query):
                             "query": search, "allowed_count": len(result), "excluded_untrusted_count": rejected}
 
 
-async def _espn_news_index(store, team_id):
+async def _espn_news_index(store, team_id, *, force=False):
     """Structured public publisher index, scoped by checked season membership."""
     from . import league_data
     members = [item for item in store.list("league_memberships") if item.get("team_id") == team_id]
@@ -443,10 +463,13 @@ async def _espn_news_index(store, team_id):
     key, checked = "espn_news:" + team_id, ingestion.now()
     cached = store.get_meta(key, {})
     stamp = _stamp(cached.get("fetched_at"))
-    if stamp and 0 <= (datetime.now(timezone.utc) - stamp).total_seconds() < INDEX_CACHE_SECONDS:
+    if not force and stamp and 0 <= (datetime.now(timezone.utc) - stamp).total_seconds() < INDEX_CACHE_SECONDS:
         return cached.get("entries", []), [], {"id": "espn_news", "name": "ESPN 新闻", "state": "cached", "checked_at": cached["fetched_at"]}
     try:
-        payload = await asyncio.wait_for(league_data.fetch_json(f"{league_data.API}/apis/site/v2/sports/soccer/{code}/news?team={provider_id}&limit=40"), 20)
+        from .research_transport import shared_request
+        url = f"{league_data.API}/apis/site/v2/sports/soccer/{code}/news?team={provider_id}&limit=40"
+        payload = await shared_request(store, ("espn_news", url), urlsplit(url).hostname,
+            lambda: asyncio.wait_for(league_data.fetch_json(url), 20), force=force)
         rows = []
         for article in payload.get("articles", [])[:60]:
             tags = {str(category.get("teamId") or (category.get("team") or {}).get("id")) for category in article.get("categories", []) if isinstance(category, dict)}
@@ -467,7 +490,7 @@ async def _espn_news_index(store, team_id):
         return [], ["ESPN 新闻：索引暂不可用"], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": checked}
 
 
-async def discover_news(store, team_id, query="", limit=6, *, category="all", max_age_days=None, offset=0):
+async def discover_news(store, team_id, query="", limit=6, *, category="all", max_age_days=None, offset=0, force=False):
     _check_team(store, team_id)
     limit = max(1, min(40, int(limit)))
     offset = max(0, min(500, int(offset)))
@@ -481,7 +504,7 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
 
     async def discover(source):
         async with semaphore:
-            entries, failures, status = await _source_index(store, team_id, source)
+            entries, failures, status = await _source_index(store, team_id, source, force=force)
             clean = []
             for raw in entries:
                 entry = copy.deepcopy(raw)
@@ -498,11 +521,25 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
                     clean.append(entry)
             return clean, failures, {"id": source["id"], "name": source["name"], **status, "matched_count": len(clean)}
 
-    batches = await asyncio.gather(*(discover(source) for source in sources))
-    # Always consult a separate index when explicitly researching; background
-    # broad collection uses it when the direct indexes have sparse coverage.
-    if query.strip() or sum(len(entries) for entries, _, _ in batches) < limit + offset:
-        extras = await asyncio.gather(_web_news_index(store, team_id, query), _espn_news_index(store, team_id))
+    # Explicit questions always need the separate indexes. Start them together
+    # with publisher indexes instead of adding a second network wait afterwards.
+    extra_tasks = []
+    def start_extras():
+        extra_tasks.extend([asyncio.create_task(_web_news_index(store, team_id, query, force=force)),
+                            asyncio.create_task(_espn_news_index(store, team_id, force=force))])
+    if query.strip():
+        start_extras()
+    try:
+        batches = await asyncio.gather(*(discover(source) for source in sources))
+        if not extra_tasks and sum(len(entries) for entries, _, _ in batches) < limit + offset:
+            start_extras()
+        extras = await asyncio.gather(*extra_tasks)
+    finally:
+        for task in extra_tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*extra_tasks, return_exceptions=True)
+    if extras:
         for web_entries, errors, web_status in extras:
             web_entries = [{**entry, "team_id": team_id, "mode": "live", "builtin": True,
                             "index_state": web_status["state"], "index_checked_at": web_status["checked_at"],
@@ -596,36 +633,57 @@ def candidate_matches(store, team_id, candidate, match_id):
         return False
 
 
-async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=None):
+def _readable_record(item):
+    return bool(item and not item.get("private") and not item.get("deleted")
+                and item.get("visibility") not in {"hidden", "deleted"})
+
+
+def _read_source(store, item):
+    source = next((row for row in source_catalog(store, item["team_id"]) if row["id"] == item.get("source_id")), None)
+    if not source and str(item.get("source_id") or "").startswith("search_"):
+        source = _publisher_source(item["url"], item.get("source_name"))
+    if not source:
+        raise ingestion.IngestionError("该文章的来源已删除或停用，请重新查找文章。")
+    _checked_url(item["url"], _source_hosts(source))
+    return source
+
+
+def _candidate_context(store, team_id, candidate_id, event_id, match_id):
     _check_team(store, team_id)
     candidate = store.get("candidates", candidate_id)
-    if not candidate or candidate.get("team_id") != team_id or candidate.get("mode") != "live":
+    if not _readable_record(candidate) or candidate.get("team_id") != team_id or candidate.get("mode") != "live":
         raise ingestion.IngestionError("候选文章不存在，或不属于当前球队；请先查找文章。")
+    if candidate.get("evidence_id") and not _readable_record(store.get("evidence", candidate["evidence_id"])):
+        raise ingestion.IngestionError("这篇来源已隐藏、删除或设为私有，不能通过重新采集恢复访问。")
     event = store.get("events", event_id) if event_id else None
     if event_id and (not event or event.get("mode") != "live" or event.get("team_id") != team_id):
         raise ingestion.IngestionError("事件不存在，或不属于本球队的真实资料。")
     match = store.get("matches", match_id) if match_id else None
     if match_id and (not match or match.get("mode") != "live" or match.get("team_id") != team_id):
         raise ingestion.IngestionError("比赛不存在，或不属于本球队的真实资料。")
-    source = next((item for item in source_catalog(store, team_id) if item["id"] == candidate["source_id"]), None)
-    if not source and candidate.get("source_id", "").startswith("search_"):
-        source = _publisher_source(candidate["url"], candidate.get("source_name"))
-    if not source:
-        raise ingestion.IngestionError("该文章的来源已删除或停用，请重新查找文章。")
-    _checked_url(candidate["url"], _source_hosts(source))
+    return candidate, match, _read_source(store, candidate)
+
+
+async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=None, *, force=False):
+    candidate, match, source = _candidate_context(store, team_id, candidate_id, event_id, match_id)
     try:
         cached = store.get("evidence", candidate.get("evidence_id")) if candidate.get("evidence_id") else None
         fetched = _stamp((cached or {}).get("fetched_at"))
         cache_age = (datetime.now(timezone.utc) - fetched).total_seconds() if fetched else float("inf")
-        reusable = bool(cached and cached.get("text") and cached.get("team_id") == team_id and cached.get("mode") == "live"
+        reusable = bool(not force and cached and cached.get("text") and cached.get("team_id") == team_id and cached.get("mode") == "live"
                         and cached.get("source_id") == source["id"] and cached.get("url")
                         and article_url(cached["url"]) == article_url(candidate["url"])
                         and 0 <= cache_age < ARTICLE_CACHE_SECONDS)
         if reusable:
             article = {key: cached.get(key) for key in ("title", "text", "url", "published_at", "images", *ingestion.CONTENT_FIELDS)}
         else:
-            body, url, _ = await _fetch(candidate["url"], source)
+            body, url, _ = await _fetch_shared(store, candidate["url"], source, force=force)
             article = ingestion.extract_html(body, article_url(url), source["name"])[0]
+        current, match, current_source = _candidate_context(store, team_id, candidate_id, event_id, match_id)
+        if current.get("url") != candidate.get("url") or current.get("source_id") != candidate.get("source_id"):
+            raise ingestion.IngestionError("读取期间来源链接已变化，请重新查找文章。")
+        _checked_url(article["url"], _source_hosts(current_source))
+        candidate, source = current, current_source
         if not article.get("published_at"):
             # A feed's publication date is valid provenance; sitemap lastmod is not.
             article["published_at"] = candidate.get("published_at")
@@ -645,55 +703,78 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
         result["cached"] = reusable
         return result
     except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
-        candidate["last_error"] = str(exc) or "来源请求超时"
-        store.put("candidates", candidate)
-        raise ingestion.IngestionError(candidate["last_error"]) from None
+        message = str(exc) or "来源请求超时"
+        current = store.get("candidates", candidate_id)
+        if current and current.get("team_id") == team_id:
+            store.put("candidates", {**current, "last_error": message})
+        raise ingestion.IngestionError(message) from None
 
 
-async def collect_team(store, team_id, query="", limit=4, event_id=None, match_id=None, *, category="all", max_age_days=None, max_attempts=None):
-    limit = max(1, min(6, int(limit)))
-    found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(16, limit + 6), category=category, max_age_days=max_age_days)
+async def collect_team(store, team_id, query="", limit=4, event_id=None, match_id=None, *, category="all", max_age_days=None, max_attempts=None, force=False):
+    limit = max(1, min(40, int(limit)))
+    found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(40, limit + 6), category=category, max_age_days=max_age_days, force=force)
     result = {"added": 0, "unchanged": 0, "cached": 0, "evidence_ids": [], "event_ids": [], "candidates": found["candidates"], "errors": list(found["errors"]), "notice": found.get("notice", DISCOVERY_NOTICE), "sources": found.get("sources", [])}
-    # Sequential reads keep explicit cancellation meaningful and avoid joining
-    # duplicate bodies into competing events in parallel.
+    # Only fetches overlap. ingest remains synchronous and atomic; no database
+    # transaction spans an await. Existing candidates remain a fallback.
     candidates = sorted(found["candidates"], key=lambda item: (bool(item.get("last_read")), item.get("last_read") or ""))
-    attempts = 0
-    for candidate in candidates:
-        if len(result["evidence_ids"]) >= limit or attempts >= min(len(candidates), limit + 3, max_attempts if max_attempts is not None else limit + 3):
-            break
-        attempts += 1
+    ceiling = min(len(candidates), limit + 3, max_attempts if max_attempts is not None else limit + 3)
+    attempts, completed, pending = 0, {}, {}
+    async def read(candidate):
         try:
-            imported = await read_candidate(store, team_id, candidate["id"], event_id, match_id)
+            return await read_candidate(store, team_id, candidate["id"], event_id, match_id, **({"force": True} if force else {}))
+        except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
+            return {"error": candidate["source_name"] + "：" + (str(exc) or "文章读取超时")}
+        except Exception:
+            return {"error": candidate["source_name"] + "：来源解析未完成，已保留其他可读资料。"}
+    try:
+        while True:
+            successes = sum("error" not in value for value in completed.values())
+            while attempts < ceiling and len(pending) < ARTICLE_CONCURRENCY and successes + len(pending) < limit:
+                task = asyncio.create_task(read(candidates[attempts]))
+                pending[task] = attempts
+                attempts += 1
+            if not pending:
+                break
+            done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                completed[pending.pop(task)] = task.result()
+    finally:
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+    for _, imported in sorted(completed.items()):
+        if "error" in imported:
+            result["errors"].append(imported["error"])
+        else:
             result["unchanged" if imported["duplicate"] else "added"] += 1
             result["cached"] += int(imported.get("cached", False))
             result["evidence_ids"].append(imported["evidence"]["id"])
             if imported.get("event"):
                 result["event_ids"].append(imported["event"]["id"])
-        except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
-            result["errors"].append(candidate["source_name"] + "：" + (str(exc) or "文章读取超时"))
     result["evidence_ids"] = list(dict.fromkeys(result["evidence_ids"]))
     result["event_ids"] = list(dict.fromkeys(result["event_ids"]))
     result["attempted_reads"] = attempts
-    result["coverage"] = found.get("coverage", "partial" if result["errors"] else "available")
+    result["coverage"] = "partial" if result["errors"] and result["evidence_ids"] else "unavailable" if result["errors"] else found.get("coverage", "available")
     return result
 
 
 async def read_evidence_source(store, evidence_id, *, force=False):
     """Read a stored link again; stale text is never resurrected from disk."""
     item = store.get("evidence", evidence_id)
-    if not item:
-        raise ingestion.IngestionError("来源记录不存在")
+    if not _readable_record(item):
+        raise ingestion.IngestionError("来源记录不存在，或已隐藏、删除或设为私有。")
     if item.get("origin") not in {"web", "rss"} or not item.get("url") or item.get("fixture_record"):
         return item
+    source = _read_source(store, item)
     if item.get("text") and not force:
         return item
-    source = next((source for source in source_catalog(store, item["team_id"]) if source["id"] == item.get("source_id")), None)
-    if not source and str(item.get("source_id") or "").startswith("search_"):
-        source = _publisher_source(item["url"], item.get("source_name"))
-    if not source:
-        raise ingestion.IngestionError("该来源已停用或不在允许范围，无法重新读取")
-    body, url, _ = await _fetch(item["url"], source)
+    body, url, _ = await _fetch_shared(store, item["url"], source, force=force)
     article = ingestion.extract_html(body, article_url(url), source["name"])[0]
+    current = store.get("evidence", evidence_id)
+    if not _readable_record(current) or any(current.get(key) != item.get(key) for key in ("team_id", "mode", "source_id", "url")):
+        raise ingestion.IngestionError("读取期间来源范围或权限已变化，本次原文未保存。")
+    _checked_url(article["url"], _source_hosts(_read_source(store, current)))
+    item = current
     # Updating the same provenance record invalidates derived reports only
     # when its actual body/metadata changes. Retrieval time is not a version.
     published_at = article.get("published_at") or item.get("published_at")

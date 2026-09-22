@@ -21,6 +21,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import ingestion
 from .seed import seed
 from .storage import Store, provider_origin
+from .build_info import BUILD_ID, VERSION
 
 ROOT = Path(__file__).resolve().parent.parent
 Mode = Literal["demo", "live"]
@@ -94,6 +95,10 @@ class ReportSettings(Model):
 
 class LeagueSyncInput(Model):
     season_start_year: int | None = Field(None, ge=2000, le=2100)
+
+
+class TeamMaintenanceInput(Model):
+    parts: list[Literal["roster", "schedule", "standings", "portraits"]] | None = Field(None, min_length=1, max_length=4)
 
 
 class SettingsPatch(Model):
@@ -317,7 +322,8 @@ def create_app(db_path=None):
     runtime = WebRuntime.from_env()
     access = PrivateAccess(runtime)
     store = Store(db_path or Path(os.environ.get("TOUCHLINE_DATA_DIR", str(ROOT / "data"))) / "touchline.sqlite3")
-    seed(store)
+    with store.atomic():
+        seed(store)
     from .personal_app import install_personal_defaults, PersonalRefreshManager
     from .team_center import TeamMaintenanceManager
     install_personal_defaults(store)
@@ -408,7 +414,7 @@ def create_app(db_path=None):
         await asyncio.gather(scheduler, reporter, *(task for task, event in active), return_exceptions=True)
         store.close()
 
-    app = FastAPI(title="看台 Touchline", version="7.0.0", lifespan=lifespan,
+    app = FastAPI(title="看台 Touchline", version=VERSION, lifespan=lifespan,
                   docs_url=None if runtime.server_mode else "/docs", redoc_url=None,
                   openapi_url=None if runtime.server_mode else "/openapi.json")
     app.state.store = store
@@ -599,10 +605,16 @@ def create_app(db_path=None):
     async def health():
         return {"ok": True}
 
+    @app.get("/api/harness")
+    async def harness_status():
+        from .model_harness import runtime_harness
+        return runtime_harness(store).snapshot()
+
     @app.get("/api/service")
     async def get_service():
         from .service_control import service_status
-        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/", "version": "7.0.0"}
+        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/",
+                "version": VERSION, "build_id": BUILD_ID}
 
     @app.post("/api/service/shortcut")
     async def service_shortcut():
@@ -637,14 +649,34 @@ def create_app(db_path=None):
         return store.put("recommendations", recommendation)
 
     @app.get("/api/state")
-    async def state(mode: Mode | None = Query(None), team_id: Identifier | None = Query(None)):
+    async def state(mode: Mode | None = Query(None), team_id: Identifier | None = Query(None),
+                    view: Literal["full", "summary"] = "full"):
         settings = store.settings()
         mode = mode or settings["mode"]
         if team_id:
             team_exists(team_id)
-            if mode == "live":
+            if mode == "live" and view == "full":
                 from .league_data import materialize_team
                 materialize_team(store, team_id)
+        if view == "summary":
+            from .model_config import MODEL_ROLES, role_selection
+            legacy = bool(settings["llm"].get("base_url") and settings["llm"].get("model"))
+            roles = {role: bool(role_selection(store, role)) or legacy for role in MODEL_ROLES}
+            matches = store.list("matches", mode, team_id)
+            for match in matches:
+                match.pop("source_raw", None)
+                if settings["spoiler_free"]:
+                    match["evidence_ids"] = []
+                    if match["status"] == "finished":
+                        match.update(score=None, note="", spoiler_hidden=True, home_score=None, away_score=None,
+                                     goals_for=None, goals_against=None, result=None, source_versions=[])
+            return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
+                    "matches": sorted(matches, key=lambda item: item["kickoff"]), "service": await get_service(),
+                    "setup": {"model_configured": any(roles[role] for role in ("feed", "chat", "team")), "model_roles_configured": roles,
+                              "live_evidence_count": store.count("evidence", "live")},
+                    "events": [], "evidence": [], "runs": [], "reports": [], "sources": [], "tracking": [],
+                    "source_catalog": [], "recommendations": [], "last_refresh": store.get_meta("last_refresh_" + mode),
+                    "spoiler_hidden": {"events": 0, "evidence": 0, "runs": 0}}
         evidence = store.list("evidence", mode, team_id)
         events = store.list("events", mode, team_id)
         matches = store.list("matches", mode, team_id)
@@ -695,7 +727,7 @@ def create_app(db_path=None):
                 "sources": store.list("sources", mode, team_id), "runs": [run_response(run) for run in runs[-100:]],
                 "last_refresh": store.get_meta("last_refresh_" + mode), "spoiler_hidden": hidden,
                 "tracking": [tracking_response(item) for item in store.list("tracking", mode, team_id)],
-                "source_catalog": catalog, "setup": {"model_configured": any(configured_roles.values()), "model_roles_configured": configured_roles,
+                "source_catalog": catalog, "setup": {"model_configured": any(configured_roles[role] for role in ("feed", "chat", "team")), "model_roles_configured": configured_roles,
                     "live_evidence_count": len(store.list("evidence", "live"))},
                 "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": await get_service()}
 
@@ -710,11 +742,12 @@ def create_app(db_path=None):
         return {**item, **ingestion.content_details(item)}
 
     @app.get("/api/feed")
-    async def get_feed(team_id: Identifier | None = None, cursor: str | None = Query(None, max_length=512), limit: int = Query(20, ge=1, le=40)):
+    async def get_feed(team_id: Identifier | None = None, cursor: str | None = Query(None, max_length=512),
+                       limit: int = Query(20, ge=1, le=40), topic: EventKind | None = None):
         from .personal_app import feed_view
         if team_id:
             team_exists(team_id)
-        return feed_view(store, team_id, cursor, limit)
+        return feed_view(store, team_id, cursor, limit, topic=topic)
 
     @app.post("/api/feed/refresh", status_code=202)
     async def refresh_feed(payload: PersonalRefreshInput):
@@ -745,9 +778,9 @@ def create_app(db_path=None):
         return center_view(store, team_id, reveal=reveal)
 
     @app.post("/api/teams/{team_id}/maintain", status_code=202)
-    async def maintain_team_center(team_id: Identifier):
+    async def maintain_team_center(team_id: Identifier, payload: TeamMaintenanceInput = TeamMaintenanceInput()):
         team_exists(team_id)
-        return team_maintenance.start(team_id, force=True)
+        return team_maintenance.start(team_id, force=True, parts=payload.parts)
 
     @app.get("/api/leagues")
     async def get_leagues(season_start_year: int | None = Query(None, ge=2000, le=2100)):

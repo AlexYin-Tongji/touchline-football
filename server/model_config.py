@@ -109,20 +109,30 @@ class RoleAssignments(StrictModel):
     feed: SelectInput | None = None
     chat: SelectInput | None = None
     team: SelectInput | None = None
+    verify: SelectInput | None = None
 
 
 class RolesInput(StrictModel):
     roles: RoleAssignments
 
 
-MODEL_ROLES = ("feed", "chat", "team")
+MODEL_ROLES = ("feed", "chat", "team", "verify")
 
 
 def role_selection(store, role):
     if role not in MODEL_ROLES:
         raise ValueError("Unknown model role")
     read_meta = getattr(store, "get_meta", lambda key: None)
-    return copy.deepcopy((read_meta("model_roles") or {}).get(role) or read_meta("active_model"))
+    selected = (read_meta("model_roles") or {}).get(role)
+    return copy.deepcopy(selected or (read_meta("active_model") if role != "verify" else None))
+
+
+def verification_config(store, task_config):
+    selected = role_selection(store, "verify")
+    if not selected:
+        return copy.deepcopy(task_config)
+    return {**effective_config(store, selected["provider_id"], selected["model"]),
+            "_session_id": task_config.get("_session_id", "verification")}
 
 
 def role_settings(store, role):
@@ -168,7 +178,8 @@ def effective_config(store, provider_id, model):
     if not selected:
         raise AgentFailure("所选模型已不在该服务中，请重新选择模型。")
     llm = copy.deepcopy(store.settings()["llm"])
-    llm.update(base_url=profile["base_url"], protocol=profile["protocol"], model=model, api_key=store.get_secret("provider_" + provider_id))
+    llm.update(base_url=profile["base_url"], protocol=profile["protocol"], model=model, api_key=store.get_secret("provider_" + provider_id),
+               _provider_id=provider_id)
     if selected.get("max_output_tokens"):
         llm["max_output_tokens"] = selected["max_output_tokens"]
     return llm

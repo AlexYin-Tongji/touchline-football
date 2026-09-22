@@ -208,12 +208,12 @@ class TeamCenterTests(unittest.TestCase):
 
     def test_refresh_failure_preserves_data_and_is_rate_limited(self):
         snapshot = self.save_squad()
-        with patch.object(team_center.league_data, "sync_league", AsyncMock(return_value={"sync_status": "failed", "errors": ["赛程暂不可用"]})), \
+        with patch.object(team_center.league_data, "sync_standings", AsyncMock(return_value={"sync_status": "failed", "errors": ["积分暂不可用"]})), \
              patch.object(team_center.league_data, "sync_team_recent", AsyncMock(return_value={"sync_status": "failed", "errors": ["球队赛程暂不可用"]})), \
              patch.object(team_center, "sync_roster", AsyncMock(side_effect=IngestionError("阵容暂不可用"))) as fetch:
             async def run():
-                first = await team_center.maintain_team(self.store, "arsenal", force=True)
-                second = await team_center.maintain_team(self.store, "arsenal", force=True)
+                first = await team_center.maintain_team(self.store, "arsenal", force=True, parts=["roster", "schedule", "standings"])
+                second = await team_center.maintain_team(self.store, "arsenal", force=True, parts=["roster", "schedule", "standings"])
                 return first, second
             first, second = asyncio.run(run())
         self.assertEqual(first["status"], "failed")

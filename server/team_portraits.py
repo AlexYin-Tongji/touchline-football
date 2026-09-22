@@ -113,9 +113,21 @@ async def portrait_directory(store, team_id):
 
 async def enrich_portraits(store, snapshot):
     team_id = snapshot.get("team_id")
-    if team_id not in DIRECTORIES or not any(not player.get("photo_url") for player in snapshot.get("roster", [])):
+    if team_id not in DIRECTORIES or not any(not player.get("photo_url") or player.get("photo_match") == "exact_name_and_number" for player in snapshot.get("roster", [])):
         return snapshot
     directory = await portrait_directory(store, team_id)
+    return _apply_directory(snapshot, directory)
+
+
+def apply_cached_portraits(store, snapshot):
+    """Reuse checked cards without making a core roster fetch wait on HTML."""
+    return _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
+
+
+def _apply_directory(snapshot, directory):
+    team_id = snapshot.get("team_id")
+    if team_id not in DIRECTORIES:
+        return snapshot
     cards = directory.get("cards", [])
     roster = snapshot.get("roster", [])
     by_name = {}
@@ -126,8 +138,14 @@ async def enrich_portraits(store, snapshot):
         key = normalized_name(player.get("name"))
         counts[key] = counts.get(key, 0) + 1
     for player in roster:
-        if player.get("photo_url"):
+        if player.get("photo_url") and player.get("photo_match") != "exact_name_and_number":
             continue
+        # Recheck old official images against the current checked directory;
+        # a changed/ambiguous shirt identity must not keep its previous photo.
+        if cards and player.get("photo_match") == "exact_name_and_number":
+            for field in ("photo_source_url", "photo_updated_at", "photo_match"):
+                player.pop(field, None)
+            player.update(photo_url="", photo_credit="")
         key = normalized_name(player.get("name"))
         matches = by_name.get(key, [])
         # Reject duplicate full names before considering a jersey number; a

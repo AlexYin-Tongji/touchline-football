@@ -84,6 +84,15 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
             result = await team_portraits.enrich_portraits(self.store, squad())
         self.assertEqual(result["roster"][0]["photo_url"], "")
 
+    async def test_old_official_photo_can_refresh_without_refetching_the_roster(self):
+        old = squad()
+        old["roster"][0].update(photo_url=PHOTO, photo_match="exact_name_and_number", photo_updated_at="2020-01-01T00:00:00+00:00")
+        replacement = "https://www.fcbarcelona.com/photo-resources/2026/09/new.jpg"
+        with self.fetch(card(image=replacement)) as fetch:
+            result = await team_portraits.enrich_portraits(self.store, old)
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(result["roster"][0]["photo_url"], replacement)
+
     def test_only_real_player_card_image_on_fixed_official_host_is_accepted(self):
         for url in ("https://evil.example/person.jpg", "http://www.fcbarcelona.com/photo-resources/person.jpg",
                     "https://www.fcbarcelona.com.evil.example/photo-resources/person.jpg", "https://www.fcbarcelona.com/logo.jpg",

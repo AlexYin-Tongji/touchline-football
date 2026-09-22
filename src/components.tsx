@@ -279,7 +279,6 @@ export function Modal({
       >
         <div className="modal-heading">
           <div>
-            <span className="eyebrow">相关信息</span>
             <h2>{title}</h2>
           </div>
           <button

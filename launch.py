@@ -12,6 +12,8 @@ import time
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
+from server.build_info import BUILD_ID
+
 ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:8765"
 WORKSPACE_ID = hashlib.sha256(str(ROOT).lower().encode()).hexdigest()[:12]
@@ -26,14 +28,34 @@ def status():
         return None
 
 
+def require_compatible(ready, *, require_stopped=False):
+    if not ready:
+        return
+    if ready.get("build_id") == BUILD_ID and not require_stopped:
+        return
+    pid = ready.get("pid")
+    identity = f"（进程 PID {pid}）" if type(pid) is int and pid > 0 else ""
+    reason = "检测到旧版或与当前文件不一致的看台服务" if ready.get("build_id") != BUILD_ID else "更新依赖或重建页面前需要停止当前看台服务"
+    raise RuntimeError(reason + identity + "。请先等待问答与整理任务完成，在原服务终端按 Ctrl+C 关闭；"
+                       "后台服务请在任务管理器中核对该看台进程后结束。然后重新运行：.\\启动看台.cmd。"
+                       "本次尚未安装依赖、重建页面或终止任何进程。")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--require-stopped", action="store_true")
     args = parser.parse_args()
     ready = status()
     if args.check:
-        print(json.dumps({"running": bool(ready), "url": URL}, ensure_ascii=False))
+        compatible = bool(ready and ready.get("build_id") == BUILD_ID)
+        print(json.dumps({"running": bool(ready), "compatible": compatible,
+                          "needs_restart": bool(ready and not compatible), "url": URL}, ensure_ascii=False))
+        return 0
+    require_compatible(ready, require_stopped=args.require_stopped)
+    if args.preflight:
         return 0
     if not ready:
         if not (ROOT / "dist" / "index.html").exists():
@@ -48,7 +70,9 @@ def main():
                 cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 creationflags=flags, start_new_session=os.name != "nt")
             for _ in range(40):
-                if status():
+                observed = status()
+                if observed:
+                    require_compatible(observed)
                     ready = True
                     break
                 if process.poll() is not None:

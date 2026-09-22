@@ -151,17 +151,15 @@ class TeamScheduleSyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first["team_id"], "barcelona")
         self.assertEqual(self.store.get_meta("team_schedule_PD-2026_levante"), None)
 
-    async def test_maintenance_calls_fallback_after_scoreboard_failure(self):
-        async def unavailable(*args, **kwargs):
-            result = {"sync_status": "partial", "fixtures_status": "failed", "errors": ["赛程来源HTTP400"], "last_sync": now()}
-            self.store.set_meta("league_sync_PD-2026", result)
-            return result
-        with patch.object(league_data, "sync_league", side_effect=unavailable), \
+    async def test_maintenance_uses_team_schedule_without_a_failed_scoreboard_first(self):
+        with patch.object(league_data, "sync_league", side_effect=AssertionError("must not fetch full league")) as whole_league, \
+             patch.object(league_data, "sync_standings", new=AsyncMock(return_value={"sync_status": "failed", "errors": ["积分暂不可用"]})), \
              patch.object(team_center, "sync_roster", new=AsyncMock(return_value={"players": 0})), \
              patch.object(league_data, "fetch_json", new=AsyncMock(return_value=schedule())) as fetch:
             result = await team_center.maintain_team(self.store, "barcelona", force=True)
         self.assertEqual(fetch.await_count, 2)
-        self.assertEqual(result["status"], "partial")  # full-league error stays honest
+        whole_league.assert_not_called()
+        self.assertEqual(result["status"], "partial")
         self.assertEqual(team_center.center_view(self.store, "barcelona")["stats"]["season"]["played"], 1)
 
     async def test_reduced_previous_snapshot_does_not_resurrect_excluded_old_records(self):

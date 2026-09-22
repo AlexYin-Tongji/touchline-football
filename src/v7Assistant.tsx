@@ -184,12 +184,16 @@ export function Assistant({
   incoming,
   openModel,
   onChanged,
+  active = true,
+  modelRevision = 0,
 }: {
   team: Team;
   data: AppState;
   incoming: AssistantPrompt | null;
   openModel: () => void;
   onChanged: () => Promise<void>;
+  active?: boolean;
+  modelRevision?: number;
 }) {
   const [initialDraft] = useState(() => restoreDraft(team.id));
   const [question, setQuestion] = useState(initialDraft.text);
@@ -212,6 +216,7 @@ export function Assistant({
   const [historyError, setHistoryError] = useState("");
   const [restoring, setRestoring] = useState(false);
   const [modelMenu, setModelMenu] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   const [models, setModels] = useState<
     { provider_id: string; provider_name: string; id: string; name: string }[]
   >([]);
@@ -230,16 +235,20 @@ export function Assistant({
   const modelOverride = useRef(false);
   const currentConversation = useRef(conversationId);
   const draftConversation = useRef(initialDraft.conversationId);
+  const currentDraft = useRef(question);
+  currentDraft.current = question;
   currentConversation.current = conversationId;
   const pending = runs.find(activeRun);
   const selectedCard = cards.find((item) => item.id === skill);
+  const missingConversationModel = !!conversationId && !!selectedModel && modelsLoaded &&
+    !models.some((model) => model.provider_id === selectedModel.provider_id && model.id === selectedModel.model);
   const modelReady =
-    (modelOverride.current && !!selectedModel) ||
+    !missingConversationModel && ((modelOverride.current && !!selectedModel) ||
     (conversationId && !!selectedModel) ||
     (data.setup?.model_roles_configured?.[
       skill === "team_maintenance" ? "team" : "chat"
     ] ??
-      data.setup?.model_configured);
+      data.setup?.model_configured));
   const loadHistory = useCallback(
     async (cursor?: string) => {
       const serial = ++historyRequest.current;
@@ -401,6 +410,7 @@ export function Assistant({
             })),
           ),
         );
+        setModelsLoaded(true);
         setRoleModels({
           chat: result.resolved_roles?.chat || result.active,
           team: result.resolved_roles?.team || result.active,
@@ -416,7 +426,7 @@ export function Assistant({
     return () => {
       valid = false;
     };
-  }, [data.settings]);
+   }, [modelRevision]);
   useEffect(() => {
     if (!conversationId && !modelOverride.current)
       setSelectedModel(
@@ -425,10 +435,14 @@ export function Assistant({
       );
   }, [skill, conversationId, roleModels]);
   useEffect(() => {
-    if (!pending) return;
+    if (!pending || !active) return;
     let valid = true;
     let timer: number;
     const tick = async () => {
+      if (document.visibilityState !== "visible") {
+        timer = window.setTimeout(tick, 5000);
+        return;
+      }
       try {
         const next = await api<ChatRun>(
           `/runs/${encodeURIComponent(pending.id)}`,
@@ -454,7 +468,7 @@ export function Assistant({
       valid = false;
       clearTimeout(timer);
     };
-  }, [pending?.id, onChanged, loadHistory]);
+  }, [pending?.id, active, onChanged, loadHistory]);
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [runs.length]);
@@ -473,6 +487,7 @@ export function Assistant({
     setBusy(true);
     setError("");
     const serial = ++request.current;
+    const submittedDraft = question;
     try {
       const chosenSkill = retry?.skill || skill;
       const chosenModel =
@@ -529,9 +544,11 @@ export function Assistant({
       remember(`touchline-conversation-${team.id}`, next.conversation_id);
       draftConversation.current = next.conversation_id;
       setConversationMatchId(next.match_id || null);
-      setQuestion("");
-      setContext(null);
-      setSkill("auto");
+      if (!retry && currentDraft.current === submittedDraft) {
+        setQuestion("");
+        setContext(null);
+        setSkill("auto");
+      }
       void onChanged();
       void loadHistory();
     } catch (err) {
@@ -560,7 +577,7 @@ export function Assistant({
       if (mounted.current && serial === request.current) setBusy(false);
     }
   };
-  const newConversation = () => {
+  const newConversation = (preserveDraft = false) => {
     request.current++;
     remember(`touchline-conversation-${team.id}`, "");
     draftConversation.current = null;
@@ -570,7 +587,7 @@ export function Assistant({
     currentConversation.current = null;
     setConversationId(null);
     setConversationMatchId(null);
-    setQuestion("");
+    if (!preserveDraft) setQuestion("");
     setContext(null);
     setSkill("auto");
     setError("");
@@ -582,7 +599,6 @@ export function Assistant({
     <div className="assistant-page">
       <div className="chat-page-heading">
         <div>
-          <span className="eyebrow">YOUR FOOTBALL COMPANION</span>
           <h1>
             问助手
             <span className="heading-dot" />
@@ -598,7 +614,7 @@ export function Assistant({
             <History size={19} />
             <span>对话记录</span>
           </button>
-          <button className="button" disabled={busy} onClick={newConversation}>
+          <button className="button" disabled={busy} onClick={() => newConversation()}>
             <Plus size={16} />
             新对话
           </button>
@@ -627,7 +643,17 @@ export function Assistant({
           </button>
         </div>
       )}
-      {!modelReady && (
+      {missingConversationModel && (
+        <div className="model-recovery" role="status">
+          <div>
+            <strong>这段对话使用的模型已移除</strong>
+            <p>历史记录仍然保留。你可以在模型配置中恢复原模型，或使用当前模型继续一个新对话。</p>
+          </div>
+          <button className="button primary" onClick={() => newConversation(true)}>保留问题，开启新对话</button>
+          <button className="text-button" onClick={openModel}>打开模型配置</button>
+        </div>
+      )}
+      {!modelReady && !missingConversationModel && (
         <div className="model-connect">
           <span>
             <Sparkles size={18} />
@@ -696,7 +722,7 @@ export function Assistant({
               {run.answer ? (
                 <Markdown
                   text={run.answer}
-                  evidence={run.evidence || data.evidence}
+                  evidence={run.evidence || []}
                 />
               ) : activeRun(run) ? (
                 <div className="thinking-status">
@@ -834,7 +860,10 @@ export function Assistant({
             value={question}
             maxLength={12000}
             rows={2}
-            onChange={(event) => setQuestion(event.target.value)}
+            onChange={(event) => {
+              currentDraft.current = event.target.value;
+              setQuestion(event.target.value);
+            }}
             onKeyDown={(event) => {
               if (
                 event.key === "Enter" &&

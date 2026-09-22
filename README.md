@@ -1,4 +1,4 @@
-# 看台 · V7
+# 看台 · V7.1
 
 一个保存在自己电脑里的个人足球 Agent。打开浏览器就能看中文消息、了解球队与球员、向助手提问；不需要部署网站，也没有社区账号、发帖或评论系统。
 
@@ -8,7 +8,7 @@
 - **球队**：球队介绍、当季球员与基础简介、有来源的球员照片、日程、积分、近期进失球和主客场表现图表。资料由后台定期维护，Agent 可通过技能查询和更新；数值以数据源为准，不让模型编写比分。
 - **助手**：直接对话，也可从今日速览、比赛前瞻、赛后复盘、转会核验、战术讲解、球队与球员画像进入。比赛上下文和会话所选模型会保留。
 
-设置只保留模型。来源配置、采集调度、工具预算、核验流程和数据维护由程序管理，不再放进用户设置。
+设置只保留模型。动态、对话、球队解读、原文核验可以选择不同模型；未单独指定核验模型时，跟随当前任务模型。独立新闻可以并行整理，后台统一控制请求并发、去重、取消与失败重试，核验通过后才发布。来源配置和调度由程序管理。
 
 ## 打开使用
 
@@ -36,7 +36,7 @@ Windows 双击 `启动看台.cmd` 或已有桌面快捷方式，打开 **http://
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -c requirements.lock.txt
 npm ci
 npm run build
 .\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 8765
@@ -45,16 +45,26 @@ npm run build
 开发前端使用 `npm run dev`，其 API 代理到 8765。
 
 ```powershell
-python -m unittest discover -s tests -v
+python scripts/check.py --suite fast
+# 修改某个模块时只跑相关回归，例如：
+python scripts/check.py --module test_team_refresh_parts test_team_center
+# 交付前完整检查：
+python scripts/check.py --suite full --json output/test-results.json
+npm run test:ui
 npm run build
 ```
 
 GitHub Actions 还检查 Linux 环境和 Docker 构建。Docker / Render 文件保留作可选服务器运行方式，不是个人版本的使用前提。
 
+快速套件不替代完整回归。检查入口会优先使用本项目 `.venv`，并列出最慢的用例。前端行为回归覆盖慢请求下的草稿和切队等操作；字体与布局通过桌面及窄屏实际浏览器检查。Python 依赖用 `requirements.lock.txt` 固定已验证版本，升级依赖后应重跑完整检查。
+
+优化前的源码已保存在标签 `v7.0.0`，主线包含后续改进。涉及旧数据迁移时，程序先在 `data/backups/` 保存一致性数据库及配套 `.key`；回退代码前也应单独备份当前数据，Git 标签不包含个人数据库。
+
 ## 资料
 
 - [本地与免费托管的选择](docs/FREE_HOSTING.md)
 - [V7 设计与验证](docs/PERSONAL_V7.md)
+- [V7.1 优化与验证](docs/OPTIMIZATION_V7_1.md)
 - [V7 可靠性与模型上下文](docs/RELIABILITY_V7.md)
 - [V6 历史验证](docs/V6_VALIDATION.md)
 - [球队与来源素材](public/assets/clubs/README.md)

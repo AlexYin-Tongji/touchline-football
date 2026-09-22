@@ -18,6 +18,7 @@ jobs:
           cache: pip
       - run: npm ci
       - run: npm run build
-      - run: pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
+      - run: npm run test:ui
+      - run: pip install -r requirements.txt -c requirements.lock.txt
+      - run: python scripts/check.py --suite full --json output/test-results.json
       - run: docker build -t touchline:check .
