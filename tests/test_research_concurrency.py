@@ -2,6 +2,7 @@
 import asyncio
 import json
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -137,6 +138,139 @@ class CollectionConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.store._research_requests.pending)
         self.assertFalse(self.store.list("evidence", "live"))
         self.assertNotIn("last_read", self.store.get("candidates", candidate["id"]))
+
+    async def test_cancelled_threaded_downloads_keep_host_slots_until_they_exit(self):
+        candidate = self.candidate()
+        loop = asyncio.get_running_loop()
+        release = threading.Event()
+        starts = [asyncio.Event() for _ in range(3)]
+        drained = asyncio.Event()
+        lock = threading.Lock()
+        active = count = peak = 0
+
+        def download(url, **kwargs):
+            nonlocal active, count, peak
+            with lock:
+                index = count
+                count += 1
+                active += 1
+                peak = max(peak, active)
+            if index < len(starts):
+                loop.call_soon_threadsafe(starts[index].set)
+            try:
+                release.wait(3)
+                return ARTICLE, url, "text/html"
+            finally:
+                with lock:
+                    active -= 1
+                    if active == 0:
+                        loop.call_soon_threadsafe(drained.set)
+
+        tasks = []
+        with patch.object(ingestion, "fetch_document", side_effect=download):
+            try:
+                for index in range(2):
+                    task = asyncio.create_task(research.read_candidate(self.store, "arsenal", candidate["id"]))
+                    tasks.append(task)
+                    await asyncio.wait_for(starts[index].wait(), 1)
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await asyncio.wait_for(task, .5)
+                waiting = asyncio.create_task(research.read_candidate(self.store, "arsenal", candidate["id"]))
+                tasks.append(waiting)
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(starts[2].wait(), .05)
+                waiting.cancel()
+                await asyncio.gather(waiting, return_exceptions=True)
+            finally:
+                release.set()
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                await asyncio.wait_for(drained.wait(), 1)
+            self.assertEqual(peak, 2)
+            self.assertFalse(self.store.list("evidence", "live"))
+            self.assertNotIn("last_read", self.store.get("candidates", candidate["id"]))
+            # Capacity is restored after the physical downloads actually end.
+            result = await asyncio.wait_for(research.read_candidate(self.store, "arsenal", candidate["id"]), 1)
+            self.assertTrue(result["evidence"])
+
+    async def test_timed_out_threads_keep_global_slots_until_they_exit(self):
+        from server.research_transport import blocking_request, shared_request
+        loop = asyncio.get_running_loop()
+        release = threading.Event()
+        fifth_started = asyncio.Event()
+        lock = threading.Lock()
+        active = peak = 0
+
+        def download(index):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            if index == 4:
+                loop.call_soon_threadsafe(fifth_started.set)
+            try:
+                release.wait(3)
+                return "downloaded"
+            finally:
+                with lock:
+                    active -= 1
+
+        async def fetch(index):
+            return await blocking_request(download, index, timeout=.02 if index < 4 else 1)
+
+        waiting = None
+        try:
+            for index in range(4):
+                with self.assertRaises(ingestion.IngestionError):
+                    await asyncio.wait_for(shared_request(self.store, index, f"host{index}.example",
+                        lambda i=index: fetch(i)), .5)
+            waiting = asyncio.create_task(shared_request(self.store, 4, "host4.example", lambda: fetch(4)))
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(fifth_started.wait(), .05)
+            release.set()
+            self.assertEqual(await asyncio.wait_for(waiting, 1), "downloaded")
+            self.assertEqual(peak, 4)
+        finally:
+            release.set()
+            if waiting is not None:
+                waiting.cancel()
+                await asyncio.gather(waiting, return_exceptions=True)
+            await asyncio.gather(*self.store._research_requests.draining)
+
+    async def test_cancelled_threaded_reader_preserves_another_shared_reader(self):
+        candidate = self.candidate()
+        loop = asyncio.get_running_loop()
+        started = asyncio.Event()
+        release = threading.Event()
+        downloads = 0
+
+        def download(url, **kwargs):
+            nonlocal downloads
+            downloads += 1
+            loop.call_soon_threadsafe(started.set)
+            release.wait(3)
+            return ARTICLE, url, "text/html"
+
+        with patch.object(ingestion, "fetch_document", side_effect=download):
+            first = asyncio.create_task(research.read_candidate(self.store, "arsenal", candidate["id"]))
+            second = asyncio.create_task(research.read_candidate(self.store, "arsenal", candidate["id"]))
+            try:
+                await asyncio.wait_for(started.wait(), 1)
+                first.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await asyncio.wait_for(first, .5)
+                self.assertFalse(self.store.list("evidence", "live"))
+                release.set()
+                result = await asyncio.wait_for(second, 1)
+                self.assertTrue(result["evidence"])
+                self.assertEqual(downloads, 1)
+            finally:
+                release.set()
+                first.cancel()
+                second.cancel()
+                await asyncio.gather(first, second, return_exceptions=True)
 
     async def test_requests_bound_global_and_per_publisher_concurrency(self):
         from server.research_transport import shared_request

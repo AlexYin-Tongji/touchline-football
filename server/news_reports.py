@@ -357,11 +357,20 @@ def _public(store, row, settings, budget):
 def list_reports(store, team_id=None, mode="live"):
     settings, budget = store.settings(), report_budget(store)
     rows = store.list("reports", mode=mode, team_id=team_id)
-    latest = {}
+    latest, priorities, versions = {}, {}, {}
     for row in rows:
         key = (row.get("team_id"), row.get("event_id"))
-        if key not in latest or row.get("updated_at", "") >= latest[key].get("updated_at", ""):
+        if key not in versions:
+            event = store.get("events", row.get("event_id"))
+            snapshot = (_snapshot(store, event, settings) if event
+                        and (event.get("team_id"), event.get("mode")) == (row.get("team_id"), row.get("mode")) else None)
+            versions[key] = snapshot["fingerprint"] if snapshot and snapshot["sources"] else None
+        # A superseded worker can finish after the current report. Its late
+        # status update must never replace the report for today's sources.
+        priority = (versions[key] is not None and row.get("fingerprint") == versions[key], row.get("updated_at", ""))
+        if key not in latest or priority >= priorities[key]:
             latest[key] = row
+            priorities[key] = priority
     return [_public(store, row, settings, budget) for row in sorted(latest.values(), key=lambda row: row.get("created_at", ""), reverse=True)]
 
 

@@ -386,6 +386,8 @@ def create_app(db_path=None):
 
     @asynccontextmanager
     async def lifespan(app):
+        from .agent_delegation import recover_tasks
+        recover_tasks(store)
         news_reports.recover_reports(store)
         await league_sync.close()
         queue_reports()
@@ -412,6 +414,8 @@ def create_app(db_path=None):
             event.set()
             task.cancel()
         await asyncio.gather(scheduler, reporter, *(task for task, event in active), return_exceptions=True)
+        if getattr(store, "_agent_runtime", None):
+            await store._agent_runtime.shutdown()
         store.close()
 
     app = FastAPI(title="看台 Touchline", version=VERSION, lifespan=lifespan,
@@ -551,15 +555,27 @@ def create_app(db_path=None):
                     "status": run.get("status"), "answer": "这份报告正在整理或已经失效，请在报告中心查看当前版本。", "evidence_ids": [], "evidence": [],
                     "structured_answer": None, "steps": [], "verification": None, "warnings": [], "error": None}
         result = copy.deepcopy(run)
+        # Version bindings can contain titles/URLs later hidden by privacy or
+        # spoiler changes. They are server-only even for currently visible runs.
+        result.pop("evidence_versions", None)
         protect = store.settings().get("spoiler_free", True)
         source_ids = set(run.get("evidence_ids", [])) | {quote.get("evidence_id")
             for claim in (run.get("verification") or {}).get("claims", []) for quote in claim.get("quotes", []) if quote.get("evidence_id")}
         source_hidden = any(not (source := store.get("evidence", identifier)) or source.get("private") or source.get("deleted")
                             or source.get("visibility") in {"hidden", "deleted"} for identifier in source_ids)
+        from .agent_delegation import source_version
+        source_stale = False
+        for identifier, expected in run.get("evidence_versions", {}).items():
+            current = store.get("evidence", identifier)
+            if current and identifier in run.get("redacted_evidence_ids", []):
+                current = ingestion.safe_evidence_view(current)
+            if source_version(current) != expected:
+                source_stale = True
+                break
         hidden_answer = protect and run.get("skill") != "match_review" and (run.get("spoiler") or has_hidden_evidence(run))
-        if hidden_answer or source_hidden:
-            result.update(answer="这份回答的引用来源已不可见，内容暂时隐藏。" if source_hidden else "这份历史回答可能包含赛果，已按当前避剧透设置隐藏。",
-                          evidence_ids=[], spoiler_hidden=hidden_answer, source_hidden=source_hidden, steps=[], structured_answer=None,
+        if hidden_answer or source_hidden or source_stale:
+            result.update(answer="这份回答的引用来源已不可见，内容暂时隐藏。" if source_hidden else "引用原文已更新，旧回答暂时隐藏，请重新查阅核对。" if source_stale else "这份历史回答可能包含赛果，已按当前避剧透设置隐藏。",
+                          evidence_ids=[], spoiler_hidden=hidden_answer, source_hidden=source_hidden, source_stale=source_stale, steps=[], structured_answer=None,
                           warnings=[], error=None,
                           verification={"status": "not_requested", "claims": [], "warnings": ["核对记录按避剧透设置隐藏。"]})
         if with_evidence:
@@ -608,7 +624,8 @@ def create_app(db_path=None):
     @app.get("/api/harness")
     async def harness_status():
         from .model_harness import runtime_harness
-        return runtime_harness(store).snapshot()
+        from .agent_delegation import runtime_for
+        return {**runtime_harness(store).snapshot(), "agents": runtime_for(store).snapshot()}
 
     @app.get("/api/service")
     async def get_service():
@@ -851,7 +868,8 @@ def create_app(db_path=None):
             validated = LLMSettings(**config).model_dump(exclude_none=True)
         except ValueError:
             raise HTTPException(422, "模型配置格式不正确，请检查地址、名称与密钥") from None
-        result = await test_connection(validated)
+        from .model_harness import runtime_harness
+        result = await test_connection(validated, dispatcher=runtime_harness(store))
         for secret in {config.get("api_key", ""), store.settings()["llm"].get("api_key", "")} - {""}:
             result["message"] = result.get("message", "").replace(secret, "[密钥已隐藏]")
         return result

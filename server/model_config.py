@@ -361,4 +361,5 @@ def register_routes(app, store):
             config = effective_config(store, identifier, value.model)
         except AgentFailure as exc:
             raise HTTPException(400, str(exc)) from None
-        return await test_connection(config)
+        from .model_harness import runtime_harness
+        return await test_connection(config, dispatcher=runtime_harness(store))

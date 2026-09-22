@@ -251,6 +251,8 @@ class LocalTools:
         self.store, self.run = store, run
         self.mode, self.team_id = run["mode"], run["team_id"]
         self.skill = run.get("skill", "ask")
+        self.scope_skill = run.get("scope_skill", self.skill) if run.get("internal_agent") else self.skill
+        self.delegation = None
         self.spoiler_free = bool(settings.get("spoiler_free", True))
         personalization = settings.get("personalization")
         preferences = personalization if isinstance(personalization, dict) else settings
@@ -263,7 +265,7 @@ class LocalTools:
         self.read_cache = {}
         self.redacted_ids = set()
         self.submission = None
-        self.verification_enabled = self.mode == "live" and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
+        self.verification_enabled = self.mode == "live" and not run.get("internal_agent") and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
         self.allow_network = self.mode == "live" and run.get("allow_network", True) is True
@@ -271,13 +273,13 @@ class LocalTools:
         self.article_reads = 0
         self.candidate_count = 0
         self.match = self.scoped_get("matches", run.get("match_id")) if run.get("match_id") else None
-        self.review = self.skill == "match_review"
-        if self.skill in {"match_preview", "match_review"} and not self.match:
+        self.review = self.scope_skill == "match_review"
+        if self.scope_skill in {"match_preview", "match_review"} and not self.match:
             raise ToolError("请先选择本球队、本资料模式中的一场比赛。")
         if self.review and self.match.get("status") != "finished":
             raise ToolError("比赛尚未结束，不能生成赛后复盘。")
-        self.cutoff = parse_time(self.match.get("kickoff")) if self.skill == "match_preview" else None
-        if self.skill == "match_preview" and not self.cutoff:
+        self.cutoff = parse_time(self.match.get("kickoff")) if self.scope_skill == "match_preview" else None
+        if self.scope_skill == "match_preview" and not self.cutoff:
             raise ToolError("这场比赛缺少有效开球时间，无法建立赛前资料截止线。")
 
     def network_guard(self):
@@ -316,7 +318,7 @@ class LocalTools:
             return False
         if item.get("deleted") or item.get("private") is True or item.get("visibility") in {"hidden", "deleted"}:
             return False
-        if self.run.get("report_id") and item["id"] not in self.run.get("input_evidence_ids", []):
+        if self.run.get("report_id") and item["id"] not in self.run.get("scope_evidence_ids", self.run.get("input_evidence_ids", [])):
             return False
         # A review is about this match, including non-spoiler material. Other
         # fixtures' training or preview news must not become review evidence.
@@ -460,9 +462,12 @@ class LocalTools:
                 for _, row in candidates]
 
     def validate(self, name, arguments):
-        definition = next((tool for tool in tool_definitions(self.skill) if tool["name"] == name), None)
+        definitions = [*tool_definitions(self.skill), *(self.delegation.definitions if self.delegation else [])]
+        definition = next((tool for tool in definitions if tool["name"] == name), None)
         if not definition:
             raise ToolError("工具不在允许列表中。")
+        if self.run.get("internal_agent") and name not in self.run.get("tool_allowlist", []):
+            raise ToolError("工具不在此子任务授权范围内。")
         def check(value, rule, path="arguments"):
             kind = rule["type"]
             if kind == "object":
@@ -503,13 +508,18 @@ class LocalTools:
             excluded.add("read_article")
         if self.run.get("report_id"):
             excluded.update({"discover_news", "refresh_team_sources", "research_news", "read_article", "conversation_history", "search_team_knowledge"})
-        if not self.run.get("conversation_id"):
+        if not self.run.get("conversation_id") or self.run.get("internal_agent"):
             excluded.add("conversation_history")
-        return [tool for tool in openai_tools(self.skill) if tool["function"]["name"] not in excluded]
+        tools = openai_tools(self.skill)
+        if self.delegation:
+            tools.extend({"type": "function", "function": copy.deepcopy(tool)} for tool in self.delegation.definitions)
+        allowed = set(self.run.get("tool_allowlist", [])) if self.run.get("internal_agent") else None
+        return [tool for tool in tools if tool["function"]["name"] not in excluded
+                and (allowed is None or tool["function"]["name"] in allowed)]
 
     def conversation_rows(self):
         """Conversation memory cannot cross roles or revive inaccessible sources."""
-        if not self.run.get("conversation_id") or self.run.get("report_id") or self.run.get("internal_report"):
+        if not self.run.get("conversation_id") or self.run.get("report_id") or self.run.get("internal_report") or self.run.get("internal_agent"):
             return []
         rows = []
         role = self.run.get("model_role") or "chat"
@@ -805,6 +815,8 @@ class LocalTools:
 
     async def acall(self, name, arguments):
         self.validate(name, arguments)
+        if self.delegation and name in {tool["name"] for tool in self.delegation.definitions}:
+            return await self.delegation.call(name, arguments, getattr(self, "_tool_request_id", None))
         if name == "maintain_team_data":
             self.network_guard()
             if self.match or self.run.get("report_id"):
@@ -924,8 +936,10 @@ class LocalTools:
         try:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
-            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 3000):
+            delegated = self.delegation and function.get("name") in {tool["name"] for tool in self.delegation.definitions}
+            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 24000 if delegated else 3000):
                 raise ToolError("工具参数过长或不是 JSON 文本。")
+            self._tool_request_id = f"{self.run.get('agent_generation', 1)}:{getattr(self, '_tool_epoch', 0)}:{call.get('id', '')}"
             return await self.acall(function.get("name"), json.loads(raw))
         except (json.JSONDecodeError, TypeError):
             return {"error": "工具参数不是有效 JSON 对象。"}

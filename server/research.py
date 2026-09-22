@@ -136,7 +136,8 @@ async def _fetch(url, source):
     # publishers may use the user's OS proxy: necessary on networks whose local
     # DNS cannot reach those publishers. Every redirect remains allowlisted.
     if not source.get("builtin") or not getproxies() or source["id"] in {"official_arsenal", "official_liverpool", "official_inter"}:
-        body, final_url, content_type = await asyncio.wait_for(asyncio.to_thread(ingestion.fetch_document, current, allowed_hosts=hosts), 25)
+        from .research_transport import blocking_request
+        body, final_url, content_type = await blocking_request(ingestion.fetch_document, current, allowed_hosts=hosts, timeout=25)
         _checked_url(final_url, hosts)
         return body, final_url, content_type
     if not hosts <= TRUSTED_HOSTS:

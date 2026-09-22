@@ -11,6 +11,78 @@ from tests.test_verification import quoted_submission, checker_result
 
 
 class ModelHarnessTests(unittest.IsolatedAsyncioTestCase):
+    async def test_queued_roots_alternate_instead_of_one_tree_filling_the_queue(self):
+        harness = ModelHarness(global_limit=1, provider_limit=1)
+        entered, release = asyncio.Event(), asyncio.Event()
+        order = []
+        config = {"base_url": "https://provider.example/v1", "model": "test"}
+        async def hold():
+            entered.set()
+            await release.wait()
+        async def work(label):
+            order.append(label)
+        blocker = asyncio.create_task(harness.request(config, hold, owner_id="hold", role="chat", stage="answer"))
+        await entered.wait()
+        tasks = []
+        for label, root in [("a1", "a"), ("a2", "a"), ("a3", "a"), ("b1", "b"), ("b2", "b")]:
+            tasks.append(asyncio.create_task(harness.request(config, lambda label=label: work(label),
+                owner_id=label, root_id=root, role="chat", stage="answer")))
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(blocker, *tasks)
+        self.assertEqual(order, ["a1", "b1", "a2", "b2", "a3"])
+
+    async def test_blocked_provider_does_not_block_another_provider_in_same_root(self):
+        harness = ModelHarness(global_limit=2, provider_limit=1)
+        entered, release, independent = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        async def hold():
+            entered.set()
+            await release.wait()
+        first = asyncio.create_task(harness.request({"base_url": "https://a.example/v1"}, hold,
+            owner_id="a1", root_id="root", role="chat", stage="answer"))
+        await entered.wait()
+        queued = asyncio.create_task(harness.request({"base_url": "https://a.example/another"}, hold,
+            owner_id="a2", root_id="root", role="chat", stage="answer"))
+        async def independent_work():
+            independent.set()
+        other = asyncio.create_task(harness.request({"base_url": "https://b.example/v1"}, independent_work,
+            owner_id="b", root_id="root", role="verify", stage="verify"))
+        try:
+            await asyncio.wait_for(independent.wait(), 1)
+        finally:
+            release.set()
+            await asyncio.gather(first, queued, other)
+        self.assertFalse(harness.snapshot()["active"])
+
+    async def test_cancel_after_admission_and_execution_failure_release_capacity(self):
+        harness = ModelHarness(global_limit=1, provider_limit=1)
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        config = {"base_url": "https://a.example/v1"}
+        async def hold():
+            entered.set()
+            await release.wait()
+            asyncio.get_running_loop().call_soon(second.cancel)
+        async def unwanted():
+            calls.append("cancelled request executed")
+        first = asyncio.create_task(harness.request(config, hold, owner_id="hold", root_id="a", role="chat", stage="answer"))
+        await entered.wait()
+        second = asyncio.create_task(harness.request(config, unwanted, owner_id="cancel", root_id="b", role="chat", stage="answer"))
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(first, second, return_exceptions=True)
+        self.assertEqual(calls, [])
+        async def failing():
+            raise ValueError("private failure")
+        with self.assertRaises(ValueError):
+            await harness.request(config, failing, owner_id="bad", root_id="b", role="chat", stage="answer")
+        async def successful():
+            return "done"
+        result = await asyncio.wait_for(harness.request(config, successful, owner_id="good", root_id="b", role="chat", stage="answer"), 1)
+        self.assertEqual(result, "done")
+        self.assertNotIn("private failure", str(harness.snapshot()))
+        self.assertFalse(harness.snapshot()["active"])
+
     async def test_answer_and_verification_use_assigned_models_with_separate_context(self):
         store = FakeStore()
         store.config["verification_enabled"] = True

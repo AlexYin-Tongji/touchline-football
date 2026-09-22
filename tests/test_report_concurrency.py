@@ -32,6 +32,31 @@ class ParallelReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["completed"], 5)
         self.assertEqual(result["budget"]["concurrency"], 2)
 
+    async def test_older_report_finishing_last_cannot_hide_current_completed_version(self):
+        store = self.store(1)
+        old_id = store.list("reports")[0]["id"]
+        newer_finished = asyncio.Event()
+        new_ids = []
+
+        async def runner(store, rid, cancel):
+            if store.get("runs", rid)["report_id"] == old_id:
+                source = store.get("evidence", "ev_injury")
+                source["text"] += " The medical team will assess the player again tomorrow."
+                store.put("evidence", source)
+                new_ids.append(news_reports.enqueue_reports(store)[0]["id"])
+                await newer_finished.wait()
+                await successful_runner(store, rid, cancel)
+            else:
+                await successful_runner(store, rid, cancel)
+                newer_finished.set()
+
+        await asyncio.wait_for(news_reports.process_report_queue(store, runner=runner), 1)
+        self.assertEqual(store.get("reports", old_id)["status"], "stale")
+        self.assertEqual(store.get("reports", new_ids[0])["status"], "completed")
+        visible = news_reports.list_reports(store)
+        self.assertEqual([(row["id"], row["status"]) for row in visible], [(new_ids[0], "completed")])
+        self.assertTrue(visible[0]["report"]["sections"])
+
     async def test_independent_store_can_work_while_first_store_is_busy(self):
         first, second = self.store(1), self.store(1)
         entered, release = asyncio.Event(), asyncio.Event()

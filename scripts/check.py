@@ -14,7 +14,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 FAST = (
     "test_agent", "test_agent_delivery", "test_agent_v2", "test_provider", "test_anthropic_provider",
-    "test_verification", "test_reader_tools", "test_tool_reliability", "test_model_harness",
+    "test_verification", "test_reader_tools", "test_tool_reliability", "test_model_harness", "test_agent_runtime", "test_agent_delegation",
     "test_runtime_optimization", "test_research_concurrency", "test_team_refresh_parts", "test_report_concurrency",
 )
 
