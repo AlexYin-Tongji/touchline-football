@@ -1,5 +1,14 @@
 # 看台 MVP 接口与模块约定
 
+## V7.4 增量
+
+- `GET /api/workflows/{kind}/{team_id}`：只读当前工作与进度，kind为news/team。
+- `POST .../start`：按队伍及功能幂等启动持续跟进，返回started及完整状态；新闻缺模型返回blocked状态，不假装启动。
+- `POST .../stop`：停止此功能的当前执行和后代，等待清理并保存停止状态。不会停止其他球队或另一个功能。
+- `GET /api/teams/{id}/center`现在严格只读，不因打开页面自动启动网络请求。旧周期personal/report/automation入口不再自动执行，显式工作流拥有调度。
+- 旧feed/refresh、feed/organize、teams/{id}/maintain作为显式启动的兼容入口；单篇reports/{id}/retry也启动所属队伍动态工作，避免只入队无人执行。
+- 进度状态含enabled/status/phase/message/last_error、各时间、progress与memory；工作记忆不包含原文、旧模型推理或密钥。
+
 ## V7.3 增量
 
 - `/api/capabilities` 的skills为team-news、team-information、football-assistant三个主入口；workflows保留九个历史模式说明。创建任务仍接受旧skill值，也接受三个新入口。

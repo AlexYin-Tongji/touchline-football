@@ -3572,6 +3572,69 @@ button:focus:not(:focus-visible) {
   }
 }
 
+.workflow-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 22px;
+  padding: 16px 18px;
+  border: 1px solid #dce6da;
+  border-radius: 12px;
+  background: #f1f6ed;
+}
+.workflow-status {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.workflow-status strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.workflow-status p,
+.workflow-status small {
+  display: block;
+  margin: 4px 0 0;
+  color: #606e63;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.workflow-status .workflow-error {
+  color: #913e32;
+}
+.workflow-error .text-button {
+  display: inline-flex;
+  margin-left: 10px;
+}
+.workflow-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.workflow-actions .button {
+  min-width: 82px;
+  min-height: 42px;
+  justify-content: center;
+}
+@media (max-width: 600px) {
+  .workflow-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px;
+  }
+  .workflow-actions .button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workflow-actions .spin {
+    animation: none;
+  }
+}
+
 .feed-heading-actions {
   display: flex;
   flex-wrap: wrap;

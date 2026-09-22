@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-VERSION = "7.3.0"
+VERSION = "7.4.0"
 ROOT = Path(__file__).resolve().parent.parent
 PARTS = ("python", "node", "frontend")
 
@@ -54,7 +54,7 @@ def input_fingerprints(root=ROOT):
 
 def application_id(root=ROOT):
     root = Path(root)
-    inputs = _frontend_files(root) + _files(root, "server", "*.py") + _files(root, "agent_skills", "*.md")
+    inputs = _frontend_files(root) + _files(root, "server", "*.py") + _files(root, "agent_skills", "*.md") + _files(root, "agent_prompts", "*.md")
     inputs.extend(root / name for name in ("requirements.txt", "requirements.lock.txt", "launch.py", "start.ps1"))
     return _digest(root, inputs)
 

@@ -201,6 +201,7 @@ class ManualReportAPITests(unittest.IsolatedAsyncioTestCase):
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://testserver")
 
     async def asyncTearDown(self):
+        await self.app.state.workflows.close()
         await self.app.state.personal.close()
         await self.app.state.team_maintenance.close()
         await self.client.aclose()
@@ -214,22 +215,27 @@ class ManualReportAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.post("/api/feed/organize", json={})).status_code, 422)
         self.assertEqual((await self.client.post("/api/feed/organize", json={"team_id": "unknown"})).status_code, 404)
 
-    async def test_idle_and_queue_calls_do_not_start_network_or_model_inline(self):
+    async def test_legacy_organize_starts_owned_work_and_repeated_calls_do_not_duplicate(self):
         self.store.save_settings({"llm": {"base_url": "http://localhost:9999/v1", "model": "test"}})
+        entered = asyncio.Event()
+        async def cycle(manager, entry, first):
+            entered.set()
+            await asyncio.Event().wait()
+        self.app.state.workflows.cycle_runner = cycle
         with patch("server.agent.run_agent", new=AsyncMock()) as model, \
                 patch.object(self.app.state.personal, "start") as refresh:
             idle = await self.client.post("/api/feed/organize", json={"team_id": "arsenal"})
             self.assertEqual(idle.status_code, 200)
-            self.assertEqual(idle.json()["status"], "idle")
+            self.assertTrue(idle.json()["enabled"])
+            await entered.wait()
             self.store.put("evidence", FakeStore().get("evidence", "ev_injury"))
             event(self.store)
             queued = await self.client.post("/api/feed/organize", json={"team_id": "arsenal"})
-            self.assertEqual(set(queued.json()), {"started", "status", "queued", "note"})
-            self.assertEqual((queued.json()["status"], queued.json()["queued"]), ("queued", 1))
+            self.assertFalse(queued.json()["started"])
             again = await self.client.post("/api/feed/organize", json={"team_id": "arsenal"})
-            self.assertEqual(again.json()["status"], "busy")
-            feed = (await self.client.get("/api/feed", params={"team_id": "arsenal"})).json()
-            self.assertEqual(feed["processing"]["manual_count"], 1)
+            self.assertFalse(again.json()["started"])
+            stopped = await self.client.post("/api/workflows/news/arsenal/stop")
+            self.assertEqual(stopped.json()["status"], "stopped")
             model.assert_not_called()
             refresh.assert_not_called()
 

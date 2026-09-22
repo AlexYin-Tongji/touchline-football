@@ -26,12 +26,26 @@ MAX_ATTEMPTS = 3
 REPORT_CONCURRENCY = 2
 
 
-def _worker_lock(store):
+def _worker_lock(store, team_id=None):
+    if team_id is not None:
+        locks = getattr(store, "_report_team_worker_locks", None)
+        if locks is None:
+            locks = store._report_team_worker_locks = {}
+        return locks.setdefault(team_id, threading.Lock())
     lock = getattr(store, "_report_worker_lock", None)
     if lock is None:
         lock = threading.Lock()
         store._report_worker_lock = lock
     return lock
+
+
+def _worker_slots(store):
+    slots = getattr(store, "_report_executor_slots", None)
+    if slots is None:
+        slots = store._report_executor_slots = asyncio.Semaphore(REPORT_CONCURRENCY)
+    return slots
+
+
 # Remove only parenthesized machine-key scalar annotations. The surrounding
 # Chinese qualification and all source/factual wording remain unchanged.
 _READER_METADATA = re.compile(
@@ -628,119 +642,201 @@ def recover_reports(store):
     return recovered
 
 
-async def process_report_queue(store, *, max_jobs=None, runner=None):
-    """Bound independent reports, sharing model capacity through the harness."""
+async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=None,
+                               owner_id=None, cancel_event=None, on_progress=None):
+    """Drain one owned batch; all scopes share the same per-store execution slots.
+
+    A global batch and team batches may coexist. Their short synchronous claims
+    recheck durable state only after obtaining a slot. Cancellation stops only
+    the workers created by this invocation and waits for their cleanup.
+    """
     limit = max(0, int(max_jobs)) if max_jobs is not None else None
-    lock = _worker_lock(store)
-    if not lock.acquire(blocking=False):
-        return {"processed": 0, "completed": 0, "failed": 0, "busy": True}
+    stop = cancel_event if cancel_event is not None else asyncio.Event()
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
-    # Claiming is synchronous until executor awaits. All workers share this
-    # set and limit; a report can only enter this batch once.
     examined, active = set(), {}
 
+    def progress(stage, run_id=None):
+        if on_progress is not None:
+            try:
+                on_progress({**stats, "stage": stage, "run_id": run_id,
+                             "active_run_ids": list(active), "owner_id": owner_id, "team_id": team_id})
+            except (Exception, asyncio.CancelledError):
+                # Progress is metadata only and must never change execution.
+                pass
+
+    if stop.is_set():
+        progress("cancelled")
+        raise asyncio.CancelledError()
+    lock = _worker_lock(store, team_id)
+    if not lock.acquire(blocking=False):
+        stats["busy"] = True
+        progress("busy")
+        return stats
+    slots = _worker_slots(store)
+
+    def queue_rows():
+        return sorted((row for row in store.list("reports", mode="live", team_id=team_id)
+                       if row["id"] not in examined and row.get("status") in {"queued", "needs_configuration", "failed"}),
+                      key=lambda row: (not row.get("manual_once", False), not row.get("manual_requested", False),
+                                       row.get("status") == "failed", row.get("created_at", "")))
+
+    def claim():
+        # No await occurs between the status check and the generating write.
+        # Store.atomic also protects callers using the same store from threads.
+        with _atomic(store):
+            for row in queue_rows():
+                examined.add(row["id"])
+                manual = bool(row.get("manual_once"))
+                if row.get("manual_stop_after_attempt") and not manual:
+                    continue
+                settings = _report_settings(store)
+                if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
+                    continue
+                retry_at = parse_time(row.get("retry_at"))
+                if row.get("status") == "failed" and (not retry_at or retry_at > now()):
+                    continue
+                if not _current(store, row, settings):
+                    row.update(status="stale", report=None, updated_at=_stamp(), manual_once=False)
+                    store.put("reports", row)
+                    continue
+                if not _configured(settings):
+                    row.update(status="needs_configuration", manual_once=False,
+                               error="模型尚未配置，请在设置中选择球队动态模型。", updated_at=_stamp())
+                    store.put("reports", row)
+                    continue
+                run_id = "run_" + uuid.uuid4().hex[:20]
+                row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
+                           updated_at=_stamp(), started_at=_stamp(), retry_at=None,
+                           manual_once=False, manual_report=manual,
+                           config_revision=_configuration_revision(settings),
+                           attempt_history=[*row.get("attempt_history", []), {"at": _stamp(), "kind": "manual" if manual else "auto"}])
+                run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
+                       "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
+                       "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
+                       "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；根据事件复杂度和原文材料自行安排篇幅与章节，充分交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
+                       "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
+                       "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
+                       "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}
+                if owner_id is not None:
+                    run["workflow_id"] = owner_id
+                from .model_config import role_selection
+                selection = role_selection(store, "feed")
+                if selection:
+                    run.update(provider_id=selection["provider_id"], model=selection["model"])
+                store.put("reports", row)
+                store.put("runs", run)
+                return row, run_id, manual
+        return None
+
     def interrupted(row, manual):
-        message = "手动整理被服务停止中断，请再次手动整理。" if manual else "整理被服务停止中断，下次启动会恢复。"
+        message = "手动整理被停止，请再次启动整理。" if manual else "整理已停止，下次启动会恢复。"
         current = store.get("reports", row["id"])
         run = store.get("runs", row.get("run_id"))
         if run and run.get("status") in {"queued", "running"}:
             store.put("runs", {**run, "status": "cancelled", "finished_at": _stamp(), "error": message})
-        if current and current.get("status") == "generating" and current.get("run_id") == row.get("run_id"):
-            _fail(store, current, message)
+        if not current or current.get("run_id") != row.get("run_id"):
+            return None
+        if current.get("status") != "generating":
+            return current
+        # An executor can durably finish just before the stop request arrives.
+        # Adopt only an already verified result; never discard finished work.
+        if run and run.get("status") == "completed":
+            return _finish(store, current, run, store.settings())
+        return _fail(store, current, message)
 
     async def worker():
         while limit is None or stats["processed"] < limit:
-            # Re-read between model calls so a new explicit batch takes priority
-            # over automatic jobs that were waiting when this cycle began.
-            queue = sorted((row for row in store.list("reports", mode="live") if row["id"] not in examined
-                            and row.get("status") in {"queued", "needs_configuration", "failed"}),
-                           key=lambda row: (not row.get("manual_once", False), not row.get("manual_requested", False),
-                                            row.get("status") == "failed", row.get("created_at", "")))
-            if not queue:
-                break
-            row = queue[0]
-            examined.add(row["id"])
-            if row.get("status") not in {"queued", "needs_configuration", "failed"}:
-                continue
-            manual = bool(row.get("manual_once"))
-            if row.get("manual_stop_after_attempt") and not manual:
-                continue
-            settings = _report_settings(store)
-            if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
-                continue
-            retry_at = parse_time(row.get("retry_at"))
-            if row.get("status") == "failed" and (not retry_at or retry_at > now()):
-                continue
-            if not _current(store, row, settings):
-                row.update(status="stale", report=None, updated_at=_stamp(), manual_once=False)
-                store.put("reports", row)
-                continue
-            if not _configured(settings):
-                row.update(status="needs_configuration", manual_once=False,
-                           error="模型尚未配置，请在设置中选择球队动态模型。", updated_at=_stamp())
-                store.put("reports", row)
-                continue
-            run_id = "run_" + uuid.uuid4().hex[:20]
-            row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
-                       updated_at=_stamp(), started_at=_stamp(), retry_at=None,
-                       manual_once=False, manual_report=manual,
-                       config_revision=_configuration_revision(settings),
-                       attempt_history=[*row.get("attempt_history", []), {"at": _stamp(), "kind": "manual" if manual else "auto"}])
-            run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
-                   "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
-                   "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
-                   "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；根据事件复杂度和原文材料自行安排篇幅与章节，充分交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
-                   "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
-                   "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
-                   "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}
-            from .model_config import role_selection
-            selection = role_selection(store, "feed")
-            if selection:
-                run.update(provider_id=selection["provider_id"], model=selection["model"])
-            with _atomic(store):
-                store.put("reports", row)
-                store.put("runs", run)
-            active[run_id] = (row, manual)
-            stats["processed"] += 1
-            try:
-                if runner is None:
-                    from .agent import run_agent
-                    executor = run_agent
-                else:
-                    executor = runner
-                await executor(store, run_id, asyncio.Event())
-                # The Agent saves a cancelled run before returning. Preserve
-                # the worker's shutdown request instead of starting another job.
-                if asyncio.current_task() and asyncio.current_task().cancelling():
+            if stop.is_set():
+                raise asyncio.CancelledError()
+            # This is only a cheap hint. Another scope may claim these rows
+            # while this worker waits; claim() always queries again afterwards.
+            if not queue_rows():
+                return
+            async with slots:
+                if stop.is_set():
                     raise asyncio.CancelledError()
-                # Re-read persisted job: a privacy/source mutation may have
-                # invalidated it while the model request was in flight.
-                row = store.get("reports", row["id"]) or row
-                final = _finish(store, row, store.get("runs", run_id) or {}, store.settings())
-            except asyncio.CancelledError:
-                interrupted(row, manual)
-                raise
-            except Exception:
-                current_run = store.get("runs", run_id)
-                if current_run and current_run.get("status") in {"queued", "running"}:
-                    store.put("runs", {**current_run, "status": "failed", "finished_at": _stamp(),
-                                       "error": "后台整理未完成，已保留来源和失败状态。"})
-                row = store.get("reports", row["id"]) or row
-                final = row if row.get("status") == "stale" else _fail(store, row, "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
-            finally:
-                active.pop(run_id, None)
-            stats["completed" if final.get("status") == "completed" else "failed"] += 1
+                if limit is not None and stats["processed"] >= limit:
+                    return
+                selected = claim()
+                if selected is None:
+                    return
+                row, run_id, manual = selected
+                active[run_id] = (row, manual)
+                stats["processed"] += 1
+                progress("claim", run_id)
+                final, cancelled = None, False
+                try:
+                    if stop.is_set():
+                        raise asyncio.CancelledError()
+                    if runner is None:
+                        from .agent import run_agent
+                        executor = run_agent
+                    else:
+                        executor = runner
+                    await executor(store, run_id, stop)
+                    if stop.is_set() or (asyncio.current_task() and asyncio.current_task().cancelling()):
+                        raise asyncio.CancelledError()
+                    current = store.get("reports", row["id"])
+                    if current and current.get("run_id") == run_id:
+                        final = _finish(store, current, store.get("runs", run_id) or {}, store.settings())
+                except asyncio.CancelledError:
+                    cancelled = True
+                    final = interrupted(row, manual)
+                    raise
+                except Exception:
+                    current_run = store.get("runs", run_id)
+                    if current_run and current_run.get("status") in {"queued", "running"}:
+                        store.put("runs", {**current_run, "status": "failed", "finished_at": _stamp(),
+                                           "error": "后台整理未完成，已保留来源和失败状态。"})
+                    current = store.get("reports", row["id"])
+                    if current and current.get("run_id") == run_id:
+                        final = current if current.get("status") == "stale" else _fail(store, current,
+                            "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
+                finally:
+                    active.pop(run_id, None)
+                    if final is not None:
+                        stats["completed" if final.get("status") == "completed" else "failed"] += 1
+                    progress("cancelled" if cancelled else "finish", run_id)
 
-    workers = []
+    workers, watcher, completion = [], None, None
+    cancelled = False
     try:
         workers = [asyncio.create_task(worker()) for _ in range(REPORT_CONCURRENCY)]
-        await asyncio.gather(*workers)
+        completion = asyncio.gather(*workers)
+        watcher = asyncio.create_task(stop.wait())
+        done, _ = await asyncio.wait({completion, watcher}, return_when=asyncio.FIRST_COMPLETED)
+        if watcher in done or stop.is_set():
+            raise asyncio.CancelledError()
+        await completion
         return {**stats, "budget": report_budget(store)}
+    except asyncio.CancelledError:
+        cancelled = True
+        stop.set()
+        raise
     finally:
-        for task in workers:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*workers, return_exceptions=True)
-        for row, manual in list(active.values()):
-            interrupted(row, manual)
-        lock.release()
+        async def cleanup():
+            try:
+                for task in [*workers, *([watcher] if watcher is not None else [])]:
+                    if not task.done() and not task.cancelling():
+                        task.cancel()
+                await asyncio.gather(*workers, *([watcher] if watcher is not None else []), return_exceptions=True)
+                if completion is not None:
+                    await asyncio.gather(completion, return_exceptions=True)
+                for row, manual in list(active.values()):
+                    interrupted(row, manual)
+                if cancelled:
+                    progress("cancelled")
+            finally:
+                lock.release()
+        cleaning = asyncio.create_task(cleanup())
+        # Repeated cancellation must not interrupt a runner's finally cleanup
+        # or release the batch lock before its report executions have stopped.
+        while not cleaning.done():
+            try:
+                await asyncio.shield(cleaning)
+            except asyncio.CancelledError:
+                cancelled = True
+                stop.set()
+        await cleaning
+        if cancelled:
+            raise asyncio.CancelledError()

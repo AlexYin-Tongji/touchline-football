@@ -3,13 +3,12 @@ import {
   ArrowRight,
   CalendarDays,
   ChevronDown,
-  LoaderCircle,
   MessageCircle,
   Newspaper,
-  RefreshCw,
   Sparkles,
 } from "lucide-react";
-import { api, errorText, post } from "./api";
+import { api, errorText } from "./api";
+import { WorkflowControls } from "./WorkflowControls";
 import { Crest, dateTime, Modal, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
 import { clubName } from "./clubNames";
@@ -95,11 +94,7 @@ export function FeedView({
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [organizing, setOrganizing] = useState(false);
-  const [manualMessage, setManualMessage] = useState("");
-  const manualRequests = useRef(new Set<string>());
   const [selected, setSelected] = useState<FeedItem | null>(null);
   const [report, setReport] = useState<IllustratedReport | null>(null);
   const [reading, setReading] = useState(false);
@@ -155,10 +150,6 @@ export function FeedView({
             : result,
         );
         setError("");
-        setRefreshing(
-          result.refresh?.status === "running" ||
-            result.refresh?.status === "queued",
-        );
       } catch (err) {
         if (request === serial.current) setError(errorText(err));
       } finally {
@@ -173,70 +164,20 @@ export function FeedView({
   useEffect(() => {
     setFeed(null);
     setSelected(null);
-    setRefreshing(false);
-    setOrganizing(false);
-    setManualMessage("");
     void load();
     return () => {
       serial.current++;
     };
   }, [load]);
   useEffect(() => {
-    const timer = window.setInterval(
-      () => {
-        if (document.visibilityState === "visible") void load(undefined, true);
-      },
-      refreshing ||
-        (feed?.processing?.generating || 0) > 0 ||
-        (feed?.processing?.queued || 0) > 0
-        ? 4000
-        : 60000,
-    );
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(undefined, true);
+    }, 60000);
     return () => clearInterval(timer);
-  }, [
-    refreshing,
-    load,
-    feed?.items.length,
-    feed?.processing?.generating,
-    feed?.processing?.queued,
-    feed?.processing?.manual_count,
-  ]);
-  const organize = async () => {
-    const requestedTeam = team.id;
-    if (manualRequests.current.has(requestedTeam) || (feed?.processing?.manual_count || 0) > 0) return;
-    manualRequests.current.add(requestedTeam);
-    setOrganizing(true);
-    setError("");
-    setManualMessage("");
-    try {
-      const result = await post<{ started: boolean; status: string; queued: number; note: string }>(
-        "/feed/organize", { team_id: requestedTeam },
-      );
-       if (!mounted.current || activeTeam.current !== requestedTeam) return;
-      setManualMessage(result.note);
-      await load();
-    } catch (err) {
-      if (activeTeam.current === requestedTeam) setError(errorText(err));
-    } finally {
-      manualRequests.current.delete(requestedTeam);
-      if (activeTeam.current === requestedTeam) setOrganizing(false);
-    }
-  };
-  const refresh = async () => {
-    if (refreshing) return;
-    const requestedTeam = team.id;
-    setRefreshing(true);
-    setError("");
-    try {
-      await post("/feed/refresh", { team_id: requestedTeam });
-      if (activeTeam.current === requestedTeam) await load();
-    } catch (err) {
-      if (activeTeam.current === requestedTeam) {
-        setError(errorText(err));
-        setRefreshing(false);
-      }
-    }
-  };
+  }, [load]);
+  const workflowChanged = useCallback(() => {
+    void load(undefined, true);
+  }, [load]);
   const read = async (item: FeedItem) => {
     const request = ++readSerial.current;
     setSelected(item);
@@ -327,10 +268,6 @@ export function FeedView({
         Date.parse(item.kickoff) >= Date.now(),
     )
     .sort((a, b) => (a.kickoff || "").localeCompare(b.kickoff || ""))[0];
-  const pending = feed?.pending_count || feed?.refresh?.pending || 0;
-  const modelReady =
-    data.setup?.model_roles_configured?.feed ?? data.setup?.model_configured;
-  const manualRunning = (feed?.processing?.manual_count || 0) > 0;
   const seenStoryImages = new Set<string>();
   const sections = report?.report?.sections.map((section) => ({
     ...section,
@@ -354,30 +291,8 @@ export function FeedView({
             </h1>
             <p>值得知道的消息，都在这里。</p>
           </div>
-          <div className="feed-heading-actions">
-            <button
-              className="button refresh-button"
-              disabled={refreshing || loading}
-              onClick={refresh}
-            >
-              <RefreshCw size={15} className={refreshing ? "spin" : ""} />
-              <span>{refreshing ? "更新中" : "刷新来源"}</span>
-            </button>
-            <button
-              className="button primary"
-              disabled={organizing || manualRunning || !feed}
-              onClick={modelReady ? organize : openModel}
-              title="让球队动态模型整理当前球队所有待处理消息"
-            >
-              {organizing || manualRunning ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}
-              {organizing || manualRunning ? "手动整理中" : "手动整理"}
-            </button>
-          </div>
         </div>
-        <p className="feed-manual-help">
-          由“球队动态”模型根据可用资料整理消息，完成后陆续加入动态。没有可用来源时，先刷新来源。
-        </p>
-        {manualMessage && <div className="notice success" role="status">{manualMessage}</div>}
+        <WorkflowControls kind="news" teamId={team.id} onChange={workflowChanged} onConfigure={openModel} />
         <div className="feed-toolbar">
           <div className="filter-tabs">
             {topics.map((item) => (
@@ -393,49 +308,6 @@ export function FeedView({
           </div>
           <span className="feed-order">最新发布</span>
         </div>
-        {(refreshing ||
-          pending > 0 ||
-          feed?.processing?.note ||
-          feed?.refresh?.error) && (
-          <div className="feed-progress" role="status">
-            {refreshing ? (
-              <LoaderCircle size={15} className="spin" />
-            ) : (
-              <Sparkles size={15} />
-            )}
-            <div className="feed-processing-copy">
-              <strong>
-                {feed?.processing?.note ||
-                  (refreshing
-                    ? pending > 0
-                      ? `正在整理 ${pending} 条新消息`
-                      : "正在为你查找和整理新消息"
-                    : `${pending} 条来源消息尚未生成中文动态`)}
-              </strong>
-              <small>
-                {feed?.refresh?.error ||
-                  (feed?.processing?.needs_configuration || !modelReady
-                    ? "连接动态模型后，才能生成中文内容。"
-                    : manualRunning
-                      ? "正在整理本队待处理消息，已完成的内容会陆续显示。"
-                    : feed?.processing?.next_retry_at
-                      ? `下次重试：${dateTime(feed.processing.next_retry_at)}。也可点击上方“手动整理”。`
-                      : "后台会提取来源并整理中文内容，已完成的消息会逐条出现。")}
-              </small>
-            </div>
-            {!modelReady || !!feed?.processing?.needs_configuration ? (
-              <button className="text-button" onClick={openModel}>
-                连接模型
-                <ArrowRight size={13} />
-              </button>
-            ) : !organizing && !manualRunning &&
-              (feed?.processing?.can_organize ?? pending > 0) ? (
-              <button className="text-button" onClick={organize}>
-                手动整理 <Sparkles size={13} />
-              </button>
-            ) : null}
-          </div>
-        )}
         {error && (
           <div className="notice error" role="alert">
             {error}
@@ -509,37 +381,8 @@ export function FeedView({
         {feed && !items.length && (
           <div className="empty-state feed-empty">
             <Newspaper size={35} />
-            <h2>
-              {topic
-                ? "这个分类还没有新消息"
-                : refreshing
-                  ? "正在准备你的中文动态"
-                  : pending > 0
-                    ? "消息已收录，中文整理尚未完成"
-                    : "主场消息，正在等你开启"}
-            </h2>
-            <p>
-              {topic
-                ? "看看其他分类，或稍后再来。"
-                : pending > 0
-                  ? "上方会显示整理进度或需要处理的原因。你也可以先浏览球队资料。"
-                  : "看台会从球队和媒体来源中整理中文动态。"}
-            </p>
-            {!topic && (
-              <button
-                className="button primary"
-                disabled={refreshing || organizing || manualRunning}
-                onClick={pending > 0 ? (modelReady ? organize : openModel) : refresh}
-              >
-                {organizing || manualRunning ? "手动整理中" : refreshing ? "正在刷新来源" : pending > 0 ? "手动整理这些消息" : "查找最新来源"}
-                <ArrowRight size={16} />
-              </button>
-            )}
-            {!modelReady && !topic && (
-              <button className="text-button" onClick={openModel}>
-                连接球队动态模型
-              </button>
-            )}
+            <h2>{topic ? "这个分类还没有新消息" : "中文动态会陆续出现在这里"}</h2>
+            <p>{topic ? "看看其他分类，或等待后续消息。" : "点击上方“启动”持续跟进球队消息。每轮完成后会等待新的资料，结束后仍可阅读已有动态。"}</p>
           </div>
         )}
         {feed?.next_cursor && (

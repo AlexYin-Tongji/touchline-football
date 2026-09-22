@@ -5,14 +5,14 @@ import {
   CalendarDays,
   ChevronDown,
   MapPin,
-  RefreshCw,
   Shield,
   Sparkles,
   Trophy,
   UserRound,
   Users,
 } from "lucide-react";
-import { api, errorText, post } from "./api";
+import { api, errorText } from "./api";
+import { WorkflowControls } from "./WorkflowControls";
 import { Crest, Modal, safeUrl, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
 import { Sources, friendlyTime, type SourceLink } from "./v7Shared";
@@ -125,7 +125,6 @@ export function TeamCenter({
   const [center, setCenter] = useState<CenterData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState("overview");
   const [position, setPosition] = useState("");
   const [player, setPlayer] = useState<Player | null>(null);
@@ -136,10 +135,8 @@ export function TeamCenter({
   const active = useRef(team.id);
   active.current = team.id;
   const request = useRef(0);
-  const loadingRequest = useRef(false);
   const load = useCallback(async () => {
     const serial = ++request.current;
-    loadingRequest.current = true;
     setLoading(true);
     try {
       const next = await api<CenterData>(
@@ -148,17 +145,10 @@ export function TeamCenter({
       if (serial !== request.current || active.current !== team.id) return;
       setCenter(next);
       setError("");
-      const status =
-        typeof next.refresh_status === "object"
-          ? next.refresh_status.status
-          : next.refresh_status;
-      setRefreshing(["running", "queued", "refreshing"].includes(status || "") ||
-        Object.values(next.components || {}).some((part) => part?.status === "running"));
     } catch (err) {
       if (serial === request.current) setError(errorText(err));
     } finally {
       if (serial === request.current) {
-        loadingRequest.current = false;
         setLoading(false);
       }
     }
@@ -176,24 +166,9 @@ export function TeamCenter({
       request.current++;
     };
   }, [load]);
-  useEffect(() => {
-    if (!refreshing) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !loadingRequest.current) void load();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [refreshing, load]);
-  const refresh = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      await post(`/teams/${encodeURIComponent(team.id)}/maintain`);
-      await load();
-    } catch (err) {
-      setError(errorText(err));
-      setRefreshing(false);
-    }
-  };
+  const workflowChanged = useCallback(() => {
+    void load();
+  }, [load]);
   const profile = { ...findClub(team.id), ...team, ...center?.team };
   const season = center?.stats.season;
   const matches = (center?.matches || [])
@@ -258,6 +233,7 @@ export function TeamCenter({
           )}
         </div>
       </section>
+      <WorkflowControls kind="team" teamId={team.id} onChange={workflowChanged} />
       <div className="center-toolbar">
         <div className="filter-tabs">
           {[
@@ -284,15 +260,6 @@ export function TeamCenter({
               显示比赛结果
             </button>
           )}
-          <button
-            className="icon-button"
-            disabled={loading || refreshing}
-            onClick={refresh}
-            aria-label="更新球队资料"
-            title="更新球队资料"
-          >
-            <RefreshCw size={17} className={refreshing ? "spin" : ""} />
-          </button>
         </div>
       </div>
       {center && (
@@ -341,14 +308,9 @@ export function TeamCenter({
           <button onClick={load}>重试</button>
         </div>
       )}
-      {refreshing && (
-        <div className="feed-progress" role="status">
-          <Spinner text="正在更新球队资料" />
-        </div>
-      )}
       {!center && loading && (
         <div className="page-loading">
-          <Spinner text="正在整理球队档案" />
+          <Spinner text="正在读取球队档案" />
         </div>
       )}
       {tab === "overview" && (
@@ -361,7 +323,7 @@ export function TeamCenter({
               </div>
               <p>
                 {profile.description ||
-                  "球队介绍正在更新，你也可以向助手了解球队的历史与风格。"}
+                  "暂无球队介绍，可以向助手了解球队的历史与风格。"}
               </p>
               <div className="club-details">
                 {profile.city && (
@@ -693,15 +655,8 @@ export function TeamCenter({
           {!roster.length && !loading && (
             <div className="empty-state">
               <Users size={31} />
-              <h3>阵容资料正在补齐</h3>
-              <p>已确认的球员和照片会出现在这里。</p>
-              <button
-                className="button"
-                onClick={refresh}
-                disabled={refreshing}
-              >
-                更新阵容
-              </button>
+              <h3>还没有可读的阵容资料</h3>
+              <p>点击上方“启动”持续更新球队资料，已确认的球员会出现在这里。</p>
             </div>
           )}
         </section>

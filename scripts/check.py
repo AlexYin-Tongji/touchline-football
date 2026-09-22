@@ -17,6 +17,7 @@ FAST = (
     "test_verification", "test_reader_tools", "test_tool_reliability", "test_model_harness", "test_agent_runtime", "test_agent_delegation",
     "test_runtime_optimization", "test_research_concurrency", "test_team_refresh_parts", "test_report_concurrency",
     "test_skills_tools_quality", "test_news_sources", "test_verification_efficiency",
+    "test_workflows", "test_report_workflows",
 )
 
 

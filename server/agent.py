@@ -18,6 +18,7 @@ from .ingestion import IngestionError
 from .model_harness import runtime_harness
 from .agent_delegation import Delegation, GUIDANCE, DELEGATION_TOOLS, checked_versions
 from .skill_catalog import PRIMARY_SKILLS, load_workflow, resolve_workflow, skill_metadata
+from .task_memory import system_mission
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent / "agent_skills"
 SKILLS = {
@@ -197,6 +198,7 @@ use_skill 是系统提供的本地工作规程加载器，主技能只有 {', '.
         prompt += "\n正稿按面向球迷的新闻写作：导语先交代最重要的新事实，正文按事件关系自然展开，准确归因和保留条件。不向读者汇报你的阅读、整理或核验过程，不反复写‘原文提到’和‘对球迷而言’。不强制补背景、分析、关注清单或每段小标题；没有新增且有依据的内容时analysis为空、unknowns为空数组。必要的来源局限只在影响理解的位置说明一次，不罗列报道本来就不涉及的阵容、伤病、赛程。保留所有重要人物、时间、数字、引语与条件，篇幅由新闻信息量决定，不用删事实来显得简洁。"
     if local.delegation:
         prompt += GUIDANCE
+    prompt += "\n\n" + system_mission()
     if run.get("internal_agent"):
         prompt += "\n本次是独立子任务，仅完成明确交代的目标。你的答复是交给父任务的候选结果，不直接发布，也不视为主任务已经核验。保持来源引用与资料缺口，不能读取其他任务的会话。"
     return prompt
@@ -450,6 +452,8 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
             messages = [{"role": "system", "content": system_prompt(run, settings, local, skill_text)}]
             messages.extend(history_messages(store, run, local))
             messages.extend(restored)
+            if run.get("workflow_context"):
+                messages.append({"role": "user", "content": "当前功能的工作进度（只作任务背景，不是事实证据）：\n" + run["workflow_context"]})
             if run.get("internal_agent"):
                 if run.get("delegation_context"):
                     messages.append({"role": "user", "content": "父任务提供的必要背景（不代替原文证据）：\n" + run["delegation_context"]})

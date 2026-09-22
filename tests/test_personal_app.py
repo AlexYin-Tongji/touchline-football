@@ -27,6 +27,7 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://testserver")
 
     async def asyncTearDown(self):
+        await self.app.state.workflows.close()
         await self.app.state.personal.close()
         await self.app.state.team_maintenance.close()
         tasks = [entry[0] for entry in self.app.state.run_tasks.values()]
@@ -238,7 +239,7 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured[:2], [(first.json()["id"], "https://alpha.example/v1", "one"), (second.json()["id"], "https://alpha.example/v1", "one")])
         self.assertEqual(captured[2][1:], ("https://beta.example/v1", "beta-model"))
 
-    async def test_center_get_and_personal_refresh_share_one_team_maintenance_job(self):
+    async def test_center_reads_are_passive_and_explicit_start_is_deduplicated(self):
         release = asyncio.Event()
         async def roster(*args, **kwargs):
             await release.wait()
@@ -251,16 +252,18 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
              patch("server.research.collect_team", side_effect=collect) as news_fetch:
             first = await self.client.get("/api/teams/arsenal/center")
             self.assertEqual(first.status_code, 200)
+            self.assertEqual(roster_fetch.await_count, 0)
             for _ in range(3):
                 await self.client.get("/api/teams/arsenal/center")
-                await self.client.post("/api/feed/refresh", json={"team_id": "arsenal"})
-            for _ in range(4):
-                await asyncio.sleep(0)
+                await self.client.post("/api/workflows/team/arsenal/start")
+            async with asyncio.timeout(1):
+                while not roster_fetch.await_count:
+                    await asyncio.sleep(.001)
             self.assertEqual(roster_fetch.await_count, 1)
-            self.assertEqual(news_fetch.await_count, 1)
+            self.assertEqual(news_fetch.await_count, 0)
             self.assertEqual(first.json()["team"]["id"], "arsenal")
             release.set()
-            await asyncio.gather(*self.app.state.team_maintenance.tasks.values(), *self.app.state.personal.tasks.values())
+            await self.app.state.workflows.stop("team", "arsenal")
 
     async def test_team_center_maintenance_concurrency_is_bounded_and_selected_scope_is_correct(self):
         release, count = asyncio.Event(), {"active": 0, "peak": 0}
@@ -275,10 +278,13 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json()["team"]["id"], identity)
                 self.assertTrue(all(player["team_id"] == identity for player in response.json()["roster"]))
-            await asyncio.sleep(0)
+                await self.client.post(f"/api/workflows/team/{identity}/start")
+            async with asyncio.timeout(1):
+                while count["peak"] < 2:
+                    await asyncio.sleep(.001)
             self.assertEqual(count["peak"], 2)
             release.set()
-            await asyncio.gather(*self.app.state.team_maintenance.tasks.values())
+            await self.app.state.workflows.close()
         self.assertEqual((await self.client.get("/api/teams/missing/center")).status_code, 404)
 
     async def test_scheduler_reaches_seventh_followed_team_when_first_six_are_fresh(self):

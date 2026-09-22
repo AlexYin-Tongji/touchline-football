@@ -329,6 +329,8 @@ def create_app(db_path=None):
     install_personal_defaults(store)
     team_maintenance = TeamMaintenanceManager(store)
     personal = PersonalRefreshManager(store, team_maintenance)
+    from .workflows import WorkflowManager
+    workflows = WorkflowManager(store)
     tasks = {}
     refresh_lock = asyncio.Lock()
     from .automation import AutomationManager
@@ -338,7 +340,6 @@ def create_app(db_path=None):
     from .league_data import LeagueSyncManager
     from . import news_reports
     league_sync = LeagueSyncManager(store)
-    report_wake = asyncio.Event()
 
     def queue_reports(team_id=None):
         targets = [team_id] if team_id else store.settings().get("followed_teams", [])
@@ -346,51 +347,25 @@ def create_app(db_path=None):
             for target in targets:
                 news_reports.enqueue_reports(store, team_id=target)
 
-    async def scheduled_reports():
-        while True:
-            try:
-                await asyncio.wait_for(report_wake.wait(), timeout=30)
-            except TimeoutError:
-                pass
-            report_wake.clear()
-            try:
-                queue_reports()
-                await news_reports.process_report_queue(store)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                # A report failure must not stop source refresh or future jobs.
-                store.set_meta("report_worker_error", "报告整理暂时中断，将在下一周期继续。")
-
     async def scheduled_refresh():
         while True:
             await asyncio.sleep(30)
-            if store.settings().get("mode") == "live":
-                personal.start()
             from .tracking import is_due
             for item in store.list("tracking", "live"):
                 if len(tasks) >= 3:
                     break
                 if is_due(item):
                     launch_tracking(item)
-            settings = store.settings()
-            if automation.due():
-                automation.start()
-            if not settings["auto_refresh"]:
-                continue
-            last = store.get_meta("last_refresh_live")
-            due = not last or (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds() >= settings["refresh_minutes"] * 60
-            if due and not refresh_lock.locked():
-                async with refresh_lock:
-                    await ingestion.refresh_all(store)
+            # News/team work is now explicitly owned by WorkflowManager.
+            # Page reads and legacy periodic jobs must not revive stopped work.
 
     @asynccontextmanager
     async def lifespan(app):
         from .agent_delegation import recover_tasks
         recover_tasks(store)
+        workflows.recover()
         news_reports.recover_reports(store)
         await league_sync.close()
-        queue_reports()
         for run in store.list("runs"):
             if run["status"] in {"queued", "running"}:
                 run.update({"status": "failed", "error": "服务重启，本次运行已中断，请重新发起。", "finished_at": ingestion.now()})
@@ -401,10 +376,9 @@ def create_app(db_path=None):
                             last_error="服务重启，将在恢复后继续检查。")
                 store.put("tracking", item)
         scheduler = asyncio.create_task(scheduled_refresh())
-        reporter = asyncio.create_task(scheduled_reports())
         yield
         scheduler.cancel()
-        reporter.cancel()
+        await workflows.close()
         await automation.close()
         await league_sync.close()
         await personal.close()
@@ -413,7 +387,7 @@ def create_app(db_path=None):
         for task, event in active:
             event.set()
             task.cancel()
-        await asyncio.gather(scheduler, reporter, *(task for task, event in active), return_exceptions=True)
+        await asyncio.gather(scheduler, *(task for task, event in active), return_exceptions=True)
         if getattr(store, "_agent_runtime", None):
             await store._agent_runtime.shutdown()
         store.close()
@@ -426,6 +400,7 @@ def create_app(db_path=None):
     app.state.automation = automation
     app.state.league_sync = league_sync
     app.state.personal = personal
+    app.state.workflows = workflows
     app.state.team_maintenance = team_maintenance
     app.state.runtime = runtime
     app.state.access = access
@@ -770,34 +745,43 @@ def create_app(db_path=None):
     async def refresh_feed(payload: PersonalRefreshInput):
         if payload.team_id:
             team_exists(payload.team_id)
-        result = personal.start(payload.team_id, force=True)
-        retried = news_reports.retry_pending_reports(store, team_id=payload.team_id)
-        queue_reports(payload.team_id)
-        report_wake.set()
-        return {**result, "reports_queued": retried["queued"]}
+        targets = [payload.team_id] if payload.team_id else store.settings().get("followed_teams", [])
+        states = [workflows.start("news", target) for target in targets]
+        return {"started": any(item.get("started") for item in states), "workflows": states}
 
     @app.post("/api/feed/organize")
     async def organize_feed(payload: ManualOrganizeInput):
         team_exists(payload.team_id)
-        try:
-            result = news_reports.organize_reports(store, payload.team_id)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from None
-        if result["started"]:
-            report_wake.set()
+        result = workflows.start("news", payload.team_id)
+        if result["status"] == "blocked":
+            raise HTTPException(400, result["message"])
         return result
+
+    @app.get("/api/workflows/{kind}/{team_id}")
+    async def workflow_status(kind: Literal["news", "team"], team_id: Identifier):
+        team_exists(team_id)
+        return workflows.status(kind, team_id)
+
+    @app.post("/api/workflows/{kind}/{team_id}/start", status_code=202)
+    async def start_workflow(kind: Literal["news", "team"], team_id: Identifier):
+        team_exists(team_id)
+        return workflows.start(kind, team_id)
+
+    @app.post("/api/workflows/{kind}/{team_id}/stop")
+    async def stop_workflow(kind: Literal["news", "team"], team_id: Identifier):
+        team_exists(team_id)
+        return await workflows.stop(kind, team_id)
 
     @app.get("/api/teams/{team_id}/center")
     async def get_team_center(team_id: Identifier, reveal: bool = False):
         from .team_center import center_view
         team_exists(team_id)
-        team_maintenance.start(team_id)
         return center_view(store, team_id, reveal=reveal)
 
     @app.post("/api/teams/{team_id}/maintain", status_code=202)
     async def maintain_team_center(team_id: Identifier, payload: TeamMaintenanceInput = TeamMaintenanceInput()):
         team_exists(team_id)
-        return team_maintenance.start(team_id, force=True, parts=payload.parts)
+        return workflows.start("team", team_id, parts=payload.parts)
 
     @app.get("/api/leagues")
     async def get_leagues(season_start_year: int | None = Query(None, ge=2000, le=2100)):
@@ -833,7 +817,9 @@ def create_app(db_path=None):
         report = news_reports.retry_report(store, identifier)
         if not report:
             raise HTTPException(404, "报告不存在或当前不可见。")
-        report_wake.set()
+        state = workflows.start("news", report["team_id"])
+        if state["status"] == "blocked":
+            raise HTTPException(400, state["message"])
         return report
 
     @app.put("/api/settings")
