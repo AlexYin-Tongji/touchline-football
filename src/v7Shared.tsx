@@ -20,6 +20,22 @@ export interface MediaImage {
   source_url?: string;
   caption?: string;
 }
+export function uniqueImages(
+  images: MediaImage[] = [],
+  seen = new Set<string>(),
+) {
+  return images.filter((image) => {
+    if (!safeUrl(image.source_url)) return false;
+    const safe = image.url?.startsWith("/assets/")
+      ? image.url
+      : safeUrl(image.url);
+    if (!safe) return false;
+    const identity = safe.split(/[?#]/)[0];
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
 export function Photo({
   image,
   className = "",
@@ -50,9 +66,9 @@ export function Photo({
         referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
       />
-      {(image?.credit || image?.caption) && (
+      {(image?.credit || image?.caption || image?.source_url) && (
         <figcaption>
-          {image.caption || image.credit}
+          {image.caption || image.credit || "查看图片来源"}
           {image.source_url && safeUrl(image.source_url) && (
             <a
               href={safeUrl(image.source_url)!}
@@ -124,18 +140,8 @@ export function Markdown({
             ) : (
               <span>{children}</span>
             ),
-          img: ({ src, alt }) =>
-            safeUrl(src) ? (
-              <img
-                src={safeUrl(src)!}
-                alt={alt || "相关图片"}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onError={(event) => {
-                  event.currentTarget.hidden = true;
-                }}
-              />
-            ) : null,
+          // Images are rendered separately from verified source metadata.
+          img: () => null,
         }}
       >
         {content}

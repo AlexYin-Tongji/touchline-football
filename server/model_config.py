@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import copy
+import re
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from .ingestion import normalize_url
 from .provider import PROTOCOLS, AgentFailure, endpoint_url, http_failure
@@ -32,13 +35,23 @@ class ModelEntry(StrictModel):
 
 
 class ProviderInput(StrictModel):
-    id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,47}$")
+    id: str = Field(default_factory=lambda: "provider_" + uuid.uuid4().hex)
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=8, max_length=4096)
     protocol: str = "chat_completions"
     api_key: str | None = Field(None, max_length=8192)
     clear_api_key: bool = False
     models: list[ModelEntry] = Field(min_length=1, max_length=100)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def identifier(cls, value):
+        if not isinstance(value, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", value):
+            raise PydanticCustomError(
+                "provider_id",
+                "服务商内部标识须以小写英文字母开头，只能包含小写字母、数字、短横线或下划线，最多 48 个字符。新增服务商会自动生成标识，请刷新页面后重试。",
+            )
+        return value
 
     @field_validator("name")
     @classmethod
@@ -92,6 +105,34 @@ class SelectInput(StrictModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+class RoleAssignments(StrictModel):
+    feed: SelectInput | None = None
+    chat: SelectInput | None = None
+    team: SelectInput | None = None
+
+
+class RolesInput(StrictModel):
+    roles: RoleAssignments
+
+
+MODEL_ROLES = ("feed", "chat", "team")
+
+
+def role_selection(store, role):
+    if role not in MODEL_ROLES:
+        raise ValueError("Unknown model role")
+    read_meta = getattr(store, "get_meta", lambda key: None)
+    return copy.deepcopy((read_meta("model_roles") or {}).get(role) or read_meta("active_model"))
+
+
+def role_settings(store, role):
+    settings = copy.deepcopy(store.settings())
+    selected = role_selection(store, role)
+    if selected:
+        settings["llm"] = effective_config(store, selected["provider_id"], selected["model"])
+    return settings
+
+
 class TestInput(StrictModel):
     model: str = Field(min_length=1, max_length=200)
 
@@ -102,7 +143,7 @@ def migrate_legacy(store):
     llm = store.settings()["llm"]
     if llm.get("base_url") and llm.get("model") and not store.list("model_profiles"):
         profile = {"id": "existing", "name": "现有模型服务", "base_url": llm["base_url"], "protocol": llm.get("protocol", "chat_completions"),
-                   "models": [{"id": llm["model"], "name": llm["model"], "max_output_tokens": llm.get("max_output_tokens", 3000)}],
+                   "models": [{"id": llm["model"], "name": llm["model"], "max_output_tokens": llm.get("max_output_tokens", 16000)}],
                    "created_at": datetime.now(timezone.utc).isoformat()}
         store.put("model_profiles", profile)
         store.set_secret("provider_existing", llm.get("api_key", ""))
@@ -113,7 +154,10 @@ def migrate_legacy(store):
 def profiles_view(store):
     providers = [{**{k: copy.deepcopy(v) for k, v in row.items() if k != "api_key"}, "api_key_set": bool(store.get_secret("provider_" + row["id"]))}
                  for row in store.list("model_profiles")]
-    return {"providers": providers, "active": store.get_meta("active_model")}
+    assigned = store.get_meta("model_roles") or {}
+    return {"providers": providers, "active": store.get_meta("active_model"),
+            "roles": {role: assigned.get(role) for role in MODEL_ROLES},
+            "resolved_roles": {role: role_selection(store, role) for role in MODEL_ROLES}}
 
 
 def effective_config(store, provider_id, model):
@@ -134,7 +178,22 @@ def resolve_run_settings(store, run):
     settings = copy.deepcopy(store.settings())
     if run.get("provider_id"):
         settings["llm"] = effective_config(store, run["provider_id"], run.get("model") or run.get("model_id"))
+    elif not run.get("model"):
+        settings = role_settings(store, run.get("model_role") or ("feed" if run.get("internal_report") else "chat"))
     return settings
+
+
+def assign_roles(store, value: RolesInput):
+    changes = value.roles.model_dump(exclude_unset=True)
+    # Validate the entire edit before persisting any assignment.
+    for selected in changes.values():
+        if selected:
+            try:
+                endpoint_url(effective_config(store, selected["provider_id"], selected["model"]))
+            except AgentFailure as exc:
+                raise HTTPException(400, str(exc)) from None
+    store.set_meta("model_roles", {**(store.get_meta("model_roles") or {}), **changes})
+    return profiles_view(store)
 
 
 def select_model(store, provider_id, model):
@@ -157,7 +216,7 @@ def save_profile(store, value: ProviderInput, *, update=False):
     if update and not previous:
         raise HTTPException(404, "模型服务不存在。")
     if not update and previous:
-        raise HTTPException(409, "这个服务商ID已经存在，请使用其他ID。")
+        raise HTTPException(409, "这个服务商已存在。请编辑已有配置，或通过“添加服务商”新建一份配置。")
     data = value.model_dump(exclude_none=True, exclude={"api_key", "clear_api_key"})
     data["created_at"] = (previous or {}).get("created_at") or datetime.now(timezone.utc).isoformat()
     try:
@@ -173,6 +232,12 @@ def save_profile(store, value: ProviderInput, *, update=False):
     elif value.api_key:
         store.set_secret(key_name, value.api_key)
     store.put("model_profiles", data)
+    roles = store.get_meta("model_roles") or {}
+    for role, selected in roles.items():
+        if selected and selected.get("provider_id") == value.id and not any(m["id"] == selected.get("model") for m in data["models"]):
+            # Keep the explicitly chosen provider when its selected model is removed.
+            roles[role] = {"provider_id": value.id, "model": data["models"][0]["id"]}
+    store.set_meta("model_roles", roles)
     active = store.get_meta("active_model")
     if not active:
         return select_model(store, value.id, data["models"][0]["id"])
@@ -244,7 +309,7 @@ def register_routes(app, store):
 
     @app.post("/api/model-providers")
     async def create(value: ProviderInput):
-        return save_profile(store, value)
+        return {**save_profile(store, value), "saved_provider_id": value.id}
 
     @app.put("/api/model-providers/{identifier}")
     async def edit(identifier: str, value: ProviderInput):
@@ -258,6 +323,9 @@ def register_routes(app, store):
             raise HTTPException(404, "模型服务不存在。")
         store.delete("model_profiles", identifier)
         store.set_secret("provider_" + identifier, None)
+        roles = store.get_meta("model_roles") or {}
+        store.set_meta("model_roles", {role: None if selected and selected.get("provider_id") == identifier else selected
+                                       for role, selected in roles.items()})
         if (store.get_meta("active_model") or {}).get("provider_id") == identifier:
             store.set_meta("active_model", None)
             store.save_settings({"llm": {"base_url": "", "model": "", "clear_api_key": True}})
@@ -266,6 +334,10 @@ def register_routes(app, store):
     @app.post("/api/models/select")
     async def select(value: SelectInput):
         return select_model(store, value.provider_id, value.model)
+
+    @app.put("/api/models/roles")
+    async def roles(value: RolesInput):
+        return assign_roles(store, value)
 
     @app.post("/api/models/discover")
     async def discover(value: DiscoverInput):

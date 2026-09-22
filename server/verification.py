@@ -43,7 +43,7 @@ STAGE_PHRASES = (
 )
 CHECK_TOOL = [{"type": "function", "function": {
     "name": "report_source_support", "description": "逐项报告给定主张受到原文支持的程度，不提供私有推理。",
-    "parameters": {"type": "object", "properties": {"claims": {"type": "array", "maxItems": 7,
+    "parameters": {"type": "object", "properties": {"claims": {"type": "array",
         "items": {"type": "object", "properties": {
             "id": {"type": "string"}, "verdict": {"type": "string", "enum": sorted(VERDICTS)},
             "reason": {"type": "string", "maxLength": 240}},
@@ -192,18 +192,23 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
 只为输入claims数组中的每个id恰好返回一次。locally_rejected_claim_ids已经由程序判为不支持，不能返回这些id或修改其判定。reason用简短中文解释主张与原文相符或不符的具体点。supported只是受到该原文支持，不意味着真实世界事件已获独立认证。"""},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
     try:
-        is_report = getattr(local, "skill", None) == "news_report"
-        cfg = dict(config, max_output_tokens=min(4000 if is_report else 2400, int(config.get("max_output_tokens", 3000))),
+        claim_count = len(payload["claims"])
+        # The checker must be able to return every claim accepted by delivery.
+        # Its output grows with the task instead of assuming a three-item answer.
+        configured_capacity = int(config.get("max_output_tokens", 16000))
+        cfg = dict(config, max_output_tokens=min(configured_capacity, max(4000, claim_count * 400)),
+                   thinking_enabled=False,
                    _session_id=str(config.get("_session_id", "verify"))[:90] + "_support")
         check_tools = copy.deepcopy(CHECK_TOOL)
-        check_tools[0]["function"]["parameters"]["properties"]["claims"]["maxItems"] = 10 if is_report else 7
+        check_schema = check_tools[0]["function"]["parameters"]["properties"]["claims"]
+        check_schema.update(minItems=claim_count, maxItems=claim_count)
         message = await (requester or request_completion)(cfg, messages, tools=check_tools,
             tool_choice={"type": "function", "function": {"name": "report_source_support"}}, timeout=timeout)
         calls = message.get("tool_calls") or []
         if len(calls) != 1 or calls[0].get("function", {}).get("name") != "report_source_support":
             raise ValueError()
         raw = calls[0]["function"].get("arguments")
-        if not isinstance(raw, str) or len(raw) > (16000 if is_report else 8000):
+        if not isinstance(raw, str) or len(raw) > max(16000, claim_count * 2000):
             raise ValueError()
         data = json.loads(raw)
         checks = data["claims"]
@@ -230,8 +235,12 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
         status = "supported" if all(c["verdict"] == "supported" for c in claims) else (
             "partial" if any(c["id"].startswith("fact_") and c["verdict"] == "supported" for c in claims) else "insufficient")
         return report(status, claims)
-    except (AgentFailure, ValueError, KeyError, TypeError, IndexError, AttributeError):
-        return report("unavailable", claims, ["原文支持核对服务未完成或返回格式无效；未认证任何主张。"])
+    except AgentFailure as exc:
+        # AgentFailure is deliberately curated by the provider adapter, never
+        # an arbitrary upstream body or URL containing credentials.
+        return report("unavailable", claims, ["原文支持核对服务未完成；未认证任何主张。", str(exc)])
+    except (ValueError, KeyError, TypeError, IndexError, AttributeError):
+        return report("unavailable", claims, ["原文支持核对返回格式无效或缺少主张条目；未认证任何主张。"])
 
 
 def conservative_delivery(structured, verification):

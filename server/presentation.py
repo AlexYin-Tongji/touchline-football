@@ -163,8 +163,20 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
                 card.update(display_title=report["title"], display_summary=report["lead"],
                             summary_origin="report", display_status="supported", source_run_id=editorial.get("run_id"),
                             reading_minutes=report.get("reading_minutes"), section_count=len(report.get("sections", [])))
-        images = [{**image, "evidence_id": record["id"]} for record in records if not record.get("spoiler_redacted")
-                  for image in record.get("images", [])[:2]][:4]
+        from .ingestion import image_identity, source_images
+        image_records = records
+        if editorial and editorial.get("status") == "completed" and editorial.get("report"):
+            cited = {source.get("id") for source in editorial["report"].get("sources", [])}
+            image_records = [record for record in records if record["id"] in cited]
+        elif choices:
+            image_records = [record for record in records if record["id"] in fact.get("evidence_ids", [])]
+        images, seen_images = [], set()
+        for record in image_records:
+            for image in source_images(record, limit=2):
+                identity = image_identity(image["url"])
+                if identity not in seen_images and len(images) < 4:
+                    images.append(image)
+                    seen_images.add(identity)
         sources = [{key: record.get(key) for key in ("id", "title", "source_name", "url", "published_at")} for record in records]
         result.append({**copy.deepcopy(event), **card, "images": images, "sources": sources})
     return result

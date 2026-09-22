@@ -36,24 +36,26 @@ TOOL_DEFINITIONS = [
     {"name": "submit_answer", "description": "阅读原文并完成研究后，单独调用此工具提交唯一最终答复。提交通过即结束，无需再写文字。正文不得写思考过程、工具预算或引用括号；引用仅填evidence_ids。", "parameters": {
         "type": "object", "properties": {
             "status": {"type": "string", "enum": ["complete", "insufficient"]},
-            "summary": {"type": "string", "minLength": 1, "maxLength": 120, "description": "直接回答问题，1至2句。不写我已阅读、我将、最终答复等过程叙述。"},
-            "facts": {"type": "array", "maxItems": 3, "items": {"type": "object", "properties": {
-                "title": {"type": "string", "minLength": 1, "maxLength": 32},
-                "detail": {"type": "string", "minLength": 1, "maxLength": 180, "description": "一项有原文依据的具体消息，明确是哪个来源的说法。"},
-                "evidence_ids": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
-                "quotes": {"type": "array", "minItems": 1, "maxItems": 3, "description": "启用原文核对时必填。优先填写evidence_id和阅读工具返回的passage_id，服务器填入真实原文；也兼容手填连续quote。每个引用ID须有片段。",
+            "summary": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "直接回应问题，按用户需求与资料决定详略。不写过程叙述。"},
+            "facts": {"type": "array", "items": {"type": "object", "properties": {
+                "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                "detail": {"type": "string", "minLength": 1, "maxLength": 12000, "description": "有原文依据的具体消息，明确来源说法；需要时充分展开，可分段。"},
+                "evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
+                "quotes": {"type": "array", "minItems": 1, "description": "按事实需要选择足够的已读片段。可用evidence_id+passage_id引用完整球员记录，不必逐字段重复摘录。每个引用ID须有片段；也兼容手填连续quote。",
                     "items": {"type": "object", "properties": {
                         "evidence_id": {"type": "string", "minLength": 1, "maxLength": 120},
                         "passage_id": {"type": "string", "minLength": 1, "maxLength": 80},
                         "quote": {"type": "string", "minLength": 8, "maxLength": 700}},
                         "required": ["evidence_id"], "additionalProperties": False}}},
                 "required": ["title", "detail", "evidence_ids"], "additionalProperties": False}},
-            "analysis": {"type": "string", "maxLength": 220, "description": "简短解释可能的足球影响，说明依赖的前提，不能写内部推理过程。无依据时留空。"},
-            "unknowns": {"type": "array", "maxItems": 3, "items": {"type": "string", "minLength": 1, "maxLength": 100}}},
+            "analysis": {"type": "string", "maxLength": 16000, "description": "按问题需要解释可能的足球影响与依赖的前提，可分段。不能写内部推理过程；无依据时留空。"},
+            "unknowns": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 2000}}},
         "required": ["status", "summary", "facts", "analysis", "unknowns"], "additionalProperties": False}},
 ]
 TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 TOOL_DEFINITIONS.extend([
+    {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
+    {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "maintain_team_data", "description": "按需更新当前球队的真实阵容、球员图像、赛程与统计；失败保留已有资料，返回来源覆盖。遵守本任务避剧透范围。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "research_news", "description": "围绕一个足球问题一次完成多来源搜索和原文阅读，返回本轮可以引用的材料、来源覆盖、读取失败与后续线索。优先用于最新新闻、伤病、转会等联网研究；不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 4}}, "required": ["query"], "additionalProperties": False}},
@@ -74,7 +76,7 @@ OPENAI_TOOLS = [{"type": "function", "function": item} for item in TOOL_DEFINITI
 
 
 def tool_definitions(skill="ask"):
-    """Reports have a spacious editorial contract; ordinary answers stay brief."""
+    """Content length follows the task; size guards only reject abnormal payloads."""
     if skill != "news_report":
         return TOOL_DEFINITIONS
     definitions = copy.deepcopy(TOOL_DEFINITIONS)
@@ -83,21 +85,16 @@ def tool_definitions(skill="ask"):
     fields["title"] = {"type": "string", "minLength": 4, "maxLength": 80,
                        "description": "具体的中文报道标题，不用媒体名加动态分类充当标题。"}
     submit["parameters"]["required"].append("title")
-    fields["summary"].update(maxLength=400, description="中文导语：交代本次报道的事件、来源说法与关键进展，不写占位提示。")
-    fields["facts"]["maxItems"] = 6
+    fields["summary"].update(description="中文导语：交代本次报道的事件、来源说法与关键进展，不写占位提示。")
     fact = fields["facts"]["items"]
-    fact["properties"]["title"]["maxLength"] = 64
-    fact["properties"]["detail"].update(maxLength=900, description="一节完整中文叙事，交代原文事实及其关系。个人动态通常1至3节，全文约300至650字，长材料可详细解释；严禁重复、凑章节或虚构背景。")
+    fact["properties"]["detail"].update(description="一节完整中文叙事，交代原文事实及其关系。根据原文信息量决定章节与篇幅，严禁重复、凑章节或虚构背景。")
     fact["properties"]["kind"] = {"type": "string", "enum": ["development", "context", "impact"]}
     fact["required"].extend(["kind", "quotes"])
-    fact["properties"]["quotes"]["maxItems"] = 8
     report_quotes = fact["properties"]["quotes"]
-    report_quotes["description"] = "只填写evidence_id和已读passages里的passage_id。禁止输出quote或复制原文；服务器在核验时自行取得对应真实原文。每节选择足够支持正文的1至3个片段，不重复堆积。"
+    report_quotes["description"] = "只填写evidence_id和已读passages里的passage_id。禁止输出quote或复制原文；服务器在核验时自行取得对应真实原文。每节选择足够支持正文的片段。"
     report_quotes["items"]["properties"].pop("quote")
     report_quotes["items"]["required"] = ["evidence_id", "passage_id"]
-    fields["analysis"].update(maxLength=900, description="简洁解释对球队和球迷的可能影响，明确假设及有依据的前提，不新增事实；没有必要可留空。")
-    fields["unknowns"].update(maxItems=5)
-    fields["unknowns"]["items"]["maxLength"] = 240
+    fields["analysis"].update(description="解释对球队和球迷的可能影响，明确假设及有依据的前提，不新增事实；没有必要可留空。")
     return definitions
 
 
@@ -122,10 +119,30 @@ SUMMARY_CERTAINTY = re.compile(r"官方确认|已(?:经)?证实|实锤|已(?:经
 
 
 def answer_fact_limit(question):
-    """Respect explicit small output counts without interpreting match numbers."""
-    pattern = r"(?:最多|至多|不超过|只要|仅需|给我|请给|列出|选取|挑选|选择|提炼|总结|整理|提供|选)(?:出|我|就)?\s*([一二两三123])\s*(?:条|点|项)"
-    counts = {"一": 1, "二": 2, "两": 2, "三": 3, "1": 1, "2": 2, "3": 3}
-    return min([3, *(counts[match] for match in re.findall(pattern, str(question or "")))])
+    """Only explicit user counts constrain delivery; football numbers do not."""
+    pattern = r"(?:最多|至多|不超过|只要|仅需|给我|请给|列出|选取|挑选|选择|提炼|总结|整理|提供|选)(?:出|我|就)?\s*([一二两三四五六七八九十百\d]+)\s*(?:条|点|项)"
+    digits = {char: index for index, char in enumerate("零一二三四五六七八九")}
+    digits["两"] = 2
+    def count(value):
+        if value.isdecimal():
+            return int(value)
+        total, current = 0, 0
+        for char in value:
+            if char in "十百":
+                total += (current or 1) * {"十": 10, "百": 100}[char]
+                current = 0
+            else:
+                current = digits.get(char, 0)
+        return total + current
+    requested = []
+    text = str(question or "")
+    for match in re.finditer(pattern, text):
+        if re.search(r"(?:不要|不必|无需|不再|别|不限于|不限制为|不是)\s*$", text[max(0, match.start() - 8):match.start()]):
+            continue
+        amount = count(match.group(1))
+        if amount > 0:
+            requested.append(amount)
+    return min(requested) if requested else None
 
 
 def clean_delivery_text(text):
@@ -176,6 +193,57 @@ def search_terms(query):
         if any(contains(value, word) for word in group):
             terms.update(group)
     return terms
+
+
+def team_data_text(payload, team_id):
+    """Readable, citable rows keep identity and provenance in one passage.
+
+    Pretty-printed full snapshots split a player's name, number and timestamps
+    into unrelated passages and put provenance beyond the first reading page.
+    This is only a rendering of provider fields, never an inferred sports fact.
+    """
+    def compact(value):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+    def supplied(value):
+        return str(value) if value is not None and value != "" else "未提供"
+
+    season = payload.get("season") or {}
+    season_label = season.get("label") or season.get("id") or "未提供"
+    roster_time = supplied(payload.get("roster_updated_at"))
+    latest_time = supplied(payload.get("updated_at"))
+    lines = ["ESPN 媒体结构化球队资料；不是球队官方公告。缺失字段不代表零；以下只描述已保存的记录。",
+             f"资料范围：球队={team_id}；赛季={season_label}。",
+             f"时间依据：资料总体最新采集时间={latest_time}；阵容快照采集时间={roster_time}；球队已赛资料采集时间={supplied(payload.get('team_results_updated_at'))}。各时间可能不同，采集时间不代表事件发生时间。"]
+    if payload.get("roster_source_updated_at"):
+        lines.append(f"阵容来源自身声明更新时间={payload['roster_source_updated_at']}。")
+    for index, source in enumerate(payload.get("sources") or [], 1):
+        lines.append(f"来源{index}：名称={supplied(source.get('name'))}；记录采集时间={supplied(source.get('updated_at'))}；链接={supplied(source.get('url'))}。")
+    lines.append(f"资料状态：过期提示={compact(payload.get('stale'))}；更新状态={supplied(payload.get('refresh_status'))}；获取异常={compact(payload.get('errors') or [])}。")
+    roster = payload.get("roster") or []
+    lines.append(f"保存的阵容共{len(roster)}条；行号仅代表资料中的排列顺序，号码是球衣号码，均不能证明教练排序或首发身份。")
+    stat_labels = {"appearances": "出场", "goals": "进球", "assists": "助攻", "shots": "射门", "shots_on_target": "射正",
+                   "yellow_cards": "黄牌", "red_cards": "红牌", "saves": "扑救", "goals_conceded": "失球"}
+    for index, player in enumerate(roster, 1):
+        fields = [f"阵容第{index}行", f"赛季={season_label}", f"姓名={supplied(player.get('name'))}",
+                  f"球员来源ID={supplied(player.get('provider_id'))}", f"号码={supplied(player.get('number'))}",
+                  f"位置={supplied(player.get('position'))}（{supplied(player.get('position_group'))}）",
+                  f"阵容快照采集时间={roster_time}", f"资料总体最新采集时间={latest_time}"]
+        for key, label in (("nationality", "国籍"), ("age", "年龄"), ("age_as_of", "年龄计算日期"), ("height_cm", "身高厘米"), ("weight_kg", "体重公斤")):
+            if player.get(key) is not None and player.get(key) != "":
+                fields.append(f"{label}={player[key]}")
+        stats = player.get("stats") or {}
+        if stats:
+            fields.append("该球员本赛季统计=" + "、".join(f"{label}:{supplied(stats[key])}" for key, label in stat_labels.items() if key in stats))
+        lines.append("；".join(fields) + "。")
+    for field, label in (("stats", "球队统计"), ("recent_matches", "近期比赛"), ("upcoming_matches", "未来赛程")):
+        data = payload.get(field)
+        entries = list(data.items()) if isinstance(data, dict) else list(enumerate(data or [], 1))
+        for key, value in entries:
+            lines.append(f"{label}记录{key}；赛季={season_label}；资料总体最新采集时间={latest_time}；字段={compact(value)}")
+    if payload.get("data_policy"):
+        lines.append("来源字段说明：" + str(payload["data_policy"]))
+    return "\n".join(lines)
 
 
 class LocalTools:
@@ -385,40 +453,80 @@ class LocalTools:
                     and isinstance(row.get("answer"), str) and row["answer"].strip()):
                 candidates.append((created, row))
         candidates.sort(key=lambda value: value[0], reverse=True)
-        return [{"run_id": row["id"], "created_at": row["created_at"], "answer": row["answer"][:3000],
-                 "truncated": len(row["answer"]) > 3000,
+        return [{"run_id": row["id"], "created_at": row["created_at"], "answer": row["answer"],
+                 "truncated": False,
                  "evidence_ids": [eid for eid in row.get("evidence_ids", []) if self.evidence_allowed(self.scoped_get("evidence", eid))],
                  "notice": "历史模型观察只代表当时的待验证假设，不是事实或本次已读证据。引用原始资料前仍须调用 read_evidence；用本次赛后原文判断支持、相反或无法核验。"}
-                for _, row in candidates[:2]]
+                for _, row in candidates]
 
     def validate(self, name, arguments):
         definition = next((tool for tool in tool_definitions(self.skill) if tool["name"] == name), None)
         if not definition:
             raise ToolError("工具不在允许列表中。")
-        def check(value, rule):
+        def check(value, rule, path="arguments"):
             kind = rule["type"]
             if kind == "object":
                 if not isinstance(value, dict):
-                    raise ToolError("工具参数必须是 JSON 对象。")
+                    raise ToolError(f"{path} 必须是 JSON 对象。")
                 if set(value) - set(rule["properties"]):
-                    raise ToolError("工具收到未定义的参数。")
-                if any(field not in value for field in rule.get("required", [])):
-                    raise ToolError("工具缺少必要参数。")
+                    raise ToolError(f"{path} 收到未定义的参数；允许字段：" + "、".join(rule["properties"]) + "。")
+                missing = [field for field in rule.get("required", []) if field not in value]
+                if missing:
+                    raise ToolError(f"{path} 缺少必要参数：" + "、".join(missing) + "。")
                 for field, entry in value.items():
-                    check(entry, rule["properties"][field])
+                    check(entry, rule["properties"][field], f"{path}.{field}")
             elif kind == "array":
-                if not isinstance(value, list) or not rule.get("minItems", 0) <= len(value) <= rule.get("maxItems", 16):
-                    raise ToolError("工具列表条目数量或类型无效。")
-                for entry in value:
-                    check(entry, rule["items"])
+                if (not isinstance(value, list) or len(value) < rule.get("minItems", 0)
+                        or ("maxItems" in rule and len(value) > rule["maxItems"])):
+                    raise ToolError(f"{path} 必须是符合数量要求的列表（至少 {rule.get('minItems', 0)} 项" +
+                                    (f"，最多 {rule['maxItems']} 项）。" if "maxItems" in rule else "）。"))
+                for index, entry in enumerate(value):
+                    check(entry, rule["items"], f"{path}[{index}]")
             elif kind == "string":
                 if not isinstance(value, str) or not rule.get("minLength", 0) <= len(value.strip()) <= rule.get("maxLength", 500):
-                    raise ToolError("工具文字参数类型或长度无效。")
+                    raise ToolError(f"{path} 必须是 {rule.get('minLength', 0)} 至 {rule.get('maxLength', 500)} 字符的文字，请只修正此字段后重新提交。")
             elif kind == "integer" and (type(value) is not int or not rule["minimum"] <= value <= rule["maximum"]):
-                raise ToolError("工具数量参数超出允许范围。")
+                raise ToolError(f"{path} 必须是 {rule['minimum']} 至 {rule['maximum']} 的整数。")
             if "enum" in rule and value not in rule["enum"]:
-                raise ToolError("工具参数不在允许列表中。")
+                raise ToolError(f"{path} 参数不在允许列表中。")
         check(arguments, definition["parameters"])
+
+    def available_tools(self):
+        """Only advertise executable capabilities; guards still enforce scope."""
+        excluded = set()
+        if self.mode != "live" or self.match or self.run.get("report_id"):
+            excluded.update({"get_team_data", "maintain_team_data"})
+        if (not self.allow_network
+                or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff)):
+            excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data"})
+        if not self.allow_network or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff):
+            excluded.add("read_article")
+        if self.run.get("report_id"):
+            excluded.update({"discover_news", "refresh_team_sources", "research_news", "read_article", "conversation_history", "search_team_knowledge"})
+        if not self.run.get("conversation_id"):
+            excluded.add("conversation_history")
+        return [tool for tool in openai_tools(self.skill) if tool["function"]["name"] not in excluded]
+
+    def conversation_rows(self):
+        """Conversation memory cannot cross roles or revive inaccessible sources."""
+        if not self.run.get("conversation_id") or self.run.get("report_id") or self.run.get("internal_report"):
+            return []
+        rows = []
+        role = self.run.get("model_role") or "chat"
+        for row in self.scoped_list("runs"):
+            if (row.get("id") == self.run["id"] or row.get("conversation_id") != self.run["conversation_id"]
+                    or row.get("status") != "completed" or row.get("report_id") or row.get("internal_report")
+                    or (row.get("model_role") or "chat") != role
+                    or (row.get("match_id") or None) != (self.run.get("match_id") or None)):
+                continue
+            if self.spoiler_free and not self.review and (row.get("spoiler") or row.get("skill") == "match_review"):
+                continue
+            if self.cutoff and row.get("skill") != "match_preview":
+                continue
+            if any(not self.evidence_allowed(self.scoped_get("evidence", eid)) for eid in row.get("evidence_ids", [])):
+                continue
+            rows.append(row)
+        return sorted(rows, key=lambda row: row.get("created_at") or "")
 
     def submit_answer(self, arguments):
         arguments = copy.deepcopy(arguments)
@@ -433,8 +541,8 @@ class LocalTools:
                     if passage:
                         quote["quote"] = passage["text"]
         is_report = self.skill == "news_report"
-        limit = 6 if is_report else answer_fact_limit(self.run.get("question", ""))
-        if len(arguments["facts"]) > limit:
+        limit = answer_fact_limit(self.run.get("question", ""))
+        if limit is not None and len(arguments["facts"]) > limit:
             raise ToolError(f"用户明确限制最多 {limit} 项消息，请合并或筛选 facts 后重新提交，不要增加用户未要求的条目。")
         if SUMMARY_CERTAINTY.search(arguments["summary"]):
             raise ToolError("summary 只能使用中性概览，不能使用官方确认、已证实、实锤或已确认等认证标签。请把具体来源说法放在带 evidence_ids 的事实正文中，摘要不得提高其确定性。")
@@ -443,13 +551,13 @@ class LocalTools:
             strings.append(arguments.get("title", ""))
         for fact in arguments["facts"]:
             strings.extend([fact["title"], fact["detail"]])
-        if any(not clean_delivery_text(value) or "\n" in value or re.search(r"\[[A-Za-z0-9_-]+\]", value) for value in strings):
-            raise ToolError("最终答复只能包含简洁的用户正文，不可包含过程叙述、工具预算、换行或引用括号；引用请放入 evidence_ids。请重新提交。")
-        if sum(len(value) for value in strings) > (6000 if is_report else 1000):
-            raise ToolError("中文动态超过6000字安全上限，请删去重复内容后重试。" if is_report else "最终答复过长，请缩短到合计1000字以内后重新提交。")
+        if any(not clean_delivery_text(value) or re.search(r"\[[A-Za-z0-9_-]+\]", value) for value in strings):
+            raise ToolError("最终答复只能包含用户正文，不可包含过程叙述、工具预算或引用括号；引用请放入 evidence_ids。请重新提交。")
+        if sum(len(value) for value in strings) > 60000:
+            raise ToolError("单次交付内容超过存储安全大小，请将不同问题拆成后续回答。")
         if is_report and arguments["status"] == "complete":
-            if not 1 <= len(arguments["facts"]) <= 6:
-                raise ToolError("中文动态需要1至6节有实际内容的叙事；材料不足时提交insufficient，不能伪造背景补足章节。")
+            if not arguments["facts"]:
+                raise ToolError("中文动态需要有实际内容的叙事；材料不足时提交insufficient，不能伪造背景补足章节。")
             if not re.search(r"[\u3400-\u9fff]", arguments.get("title", "")) or any(
                     len(re.findall(r"[\u3400-\u9fff]", fact["detail"])) < 25 for fact in arguments["facts"]):
                 raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
@@ -490,6 +598,25 @@ class LocalTools:
 
     def call(self, name, arguments):
         self.validate(name, arguments)
+        if name == "conversation_history":
+            rows = self.conversation_rows()
+            offset = arguments.get("offset", 0)
+            end = min(len(rows), offset + arguments.get("limit", len(rows)))
+            return {"messages": [{"run_id": row["id"], "question": str(row.get("question") or ""),
+                                   "answer": str(row.get("answer") or ""), "created_at": row.get("created_at"),
+                                   "evidence_ids": row.get("evidence_ids", [])} for row in rows[offset:end]],
+                    "total_count": len(rows), "next_offset": end if end < len(rows) else None,
+                    "notice": "仅用于理解当前对话。过去回答不是本轮证据；引用前须重新读取来源。"}
+        if name == "search_team_knowledge":
+            from .team_profiles import knowledge_for_team
+            knowledge = knowledge_for_team(self.store, self.team_id, self.mode, spoiler_free=self.spoiler_free,
+                allowed_evidence_ids={item["id"] for item in self.visible_evidence()}, limit=None)
+            terms = search_terms(arguments["query"])
+            rows = [(sum(term in (item.get("title", "") + " " + item.get("detail", "")).lower() for term in terms), item) for item in knowledge]
+            rows = [(score, item) for score, item in rows if score or not arguments["query"].strip()]
+            rows.sort(key=lambda row: (row[0], row[1].get("updated_at") or ""), reverse=True)
+            return {"results": [{key: item.get(key) for key in ("id", "title", "detail", "evidence_ids", "support", "updated_at")} for _, item in rows[:arguments.get("limit", 5)]],
+                    "notice": "中文知识只作检索线索；source_supported仅代表原文支持，实时结论须重新阅读来源。"}
         if name == "submit_answer":
             return self.submit_answer(arguments)
         if name == "source_overview":
@@ -682,8 +809,6 @@ class LocalTools:
             self.network_guard()
             if self.match or self.run.get("report_id"):
                 raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
-            if self.network_queries >= 3:
-                raise ToolError("本次联网维护次数已用完，可读取已有球队资料。")
             self.network_queries += 1
             from .team_center import maintain_team
             await maintain_team(self.store, self.team_id)
@@ -699,8 +824,6 @@ class LocalTools:
                     self.network_guard()
                 if self.cutoff and datetime.now(timezone.utc) >= self.cutoff:
                     raise ToolError("历史赛前证据已过期，不能引入比赛后的原文。")
-                if self.article_reads >= 8:
-                    raise ToolError("本次原文读取预算已用完。")
                 self.article_reads += 1
                 from .research import read_evidence_source
                 await read_evidence_source(self.store, item["id"])
@@ -710,14 +833,9 @@ class LocalTools:
         self.network_guard()
         from . import research
         if name in {"discover_news", "refresh_team_sources", "research_news"}:
-            if self.network_queries >= 3:
-                raise ToolError("本次任务已达到 3 次联网发现/收集预算，请基于已取得资料回答。")
             self.network_queries += 1
         if name == "discover_news":
-            remaining = 16 - self.candidate_count
-            if remaining <= 0:
-                raise ToolError("本次任务已达到 16 条候选资料预算。")
-            limit = min(arguments.get("limit", 6), remaining)
+            limit = arguments.get("limit", 6)
             filters = {key: arguments[key] for key in ("category", "max_age_days") if key in arguments}
             result = await research.discover_news(self.store, self.team_id, arguments["query"], limit=limit, **filters)
             candidates = result.get("candidates", [])[:limit]
@@ -727,9 +845,6 @@ class LocalTools:
             return {"candidates": visible, "errors": result.get("errors", []), "sources": result.get("sources", []),
                     "notice": "这些是公开来源候选，尚未阅读原文；调用 read_article 取得可引用证据。" + str(result.get("notice") or ""),
                     "budget": self.budget()}
-        remaining = 8 - self.article_reads
-        if remaining <= 0:
-            raise ToolError("本次任务已达到 8 篇联网原文读取预算。")
         if name == "read_article":
             candidate = self.scoped_get("candidates", arguments["candidate_id"])
             if not self.candidate_allowed(candidate):
@@ -742,12 +857,14 @@ class LocalTools:
                 raise ToolError("原文已采集，但不符合本次资料范围，不能在本次任务中读取或引用。")
             return {"evidence": self.call("read_evidence", {"evidence_id": evidence["id"]}),
                     "duplicate": bool(result.get("duplicate")), "cached": bool(result.get("cached")), "budget": self.budget()}
-        limit = min(arguments.get("limit", 3), remaining)
-        reserved = min(remaining, limit + 3)
-        self.article_reads += reserved  # Protect the cap even if a fetch raises.
+        limit = arguments.get("limit", 4 if name == "research_news" else 6)
+        # Bound the work of one cancellable collection call. Later calls remain
+        # available when the model needs more sources for the user's question.
+        reserved = limit + 3
+        self.article_reads += reserved
         filters = {key: arguments[key] for key in ("category", "max_age_days") if key in arguments}
         result = await research.collect_team(self.store, self.team_id, arguments["query"], limit=limit,
-                                             event_id=self.run.get("event_id"), match_id=self.run.get("match_id"), max_attempts=remaining, **filters)
+                                             event_id=self.run.get("event_id"), match_id=self.run.get("match_id"), max_attempts=reserved, **filters)
         actual = result.get("attempted_reads", limit)
         if type(actual) is int:
             self.article_reads -= reserved - max(0, min(reserved, actual))
@@ -757,14 +874,28 @@ class LocalTools:
                 "coverage": result.get("coverage"),
                 "notice": "来源链接已保存；请 read_evidence 阅读原文后引用。"}
         if name == "research_news":
-            output["evidence"] = [self.call("read_evidence", {"evidence_id": eid}) for eid in ids]
-            output["notice"] = "evidence是本轮实际读取的来源材料，可以按passages引用；来源失败或没有标题命中不代表没有新闻。" if ids else "本轮未取得可读材料，请根据errors和coverage说明检索限制，不能声称没有相关新闻。"
+            output["evidence"] = []
+            for eid in ids:
+                try:
+                    output["evidence"].append(self.call("read_evidence", {"evidence_id": eid}))
+                except ToolError as exc:
+                    # A single expired or unreadable source must not discard
+                    # the sources already read successfully in this batch.
+                    output["errors"].append({"evidence_id": eid, "message": str(exc)})
+            output["evidence_ids"] = [item["id"] for item in output["evidence"]]
+            output["notice"] = "evidence是本轮实际读取的来源材料，可以按passages引用；来源失败或没有标题命中不代表没有新闻。" if output["evidence"] else "本轮未取得可读材料，请根据errors和coverage说明检索限制，不能声称没有相关新闻。"
         return output
 
     def team_data_result(self):
         """Give structured sports snapshots the same literal citation contract."""
         if self.mode != "live" or self.match or self.run.get("report_id"):
             raise ToolError("完整球队数据仅用于真实球队问答；比赛与文章任务须使用其固定资料范围。")
+        evidence_id = "team_data_" + self.team_id + ("_safe" if self.spoiler_free else "_full")
+        previous = self.store.get("evidence", evidence_id)
+        if previous and not self.evidence_allowed(previous):
+            # A refreshed fixed-ID snapshot must not replace the privacy or
+            # deletion markers that made its earlier evidence inaccessible.
+            raise ToolError("这份球队资料已被隐藏、删除或设为私有，不能通过重新生成恢复访问。")
         from .team_center import team_context_payload
         from .ingestion import now
         payload = team_context_payload(self.store, self.team_id, reveal=not self.spoiler_free)
@@ -772,9 +903,7 @@ class LocalTools:
         if not has_data:
             return {**payload, "evidence": None, "notice": "球队资料尚未完成更新，不能把空表或默认零值当成球队事实。"}
         sources = payload.get("sources") or []
-        evidence_id = "team_data_" + self.team_id + ("_safe" if self.spoiler_free else "_full")
-        previous = self.store.get("evidence", evidence_id)
-        body = "ESPN 媒体结构化球队资料，按所列赛季和更新时间读取；不是球队官方公告。\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+        body = team_data_text(payload, self.team_id)
         item = {"id": evidence_id, "mode": "live", "team_id": self.team_id, "title": "球队阵容、赛程与统计资料",
                 "text": body, "source_name": "ESPN 足球数据", "url": sources[0].get("url", "") if sources else "",
                 "published_at": None, "fetched_at": payload.get("updated_at") or payload.get("roster_updated_at") or (previous or {}).get("fetched_at") or now(),
@@ -782,18 +911,20 @@ class LocalTools:
                 "content_status": "full_text", "content_method": "structured_team_data",
                 "content_note": "结构化快照中的缺失字段不是零；仅适用于所列赛季和来源更新时间。"}
         self.store.put("evidence", item)
-        return {**payload, "evidence": self.call("read_evidence", {"evidence_id": evidence_id}),
-                "notice": "数据及其中的证据片段已实际读取；引用以evidence中的ID和passages为准，未读后续页须继续read_evidence。"}
+        # Do not expose a parallel, unpaginated snapshot: it encourages a model
+        # to cite fields it saw outside the actual reading/quotation contract.
+        return {"team_id": self.team_id, "evidence": self.call("read_evidence", {"evidence_id": evidence_id}),
+                "notice": "球队资料只在evidence正文中交付。姓名、号码及各项时间可用同一球员行的passage_id引用，并按事实需要补充片段。未读后续页须按next_offset继续read_evidence；行号和球衣号码不代表首发排序。"}
 
     def budget(self):
-        return {"queries_used": self.network_queries, "queries_limit": 3,
-                "article_reads_used": self.article_reads, "article_reads_limit": 8}
+        return {"queries_used": self.network_queries, "queries_limit": None,
+                "article_reads_used": self.article_reads, "article_reads_limit": None}
 
     async def arun_tool_call(self, call):
         try:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
-            if not isinstance(raw, str) or len(raw) > (10000 if function.get("name") == "submit_answer" else 3000):
+            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 3000):
                 raise ToolError("工具参数过长或不是 JSON 文本。")
             return await self.acall(function.get("name"), json.loads(raw))
         except (json.JSONDecodeError, TypeError):
@@ -810,7 +941,7 @@ class LocalTools:
         try:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
-            if not isinstance(raw, str) or len(raw) > (10000 if function.get("name") == "submit_answer" else 3000):
+            if not isinstance(raw, str) or len(raw) > (64000 if function.get("name") == "submit_answer" else 3000):
                 raise ToolError("工具参数过长或不是 JSON 文本。")
             arguments = json.loads(raw)
             return self.call(function.get("name"), arguments)

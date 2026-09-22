@@ -39,22 +39,32 @@ export default function App() {
       return "";
     }
   });
-  const [page, setPage] = useState<Page>("feed");
+  const [page, setPage] = useState<Page>(() => {
+    try {
+      const saved = localStorage.getItem("touchline-page");
+      return saved === "team" || saved === "assistant" ? saved : "feed";
+    } catch {
+      return "feed";
+    }
+  });
   const [picker, setPicker] = useState(false);
   const [settings, setSettings] = useState(false);
   const [error, setError] = useState("");
   const [followBusy, setFollowBusy] = useState(false);
   const [prompt, setPrompt] = useState<AssistantPrompt | null>(null);
   const [notice, setNotice] = useState("");
+  const followLock = useRef(false);
   const scope = useRef(teamId);
+  const loadSerial = useRef(0);
   scope.current = teamId;
   const load = useCallback(async () => {
     const requested = scope.current;
+    const serial = ++loadSerial.current;
     try {
       const next = await api<AppState>(
         `/state?mode=live${requested ? `&team_id=${encodeURIComponent(requested)}` : ""}`,
       );
-      if (scope.current !== requested) return;
+      if (scope.current !== requested || serial !== loadSerial.current) return;
       setData(next);
       setError("");
       if (!next.teams.some((item) => item.id === requested))
@@ -66,9 +76,17 @@ export default function App() {
             "",
         );
     } catch (err) {
-      if (scope.current === requested) setError(errorText(err));
+      if (scope.current === requested && serial === loadSerial.current)
+        setError(errorText(err));
     }
   }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("touchline-page", page);
+    } catch {
+      /* Optional preference. */
+    }
+  }, [page]);
   useEffect(() => {
     void load();
   }, [teamId, load]);
@@ -100,21 +118,36 @@ export default function App() {
     setPrompt({ ...value, token: Date.now() });
     setPage("assistant");
   };
-  const toggleFollow = async () => {
-    if (!data || !team || followBusy) return;
+  const toggleFollow = async (id = teamId) => {
+    const target = teams.find((item) => item.id === id);
+    if (!data || !target || followLock.current) return;
+    followLock.current = true;
     setFollowBusy(true);
     try {
-      const selected = followed.includes(teamId);
+      const selected = followed.includes(id);
       const next = selected
-        ? followed.filter((id) => id !== teamId)
-        : [...followed, teamId];
+        ? followed.filter((item) => item !== id)
+        : [...followed, id];
       await put("/settings", { followed_teams: next });
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              settings: { ...previous.settings, followed_teams: next },
+            }
+          : previous,
+      );
       await load();
-      setNotice(selected ? `已取消关注${team.name}` : `已关注${team.name}`);
+      setNotice(
+        selected
+          ? `已取消关注${target.name}`
+          : `已关注${target.name}，它会出现在我的球队中`,
+      );
     } catch (err) {
       setNotice(errorText(err));
     } finally {
       setFollowBusy(false);
+      followLock.current = false;
     }
   };
   return (
@@ -178,7 +211,10 @@ export default function App() {
               <button
                 key={item.id}
                 className={item.id === teamId ? "active" : ""}
-                onClick={() => setTeamId(item.id)}
+                onClick={() => {
+                  setPrompt(null);
+                  setTeamId(item.id);
+                }}
               >
                 <Crest team={item} small />
                 <span>{item.name}</span>
@@ -228,7 +264,7 @@ export default function App() {
               <button
                 className={`follow-button ${followed.includes(teamId) ? "following" : ""}`}
                 disabled={followBusy}
-                onClick={toggleFollow}
+                onClick={() => toggleFollow()}
               >
                 <Star
                   size={14}
@@ -294,7 +330,10 @@ export default function App() {
           teams={teams}
           followed={followed}
           current={teamId}
+          followBusy={followBusy}
+          onFollow={toggleFollow}
           onSelect={(id) => {
+            setPrompt(null);
             setTeamId(id);
             setPicker(false);
           }}
@@ -329,15 +368,20 @@ function TeamPicker({
   current,
   onSelect,
   onClose,
+  onFollow,
+  followBusy,
 }: {
   teams: Team[];
   followed: string[];
   current: string;
   onSelect: (id: string) => void;
   onClose: () => void;
+  onFollow: (id: string) => Promise<void>;
+  followBusy: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
+  const [onlyFollowing, setOnlyFollowing] = useState(false);
   const [leagueTeams, setLeagueTeams] = useState<Record<string, string[]>>({});
   const [leagueError, setLeagueError] = useState(false);
   const countries = [
@@ -374,6 +418,7 @@ function TeamPicker({
     .filter(
       (item) =>
         countryMatches(item) &&
+        (!onlyFollowing || followed.includes(item.id)) &&
         [
           item.name,
           item.english_name,
@@ -390,8 +435,11 @@ function TeamPicker({
         Number(followed.includes(b.id)) - Number(followed.includes(a.id)),
     );
   return (
-    <Modal title="找到你的主场" onClose={onClose} wide>
+    <Modal title="关注与发现球队" onClose={onClose} wide>
       <div className="team-picker">
+        <p className="picker-intro">
+          关注多支球队，把喜欢的俱乐部放进你的主场。点击球队可切换查看。
+        </p>
         <label className="search-input">
           <Search size={18} />
           <input
@@ -404,8 +452,18 @@ function TeamPicker({
         </label>
         <div className="filter-tabs">
           <button
+            className={onlyFollowing ? "active" : ""}
+            aria-pressed={onlyFollowing}
+            onClick={() => setOnlyFollowing(!onlyFollowing)}
+          >
+            <Star size={13} /> 已关注 {followed.length}
+          </button>
+          <button
             className={!country ? "active" : ""}
-            onClick={() => setCountry("")}
+            onClick={() => {
+              setCountry("");
+              setOnlyFollowing(false);
+            }}
           >
             全部球队
           </button>
@@ -426,22 +484,35 @@ function TeamPicker({
         <div className="picker-count">{results.length} 支球队</div>
         <div className="picker-grid">
           {results.map((item) => (
-            <button
+            <div
               key={item.id}
-              className={current === item.id ? "selected" : ""}
-              onClick={() => onSelect(item.id)}
+              className={`picker-team ${current === item.id ? "selected" : ""}`}
             >
-              <Crest team={item} />
-              <span>
-                <strong>{item.name}</strong>
-                <small>{item.english_name}</small>
-              </span>
-              {current === item.id ? (
-                <Check size={17} />
-              ) : followed.includes(item.id) ? (
-                <Star size={15} />
-              ) : null}
-            </button>
+              <button
+                className="picker-team-open"
+                onClick={() => onSelect(item.id)}
+                aria-label={`查看${item.name}`}
+              >
+                <Crest team={item} />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.english_name}</small>
+                </span>
+              </button>
+              <button
+                className={`picker-follow ${followed.includes(item.id) ? "following" : ""}`}
+                aria-label={`${followed.includes(item.id) ? "取消关注" : "关注"}${item.name}`}
+                aria-pressed={followed.includes(item.id)}
+                disabled={followBusy}
+                onClick={() => onFollow(item.id)}
+              >
+                <Star
+                  size={15}
+                  fill={followed.includes(item.id) ? "currentColor" : "none"}
+                />
+                {followed.includes(item.id) ? "已关注" : "关注"}
+              </button>
+            </div>
           ))}
         </div>
         {!results.length && (

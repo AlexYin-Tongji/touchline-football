@@ -134,7 +134,7 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         news_reports.retry_report(self.store, row["id"])
         self.assertEqual((await news_reports.process_report_queue(self.store, runner=runner))["completed"], 1)
 
-    async def test_bounded_retries_and_daily_budget_are_visible(self):
+    async def test_failure_retries_are_bounded_but_attempt_history_is_not_a_quota(self):
         row = news_reports.enqueue_reports(self.store)[0]
         async def failure(store, rid, cancel):
             store.put("runs", {**store.get("runs", rid), "status": "failed", "error": "测试中的模型暂不可用"})
@@ -152,9 +152,10 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         raw["attempt_history"] = [news_reports.now().isoformat()] * 12
         self.store.put("reports", raw)
         queued = news_reports.retry_report(self.store, row["id"])
-        self.assertEqual(queued["budget"]["remaining_today"], 0)
-        self.assertIn("额度", queued["queue_note"])
-        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 0)
+        self.assertIsNone(queued["budget"]["remaining_today"])
+        self.assertNotIn("额度", queued["queue_note"])
+        self.assertEqual((await news_reports.process_report_queue(self.store, runner=successful_runner))["processed"], 1)
+        self.assertEqual(news_reports.report_budget(self.store)["used_today"], 13)
 
     async def test_restart_adopts_verified_run_without_second_model_call(self):
         row = news_reports.enqueue_reports(self.store)[0]
@@ -177,7 +178,7 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "stale")
         self.assertIsNone(result["report"])
 
-    async def test_workers_do_not_overlap_and_cycle_limit_is_hard_capped(self):
+    async def test_workers_do_not_overlap_and_default_cycle_drains_all_due_work(self):
         for suffix in ("two", "three", "four", "five"):
             event(self.store, suffix)
         news_reports.enqueue_reports(self.store)
@@ -186,11 +187,63 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
             entered.set()
             await release.wait()
             await successful_runner(store, rid, cancel)
-        first = asyncio.create_task(news_reports.process_report_queue(self.store, max_jobs=99, runner=slow_runner))
+        first = asyncio.create_task(news_reports.process_report_queue(self.store, runner=slow_runner))
         await entered.wait()
         self.assertTrue((await news_reports.process_report_queue(self.store, runner=successful_runner))["busy"])
         release.set()
-        self.assertEqual((await first)["processed"], 3)
+        self.assertEqual((await first)["processed"], 5)
+
+    async def test_auto_queue_has_no_backfill_cycle_or_daily_quota(self):
+        # Old settings must not silently reinstate a three-report ceiling.
+        self.store.config["reports"]["max_per_cycle"] = 1
+        self.store.data["events"] = {}
+        for index in range(105):
+            event(self.store, str(index))
+        rows = news_reports.enqueue_reports(self.store)
+        self.assertEqual(len(rows), 105)
+        result = await news_reports.process_report_queue(self.store, runner=successful_runner)
+        self.assertEqual(result["completed"], 105)
+        self.assertEqual(result["budget"]["used_today"], 105)
+        self.assertIsNone(result["budget"]["daily_limit"])
+
+    async def test_all_event_sources_are_available_without_invalidating_old_fingerprint(self):
+        source = self.store.get("evidence", "ev_injury")
+        ids = [source["id"]]
+        for index in range(6):
+            extra = self.store.put("evidence", {**source, "id": f"ev_extra_{index}"})
+            ids.append(extra["id"])
+        current = self.store.get("events", "event_one")
+        current["evidence_ids"] = ids
+        self.store.put("events", current)
+        snapshot = news_reports._snapshot(self.store, current, self.store.settings())
+        old_fingerprint = news_reports._hash({"version": 2, "team_id": current["team_id"], "mode": current["mode"],
+            "event_id": current["id"], "sources": snapshot["source_hashes"],
+            "visible": {item["id"]: news_reports._evidence_hash(item) for item in snapshot["sources"][:5]},
+            "boundary": news_reports._boundary(self.store.settings())})
+        self.assertEqual(snapshot["fingerprint"], old_fingerprint)
+        row = news_reports.enqueue_reports(self.store)[0]
+        self.assertEqual(set(row["evidence_ids"]), set(ids))
+        await news_reports.process_report_queue(self.store, runner=successful_runner)
+        self.assertEqual(set(self.store.list("runs")[0]["input_evidence_ids"]), set(ids))
+        # A completed report created by the old five-source version stays valid.
+        old = self.store.get("reports", row["id"])
+        old.update(fingerprint=old_fingerprint, evidence_ids=ids[:5], source_count=5)
+        self.store.put("reports", old)
+        self.assertEqual(news_reports.get_report(self.store, old["id"])["status"], "completed")
+        self.assertEqual(news_reports.enqueue_reports(self.store)[0]["id"], old["id"])
+        self.assertEqual(len(self.store.list("reports")), 1)
+
+    async def test_verified_report_can_have_more_than_six_supported_sections(self):
+        news_reports.enqueue_reports(self.store)
+        async def detailed_runner(store, run_id, cancel):
+            await successful_runner(store, run_id, cancel)
+            run = store.get("runs", run_id)
+            fact = run["structured_answer"]["facts"][0]
+            run["structured_answer"]["facts"] = [{**fact, "title": f"原文支持的细节 {index}"} for index in range(8)]
+            store.put("runs", run)
+        result = await news_reports.process_report_queue(self.store, runner=detailed_runner)
+        self.assertEqual(result["completed"], 1)
+        self.assertEqual(len(self.store.list("reports")[0]["report"]["sections"]), 8)
 
     async def test_backfill_limit_counts_missing_jobs_after_deduplication(self):
         self.store.data["events"] = {}
@@ -267,14 +320,14 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.local = LocalTools(self.store, self.run, self.store.settings())
         self.local.call("read_evidence", {"evidence_id": "ev_injury"})
 
-    def test_report_schema_is_spacious_but_does_not_relax_normal_answers(self):
+    def test_report_and_normal_schema_allow_needed_detail_without_relaxing_source_scope(self):
         value = manuscript()
         value["facts"][0]["detail"] *= 5
         value["analysis"] *= 9
         self.local.call("submit_answer", value)
         normal = next(item for item in tool_definitions() if item["name"] == "submit_answer")["parameters"]["properties"]
-        self.assertEqual(normal["facts"]["maxItems"], 3)
-        self.assertEqual(normal["analysis"]["maxLength"], 220)
+        self.assertNotIn("maxItems", normal["facts"])
+        self.assertGreaterEqual(normal["analysis"]["maxLength"], 16000)
         self.assertTrue(self.local.verification_enabled)
         with self.assertRaises(ToolError):
             self.local.call("read_evidence", {"evidence_id": "ev_transfer"})
@@ -292,20 +345,23 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         public, _ = verification.prepare_claims(self.local, self.local.submission["structured_answer"])
         self.assertEqual(public[0]["verdict"], "unsupported")
 
-    async def test_real_harness_forces_full_report_verification_with_one_delivery(self):
+    async def test_real_harness_verifies_model_chosen_report_delivery_once(self):
+        self.store.config["llm"]["max_output_tokens"] = 16000
         def checked(config, messages, **kwargs):
             payload = json.loads(messages[-1]["content"])
             return tool_message("report_source_support", {"claims": [{"id": item["id"], "verdict": "supported", "reason": "对应所引原文中的训练可用性说明。"} for item in payload["claims"]]})
         responses = [tool_message("submit_answer", manuscript())]
         async def requester(config, messages, **kwargs):
-            if kwargs.get("tool_choice", {}).get("function", {}).get("name") == "report_source_support":
-                self.assertEqual(kwargs["timeout"], 90)
+            choice = kwargs.get("tool_choice")
+            function = choice.get("function", {}).get("name") if isinstance(choice, dict) else None
+            if function == "report_source_support":
+                self.assertEqual(kwargs["timeout"], 120)
                 return checked(config, messages, **kwargs)
-            self.assertEqual(kwargs["tool_choice"]["function"]["name"], "submit_answer")
+            self.assertNotEqual(function, "submit_answer")
             self.assertEqual(kwargs["timeout"], 240)
-            self.assertGreaterEqual(config["max_output_tokens"], 8000)
+            self.assertEqual(config["max_output_tokens"], 16000)
             schema = next(item for item in kwargs["tools"] if item["function"]["name"] == "submit_answer")
-            self.assertEqual(schema["function"]["parameters"]["properties"]["facts"]["maxItems"], 6)
+            self.assertNotIn("maxItems", schema["function"]["parameters"]["properties"]["facts"])
             self.assertNotIn("quote", schema["function"]["parameters"]["properties"]["facts"]["items"]["properties"]["quotes"]["items"]["properties"])
             return responses.pop(0)
         with patch.object(agent, "request_completion", new=AsyncMock(side_effect=requester)) as provider:
@@ -313,7 +369,7 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         run = self.store.get("runs", "run_one")
         self.assertEqual(run["status"], "completed", run.get("error"))
         self.assertEqual(run["verification"]["status"], "supported")
-        self.assertEqual(run["progress"]["time_limit_seconds"], 600)
+        self.assertEqual(run["progress"]["time_limit_seconds"], agent.TASK_TIMEOUT_SECONDS)
         self.assertEqual(self.store.settings()["llm"]["timeout_seconds"], 10)
         self.assertEqual(provider.await_count, 2)
         self.assertEqual(run["structured_answer"]["title"], manuscript()["title"])

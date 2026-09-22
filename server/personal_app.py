@@ -18,14 +18,16 @@ def install_personal_defaults(store):
     # Personal use has no separate demo workspace or operational setup wizard.
     existing = store.get_meta("settings", {})
     store.save_settings({"mode": "live", "spoiler_free": existing.get("spoiler_free", False),
-                         "reports": {"auto_generate": True, "max_per_cycle": 3},
+                         "reports": {"auto_generate": True},
                          "automation": {"enabled": False}})
     store.set_meta("personal_v7_defaults", True)
 
 
-def source_links(store, event):
+def source_links(store, event, evidence_ids=None):
     result, seen = [], set()
     for identity in event.get("evidence_ids", []):
+        if evidence_ids is not None and identity not in evidence_ids:
+            continue
         row = store.get("evidence", identity)
         if not row or row.get("mode") != event.get("mode") or row.get("team_id") != event.get("team_id"):
             continue
@@ -51,13 +53,10 @@ def safe_images(rows):
         if not isinstance(image, dict):
             continue
         url = image.get("url") or image.get("src")
-        try:
-            url = ingestion.normalize_url(url)
-        except (ValueError, TypeError):
+        url = ingestion.safe_image_url(url, image.get("source_url") or "")
+        if not url or ingestion.image_identity(url) in seen:
             continue
-        if not url.startswith("https://") or url in seen:
-            continue
-        seen.add(url)
+        seen.add(ingestion.image_identity(url))
         output.append({**image, "url": url, "src": url})
     return output[:4]
 
@@ -74,12 +73,12 @@ def message_topic(title):
 
 
 def feed_view(store, team_id=None, cursor=None, limit=20):
-    from .news_reports import list_reports
+    from .news_reports import list_reports, queue_summary
     settings = store.settings()
     teams = {team_id} if team_id else set(settings.get("followed_teams", []))
     reports = [r for r in list_reports(store, team_id=team_id, mode="live") if r.get("team_id") in teams]
     by_event = {row["event_id"]: row for row in sorted(reports, key=lambda r: r.get("updated_at", ""))}
-    items, pending = [], 0
+    items, pending_events = [], set()
     for event in store.list("events", "live", team_id):
         if event.get("team_id") not in teams:
             continue
@@ -87,7 +86,8 @@ def feed_view(store, team_id=None, cursor=None, limit=20):
         for eid in event.get("evidence_ids", []):
             source = store.get("evidence", eid)
             if (not source or source.get("mode") != "live" or source.get("team_id") != event["team_id"]
-                    or source.get("private") or source.get("deleted") or source.get("visibility") in {"hidden", "deleted"}):
+                    or source.get("private") or source.get("deleted") or source.get("visibility") in {"hidden", "deleted"}
+                    or source.get("fixture_record")):
                 continue
             view = ingestion.safe_evidence_view(source) if settings.get("spoiler_free", True) else source
             if view:
@@ -103,31 +103,27 @@ def feed_view(store, team_id=None, cursor=None, limit=20):
         # A vanished/private source or expired original cannot revive an old
         # event excerpt. Persisted Chinese AI reports have their own provenance.
         if not ready and not chinese_source:
-            pending += 1
+            pending_events.add(event["id"])
             continue
         title = content.get("title") or (chinese_source or {}).get("title", "")
         summary = content.get("lead") or (chinese_source or {}).get("text", "")[:300]
         if not readable_chinese(title) or not readable_chinese(summary):
-            pending += 1
+            pending_events.add(event["id"])
             continue
         # Guard the feed from the previous version's empty announcement cards.
         if "相关报道已收录" in summary or "请助手整理中文要点" in summary:
-            pending += 1
+            pending_events.add(event["id"])
             continue
-        visible_ids = {source["id"] for source in visible}
-        sources = [source for source in source_links(store, event) if source["id"] in visible_ids]
+        # Only evidence that actually supports this displayed Chinese message
+        # may contribute its attribution or photographs. Event membership is
+        # broader and can include older or unrelated linked source captures.
+        cited_ids = {source.get("id") for source in content.get("sources", [])} if ready else {chinese_source["id"]}
+        visible_ids = {source["id"] for source in visible} & cited_ids
+        sources = source_links(store, event, evidence_ids=visible_ids)
         if not sources and event.get("mode") != "live":
             continue
-        image_source_ids = {source["id"] for source in visible if not source.get("spoiler_redacted")}
-        source_urls = {source["url"] for source in sources if source["id"] in image_source_ids}
-        images = [image for image in (content.get("images") or [])
-                  if isinstance(image, dict) and (image.get("evidence_id") in image_source_ids or image.get("source_url") in source_urls)]
-        for source in sources:
-            if source["id"] not in image_source_ids:
-                continue
-            raw = store.get("evidence", source["id"]) or {}
-            images.extend(image for image in (raw.get("images") or []) if isinstance(image, dict)
-                          and image.get("evidence_id", source["id"]) == source["id"] and image.get("source_url", source["url"]) == source["url"])
+        images = [image for source in visible if source["id"] in visible_ids
+                  for image in ingestion.source_images(source)]
         published = max((source.get("published_at") or "" for source in sources), default="") or None
         items.append({"id": event["id"], "team_id": event["team_id"], "title": title, "summary": summary,
                       "topic": message_topic(title), "published_at": published, "updated_at": published or event.get("updated_at") or (report or {}).get("updated_at"),
@@ -147,7 +143,11 @@ def feed_view(store, team_id=None, cursor=None, limit=20):
     next_cursor = (base64.urlsafe_b64encode(json.dumps([visible[-1].get("updated_at") or "", visible[-1]["id"]], separators=(",", ":")).encode()).decode().rstrip("=")
                    if len(items) > limit and visible else None)
     statuses = [store.get_meta("personal_refresh_" + identity, {}) for identity in teams]
-    return {"items": visible, "next_cursor": next_cursor, "pending_count": pending,
+    pending_reports = [{**report, "status": "stale"} if report.get("status") == "completed" else report
+                       for report in by_event.values() if report["event_id"] in pending_events]
+    processing = queue_summary(store, reports=pending_reports,
+                               waiting_sources=len(pending_events - {report["event_id"] for report in pending_reports}))
+    return {"items": visible, "next_cursor": next_cursor, "pending_count": len(pending_events), "processing": processing,
             "refresh": {"status": "running" if any(s.get("status") == "running" for s in statuses) else "idle",
                         "last_updated": max((s.get("last_updated") or "" for s in statuses), default="") or None,
                         "error": next((s["error"] for s in statuses if s.get("error")), None)}}
@@ -184,7 +184,7 @@ class PersonalRefreshManager:
         try:
             self.team_maintenance.start(team_id)
             result = await asyncio.wait_for(collect_team(self.store, team_id, query="", limit=10, max_age_days=7), timeout=180)
-            enqueue_reports(self.store, team_id=team_id, limit=20)
+            enqueue_reports(self.store, team_id=team_id)
             errors = result.get("errors", [])
             self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle", "last_updated": ingestion.now(),
                                       "error": "部分消息来源暂时不可用，稍后会继续更新。" if errors and not result.get("evidence_ids") else None})

@@ -79,17 +79,16 @@ class V2ToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["evidence_ids"], ["ev_injury"])
         self.assertFalse(self.local.read_ids)
 
-    async def test_network_budgets_span_multiple_tool_types(self):
+    async def test_research_can_continue_beyond_old_query_and_read_quotas(self):
         await self.local.acall("refresh_team_sources", {"query": "injury", "limit": 6})
-        await self.local.acall("read_article", {"candidate_id": "candidate_one"})
-        await self.local.acall("read_article", {"candidate_id": "candidate_one"})
-        with self.assertRaises(ToolError):
+        for _ in range(12):
             await self.local.acall("read_article", {"candidate_id": "candidate_one"})
-        await self.local.acall("discover_news", {"query": "training"})
-        await self.local.acall("discover_news", {"query": "fitness"})
-        with self.assertRaises(ToolError):
-            await self.local.acall("discover_news", {"query": "fourth"})
-        self.assertEqual(self.local.budget()["article_reads_used"], 8)
+        for index in range(20):
+            await self.local.acall("discover_news", {"query": "training " + str(index)})
+        self.assertEqual(self.local.budget()["article_reads_used"], 18)
+        self.assertEqual(self.local.budget()["queries_used"], 21)
+        self.assertIsNone(self.local.budget()["article_reads_limit"])
+        self.assertIsNone(self.local.budget()["queries_limit"])
 
     async def test_skill_composition_does_not_expand_scope_or_network_permission(self):
         local = LocalTools(self.store, dict(self.run, allow_network=False), self.store.settings(), agent.load_skill)

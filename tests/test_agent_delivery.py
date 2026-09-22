@@ -82,11 +82,11 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolError):
             local.call("submit_answer", submission())
         local.call("read_evidence", {"evidence_id": "ev_injury"})
-        bad_values = [submission(facts=[]), submission(summary="x" * 121),
-                      submission(facts=[{"title": "标题", "detail": "x" * 181, "evidence_ids": ["ev_injury"]}]),
+        bad_values = [submission(facts=[]), submission(summary="x" * 4001),
+                      submission(facts=[{"title": "标题", "detail": "x" * 12001, "evidence_ids": ["ev_injury"]}]),
                       submission(facts=[{"title": "标题", "detail": "描述", "evidence_ids": "ev_injury"}]),
                       submission(facts=[{"title": "标题", "detail": "描述", "evidence_ids": ["ev_injury"], "private_thought": "bad"}]),
-                      submission(unknowns=["x"] * 4)]
+                      submission(unknowns=["x" * 2001])]
         for value in bad_values:
             with self.subTest(value=value), self.assertRaises(ToolError):
                 local.call("submit_answer", value)
@@ -111,7 +111,7 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
     def test_explicit_two_item_limit_controls_structured_submission(self):
         for question in ("最多两条消息", "最多两点", "最多2条", "最多两项", "请给我两条重要新闻"):
             self.assertEqual(answer_fact_limit(question), 2)
-        self.assertEqual(answer_fact_limit("最近三场比赛有哪些变化？"), 3)
+        self.assertIsNone(answer_fact_limit("最近三场比赛有哪些变化？"))
         run = self.store.get("runs", "run_one")
         run["question"] = "最多两条具体的新进展"
         local = LocalTools(self.store, run, self.store.settings())
@@ -123,6 +123,26 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(local.submission)
         value["facts"] = value["facts"][:2]
         self.assertTrue(local.call("submit_answer", value)["submitted"])
+
+    def test_default_delivery_accepts_more_than_three_facts_and_detailed_paragraphs(self):
+        local = LocalTools(self.store, self.store.get("runs", "run_one"), self.store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
+        value = submission(summary="这是围绕用户问题展开的资料说明。" * 15,
+                           analysis="人员选择需要结合训练恢复情况进行判断。" * 30 + "\n\n仍应等待正式名单。")
+        value["facts"] = [dict(value["facts"][0], title=f"相关进展 {index}",
+                               detail="来源说明了训练安排，应以当前可见资料为准。" * 15 + "\n\n后续应关注名单信息。")
+                          for index in range(8)]
+        result = local.call("submit_answer", value)
+        self.assertEqual(result["facts_count"], 8)
+        self.assertEqual(local.submission["structured_answer"], value)
+        self.assertGreater(len(local.submission["answer"]), 1000)
+
+    def test_only_user_requested_counts_are_limits(self):
+        for question, expected in (("请给我三条新闻", 3), ("列出8项变化", 8), ("整理十五条消息", 15),
+                                   ("最近三場比赛有哪些变化？", None), ("今天所有值得关注的消息", None),
+                                   ("不要只要三条消息", None)):
+            with self.subTest(question=question):
+                self.assertEqual(answer_fact_limit(question), expected)
 
     def test_summary_cannot_upgrade_source_claim_to_verified_fact(self):
         local = LocalTools(self.store, self.store.get("runs", "run_one"), self.store.settings())

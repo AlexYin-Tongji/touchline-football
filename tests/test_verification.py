@@ -266,8 +266,35 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run["structured_answer"]["facts"][0]["quotes"][0]["quote"], source["text"])
         self.assertEqual(run["verification"]["claims"][0]["quotes"][0]["quote"], source["text"])
 
+    async def test_many_facts_get_complete_dynamic_checker_schema_and_output_space(self):
+        self.store.config["llm"]["max_output_tokens"] = 16000
+        value = quoted_submission()
+        value["facts"] = [dict(copy.deepcopy(value["facts"][0]), title=f"相关进展 {index}") for index in range(20)]
+        responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+                     tool_message("submit_answer", value)]
+        checked_counts = []
+        async def provider(config, messages, **kwargs):
+            if kwargs["tools"][0]["function"]["name"] != "report_source_support":
+                return responses.pop(0)
+            payload = json.loads(messages[-1]["content"])
+            count = len(payload["claims"])
+            checked_counts.append(count)
+            schema = kwargs["tools"][0]["function"]["parameters"]["properties"]["claims"]
+            self.assertEqual((schema["minItems"], schema["maxItems"]), (count, count))
+            self.assertGreater(config["max_output_tokens"], 4000)
+            self.assertLessEqual(config["max_output_tokens"], 16000)
+            return tool_message("report_source_support", {"claims": [
+                {"id": claim["id"], "verdict": "supported", "reason": "该说法受到当前原文支持。"}
+                for claim in payload["claims"]]})
+        with patch.object(agent, "request_completion", new=provider):
+            await agent.run_agent(self.store, "run_one", asyncio.Event())
+        run = self.store.get("runs", "run_one")
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(checked_counts, [23])
+        self.assertEqual(len(run["structured_answer"]["facts"]), 20)
+        self.assertEqual(run["verification"]["status"], "supported")
+
     async def test_one_bad_quote_does_not_discard_another_supported_fact(self):
-        self.store.config["llm"]["max_rounds"] = 2
         value = quoted_submission()
         valid = copy.deepcopy(value["facts"][0])
         valid["title"] = "保留的训练消息"
@@ -278,9 +305,9 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
             {"id": key, "verdict": "supported", "reason": "与提供的完整可见片段一致。"}
             for key in ("fact_2", "summary", "analysis", "unknowns")]})
         run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", value), checked])
-        self.assertEqual(provider.await_count, 3)
-        payload = json.loads(provider.call_args.args[1][-1]["content"])
+            tool_message("submit_answer", value), checked, agent.AgentFailure("修复请求暂不可用。")])
+        self.assertEqual(provider.await_count, 4)
+        payload = json.loads(provider.call_args_list[2].args[1][-1]["content"])
         self.assertEqual(payload["locally_rejected_claim_ids"], ["fact_1"])
         self.assertNotIn("fact_1", [c["id"] for c in payload["claims"]])
         self.assertEqual(run["status"], "completed")
@@ -399,6 +426,7 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_verification_timeout_stops_request_and_delivers_insufficient(self):
         self.store.config["verification_timeout_seconds"] = 1
+        self.store.config["llm"]["timeout_seconds"] = 1
         cancelled = asyncio.Event()
         responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}), tool_message("submit_answer", quoted_submission())]
         async def provider(*args, **kwargs):
@@ -447,10 +475,10 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([row["role"] for row in repair_wire], ["system", "user", "user", "user"])
         self.assertIn("实际已读原文快照", repair_wire[2]["content"])
 
-    async def test_six_tool_calls_execute_five_and_return_six_paired_results(self):
+    async def test_twenty_one_tool_calls_all_execute_with_paired_results(self):
         batch = {"role": "assistant", "content": None, "tool_calls": [
             tool_message("read_evidence", {"evidence_id": "ev_injury"}, f"read_{index}")["tool_calls"][0]
-            for index in range(6)]}
+            for index in range(21)]}
         responses = [batch, tool_message("submit_answer", quoted_submission(), "submit_1"), checker_result()]
         seen_batch = False
         async def strict_provider(config, messages, **kwargs):
@@ -468,9 +496,8 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
             tool_results = [row for row in wire["messages"] if row["role"] == "tool"]
             if tool_results:
                 seen_batch = True
-                self.assertEqual(len(tool_results), 6)
-                self.assertTrue(all(json.loads(row["content"])["id"] == "ev_injury" for row in tool_results[:5]))
-                self.assertIn("最多执行5个工具", json.loads(tool_results[5]["content"])["error"])
+                self.assertEqual(len(tool_results), 21)
+                self.assertTrue(all(json.loads(row["content"])["id"] == "ev_injury" for row in tool_results))
             return responses.pop(0)
         with patch.object(agent, "request_completion", new=strict_provider):
             await agent.run_agent(self.store, "run_one", asyncio.Event())
@@ -479,10 +506,10 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["verification"]["status"], "supported")
 
-    async def test_twenty_one_requested_tools_still_stop_before_execution(self):
+    async def test_abnormally_large_tool_response_stops_before_execution(self):
         batch = {"role": "assistant", "content": None, "tool_calls": [
             tool_message("read_evidence", {"evidence_id": "ev_injury"}, f"read_{index}")["tool_calls"][0]
-            for index in range(21)]}
+            for index in range(agent.MAX_REQUESTED_TOOL_CALLS + 1)]}
         result, provider = await self.run_with([batch])
         self.assertEqual(provider.await_count, 1)
         self.assertEqual(result["status"], "failed")

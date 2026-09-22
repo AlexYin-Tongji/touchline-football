@@ -18,6 +18,7 @@ import {
   Markdown,
   Photo,
   Sources,
+  uniqueImages,
   type MediaImage,
   type SourceLink,
 } from "./v7Shared";
@@ -46,6 +47,21 @@ interface FeedResponse {
     pending?: number;
   };
   pending_count?: number;
+  processing?: {
+    queued: number;
+    generating: number;
+    retrying: number;
+    failed: number;
+    needs_configuration: number;
+    budget_blocked: number;
+    waiting_sources: number;
+    total_pending: number;
+    next_retry_at?: string | null;
+    note: string;
+    can_retry: boolean;
+    manual_count?: number;
+    can_organize?: boolean;
+  };
 }
 type IllustratedReport = Omit<AutoReport, "report"> & {
   report?: Omit<NonNullable<AutoReport["report"]>, "sections"> & {
@@ -81,23 +97,37 @@ export function FeedView({
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [organizing, setOrganizing] = useState(false);
+  const [manualMessage, setManualMessage] = useState("");
+  const manualRequests = useRef(new Set<string>());
   const [selected, setSelected] = useState<FeedItem | null>(null);
   const [report, setReport] = useState<IllustratedReport | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState("");
+  const [asking, setAsking] = useState<string | null>(null);
   const serial = useRef(0);
+  const loadedItems = useRef(20);
+  loadedItems.current = Math.max(20, feed?.items.length || 0);
   const readSerial = useRef(0);
   const activeTeam = useRef(team.id);
   activeTeam.current = team.id;
   const load = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, preservePages = false) => {
       const request = ++serial.current;
       const requestedTeam = team.id;
       setLoading(true);
       try {
-        const result = await api<FeedResponse>(
-          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        const target = preservePages ? loadedItems.current : 20;
+        let result = await api<FeedResponse>(
+          `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         );
+        while (preservePages && result.next_cursor && result.items.length < target) {
+          if (request !== serial.current || activeTeam.current !== requestedTeam) return;
+          const page = await api<FeedResponse>(
+            `/feed?team_id=${encodeURIComponent(requestedTeam)}&limit=${Math.min(40, target - result.items.length)}&cursor=${encodeURIComponent(result.next_cursor)}`,
+          );
+          result = { ...page, items: [...result.items, ...page.items.filter(item => !result.items.some(old => old.id === item.id))] };
+        }
         if (request !== serial.current || activeTeam.current !== requestedTeam)
           return;
         setFeed((previous) =>
@@ -131,6 +161,8 @@ export function FeedView({
     setTopic("");
     setSelected(null);
     setRefreshing(false);
+    setOrganizing(false);
+    setManualMessage("");
     void load();
     return () => {
       serial.current++;
@@ -139,16 +171,44 @@ export function FeedView({
   useEffect(() => {
     const timer = window.setInterval(
       () => {
-        if (
-          document.visibilityState === "visible" &&
-          (feed?.items.length || 0) <= 20
-        )
-          void load();
+        if (document.visibilityState === "visible") void load(undefined, true);
       },
-      refreshing ? 4000 : 60000,
+      refreshing ||
+        (feed?.processing?.generating || 0) > 0 ||
+        (feed?.processing?.queued || 0) > 0
+        ? 4000
+        : 60000,
     );
     return () => clearInterval(timer);
-  }, [refreshing, load, feed?.items.length]);
+  }, [
+    refreshing,
+    load,
+    feed?.items.length,
+    feed?.processing?.generating,
+    feed?.processing?.queued,
+    feed?.processing?.manual_count,
+  ]);
+  const organize = async () => {
+    const requestedTeam = team.id;
+    if (manualRequests.current.has(requestedTeam) || (feed?.processing?.manual_count || 0) > 0) return;
+    manualRequests.current.add(requestedTeam);
+    setOrganizing(true);
+    setError("");
+    setManualMessage("");
+    try {
+      const result = await post<{ started: boolean; status: string; queued: number; note: string }>(
+        "/feed/organize", { team_id: requestedTeam },
+      );
+      if (activeTeam.current !== requestedTeam) return;
+      setManualMessage(result.note);
+      await load();
+    } catch (err) {
+      if (activeTeam.current === requestedTeam) setError(errorText(err));
+    } finally {
+      manualRequests.current.delete(requestedTeam);
+      if (activeTeam.current === requestedTeam) setOrganizing(false);
+    }
+  };
   const refresh = async () => {
     if (refreshing) return;
     const requestedTeam = team.id;
@@ -177,17 +237,76 @@ export function FeedView({
       );
       if (request === readSerial.current) {
         setReport(result);
-        if (!result.report) setReadError("这条消息正在更新，请稍后刷新动态。");
+        if (result.status !== "completed" || !result.report) {
+          setReadError("这条消息正在更新，请稍后刷新动态。");
+          setFeed((previous) =>
+            previous
+              ? {
+                  ...previous,
+                  items: previous.items.filter((entry) => entry.id !== item.id),
+                }
+              : previous,
+          );
+        }
       }
     } catch (err) {
-      if (request === readSerial.current) setReadError(errorText(err));
+      if (request === readSerial.current) {
+        setReadError(errorText(err));
+        setFeed((previous) =>
+          previous
+            ? {
+                ...previous,
+                items: previous.items.filter((entry) => entry.id !== item.id),
+              }
+            : previous,
+        );
+      }
     } finally {
       if (request === readSerial.current) setReading(false);
     }
   };
-  const items = (feed?.items || []).filter(
-    (item) => !topic || item.topic === topic,
-  );
+  const askAbout = async (item: FeedItem) => {
+    if (asking) return;
+    const requestedTeam = team.id;
+    setAsking(item.id);
+    try {
+      const fresh = item.report_id
+        ? await api<IllustratedReport>(
+            `/reports/${encodeURIComponent(item.report_id)}`,
+          )
+        : null;
+      if (activeTeam.current !== requestedTeam) return;
+      if (item.report_id && (fresh?.status !== "completed" || !fresh.report))
+        throw new Error("这条消息的资料已变化，请刷新动态后重试。");
+      ask({
+        text: `请进一步解释这条关于${team.name}的消息：${fresh?.report?.title || item.title}`,
+        skill: "auto",
+        evidenceIds: (fresh?.report?.sources || item.sources)
+          ?.flatMap((source) => (source.id ? [source.id] : []))
+          .slice(0, 5),
+      });
+    } catch (err) {
+      if (activeTeam.current === requestedTeam) {
+        setError(errorText(err));
+        setFeed((previous) =>
+          previous
+            ? {
+                ...previous,
+                items: previous.items.filter((entry) => entry.id !== item.id),
+              }
+            : previous,
+        );
+      }
+    } finally {
+      if (activeTeam.current === requestedTeam) setAsking(null);
+    }
+  };
+  const items = (feed?.items || [])
+    .filter((item) => !topic || item.topic === topic)
+    .map((item) => ({
+      ...item,
+      images: uniqueImages(item.images).slice(0, 1),
+    }));
   const upcoming = data.matches
     .filter(
       (item) =>
@@ -198,9 +317,21 @@ export function FeedView({
     )
     .sort((a, b) => (a.kickoff || "").localeCompare(b.kickoff || ""))[0];
   const pending = feed?.pending_count || feed?.refresh?.pending || 0;
-  const hasSectionImages = report?.report?.sections.some(
+  const modelReady =
+    data.setup?.model_roles_configured?.feed ?? data.setup?.model_configured;
+  const manualRunning = (feed?.processing?.manual_count || 0) > 0;
+  const seenStoryImages = new Set<string>();
+  const sections = report?.report?.sections.map((section) => ({
+    ...section,
+    illustrations: uniqueImages(section.illustrations, seenStoryImages),
+  }));
+  const hasSectionImages = sections?.some(
     (section) => section.illustrations?.length,
   );
+  const readable =
+    !!selected &&
+    (!selected.report_id ||
+      (report?.status === "completed" && !!report.report));
   return (
     <div className="feed-layout">
       <section className="feed-main">
@@ -213,15 +344,30 @@ export function FeedView({
             </h1>
             <p>值得知道的消息，都在这里。</p>
           </div>
-          <button
-            className="button refresh-button"
-            disabled={refreshing || loading}
-            onClick={refresh}
-          >
-            <RefreshCw size={15} className={refreshing ? "spin" : ""} />
-            <span>{refreshing ? "更新中" : "刷新动态"}</span>
-          </button>
+          <div className="feed-heading-actions">
+            <button
+              className="button refresh-button"
+              disabled={refreshing || loading}
+              onClick={refresh}
+            >
+              <RefreshCw size={15} className={refreshing ? "spin" : ""} />
+              <span>{refreshing ? "更新中" : "刷新来源"}</span>
+            </button>
+            <button
+              className="button primary"
+              disabled={organizing || manualRunning || !feed}
+              onClick={modelReady ? organize : openModel}
+              title="让球队动态模型整理当前球队所有待处理消息"
+            >
+              {organizing || manualRunning ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}
+              {organizing || manualRunning ? "手动整理中" : "手动整理"}
+            </button>
+          </div>
         </div>
+        <p className="feed-manual-help">
+          由“球队动态”模型根据可用资料整理消息，完成后陆续加入动态。没有可用来源时，先刷新来源。
+        </p>
+        {manualMessage && <div className="notice success" role="status">{manualMessage}</div>}
         <div className="feed-toolbar">
           <div className="filter-tabs">
             {topics.map((item) => (
@@ -237,26 +383,47 @@ export function FeedView({
           </div>
           <span className="feed-order">最新发布</span>
         </div>
-        {(refreshing || pending > 0) && (
+        {(refreshing ||
+          pending > 0 ||
+          feed?.processing?.note ||
+          feed?.refresh?.error) && (
           <div className="feed-progress" role="status">
             {refreshing ? (
               <LoaderCircle size={15} className="spin" />
             ) : (
               <Sparkles size={15} />
             )}
-            <span>
-              {refreshing
-                ? pending > 0
-                  ? `正在整理 ${pending} 条新消息`
-                  : "正在为你查找和整理新消息"
-                : `${pending} 条新消息待整理`}
-            </span>
-            {!data.setup?.model_configured && (
+            <div className="feed-processing-copy">
+              <strong>
+                {feed?.processing?.note ||
+                  (refreshing
+                    ? pending > 0
+                      ? `正在整理 ${pending} 条新消息`
+                      : "正在为你查找和整理新消息"
+                    : `${pending} 条来源消息尚未生成中文动态`)}
+              </strong>
+              <small>
+                {feed?.refresh?.error ||
+                  (feed?.processing?.needs_configuration || !modelReady
+                    ? "连接动态模型后，才能生成中文内容。"
+                    : manualRunning
+                      ? "正在整理本队待处理消息，已完成的内容会陆续显示。"
+                    : feed?.processing?.next_retry_at
+                      ? `下次重试：${dateTime(feed.processing.next_retry_at)}。也可点击上方“手动整理”。`
+                      : "后台会提取来源并整理中文内容，已完成的消息会逐条出现。")}
+              </small>
+            </div>
+            {!modelReady || !!feed?.processing?.needs_configuration ? (
               <button className="text-button" onClick={openModel}>
                 连接模型
                 <ArrowRight size={13} />
               </button>
-            )}
+            ) : !organizing && !manualRunning &&
+              (feed?.processing?.can_organize ?? pending > 0) ? (
+              <button className="text-button" onClick={organize}>
+                手动整理 <Sparkles size={13} />
+              </button>
+            ) : null}
           </div>
         )}
         {error && (
@@ -309,15 +476,8 @@ export function FeedView({
                 <div className="feed-card-actions">
                   <button
                     className="text-button"
-                    onClick={() =>
-                      ask({
-                        text: `请进一步解释这条关于${team.name}的消息：${item.title}`,
-                        skill: "auto",
-                        evidenceIds: item.sources?.flatMap((source) =>
-                          source.id ? [source.id] : [],
-                        ),
-                      })
-                    }
+                    disabled={!!asking}
+                    onClick={() => askAbout(item)}
                   >
                     <MessageCircle size={16} />
                     问问助手
@@ -339,25 +499,35 @@ export function FeedView({
         {feed && !items.length && (
           <div className="empty-state feed-empty">
             <Newspaper size={35} />
-            <h2>{topic ? "这个分类还没有新消息" : "主场消息，正在等你开启"}</h2>
+            <h2>
+              {topic
+                ? "这个分类还没有新消息"
+                : refreshing
+                  ? "正在准备你的中文动态"
+                  : pending > 0
+                    ? "消息已收录，中文整理尚未完成"
+                    : "主场消息，正在等你开启"}
+            </h2>
             <p>
               {topic
                 ? "看看其他分类，或稍后再来。"
-                : "看台会从球队和媒体来源中整理中文动态。"}
+                : pending > 0
+                  ? "上方会显示整理进度或需要处理的原因。你也可以先浏览球队资料。"
+                  : "看台会从球队和媒体来源中整理中文动态。"}
             </p>
             {!topic && (
               <button
                 className="button primary"
-                disabled={refreshing}
-                onClick={refresh}
+                disabled={refreshing || organizing || manualRunning}
+                onClick={pending > 0 ? (modelReady ? organize : openModel) : refresh}
               >
-                {refreshing ? "正在整理" : "获取最新动态"}
+                {organizing || manualRunning ? "手动整理中" : refreshing ? "正在刷新来源" : pending > 0 ? "手动整理这些消息" : "查找最新来源"}
                 <ArrowRight size={16} />
               </button>
             )}
-            {!data.setup?.model_configured && !topic && (
+            {!modelReady && !topic && (
               <button className="text-button" onClick={openModel}>
-                连接模型，开启自动整理
+                连接球队动态模型
               </button>
             )}
           </div>
@@ -455,7 +625,20 @@ export function FeedView({
         </p>
       </aside>
       {selected && (
-        <Modal title={selected.title} onClose={() => setSelected(null)} wide>
+        <Modal
+          title={
+            selected.report_id
+              ? readable
+                ? report!.report!.title
+                : "消息详情"
+              : selected.title
+          }
+          onClose={() => {
+            readSerial.current++;
+            setSelected(null);
+          }}
+          wide
+        >
           <article className="story-reader">
             <div className="story-meta">
               <span>{team.name}</span>
@@ -472,79 +655,84 @@ export function FeedView({
                     <button onClick={() => read(selected)}>重试</button>
                   </div>
                 )}
-                {(!report || report.report) && (
-                  <p className="story-lead">
-                    {report?.report?.lead || selected.summary}
-                  </p>
-                )}
-                <div className="story-images">
-                  {(hasSectionImages
-                    ? []
-                    : report?.report?.images || selected.images || []
-                  )
-                    .slice(0, 1)
-                    .map((image) => (
-                      <Photo key={image.url} image={image} />
+                {readable && (
+                  <>
+                    <p className="story-lead">
+                      {selected.report_id
+                        ? report?.report?.lead
+                        : selected.summary}
+                    </p>
+                    <div className="story-images">
+                      {uniqueImages(
+                        hasSectionImages
+                          ? []
+                          : selected.report_id
+                            ? report?.report?.images || []
+                            : selected.images || [],
+                      )
+                        .slice(0, 1)
+                        .map((image) => (
+                          <Photo key={image.url} image={image} />
+                        ))}
+                    </div>
+                    {sections?.map((section, i) => (
+                      <section className="story-section" key={i}>
+                        <h3>{section.heading}</h3>
+                        <Markdown
+                          text={section.body}
+                          evidence={report?.report?.sources}
+                        />
+                        {section.illustrations?.map((image) => (
+                          <Photo key={image.url} image={image} />
+                        ))}
+                        <Sources
+                          sources={report?.report?.sources.filter((source) =>
+                            section.evidence_ids?.includes(source.id),
+                          )}
+                        />
+                      </section>
                     ))}
-                </div>
-                {report?.report?.sections.map((section, i) => (
-                  <section className="story-section" key={i}>
-                    <h3>{section.heading}</h3>
-                    <Markdown
-                      text={section.body}
-                      evidence={report.report?.sources}
-                    />
-                    {section.illustrations?.map((image) => (
-                      <Photo key={image.url} image={image} />
-                    ))}
+                    {report?.report?.analysis && (
+                      <section className="story-analysis">
+                        <h3>
+                          <Sparkles size={17} />
+                          这意味着什么
+                        </h3>
+                        <Markdown
+                          text={report.report.analysis}
+                          evidence={report.report.sources}
+                        />
+                      </section>
+                    )}
+                    {!!report?.report?.next_steps?.length && (
+                      <section className="story-section">
+                        <h3>接下来关注</h3>
+                        <ul>
+                          {report.report.next_steps.map((step, i) => (
+                            <li key={i}>{step}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
                     <Sources
-                      sources={report.report?.sources.filter((source) =>
-                        section.evidence_ids?.includes(source.id),
-                      )}
+                      sources={
+                        selected.report_id
+                          ? report?.report?.sources
+                          : selected.sources
+                      }
                     />
-                  </section>
-                ))}
-                {report?.report?.analysis && (
-                  <section className="story-analysis">
-                    <h3>
-                      <Sparkles size={17} />
-                      这意味着什么
-                    </h3>
-                    <Markdown
-                      text={report.report.analysis}
-                      evidence={report.report.sources}
-                    />
-                  </section>
+                    <button
+                      className="button primary story-ask"
+                      onClick={() => {
+                        void askAbout(selected);
+                        setSelected(null);
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      继续问助手
+                    </button>
+                  </>
                 )}
-                {!!report?.report?.next_steps?.length && (
-                  <section className="story-section">
-                    <h3>接下来关注</h3>
-                    <ul>
-                      {report.report.next_steps.map((step, i) => (
-                        <li key={i}>{step}</li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-                <Sources
-                  sources={report?.report?.sources || selected.sources}
-                />
-                <button
-                  className="button primary story-ask"
-                  onClick={() => {
-                    ask({
-                      text: `关于“${selected.title}”，请帮我进一步分析对${team.name}的影响。`,
-                      skill: "auto",
-                      evidenceIds: selected.sources?.flatMap((source) =>
-                        source.id ? [source.id] : [],
-                      ),
-                    });
-                    setSelected(null);
-                  }}
-                >
-                  <MessageCircle size={16} />
-                  继续问助手
-                </button>
               </>
             )}
           </article>

@@ -22,10 +22,10 @@ DEFAULT_SETTINGS = {
     "automation": {"enabled": False, "interval_minutes": 60, "sync_matches": True, "generate_brief": False},
     "verification_enabled": True, "verification_timeout_seconds": 45,
     "personalization": {"interests": [], "reading_language": "zh", "fan_level": "regular", "briefing_window_hours": 72},
-    "reports": {"auto_generate": True, "max_per_cycle": 3},
+    "reports": {"auto_generate": True},
     "llm": {"base_url": "", "model": "", "api_key": "", "max_rounds": 10,
             "timeout_seconds": 90, "temperature": 0.2, "protocol": "chat_completions",
-            "send_temperature": False, "max_output_tokens": 3000, "use_env_proxy": True,
+            "send_temperature": False, "max_output_tokens": 16000, "use_env_proxy": True,
             "thinking_enabled": False},
 }
 
