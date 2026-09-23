@@ -116,6 +116,17 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fetch.call_count, 1)
         self.assertEqual(result["roster"][0]["photo_url"], replacement)
 
+    async def test_exact_official_card_upgrades_older_wikimedia_photo(self):
+        old = squad()
+        old["roster"][0].update(photo_url="https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Joan.jpg/300px-Joan.jpg",
+                                photo_match="wikimedia_verified_club", photo_license="CC BY-SA 4.0",
+                                photo_file_page="https://commons.wikimedia.org/wiki/File:Joan.jpg")
+        with self.fetch(card()):
+            result = await team_portraits.enrich_portraits(self.store, old)
+        self.assertEqual(result["roster"][0]["photo_url"], PHOTO)
+        self.assertEqual(result["roster"][0]["photo_match"], "exact_name_and_number")
+        self.assertFalse(result["roster"][0].get("photo_file_page"))
+
     def test_only_real_player_card_image_on_fixed_official_host_is_accepted(self):
         for url in ("https://evil.example/person.jpg", "http://www.fcbarcelona.com/photo-resources/person.jpg",
                     "https://www.fcbarcelona.com.evil.example/photo-resources/person.jpg", "https://www.fcbarcelona.com/logo.jpg",

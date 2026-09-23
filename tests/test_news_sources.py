@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import json
 from datetime import datetime, timedelta, timezone
@@ -6,6 +7,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from xml.sax.saxutils import escape
 
+import httpx
+
 from server import ingestion, research
 from server.seed import seed
 from server.storage import Store
@@ -13,6 +16,8 @@ from server.storage import Store
 
 BBC_FEED = "https://feeds.bbci.co.uk/sport/football/rss.xml"
 SKY_FEED = "https://www.skysports.com/rss/11670"
+SKY_FOOTBALL_FEED = "https://www.skysports.com/rss/11095"
+RMC_FOOTBALL_FEED = "https://rmcsport.bfmtv.com/rss/football/"
 
 
 def feed(items):
@@ -41,7 +46,214 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
                 sources = research.source_catalog(self.store, team_id)
                 self.assertIn(BBC_FEED, {item["url"] for item in sources})
                 sky = [item for item in sources if "skysports.com" in item["url"]]
-                self.assertEqual([item["url"] for item in sky], [SKY_FEED] if team_id == "arsenal" else [])
+                self.assertEqual([item["url"] for item in sky],
+                                 [SKY_FOOTBALL_FEED, SKY_FEED] if team_id == "arsenal" else [SKY_FOOTBALL_FEED])
+                self.assertIn(RMC_FOOTBALL_FEED, {item["url"] for item in sources})
+
+    def test_new_global_feeds_keep_club_and_article_scope(self):
+        for team_id, url, title, expected in (
+            ("arsenal", "https://www.skysports.com/football/news/11095/12345/arteta-arsenal", "Arsenal agree Arteta contract", True),
+            ("arsenal", "https://www.skysports.com/football/live-blog/11095/12345/arsenal", "Arsenal latest", False),
+            ("arsenal", "https://www.skysports.com/football/arsenal-women/report/12345", "Arsenal Women win", False),
+            ("arsenal", "https://www.skysports.com/football/news/11095/12345/chelsea", "Chelsea announce deal", False),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/om-psg_AV-202609220638.html", "OM-PSG: Marseille prepare", True),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/om-psg_AV-202609220639.html", "OM: prépare le match", True),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/om-psg_VN-202609220638.html", "Marseille video", False),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/om-psg_LN-202609220638.html", "Marseille direct", False),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/om-psg_DN-202609220638.html", "Marseille club page", False),
+            ("marseille", "https://rmcsport.bfmtv.com/football/ligue-1/lyon_AV-202609220638.html", "Lyon prepare", False),
+        ):
+            with self.subTest(team_id=team_id, url=url):
+                entry = {"url": url, "title": title, "description": ""}
+                self.assertEqual(research._first_team_entry(entry)
+                                 and research.global_feed_mentions_team(team_id, entry), expected)
+
+    def test_rmc_historical_club_reference_is_not_current_club_news(self):
+        entry = {"url": "https://rmcsport.bfmtv.com/football/major-league-soccer/higuain_AV-202609230063.html",
+                 "title": "Le frère de Gonzalo Higuain viré de sa franchise de MLS",
+                 "description": "Federico Higuain, frère de l'ancien buteur du Real Madrid, a été viré par Columbus."}
+        self.assertFalse(research.global_feed_mentions_team("real-madrid", entry))
+
+    def test_french_publisher_topic_and_womens_scope(self):
+        for title, category in (
+            ("OM: une blessure inquiète l'entraîneur", "injury"),
+            ("PSG: entraînement collectif avant le match", "training"),
+            ("Marseille: transfert et prolongation du contrat", "transfer"),
+            ("OM: conférence de l'entraîneur", "interview"),
+        ):
+            with self.subTest(title=title):
+                entry = {"url": "https://rmcsport.bfmtv.com/football/ligue-1/om_AV-202609220638.html",
+                         "title": title, "description": ""}
+                self.assertIn(category, research.article_categories(entry))
+        for title in ("PSG féminin: une blessure", "Marseille féminine prépare la saison",
+                      "L'équipe féminine de l'OM à l'entraînement"):
+            with self.subTest(title=title):
+                entry = {"url": "https://rmcsport.bfmtv.com/football/feminin/om_AV-202609220638.html",
+                         "title": title, "description": ""}
+                self.assertFalse(research._first_team_entry(entry))
+
+    async def test_unavailable_guardian_index_cools_down_across_teams_then_recovers(self):
+        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"].startswith("guardian_"))
+        chelsea = next(s for s in research.source_catalog(self.store, "chelsea") if s["id"].startswith("guardian_"))
+        with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.SourceConnectionError("来源请求超时，请稍后重试"))) as fetch:
+            first = await research._source_index(self.store, "arsenal", arsenal)
+            second = await research._source_index(self.store, "chelsea", chelsea)
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(first[2]["state"], "unavailable")
+        self.assertEqual(second[2]["state"], "unavailable")
+        health = research.source_health(self.store, arsenal)
+        self.assertTrue(health["backoff_until"])
+        self.assertEqual(health["consecutive_failures"], 1)
+        health["backoff_until"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        self.store.set_meta(research._guardian_host_health_key(arsenal), health)
+        self.store._research_requests.failures.clear()
+        self.store._research_requests.host_failures.clear()
+        cached = self.store.get_meta(research._index_key("arsenal", arsenal))
+        cached["last_checked"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+        self.store.set_meta(research._index_key("arsenal", arsenal), cached)
+        article = "https://www.theguardian.com/football/2026/sep/22/arsenal-training"
+        body = feed([("Arsenal training", article, "", "Tue, 22 Sep 2026 12:00:00 GMT")])
+        with patch("server.research_transport.FAILURE_COOLDOWN_SECONDS", 0), \
+             patch.object(research, "_fetch", new=AsyncMock(return_value=(body, arsenal["url"], "application/rss+xml"))) as fetch:
+            recovered = await research._source_index(self.store, "arsenal", arsenal)
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(recovered[2]["state"], "fresh")
+        self.assertEqual(research.source_health(self.store, arsenal)["consecutive_failures"], 0)
+
+    async def test_guardian_article_specific_failure_does_not_cool_other_feed(self):
+        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"].startswith("guardian_"))
+        chelsea = next(s for s in research.source_catalog(self.store, "chelsea") if s["id"].startswith("guardian_"))
+        with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.IngestionError("来源返回 HTTP 404"))) as fetch:
+            await research._source_index(self.store, "arsenal", arsenal)
+            self.assertFalse(research._source_in_cooldown(self.store, chelsea))
+            await research._source_index(self.store, "chelsea", chelsea)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(research.source_health(self.store, arsenal)["last_error_kind"], "http_error")
+
+    async def test_one_guardian_network_failure_wave_counts_once(self):
+        teams = ("arsenal", "chelsea", "liverpool", "real-madrid", "barcelona")
+        sources = [(team, next(s for s in research.source_catalog(self.store, team)
+                               if s["id"].startswith("guardian_"))) for team in teams]
+        async def outage(url, source):
+            await asyncio.sleep(0.03)
+            raise ingestion.SourceConnectionError("来源请求超时，请稍后重试")
+        with patch.object(research, "_fetch", side_effect=outage) as fetch:
+            await asyncio.gather(*(research._source_index(self.store, team, source)
+                                   for team, source in sources))
+        self.assertLess(fetch.call_count, len(teams))
+        health = research.source_health(self.store, sources[0][1])
+        self.assertEqual(health["consecutive_failures"], 1)
+
+    async def test_forced_guardian_failure_wave_counts_once_then_later_retry_counts_again(self):
+        teams = ("arsenal", "chelsea", "liverpool", "real-madrid", "barcelona")
+        sources = [(team, next(s for s in research.source_catalog(self.store, team)
+                               if s["id"].startswith("guardian_"))) for team in teams]
+        async def outage(url, source):
+            await asyncio.sleep(0.03)
+            raise ingestion.SourceConnectionError("来源请求超时，请稍后重试")
+        with patch.object(research, "_fetch", side_effect=outage) as fetch:
+            await asyncio.gather(*(research._source_index(self.store, team, source, force=True)
+                                   for team, source in sources))
+            physical_attempts = fetch.call_count
+            first_health = research.source_health(self.store, sources[0][1])
+            self.assertEqual(first_health["consecutive_failures"], 1)
+            await research._source_index(self.store, "arsenal", sources[0][1], force=True)
+        self.assertLess(physical_attempts, len(teams))
+        self.assertEqual(fetch.call_count, physical_attempts + 1)
+        self.assertEqual(research.source_health(self.store, sources[0][1])["consecutive_failures"], 2)
+
+    async def test_expired_access_review_is_retried(self):
+        source = {"id": "official_arsenal", "name": "Arsenal", "url": "https://www.arsenal.com/news", "kind": "html",
+                  "access_review": {"status": "restricted", "checked_at": "2026-01-01"}}
+        with patch.dict(research.CATALOG, {"arsenal": [source]}):
+            selected = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == source["id"])
+        self.assertFalse(selected.get("access_review_active"))
+        with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.IngestionError("来源返回 HTTP 403"))) as fetch:
+            await research._source_index(self.store, "arsenal", selected)
+        self.assertEqual(fetch.call_count, 1)
+
+    async def test_recent_access_review_waits_for_expiry_but_force_rechecks(self):
+        source = {"id": "official_arsenal", "name": "Arsenal", "url": "https://www.arsenal.com/news", "kind": "html",
+                  "access_review": {"status": "restricted", "checked_at": datetime.now(timezone.utc).date().isoformat()}}
+        with patch.dict(research.CATALOG, {"arsenal": [source]}):
+            selected = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == source["id"])
+        self.assertTrue(selected.get("access_review_active"))
+        with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.IngestionError("来源返回 HTTP 403"))) as fetch:
+            skipped = await research._source_index(self.store, "arsenal", selected)
+            await research._source_index(self.store, "arsenal", selected, force=True)
+        self.assertEqual(skipped[2]["state"], "unavailable")
+        self.assertEqual(fetch.call_count, 1)
+
+    async def test_successful_force_review_reopens_source_after_index_expires(self):
+        source = {"id": "official_arsenal", "name": "Arsenal", "url": "https://www.arsenal.com/news", "kind": "rss",
+                  "access_review": {"status": "restricted", "checked_at": datetime.now(timezone.utc).date().isoformat()}}
+        article = "https://www.arsenal.com/news/arsenal-training"
+        body = feed([("Arsenal training", article, "", "Tue, 22 Sep 2026 12:00:00 GMT")])
+        with patch.dict(research.CATALOG, {"arsenal": [source]}):
+            reviewed = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == source["id"])
+            self.assertTrue(reviewed["access_review_active"])
+            with patch.object(research, "_fetch", new=AsyncMock(return_value=(body, source["url"], "application/rss+xml"))) as fetch:
+                fresh = await research._source_index(self.store, "arsenal", reviewed, force=True)
+                self.assertEqual(fresh[2]["state"], "fresh")
+                cache_key = research._index_key("arsenal", reviewed)
+                cached = self.store.get_meta(cache_key)
+                cached["fetched_at"] = (datetime.now(timezone.utc) - timedelta(minutes=11)).isoformat()
+                self.store.set_meta(cache_key, cached)
+                updated = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == source["id"])
+                self.assertFalse(updated["access_review_active"])
+                refreshed = await research._source_index(self.store, "arsenal", updated)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(refreshed[2]["state"], "fresh")
+
+    async def test_failed_espn_index_is_cached_briefly_then_force_rechecks(self):
+        with patch("server.league_data.fetch_json", new=AsyncMock(side_effect=OSError("blocked"))) as fetch:
+            first = await research._espn_news_index(self.store, "arsenal")
+            second = await research._espn_news_index(self.store, "arsenal")
+            await research._espn_news_index(self.store, "arsenal", force=True)
+        self.assertEqual(first[2]["state"], "unavailable")
+        self.assertEqual(second[2]["state"], "unavailable")
+        self.assertEqual(fetch.call_count, 2)
+        cached = self.store.get_meta("espn_news:arsenal")
+        self.assertEqual(cached["last_error"], "索引暂不可用")
+        self.assertFalse(cached["entries"])
+
+    async def test_proxy_branch_rejects_challenge_header(self):
+        source = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == "sky_football")
+        original_client = httpx.AsyncClient
+        def client_with_challenge(**kwargs):
+            transport = httpx.MockTransport(lambda request: httpx.Response(200, headers={
+                "content-type": "text/html", "cf-mitigated": "challenge"}, text="Checking your browser"))
+            return original_client(transport=transport, **kwargs)
+        with patch.object(research, "getproxies", return_value={"https": "http://proxy.invalid:8080"}), \
+             patch.object(research.httpx, "AsyncClient", side_effect=client_with_challenge):
+            with self.assertRaises(ingestion.IngestionError) as caught:
+                await research._fetch(source["url"], source)
+        self.assertEqual(ingestion.source_error_details(caught.exception)["code"], "access_challenge")
+
+    async def test_proxy_connect_failure_keeps_safe_connection_category(self):
+        source = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == "sky_football")
+        original_client = httpx.AsyncClient
+        def client_with_failure(**kwargs):
+            def fail(request):
+                raise httpx.ConnectError("private proxy diagnostic: token=secret", request=request)
+            return original_client(transport=httpx.MockTransport(fail), **kwargs)
+        with patch.object(research, "getproxies", return_value={"https": "http://proxy.invalid:8080"}), \
+             patch.object(research.httpx, "AsyncClient", side_effect=client_with_failure):
+            with self.assertRaises(ingestion.SourceConnectionError) as caught:
+                await research._fetch(source["url"], source)
+        details = ingestion.source_error_details(caught.exception)
+        self.assertEqual(details["code"], "connection_error")
+        self.assertIn("连接", str(caught.exception))
+        self.assertNotIn("secret", str(caught.exception))
+
+    def test_catalog_works_with_read_only_store_without_health_metadata(self):
+        class SourceOnlyStore:
+            def get(self, collection, key):
+                return {"id": key, "name": "Arsenal"} if collection == "teams" and key == "arsenal" else None
+            def list(self, collection, mode, team_id):
+                return []
+        sources = research.source_catalog(SourceOnlyStore(), "arsenal")
+        self.assertTrue(any(item["id"] == "sky_football" for item in sources))
 
     def test_explicit_publisher_name_is_not_replaced_by_bbc(self):
         source = {"id": "other_publisher", "name": "另一家媒体", "url": "https://www.skysports.com/rss/11670", "kind": "rss"}

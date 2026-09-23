@@ -53,7 +53,7 @@ function component(file, name, props, api, saved = {}) {
       if (module === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
       if (module === "./api") return { api: path => api(path, "GET"), post: (path, body) => api(path, "POST", body), errorText: e => e.message };
       if (module === "./v7Shared") return { uniqueImages: images => images || [], friendlyTime: () => "", Markdown: "Markdown", Photo: "Photo", Sources: "Sources" };
-      if (module === "./components") return { dateTime: () => "", safeUrl: value => value || null, Crest: "Crest", Modal: "Modal", Spinner: "Spinner" };
+      if (module === "./components") return { dateTime: () => "", safeUrl: value => value || null, Crest: "Crest", Modal: "Modal", SourceGapNotice: "SourceGapNotice", Spinner: "Spinner" };
       if (module === "./clubCatalog") return { findClub: () => null };
       if (module === "./teamHub" || module === "./clubNames") return { clubName: x => x };
       return new Proxy({}, { get: (_, key) => String(key) });
@@ -152,6 +152,54 @@ test("partial and unavailable news reviews keep the full story with one notice a
     assert.ok(sources.every(item => item.url === "https://example.com/original-news"));
     host.unmount();
   }
+});
+
+test("feed flags a partially read report and shows its source gap in the story", async () => {
+  const gaps = [{ evidence_id: "hidden-in-ui", source_name: "卫报体育", host: "www.theguardian.com",
+    code: "timeout", stage: "read", message: "来源请求超时" }];
+  const report = { status: "completed", report: { title: "球队新闻", lead: "已核对的内容", sections: [],
+    sources: [{ id: "public", source_name: "球队官网", url: "https://example.com/news" }], source_gaps: gaps } };
+  const host = component("v7Feed.tsx", "FeedView", { team, data, ask() {}, openModel() {} }, path =>
+    Promise.resolve(path.startsWith("/reports/") ? report : { items: [{ id: "news", title: "球队新闻", summary: "已核对的内容",
+      report_id: "report", team_id: team.id, source_gap_count: 1 }], next_cursor: null }));
+  await host.flush();
+  const card = nodes(host.tree, node => node.type === "article" && node.props.className === "feed-card")[0];
+  assert.match(text(card), /1 个来源/);
+  button(host, "展开阅读").props.onClick();
+  await host.flush();
+  const reader = nodes(host.tree, node => node.type === "article" && node.props.className === "story-reader")[0];
+  assert.deepEqual(nodes(reader, node => node.type === "SourceGapNotice").map(node => node.props.gaps), [gaps]);
+  host.unmount();
+});
+
+test("source gap notice explains a failed publisher without exposing evidence identifiers", async () => {
+  const gap = { evidence_id: "private-reference", source_name: "卫报体育", host: "www.theguardian.com",
+    code: "timeout", stage: "read", message: "来源请求超时" };
+  const forbidden = { evidence_id: "private-reference-2", source_name: "另一来源", host: "example.com",
+    code: "http_forbidden", stage: "read", message: "来源返回 HTTP 403", http_status: 403 };
+  const unknown = { evidence_id: "private-reference-3", source_name: "未知来源",
+    code: "unknown", message: "https://private.example/token?api_key=hidden" };
+  const host = component("components.tsx", "SourceGapNotice", { gaps: [gap, forbidden, unknown] }, () => Promise.resolve(null));
+  await host.flush();
+  assert.match(text(host.tree), /卫报体育/);
+  assert.match(text(host.tree), /超时/);
+  assert.match(text(host.tree), /拒绝访问/);
+  assert.equal(text(host.tree).split("HTTP 403").length - 1, 1);
+  assert.doesNotMatch(text(host.tree), /private-reference/);
+  assert.doesNotMatch(text(host.tree), /api_key=hidden/);
+  assert.equal(nodes(host.tree, node => node.type === "a").length, 0);
+  host.unmount();
+});
+
+test("run view shows structured source failure alongside completed answer", async () => {
+  const run = { id: "run", mode: "live", team_id: team.id, conversation_id: "conversation", skill: "ask",
+    question: "球队消息", status: "completed", answer: "已确认的消息", evidence_ids: [],
+    source_errors: [{ evidence_id: "private-reference", source_name: "卫报体育", host: "www.theguardian.com",
+      code: "timeout", stage: "read", message: "来源请求超时" }] };
+  const host = component("components.tsx", "RunView", { run, evidence: [], openEvidence() {}, onCancel() {}, onRetry() {}, onSettings() {}, cancelling: false }, () => Promise.resolve(null));
+  await host.flush();
+  assert.deepEqual(nodes(host.tree, node => node.type?.name === "SourceGapNotice").map(node => node.props.gaps), [run.source_errors]);
+  host.unmount();
 });
 
 test("workflow completes one manual update, stays idle, and can start and stop again", async () => {
@@ -316,6 +364,59 @@ test("team center reads only and preserves existing players while workflow chang
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
   assert.ok(calls.every(([path, method]) => path === "/teams/arsenal/center" && method === "GET"));
+  host.unmount();
+});
+
+test("Wikimedia player photos need attribution while older sourced photos stay visible", async () => {
+  const base = { id: "player", name: "测试球员", photo_url: "https://upload.wikimedia.org/player.jpg",
+    photo_source_url: "https://en.wikipedia.org/wiki/Player", photo_match: "wikimedia_verified_club" };
+  const missing = component("v7TeamCenter.tsx", "PlayerPhoto", { player: base }, () => Promise.resolve(null));
+  await missing.flush();
+  assert.equal(nodes(missing.tree, node => node.type === "img").length, 0);
+  missing.unmount();
+  const complete = component("v7TeamCenter.tsx", "PlayerPhoto", { player: { ...base,
+    photo_credit: "Jane Doe", photo_license: "CC BY-SA 4.0", photo_file_page: "https://commons.wikimedia.org/wiki/File:Player.jpg" } }, () => Promise.resolve(null));
+  await complete.flush();
+  assert.equal(nodes(complete.tree, node => node.type === "img")[0].props.referrerPolicy, "no-referrer");
+  complete.unmount();
+  const legacy = component("v7TeamCenter.tsx", "PlayerPhoto", { player: { ...base, photo_match: "espn" } }, () => Promise.resolve(null));
+  await legacy.flush();
+  assert.equal(nodes(legacy.tree, node => node.type === "img").length, 1);
+  legacy.unmount();
+});
+
+test("player detail makes photographer license and file page readable", async () => {
+  const player = { id: "player", name: "测试球员", position: "中场", position_group: "midfielder",
+    photo_url: "https://upload.wikimedia.org/player.jpg", photo_source_url: "https://en.wikipedia.org/wiki/Player",
+    photo_file_page: "https://commons.wikimedia.org/wiki/File:Player.jpg", photo_credit: "Jane Doe",
+    photo_license: "CC BY-SA 4.0", photo_restrictions: "personality", photo_match: "wikimedia_verified_club" };
+  const center = { team, roster: [player], matches: [], stats: {}, sources: [] };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  button(host, "了解球员").props.onClick();
+  await host.flush();
+  const detail = nodes(host.tree, node => node.props?.className === "player-detail")[0];
+  assert.match(text(detail), /Jane Doe/);
+  assert.match(text(detail), /CC BY-SA 4.0/);
+  assert.match(text(detail), /人物肖像权可能另有限制/);
+  assert.ok(nodes(detail, node => node.type === "a" && node.props.href === player.photo_file_page).length);
+  host.unmount();
+});
+
+test("player detail explains why an unverified photo was omitted", async () => {
+  const player = { id: "player", name: "测试球员", position: "中场", position_group: "midfielder",
+    photo_reason: "页面记载的当前俱乐部与阵容不一致。" };
+  const center = { team, roster: [player], matches: [], stats: {}, sources: [] };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  button(host, "了解球员").props.onClick();
+  await host.flush();
+  const detail = nodes(host.tree, node => node.props?.className === "player-detail")[0];
+  assert.match(text(detail), /当前俱乐部与阵容不一致/);
   host.unmount();
 });
 

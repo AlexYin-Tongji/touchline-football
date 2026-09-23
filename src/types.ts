@@ -184,6 +184,7 @@ export interface Run {
   evidence_ids?: string[];
   evidence?: Evidence[];
   warnings?: string[];
+  source_errors?: SourceGap[];
   steps?: { label: string; status: string; detail?: string; at?: string }[];
   error?: string | null;
   created_at?: string;
@@ -224,6 +225,15 @@ export interface Run {
     }[];
     warnings: string[];
   };
+}
+export interface SourceGap {
+  evidence_id?: string;
+  source_name?: string;
+  host?: string;
+  code?: string;
+  stage?: string;
+  message?: string;
+  http_status?: number | null;
 }
 export interface Recommendation {
   id: string;
@@ -346,6 +356,7 @@ export interface AutoReport {
     reading_minutes?: number;
     review_notice?: string | null;
     review_status?: "checked" | "partial" | "unavailable";
+    source_gaps?: SourceGap[];
   };
   verification_status?: string;
   queue_note?: string;

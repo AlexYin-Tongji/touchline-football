@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Evidence, Run, Team } from "./types";
+import type { Evidence, Run, SourceGap, Team } from "./types";
 
 export function dateTime(value?: string | null) {
   if (!value) return "时间未知";
@@ -109,9 +109,56 @@ function answerNotices(run: Run) {
     else if (verification === "insufficient") notices.push("现有资料不足以确认全部信息。");
     else if (verification !== "supported") notices.push("本次回答尚未完成来源核对。");
   }
-  if ((run.warnings || []).some((warning) => /来源.*未能读取|来源.*无法读取/.test(warning)))
+  if (!run.source_errors?.length && (run.warnings || []).some((warning) => /来源.*未能读取|来源.*无法读取/.test(warning)))
     notices.push("部分来源暂时无法读取，可能遗漏最新动态。");
   return notices;
+}
+const sourceGapReasons: Record<string, string> = {
+  dns_failed: "域名暂时无法解析",
+  tls_certificate: "来源证书无法验证",
+  tls_error: "安全连接中断",
+  connection_reset: "连接被中断",
+  connection_error: "无法连接",
+  http_forbidden: "来源拒绝访问",
+  http_rate_limited: "来源限制了访问频率",
+  http_unavailable: "来源服务暂不可用",
+  http_error: "来源返回错误状态",
+  access_challenge: "来源要求访问验证",
+  content_unavailable: "暂未找到可读内容",
+  source_unavailable: "来源暂时无法读取",
+  source_timeout: "请求超时",
+  timeout: "请求超时",
+  source_tls: "安全连接中断",
+  tls: "安全连接中断",
+  source_dns: "域名暂时无法解析",
+  source_refused: "连接被拒绝",
+  source_connection: "连接失败",
+  connection: "连接失败",
+  source_http_status: "来源暂时无法访问",
+  source_blocked: "来源地址未通过安全检查",
+  source_redirect: "来源跳转无法安全读取",
+  source_body: "正文暂时无法读取",
+  source_content: "暂未找到可读内容",
+};
+export function SourceGapNotice({ gaps }: { gaps?: SourceGap[] }) {
+  if (!gaps?.length) return null;
+  return (
+    <div className="source-gap-notice" role="note">
+      <strong>部分来源未能读取，可能遗漏最新动态</strong>
+      <ul>
+        {gaps.map((gap, index) => {
+          const name = gap.source_name?.trim() || gap.host?.trim() || "某个来源";
+          const host = gap.host?.trim();
+          const reason = sourceGapReasons[gap.code || ""] || "暂时无法读取";
+          const status = Number.isInteger(gap.http_status) && gap.http_status! >= 100 && gap.http_status! <= 599 &&
+            !reason.includes(`HTTP ${gap.http_status}`) ? `（HTTP ${gap.http_status}）` : "";
+          return <li key={`${name}-${index}`}>
+            <span>{name}{host && !name.includes(host) ? ` · ${host}` : ""}</span>：{reason}{status}
+          </li>;
+        })}
+      </ul>
+    </div>
+  );
 }
 export function Crest({
   team,
@@ -495,6 +542,7 @@ export function RunView({
           <span>{warning}</span>
         </div>
       ))}
+      <SourceGapNotice gaps={run.source_errors} />
       {validIds.length > 0 && (
         <details className="run-evidence">
           <summary className="section-caption">

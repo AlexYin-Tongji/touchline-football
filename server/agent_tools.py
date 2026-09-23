@@ -66,7 +66,7 @@ TOOL_DEFINITIONS = [
 ]
 TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 TOOL_DEFINITIONS.extend([
-    {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID或官网身份匹配并返回图片出处；可指定球员，无匹配则留空。先查看球队阵容，照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
+    {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
@@ -814,7 +814,7 @@ class LocalTools:
             events.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
             saved_knowledge = knowledge_for_team(self.store, self.team_id, self.mode, spoiler_free=self.spoiler_free,
                                                 allowed_evidence_ids={item["id"] for item in self.visible_evidence()}, limit=6)
-            return {"team": {key: (team or {}).get(key) for key in ("id", "name", "english_name", "league", "league_name", "country", "city", "founded", "stadium", "nickname", "description", "official_url", "profile_sources")},
+            return {"team": {key: (team or {}).get(key) for key in ("id", "name", "english_name", "league", "league_name", "country", "city", "founded", "stadium", "nickname", "description", "official_url", "profile_sources", "crest_url", "crest_asset_url", "crest_source_url", "crest_attribution", "provider_ids", "aliases")},
                     "saved_knowledge": [{key: item.get(key) for key in ("id", "title", "detail", "evidence_ids", "support")} for item in saved_knowledge],
                     "knowledge_notice": "已存知识仅作为查找线索；回答前仍须重新读取所附证据，核对时效和适用范围。source_supported 表示所引原文支持，citation_checked 仅表示引用有效，均不等于独立核实。",
                     "mode": self.mode, "spoiler_free": self.spoiler_free,

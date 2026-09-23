@@ -105,6 +105,15 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([row["id"] for row in result["items"]], [injury["id"]])
         self.assertIsNone(result["next_cursor"])
 
+    async def test_feed_marks_completed_report_with_source_gap(self):
+        _, event, report = self.event("source_gap", completed=True)
+        report["report"]["source_gaps"] = [{"evidence_id": "ev_personal_source_gap", "source_name": "测试来源",
+            "host": "example.com", "code": "source_timeout", "stage": "read", "message": "来源请求超时"}]
+        self.store.put("reports", report)
+        feed = await self.feed(team_id="arsenal")
+        self.assertEqual([item["id"] for item in feed["items"]], [event["id"]])
+        self.assertEqual(feed["items"][0]["source_gap_count"], 1)
+
     async def test_completed_feed_remains_readable_after_external_body_cache_expires(self):
         source, event, report = self.event("expired_body", completed=True)
         self.store._bodies.clear()

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { api, errorText } from "./api";
 import { WorkflowControls } from "./WorkflowControls";
-import { Crest, dateTime, Modal, Spinner } from "./components";
+import { Crest, dateTime, Modal, SourceGapNotice, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
 import { clubName } from "./clubNames";
 import {
@@ -34,6 +34,7 @@ interface FeedItem {
   sources?: SourceLink[];
   report_id?: string | null;
   status?: string;
+  source_gap_count?: number;
   team_id: string;
 }
 interface FeedResponse {
@@ -351,6 +352,11 @@ export function FeedView({
                 <div className="feed-summary">
                   <Markdown text={item.summary} evidence={item.sources} />
                 </div>
+                {!!item.source_gap_count && (
+                  <p className="feed-source-gap" role="note">
+                    {item.source_gap_count} 个来源暂时未能读取，展开后可查看原因。
+                  </p>
+                )}
                 {!!item.images?.length && (
                   <div
                     className={`feed-images images-${Math.min(item.images.length, 3)}`}
@@ -516,6 +522,7 @@ export function FeedView({
                 )}
                 {readable && (
                   <>
+                    <SourceGapNotice gaps={report?.report?.source_gaps} />
                     {reviewNotice ? (
                       <p className="story-review-notice" role="note">{reviewNotice}</p>
                     ) : reviewStatus === "checked" ? (

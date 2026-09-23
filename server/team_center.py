@@ -344,14 +344,12 @@ def center_view(store, team_id, year=None, *, reveal=False):
     if part_states.get("schedule", {}).get("status") == "running":
         schedule_state = part_states["schedule"]
     standings_state = store.get_meta("league_standings_" + season["id"], {}) or part_states.get("standings", {})
-    from .team_portraits import DIRECTORIES, CACHE_SECONDS as PHOTO_CACHE_SECONDS
+    from .team_portraits import CACHE_SECONDS as PHOTO_CACHE_SECONDS
     portraits_state = part_states.get("portraits", {})
     directory = store.get_meta("team_portraits_v1_" + team_id, {})
     photo_count = sum(bool(player.get("photo_url")) for player in roster)
     if not portraits_state:
         portraits_state = directory
-    if not portraits_state and team_id not in DIRECTORIES and photo_count < len(roster):
-        portraits_state = {"status": "unavailable", "errors": ["来源未提供的球员照片保留空白。"]}
     photo_times = [player.get("photo_updated_at") or snapshot.get("fetched_at") for player in roster if player.get("photo_url")]
     components = {
         "roster": _component_status(snapshot.get("fetched_at"), ROSTER_CACHE_SECONDS, roster, part_states.get("roster")),
@@ -406,7 +404,8 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
                 "errors": ["请先取得这个球队和赛季的可核对阵容，再补充球员照片。"]}
     _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
     try:
-        updated, summary = await enrich_player_photos(store, snapshot, provider_team_id, player_ids=player_ids, force=force)
+        updated, summary = await enrich_player_photos(store, snapshot, provider_team_id,
+                                                       player_ids=player_ids, force=force, provider="wikimedia")
         # The network wait must never resurrect a replaced roster or alter a
         # freshly corrected membership. Photos attach only to this exact view.
         if store.get("team_snapshots", snapshot_id) != snapshot:
@@ -415,9 +414,11 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
             store.put("team_snapshots", updated)
         _record_component(store, key, "portraits", summary)
         current = store.get("team_snapshots", snapshot_id) or {}
-        photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match")}
+        photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license", "photo_restrictions", "photo_updated_at", "photo_match")}
                   for player in current.get("roster", []) if player.get("photo_url")]
-        return {**summary, "team_id": team_id, "season_id": season["id"], "photos": photos,
+        missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason")}
+                   for player in current.get("roster", []) if not player.get("photo_url")]
+        return {**summary, "team_id": team_id, "season_id": season["id"], "photos": photos, "missing": missing,
                 "available_count": len(photos), "total_count": len(current.get("roster", []))}
     except asyncio.CancelledError:
         _record_component(store, key, "portraits", {"status": "interrupted", "errors": ["照片补充中断，已保存资料保留。"]})
@@ -429,30 +430,7 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
 
 async def sync_portraits(store, team_id, year=None):
     """Fill optional photos without replacing a newer roster or its timestamp."""
-    from .team_portraits import enrich_portraits, DIRECTORIES
-    _, _, season, _ = team_season_context(store, team_id, year)
-    key = _status_key(team_id, season["id"])
-    snapshot_id = _snapshot_id(team_id, season["id"])
-    snapshot = store.get("team_snapshots", snapshot_id) or {}
-    if (not snapshot.get("roster") or team_id not in DIRECTORIES
-            or snapshot.get("team_id") != team_id or snapshot.get("season_id") != season["id"]):
-        return {"status": "unavailable", "errors": []}
-    _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
-    try:
-        result = await enrich_portraits(store, copy.deepcopy(snapshot))
-        current = store.get("team_snapshots", snapshot_id)
-        if current == snapshot:
-            store.put("team_snapshots", result)
-        directory = store.get_meta("team_portraits_v1_" + team_id, {})
-        state = {"status": directory.get("status", "completed"), "updated_at": directory.get("fetched_at"),
-                 "errors": ["球员照片来源暂不可用，已有可核对照片仍保留。"] if directory.get("status") == "unavailable" else []}
-    except asyncio.CancelledError:
-        _record_component(store, key, "portraits", {"status": "interrupted", "errors": ["照片补充中断，核心资料仍可使用。"]})
-        raise
-    except Exception:
-        state = {"status": "failed", "errors": ["照片补充暂不可用，核心资料仍可使用。"]}
-    _record_component(store, key, "portraits", state)
-    return state
+    return await fetch_player_photos(store, team_id, year)
 
 
 def _parts_to_refresh(view, requested, force):
@@ -522,18 +500,16 @@ class TeamMaintenanceManager:
         self.gate = asyncio.Semaphore(2)
 
     def _start_portraits(self, team_id, year=None):
-        from .team_portraits import DIRECTORIES, RETRY_SECONDS as PHOTO_RETRY_SECONDS
-        if team_id not in DIRECTORIES:
-            return False
+        from .team_portraits import RETRY_SECONDS as PHOTO_RETRY_SECONDS
         _, _, season, _ = team_season_context(self.store, team_id, year)
         key = _status_key(team_id, season["id"])
         existing = self.portrait_tasks.get(key)
         if existing and not existing.done():
             return False
         view = center_view(self.store, team_id, year)
-        directory = self.store.get_meta("team_portraits_v1_" + team_id, {})
+        portrait_state = self.store.get_meta(key, {}).get("components", {}).get("portraits", {})
         if (not view["roster"] or view["components"]["portraits"]["status"] == "fresh"
-                or _elapsed(directory.get("last_attempt")) < PHOTO_RETRY_SECONDS):
+                or _elapsed(portrait_state.get("last_attempt")) < PHOTO_RETRY_SECONDS):
             return False
         _record_component(self.store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
         self.portrait_tasks[key] = asyncio.create_task(sync_portraits(self.store, team_id, year))

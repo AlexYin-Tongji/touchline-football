@@ -3,6 +3,27 @@ from tests.support import IsolatedAppCase
 
 class ReportAPITests(IsolatedAppCase):
 
+    def test_source_error_details_do_not_survive_source_privacy_or_leak_raw_urls(self):
+        store = self.app.state.store
+        source = {"id": "failed_source", "mode": "live", "team_id": "arsenal", "origin": "manual",
+                  "title": "训练新闻", "text": "A public source with no hidden result.",
+                  "source_name": "Only public publisher", "url": "https://news.example/story"}
+        store.put("evidence", source)
+        run = {"id": "run_failed_source", "team_id": "arsenal", "mode": "live", "skill": "ask",
+               "status": "failed", "answer": "", "evidence_ids": [], "warnings": [],
+               "input_evidence_ids": [source["id"]], "source_errors": [{"evidence_id": source["id"],
+               "source_name": "stale secret label", "message": "HTTP 403 https://news.example/?token=private-token"}]}
+        store.put("runs", run)
+        visible = self.client.get('/api/runs/' + run['id'])
+        self.assertEqual(visible.status_code, 200)
+        self.assertIn('Only public publisher', visible.text)
+        self.assertNotIn('private-token', visible.text)
+        self.assertNotIn('stale secret label', visible.text)
+        store.put('evidence', {**source, 'private': True})
+        hidden = self.client.get('/api/runs/' + run['id'])
+        self.assertEqual(hidden.json().get('source_errors'), [])
+        self.assertNotIn('Only public publisher', hidden.text)
+
     def test_import_queues_report_without_model_and_settings_can_pause(self):
         article = {"team_id": "arsenal", "title": "训练安排的后续观察", "text": "这是接口验证材料，记录一次训练计划与参加训练的范围。材料没有宣布下一场的正式名单，仍需等待正式发布。"}
         self.assertEqual(self.client.post("/api/import", json=article).status_code, 200)

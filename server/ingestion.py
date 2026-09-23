@@ -70,6 +70,55 @@ class SourceConnectionError(IngestionError):
     """Publisher connection is unavailable, independently of an article path."""
 
 
+def source_error_details(exc):
+    """Public diagnostics contain categories, never raw transport URLs/secrets."""
+    text = str(exc).lower()
+    status = re.search(r"\bhttp\s+(\d{3})\b", text)
+    if isinstance(exc, ssl.SSLCertVerificationError) or "证书校验失败" in text or "certificate_verify_failed" in text:
+        return {"code": "tls_certificate", "stage": "tls", "message": "来源证书校验失败，请检查网络或系统代理。"}
+    if isinstance(exc, TimeoutError) or "超时" in text or "timed out" in text:
+        return {"code": "timeout", "stage": "read", "message": "来源请求超时，请稍后重试。"}
+    if "域名无法解析" in text or isinstance(exc, socket.gaierror):
+        return {"code": "dns_failed", "stage": "dns", "message": "来源域名无法解析，请检查网络。"}
+    if isinstance(exc, ssl.SSLError) or "tls 握手失败" in text:
+        return {"code": "tls_error", "stage": "tls", "message": "来源 TLS 握手失败，请检查网络或系统代理。"}
+    if isinstance(exc, ConnectionResetError) or "连接被重置" in text:
+        return {"code": "connection_reset", "stage": "connect", "message": "来源连接被重置，请稍后重试。"}
+    if status:
+        code = int(status[1])
+        name = "http_forbidden" if code in {401, 403} else "http_rate_limited" if code == 429 else "http_unavailable" if code >= 500 else "http_error"
+        return {"code": name, "stage": "http", "http_status": code,
+                "message": f"来源返回 HTTP {code}，" + ("请求过于频繁，请稍后重试。" if code == 429 else "暂时无法读取正文。")}
+    if "验证页面" in text or "访问验证" in text or "地区限制" in text or "同意页面" in text:
+        return {"code": "access_challenge", "stage": "parse", "message": "来源返回了访问验证、同意或地区限制页面，暂时无法读取正文。"}
+    if any(word in text for word in ("正文", "html", "xml", "文本", "页面结构")):
+        return {"code": "content_unavailable", "stage": "parse", "message": "来源没有返回可确认的新闻正文，页面可能需要登录或 JavaScript。"}
+    if isinstance(exc, (SourceConnectionError, OSError)) or any(word in text for word in ("网络", "连接", "系统代理")):
+        return {"code": "connection_error", "stage": "connect", "message": "无法连接来源，请检查网络或系统代理。"}
+    return {"code": "source_unavailable", "stage": "read", "message": "该来源暂时无法读取，请稍后重试。"}
+
+
+def source_diagnostics(errors, sources):
+    """Rebuild source labels from the current visible scope on every read."""
+    visible = {source["id"]: source for source in sources}
+    result, seen = [], set()
+    for error in errors or []:
+        if not isinstance(error, dict):
+            continue
+        eid = error.get("evidence_id")
+        if not isinstance(eid, str) or eid not in visible or eid in seen:
+            continue
+        source = visible[eid]
+        try:
+            host = urlsplit(normalize_url(source["url"])).hostname if source.get("url") else ""
+        except IngestionError:
+            host = ""
+        result.append({"evidence_id": eid, "source_name": str(source.get("source_name") or "来源")[:160],
+                       "host": host, **source_error_details(IngestionError(str(error.get("message") or "")))})
+        seen.add(eid)
+    return result
+
+
 def normalize_url(url: str, *, allow_local=False):
     if not isinstance(url, str) or len(url) > 4096 or any(ord(char) < 32 for char in url):
         raise IngestionError("网址格式不正确")
@@ -151,6 +200,8 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
                 continue
             if not 200 <= response.status < 300:
                 raise IngestionError(f"来源返回 HTTP {response.status}，请检查访问权限或稍后重试")
+            if str(response.getheader("cf-mitigated", "")).lower() == "challenge":
+                raise IngestionError("来源返回了访问验证页面，暂时无法读取正文")
             length = response.getheader("Content-Length", "")
             if length.isdigit() and int(length) > max_body:
                 raise IngestionError(f"来源内容超过 {max_body // 1024} KB 上限")
@@ -173,7 +224,15 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
             return b"".join(chunks), current, content_type
         except IngestionError:
             raise
-        except (OSError, http.client.HTTPException, ssl.SSLError):
+        except ssl.SSLCertVerificationError:
+            raise SourceConnectionError("来源证书校验失败，请检查网络或系统代理") from None
+        except TimeoutError:
+            raise SourceConnectionError("来源请求超时，请稍后重试") from None
+        except ssl.SSLError:
+            raise SourceConnectionError("来源 TLS 握手失败，请检查网络或系统代理") from None
+        except ConnectionResetError:
+            raise SourceConnectionError("来源连接被重置，请稍后重试") from None
+        except (OSError, http.client.HTTPException):
             raise SourceConnectionError("无法安全读取来源：网络、证书或响应异常") from None
         finally:
             connection.close()
@@ -557,6 +616,15 @@ def extract_images(soup, url, source_name):
 def extract_html(body, url, source_name):
     soup = BeautifulSoup(body, "html.parser")
     _remove_hidden_nodes(soup)
+    # Challenge pages can be arbitrarily long. Match their structural markers
+    # and leading instructions, not a news article merely discussing a captcha.
+    headings = " ".join(tag.get_text(" ", strip=True) for tag in soup.select("title, h1"))
+    challenge = r"checking your browser|just a moment|verify you are human|access denied|consent required|before you continue|not available in your (?:country|region)|unavailable in your (?:country|region)|page not found|404 not found|请完成.{0,10}验证|访问验证|地区限制"
+    instructions = soup.get_text(" ", strip=True)[:350]
+    if (re.search(challenge, headings, re.I)
+            or soup.select_one('form#challenge-form, #cf-challenge-running, #challenge-running, form[action*="/cdn-cgi/challenge"]')
+            or re.match(r"\s*(?:please )?(?:enable javascript|checking your browser|verify you are human|请启用.{0,10}javascript|正在加载)", instructions, re.I)):
+        raise IngestionError("来源返回了访问验证、同意或地区限制页面，暂时无法读取正文")
     images = extract_images(soup, url, source_name)
     title = soup.find("meta", property="og:title")
     title = title.get("content") if title else None
@@ -605,8 +673,6 @@ def extract_html(body, url, source_name):
     text = raw_text[:MAX_ARTICLE_TEXT]
     if len(text) < 30:
         raise IngestionError("未提取到足够正文；页面可能需要登录或 JavaScript，可改为手动导入")
-    if len(text) < 1500 and re.search(r"checking your browser|just a moment|enable javascript|access denied|verify you are human|page not found|404 not found|正在加载|请启用.{0,10}javascript", text, re.I):
-        raise IngestionError("来源返回了加载或访问验证页面，请改为手动导入正文")
     gated = subscriber_only or bool(re.search(r"subscribe to (?:continue|read)|sign in to (?:continue|read)|already a subscriber|unlock (?:this|the) article|suscr[ií]bete para (?:seguir leyendo|leer)|assine para (?:continuar|ler)|订阅后阅读|登录后阅读", text, re.I))
     full = method != "html_fallback" and len(text) >= 500 and not gated and len(raw_text) <= MAX_ARTICLE_TEXT
     note = ("原站仅提供订阅或登录前的可见部分，未绕过访问限制。" if gated else

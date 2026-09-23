@@ -1261,6 +1261,27 @@ button:focus:not(:focus-visible) {
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+.feed-source-gap {
+  margin: 12px 0 0;
+  color: #806d46;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.source-gap-notice {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-left: 3px solid #baa772;
+  border-radius: 0 6px 6px 0;
+  background: #f8f6ef;
+  color: #655a3f;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.source-gap-notice ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+}
 .story-review-checked {
   margin: 0 0 14px;
   color: var(--green);
@@ -3663,6 +3684,32 @@ button:focus:not(:focus-visible) {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+.player-photo-attribution {
+  margin: -10px 0 16px;
+  color: #65785b;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.player-photo-attribution a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.player-photo-attribution a svg {
+  vertical-align: -2px;
+}
+.player-photo-attribution small {
+  display: block;
+  font-size: inherit;
+  color: #887756;
+}
+.player-photo-reason {
+  margin: -10px 0 16px;
+  color: #887756;
+  font-size: 12px;
+  line-height: 1.7;
 }
 
 .workflow-controls {

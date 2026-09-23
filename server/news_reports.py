@@ -321,11 +321,13 @@ def _public(store, row, settings, budget):
         event = store.get("events", row.get("event_id"))
         fresh = _snapshot(store, event, settings) if event and event.get("team_id") == row.get("team_id") and event.get("mode") == row.get("mode") else {"sources": []}
         output.update(_source_fields(fresh), status="stale", report=None,
-                      error="原文或阅读范围已变化，旧报告已失效，需根据当前资料重新整理。")
+                      source_errors=[], error="原文或阅读范围已变化，旧报告已失效，需根据当前资料重新整理。")
     elif output.get("status") != "completed":
         output["report"] = None
     elif output.get("report"):
         output["report"] = reading_report(output["report"])
+        from .ingestion import source_diagnostics
+        output["report"]["source_gaps"] = source_diagnostics(output["report"].get("source_gaps"), snapshot["sources"])
         # Reapply image visibility on every read, including reports created by
         # earlier versions. Safe text excerpts do not make an original image
         # safe: a photograph or scoreboard may reveal the removed result.
@@ -353,6 +355,9 @@ def _public(store, row, settings, budget):
             section["illustrations"] = images_in_scope(section.get("illustrations", []), section.get("evidence_ids", []))
     output.pop("images", None)
     output.pop("illustrations", None)
+    if snapshot:
+        from .ingestion import source_diagnostics
+        output["source_errors"] = source_diagnostics(output.get("source_errors"), snapshot["sources"])
     output["budget"] = budget
     output["retry_at"] = None  # Legacy timers no longer schedule another attempt.
     status = output.get("status")
@@ -569,6 +574,8 @@ def organize_reports(store, team_id):
 
 def _finish(store, row, run, settings):
     snapshot = _current(store, row, settings)
+    from .ingestion import source_diagnostics
+    row["source_errors"] = source_diagnostics(run.get("source_errors"), snapshot["sources"] if snapshot else [])
     if not snapshot:
         row.update(status="stale", report=None, error="整理期间原文或阅读范围已变化，报告未发布。", updated_at=_stamp())
     elif (run.get("status") == "completed" and (run.get("verification", {}).get("status") == "supported" or run.get("citation_integrity_checked") is True)
@@ -598,7 +605,8 @@ def _finish(store, row, run, settings):
                                 "illustrations": [image for image in illustrations if image["evidence_id"] in fact["evidence_ids"]][:1] if index else []} for index, fact in enumerate(facts)],
                   "analysis": content.get("analysis", ""), "next_steps": content.get("unknowns", []), "sources": sources,
                   "source_document_count": len({item.get("url") or item["id"] for item in sources}),
-                  "reading_minutes": max(1, math.ceil(length / 400))}
+                  "reading_minutes": max(1, math.ceil(length / 400)),
+                  "source_gaps": [gap for gap in row["source_errors"] if gap["evidence_id"] not in cited]}
         review = run.get("verification", {}).get("status")
         coverage = run.get("news_coverage", {}).get("status")
         if review == "supported" and coverage not in {"incomplete", "unavailable"} and not run.get("news_repair_incomplete"):
@@ -709,7 +717,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                     store.put("reports", row)
                     continue
                 run_id = "run_" + uuid.uuid4().hex[:20]
-                row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None,
+                row.update(status="generating", run_id=run_id, attempts=row.get("attempts", 0) + 1, error=None, source_errors=[],
                            updated_at=_stamp(), started_at=_stamp(), retry_at=None,
                            manual_once=False, manual_report=manual,
                            config_revision=_configuration_revision(settings),

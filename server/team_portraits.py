@@ -28,14 +28,15 @@ RETRY_SECONDS = 3600
 PLAYER_PAGE_LIMIT = 8
 PLAYER_PAGE_CONCURRENCY = 3
 PLAYER_PAGE_MAX_BODY = 4 * 1024 * 1024
-PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match")
+PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
+                       "photo_file_page", "photo_license", "photo_restrictions", "photo_reason")
 
 
 class _PortraitIdentityError(IngestionError):
     """An explicit mismatch must not revive an older provider photo from cache."""
 
 
-async def _portrait_document(store, url, *, allowed_hosts, max_body):
+async def _portrait_document(store, url, *, allowed_hosts, max_body, content_types=("text/html", "xhtml")):
     """Share physical workers; cancellation stops readers, never frees a busy slot."""
     if not hasattr(store, "_player_portrait_semaphore"):
         store._player_portrait_semaphore = asyncio.Semaphore(PLAYER_PAGE_CONCURRENCY)
@@ -54,7 +55,7 @@ async def _portrait_document(store, url, *, allowed_hosts, max_body):
             entry["started"] = True
             try:
                 worker = asyncio.create_task(asyncio.to_thread(fetch_document, url,
-                    allowed_hosts=allowed_hosts, max_body=max_body, content_types=("text/html", "xhtml")))
+                    allowed_hosts=allowed_hosts, max_body=max_body, content_types=content_types))
             except BaseException:
                 capacity.release()
                 raise
@@ -185,7 +186,8 @@ async def portrait_directory(store, team_id):
 
 async def enrich_portraits(store, snapshot):
     team_id = snapshot.get("team_id")
-    if team_id not in DIRECTORIES or not any(not player.get("photo_url") or player.get("photo_match") == "exact_name_and_number" for player in snapshot.get("roster", [])):
+    if team_id not in DIRECTORIES or not any(not player.get("photo_url") or player.get("photo_match") in
+            {"exact_name_and_number", "wikimedia_verified_club"} for player in snapshot.get("roster", [])):
         return snapshot
     directory = await portrait_directory(store, team_id)
     return _apply_directory(snapshot, directory)
@@ -193,7 +195,18 @@ async def enrich_portraits(store, snapshot):
 
 def apply_cached_portraits(store, snapshot):
     """Reuse checked cards without making a core roster fetch wait on HTML."""
-    return _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
+    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait
+
+    snapshot = _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
+    for player in snapshot.get("roster", []):
+        if player.get("photo_url"):
+            continue
+        cached = cached_portrait(store, player, snapshot.get("team_id"))
+        if cached and cached.get("status") == "completed" and all(cached.get(field) for field in
+                ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
+            player.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
+            player["photo_updated_at"] = cached.get("fetched_at")
+    return snapshot
 
 
 def _apply_directory(snapshot, directory):
@@ -210,7 +223,7 @@ def _apply_directory(snapshot, directory):
         key = normalized_name(player.get("name"))
         counts[key] = counts.get(key, 0) + 1
     for player in roster:
-        if player.get("photo_url") and player.get("photo_match") != "exact_name_and_number":
+        if player.get("photo_url") and player.get("photo_match") not in {"exact_name_and_number", "wikimedia_verified_club"}:
             continue
         # Recheck old official images against the current checked directory;
         # a changed/ambiguous shirt identity must not keep its previous photo.
@@ -227,6 +240,9 @@ def _apply_directory(snapshot, directory):
         card = matches[0]
         if str(player["number"]) != card["number"]:
             continue
+        if player.get("photo_match") == "wikimedia_verified_club":
+            for field in ("photo_file_page", "photo_license", "photo_restrictions", "photo_reason"):
+                player.pop(field, None)
         player.update(photo_url=card["photo_url"], photo_credit=DIRECTORIES[team_id]["credit"],
                       photo_source_url=card["source_url"], photo_updated_at=directory.get("fetched_at"),
                       photo_match="exact_name_and_number")
@@ -362,7 +378,7 @@ async def _fetch_player_portrait(store, team_id, player_id, *, force=False):
         return result, False
 
 
-async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=None, force=False):
+async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=None, force=False, provider="espn"):
     """Return a copied snapshot and bounded progress, without changing roster facts."""
     team_id = _provider_id(provider_team_id)
     result = copy.deepcopy(snapshot)
@@ -395,6 +411,11 @@ async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=
                     row[field] = source[field]
                 else:
                     row.pop(field, None)
+    if provider == "wikimedia":
+        return await _enrich_wikimedia_photos(store, result, selected, before, force=force,
+                                              explicit_selection=player_ids is not None)
+    if provider != "espn":
+        raise IngestionError("球员照片来源未获允许。")
     if not hasattr(store, "_player_portrait_locks"):
         store._player_portrait_locks = {}
     candidates = [row for row in selected if not row.get("photo_url") or force and row.get("photo_match") == "provider_player_id"]
@@ -429,3 +450,72 @@ async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=
                "attempted_count": len(responses) - cached_count, "cached_count": cached_count,
                "remaining_count": pending, "errors": errors, "updated_at": now()}
     return result, summary
+
+
+async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
+    """Advance one bounded squad batch; retain official and ESPN successes."""
+    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait, resolve_portrait
+
+    roster = snapshot["roster"]
+    team_id = snapshot["team_id"]
+    cursor_key = f"wikimedia_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
+    offset = 0 if explicit_selection or not selected else int(store.get_meta(cursor_key, {}).get("next", 0)) % len(selected)
+    ordered = selected[offset:] + selected[:offset]
+    cached_count = 0
+    errors = []
+    for row in ordered:
+        if force or row.get("photo_url") and row.get("photo_match") != "wikimedia_verified_club":
+            continue
+        cached = cached_portrait(store, row, team_id)
+        if not cached:
+            continue
+        cached_count += 1
+        if cached.get("status") == "completed" and all(cached.get(field) for field in
+                ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
+            row.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
+            row["photo_updated_at"] = cached.get("fetched_at")
+        else:
+            if row.get("photo_match") == "wikimedia_verified_club":
+                for field in PLAYER_PHOTO_FIELDS:
+                    row.pop(field, None)
+                row["photo_url"] = ""
+                row["photo_credit"] = ""
+            row["photo_reason"] = cached.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            if cached.get("status") == "unavailable":
+                errors.append(f"球员 {row['provider_id']}：{row['photo_reason']}")
+    candidates = [row for row in ordered if (not row.get("photo_url") or
+                   row.get("photo_match") == "wikimedia_verified_club" and
+                   (force or _elapsed(row.get("photo_updated_at")) >= CACHE_SECONDS))
+                  and (force or not cached_portrait(store, row, team_id))]
+    requested = candidates[:PLAYER_PAGE_LIMIT]
+    responses = await asyncio.gather(*(resolve_portrait(store, row, team_id, force=True)
+                                       if force else resolve_portrait(store, row, team_id) for row in requested))
+    for row, photo in zip(requested, responses):
+        if photo.get("status") == "completed" and all(photo.get(k) for k in
+                ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
+            row.update({field: photo[field] for field in PHOTO_FIELDS if field in photo})
+            row["photo_updated_at"] = photo.get("fetched_at") or now()
+        elif row.get("photo_match") == "wikimedia_verified_club":
+            for field in PLAYER_PHOTO_FIELDS:
+                row.pop(field, None)
+            row["photo_url"] = ""
+            row["photo_credit"] = ""
+            row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份与许可核验。"
+        elif not row.get("photo_url"):
+            row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份与许可核验。"
+        if photo.get("status") == "unavailable":
+            errors.append(f"球员 {row['provider_id']}：{row.get('photo_reason', '照片来源暂不可用。')}")
+    if not explicit_selection and requested:
+        last = selected.index(requested[-1])
+        store.set_meta(cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
+    available = sum(bool(row.get("photo_url")) for row in roster)
+    selected_available = sum(bool(row.get("photo_url")) for row in selected)
+    status = ("completed" if selected_available == len(selected) and not errors else
+              "partial" if selected_available else "failed" if errors else "missing")
+    return snapshot, {"status": status,
+        "updated_count": sum(tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) != before[row["provider_id"]]
+                             for row in selected),
+        "available_count": available, "total_count": len(roster), "selected_count": len(selected),
+        "selected_available_count": selected_available, "missing_count": len(selected) - selected_available,
+        "attempted_count": len(responses), "cached_count": cached_count,
+        "remaining_count": len(candidates) - len(requested), "errors": errors, "updated_at": now()}

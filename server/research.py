@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import re
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import getproxies
@@ -27,15 +28,15 @@ TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | FEED_HOSTS | REGIONAL_PUBLISHER_HOSTS | {
 for _host in ("football.london", "espn.co.uk", "goal.com", "eurosport.com", "lequipe.fr", "kicker.de", "marca.com", "as.com", "sport.es", "gazzetta.it", "corrieredellosport.it"):
     TRUSTED_HOSTS.update({_host, "www." + _host})
 TOPICS = [
-    ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out", "lesión", "lesiones", "lesionado", "lesionados", "lesão", "lesões"),
-    ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return", "entrenamiento", "entrenamientos", "recuperación", "treino", "treinos", "recuperação"),
-    ("转会", "签约", "续约", "租借", "transfer", "signing", "contract", "loan", "signed", "signs", "fichaje", "fichajes", "renovación", "contrato", "traspaso", "cesión", "contratação", "transferência", "renovação"),
+    ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out", "lesión", "lesiones", "lesionado", "lesionados", "lesão", "lesões", "blessure", "blessé", "blessés"),
+    ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return", "entrenamiento", "entrenamientos", "recuperación", "treino", "treinos", "recuperação", "entraînement", "entrainement", "retour"),
+    ("转会", "签约", "续约", "租借", "transfer", "signing", "contract", "loan", "signed", "signs", "fichaje", "fichajes", "renovación", "contrato", "traspaso", "cesión", "contratação", "transferência", "renovação", "transfert", "mercato", "prêt", "prolongation", "contrat"),
     ("首发", "阵容", "名单", "line-up", "lineup", "squad", "team news"),
     ("赛前", "比赛", "赛程", "备战", "欧冠", "对手", "preview", "fixture", "match", "kickoff",
      "champions league", "trip", "travel", "team news", "opponent", "opposition", "pre-match", "prematch", "ahead of"),
     ("赛后", "复盘", "战报", "review", "report", "reaction", "result"),
     ("战术", "阵型", "逼抢", "压迫", "出球", "轮换", "tactics", "tactical", "formation", "pressing", "build-up", "rotation"),
-    ("发布会", "采访", "主帅", "教练", "press conference", "interview", "manager", "coach"),
+    ("发布会", "采访", "主帅", "教练", "press conference", "interview", "manager", "coach", "entraîneur", "entraineur", "conférence", "conference"),
     ("停赛", "纪律", "禁赛", "申诉", "suspension", "suspended", "disciplinary", "appeal", "ban"),
 ]
 CATEGORIES = {"all": "全部", "injury": "伤病", "training": "复出", "transfer": "转会", "squad": "首发",
@@ -48,6 +49,9 @@ DISCOVERY_NOTICE = ("检索范围为球队官网、媒体订阅和公开新闻�
                     "人名未命中不代表综合新闻正文没有该球员的信息；必要时可改用球队加赛事、对手或赛前主题查找官方综合发布会，再阅读核对。"
                     "不得把其他球员的消息当作目标球员的进展。")
 ARTICLE_CONCURRENCY = 3
+ACCESS_REVIEW_SECONDS = 7 * 24 * 60 * 60
+SOURCE_BACKOFF_SECONDS = (60, 5 * 60, 30 * 60, 2 * 60 * 60, 12 * 60 * 60)
+ESPN_FAILURE_CACHE_SECONDS = 10 * 60
 
 
 def _check_team(store, team_id):
@@ -68,14 +72,95 @@ def source_catalog(store, team_id):
         name = (team_name + "官网" if source["id"].startswith("official_") else
                 "卫报 · " + team_name if source["id"].startswith("guardian_") else
                 source.get("name") or ("BBC 体育 · " + team_name if source["id"].startswith("bbc_") else urlsplit(url).hostname))
-        sources.append({**source, "name": name, "team_id": team_id, "builtin": True})
+        review = source.get("access_review") or {}
+        checked = _stamp(review.get("checked_at"))
+        # A successful forced recheck supersedes an older static access note;
+        # later live failures still enter the separate expiring health backoff.
+        last_ok = _stamp(source_health(store, source).get("last_ok_at"))
+        review_active = (review.get("status") in {"restricted", "access_limited", "timeout"} and checked is not None
+                         and 0 <= (datetime.now(timezone.utc) - checked).total_seconds() < ACCESS_REVIEW_SECONDS
+                         and not (last_ok and last_ok > checked))
+        sources.append({**source, "name": name, "team_id": team_id, "builtin": True,
+                        "access_review_active": review_active})
         urls.add(url)
     for source in configured:
         url = ingestion.normalize_url(source["url"])
         if source.get("enabled", True) and url not in urls:
             sources.append({**source, "description": "你配置的公开来源", "builtin": False})
             urls.add(url)
+    # Keep a temporarily unavailable publisher optional. Reviews and observed
+    # failures expire, so neither one permanently removes a configured feed.
+    sources.sort(key=lambda source: (bool(source.get("access_review_active")) or _source_in_cooldown(store, source),
+                                     source["id"].startswith("guardian_")))
     return sources
+
+
+def _source_health_key(source):
+    return "source_health_v1:source:" + source["id"]
+
+
+def _guardian_host_health_key(source):
+    return "source_health_v1:host:" + str(urlsplit(source["url"]).hostname)
+
+
+def source_health(store, source):
+    if not hasattr(store, "get_meta"):
+        return {}
+    local = store.get_meta(_source_health_key(source), {})
+    if not source["id"].startswith("guardian_"):
+        return local
+    host = store.get_meta(_guardian_host_health_key(source), {})
+    current = datetime.now(timezone.utc)
+    for record in (local, host):
+        until = _stamp(record.get("backoff_until"))
+        if until and current < until:
+            return record
+    return max((local, host), key=lambda record: _stamp(record.get("last_fail_at") or record.get("last_ok_at"))
+               or datetime.min.replace(tzinfo=timezone.utc))
+
+
+def _source_in_cooldown(store, source):
+    until = _stamp(source_health(store, source).get("backoff_until"))
+    return bool(until and datetime.now(timezone.utc) < until)
+
+
+def _record_source_health(store, source, *, error=None, attempt_started=None):
+    if error is not None and attempt_started is None:
+        # The shared coordinator can replay a sibling's failure. That caller
+        # did not make a new transport attempt and must not extend backoff.
+        return source_health(store, source)
+    details = ingestion.source_error_details(error) if error is not None else None
+    shared_failure = (source["id"].startswith("guardian_") and details is not None
+                      and details["code"] in {"dns_failed", "tls_certificate", "tls_error", "timeout",
+                                              "connection_reset", "connection_error"})
+    keys = [_source_health_key(source)]
+    if source["id"].startswith("guardian_"):
+        if error is None:
+            keys.append(_guardian_host_health_key(source))
+        elif shared_failure:
+            keys = [_guardian_host_health_key(source)]
+    checked = ingestion.now()
+    with store.atomic() if hasattr(store, "atomic") else nullcontext():
+        for key in keys:
+            current = store.get_meta(key, {})
+            if error is None:
+                current.update(consecutive_failures=0, backoff_until=None, last_ok_at=checked,
+                               last_error_kind=None, last_error_message=None, last_http_status=None)
+            else:
+                last_failure = _stamp(current.get("last_fail_at"))
+                # Two physical requests may already be in flight for one host.
+                # A request begun before the first failure belongs to that
+                # wave, even when every caller used force=True.
+                if last_failure and attempt_started <= last_failure:
+                    continue
+                failures = min(int(current.get("consecutive_failures") or 0) + 1, len(SOURCE_BACKOFF_SECONDS))
+                seconds = SOURCE_BACKOFF_SECONDS[failures - 1]
+                current.update(consecutive_failures=failures, last_fail_at=checked,
+                               last_error_kind=details["code"], last_error_message=details["message"],
+                               last_http_status=details.get("http_status"),
+                               backoff_until=(datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat())
+            store.set_meta(key, current)
+    return current
 
 
 def _source_hosts(source):
@@ -137,7 +222,7 @@ def _first_team_entry(entry):
     value = " ".join(str(entry.get(key) or "") for key in ("title", "description"))
     value += " " + unquote(urlsplit(entry.get("url", "")).path).replace("-", " ")
     return (readable_publisher_entry(entry) and not re.search(
-        r"\b(?:women|womens|wsl|femeni|femení|femenin[oa]s?|feminin[oa]s?|sub[ -]?\d{1,2}|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
+        r"\b(?:women|womens|wsl|femeni|femení|femenin[oa]s?|feminin[oa]s?|féminin(?:e|es|s)?|sub[ -]?\d{1,2}|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
         r"youth[ -]+(?:teams?|squads?|league|sector|cup)(?![ -]+(?:graduates?|products?|alumni)\b))\b|女足|青年队|青年联赛",
         value, re.I))
 
@@ -172,6 +257,8 @@ async def _fetch(url, source):
                             continue
                         if not 200 <= response.status_code < 300:
                             raise ingestion.IngestionError(f"来源返回 HTTP {response.status_code}")
+                        if response.headers.get("cf-mitigated", "").lower() == "challenge":
+                            raise ingestion.IngestionError("来源返回了访问验证页面，暂时无法读取正文")
                         content_type = response.headers.get("content-type", "").lower()
                         if content_type and not any(value in content_type for value in ("text/", "xml", "xhtml")):
                             raise ingestion.IngestionError("来源未返回网页或订阅源文本")
@@ -187,18 +274,23 @@ async def _fetch(url, source):
                         return b"".join(chunks), current, content_type
     except (asyncio.TimeoutError, httpx.TimeoutException):
         raise ingestion.SourceConnectionError("来源请求超时，请稍后重试") from None
-    except httpx.HTTPError:
-        raise ingestion.SourceConnectionError("无法读取来源，请检查网络或系统代理") from None
+    except httpx.HTTPError as exc:
+        details = ingestion.source_error_details(exc)
+        message = details["message"] if details["code"] != "source_unavailable" else "无法连接来源，请检查网络或系统代理。"
+        raise ingestion.SourceConnectionError(message) from None
     raise ingestion.IngestionError("来源重定向次数过多")
 
 
-async def _fetch_shared(store, url, source, *, force=False):
+async def _fetch_shared(store, url, source, *, force=False, on_start=None):
     from .research_transport import shared_request
     hosts = _source_hosts(source)
     checked = _checked_url(url, hosts)
     key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)))
-    return await shared_request(store, key, urlsplit(checked).hostname,
-                                lambda: _fetch(checked, source), force=force)
+    async def fetch_once():
+        if on_start:
+            on_start(datetime.now(timezone.utc))
+        return await _fetch(checked, source)
+    return await shared_request(store, key, urlsplit(checked).hostname, fetch_once, force=force)
 
 
 def _xml(body):
@@ -372,10 +464,14 @@ def source_status(store, team_id):
     result = []
     for source in source_catalog(store, team_id):
         cache = store.get_meta(_index_key(team_id, source), {}) if hasattr(store, "get_meta") else {}
+        health = source_health(store, source)
         result.append({"id": source["id"], "name": source["name"], "url": source["url"],
                        "source_type": "official" if source["id"].startswith("official_") else "media" if source.get("builtin") else "custom",
                        "last_checked": cache.get("last_checked"), "last_success": cache.get("fetched_at"),
-                       "last_error": cache.get("last_error"), "indexed_count": len(cache.get("entries", []))})
+                       "last_error": cache.get("last_error") or health.get("last_error_message"),
+                       "error_code": health.get("last_error_kind"), "backoff_until": health.get("backoff_until"),
+                       "access_review_active": bool(source.get("access_review_active")),
+                       "indexed_count": len(cache.get("entries", []))})
     return result
 
 
@@ -388,6 +484,16 @@ async def _source_index(store, team_id, source, *, force=False):
     if not force and 0 <= age < INDEX_CACHE_SECONDS and not cached.get("last_error"):
         return copy.deepcopy(cached.get("entries", [])), [], {"state": "cached", "checked_at": cached["fetched_at"]}
     last_attempt = _stamp(cached.get("last_checked"))
+    if not force and (source.get("access_review_active") or _source_in_cooldown(store, source)):
+        health = source_health(store, source)
+        message = ("此前核验该来源受限，复核期限到期后将自动重试。" if source.get("access_review_active") else
+                   health.get("last_error_message") or "来源暂时不可用，稍后自动重试。")
+        stale = 0 <= age <= STALE_INDEX_SECONDS and bool(cached.get("entries"))
+        errors = [source["name"] + "：" + message]
+        if stale:
+            errors.append(source["name"] + "：暂用此前保存的文章索引，尚未确认是否有更新。")
+        return (copy.deepcopy(cached["entries"]) if stale else [], errors,
+                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached.get("last_checked")})
     if (not force and cached.get("last_error") and last_attempt
             and 0 <= (datetime.now(timezone.utc) - last_attempt).total_seconds() < FAILURE_COOLDOWN_SECONDS):
         stale = 0 <= age <= STALE_INDEX_SECONDS and bool(cached.get("entries"))
@@ -397,8 +503,10 @@ async def _source_index(store, team_id, source, *, force=False):
         return (copy.deepcopy(cached["entries"]) if stale else [], errors,
                 {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached["last_checked"]})
     checked_at = ingestion.now()
+    attempt_started = [None]
     try:
-        body, url, _ = await _fetch_shared(store, source.get("index_url") or source["url"], source, force=force)
+        body, url, _ = await _fetch_shared(store, source.get("index_url") or source["url"], source, force=force,
+                                          on_start=lambda started: attempt_started.__setitem__(0, started))
         entries = (_sitemap_candidates(body) if source.get("index_url") else
                    _feed_candidates(body, url) if source["kind"] == "rss" else _html_candidates(body, url, source))
         for entry in entries:
@@ -408,11 +516,16 @@ async def _source_index(store, team_id, source, *, force=False):
             raise ingestion.IngestionError("没有发现可读取的文章，页面结构可能已变化。")
         cached = {"entries": entries, "fetched_at": checked_at, "last_checked": checked_at, "last_error": None}
         store.set_meta(key, cached)
+        _record_source_health(store, source)
         return entries, [], {"state": "fresh", "checked_at": checked_at}
     except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
-        message = str(exc) or "来源请求超时"
-    except Exception:
-        message = "网页解析失败，请稍后重试或手动导入。"
+        details = ingestion.source_error_details(exc)
+        message = details["message"]
+        _record_source_health(store, source, error=exc, attempt_started=attempt_started[0])
+    except Exception as exc:
+        details = ingestion.source_error_details(exc)
+        message = details["message"]
+        _record_source_health(store, source, error=exc, attempt_started=attempt_started[0])
     cached.update(last_checked=checked_at, last_error=message)
     store.set_meta(key, cached)
     errors = [source["name"] + "：" + message]
@@ -515,6 +628,10 @@ async def _espn_news_index(store, team_id, *, force=False):
     stamp = _stamp(cached.get("fetched_at"))
     if not force and stamp and 0 <= (datetime.now(timezone.utc) - stamp).total_seconds() < INDEX_CACHE_SECONDS:
         return cached.get("entries", []), [], {"id": "espn_news", "name": "ESPN 新闻", "state": "cached", "checked_at": cached["fetched_at"]}
+    failed_at = _stamp(cached.get("last_checked"))
+    if (not force and cached.get("last_error") and failed_at
+            and 0 <= (datetime.now(timezone.utc) - failed_at).total_seconds() < ESPN_FAILURE_CACHE_SECONDS):
+        return [], ["ESPN 新闻：索引暂不可用"], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": cached["last_checked"]}
     try:
         from .research_transport import shared_request
         url = f"{league_data.API}/apis/site/v2/sports/soccer/{code}/news?team={provider_id}&limit=40"
@@ -532,11 +649,12 @@ async def _espn_news_index(store, team_id, *, force=False):
                 rows.append({"title": str(article["headline"])[:200], "description": str(article.get("description") or "")[:1200],
                              "url": link, "published_at": ingestion.published_time(article.get("published")),
                              "source_descriptor": source, "source_id": source["id"], "source_name": source["name"]})
-        store.set_meta(key, {"entries": rows, "fetched_at": checked})
+        store.set_meta(key, {"entries": rows, "fetched_at": checked, "last_checked": checked, "last_error": None})
         return rows, [], {"id": "espn_news", "name": "ESPN 新闻", "state": "fresh", "checked_at": checked}
-    except (Exception,) as exc:
+    except Exception:
         # Coverage retains a failed provider separately from a genuine empty
         # result; do not expose response bodies or URLs that can include keys.
+        store.set_meta(key, {"entries": [], "last_checked": checked, "last_error": "索引暂不可用"})
         return [], ["ESPN 新闻：索引暂不可用"], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": checked}
 
 

@@ -230,7 +230,18 @@ class TeamCenterTests(unittest.TestCase):
         self.assertEqual(stored["roster"][0]["name"], snapshot["roster"][0]["name"])
         self.assertEqual(result["available_count"], 2)
         self.assertEqual(enrich.await_args.kwargs["player_ids"], ["102"])
+        self.assertEqual(enrich.await_args.kwargs["provider"], "wikimedia")
         self.assertEqual(len(result["photos"]), 2)
+
+    def test_automatic_portraits_start_for_non_directory_team(self):
+        self.save_squad()
+        async def run():
+            manager = team_center.TeamMaintenanceManager(self.store)
+            with patch.object(team_center, "sync_portraits", AsyncMock(return_value={"status": "missing"})) as sync:
+                self.assertTrue(manager._start_portraits("arsenal"))
+                await asyncio.gather(*manager.portrait_tasks.values())
+                sync.assert_awaited_once()
+        asyncio.run(run())
 
     def test_dedicated_photos_cannot_overwrite_a_newer_roster(self):
         snapshot = self.save_squad()

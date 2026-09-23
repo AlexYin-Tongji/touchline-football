@@ -37,7 +37,10 @@ def provider_origin(url):
 
 
 class Store:
-    BODY_TTL_SECONDS = 20 * 60
+    # A queued editorial run may use a 30-minute task window. Retain bodies in
+    # memory across that window; capacity eviction and restart still require a
+    # fresh read, and no publisher body is written to SQLite.
+    BODY_TTL_SECONDS = 60 * 60
     BODY_CACHE_BYTES = 4 * 1024 * 1024
     BODY_CACHE_ITEMS = 96
 

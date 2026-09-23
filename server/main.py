@@ -523,6 +523,19 @@ def create_app(db_path=None):
         # Editorial completeness feedback can quote material not cited in the
         # final article. Keep it internal; the reader sees one aggregate notice.
         result.pop("news_coverage", None)
+        diagnostic_sources = []
+        if run.get("source_errors"):
+            from .agent_tools import LocalTools, ToolError
+            try:
+                diagnostic_scope = LocalTools(store, run, store.settings())
+                for error in run["source_errors"]:
+                    if isinstance(error, dict) and isinstance(error.get("evidence_id"), str):
+                        source = diagnostic_scope.evidence_view(diagnostic_scope.scoped_get("evidence", error["evidence_id"]))
+                        if source:
+                            diagnostic_sources.append(source)
+            except ToolError:
+                pass  # A removed match/scope must not expose its old diagnostics.
+        result["source_errors"] = ingestion.source_diagnostics(run.get("source_errors"), diagnostic_sources)
         protect = store.settings().get("spoiler_free", True)
         source_ids = set(run.get("evidence_ids", [])) | {quote.get("evidence_id")
             for claim in (run.get("verification") or {}).get("claims", []) for quote in claim.get("quotes", []) if quote.get("evidence_id")}
@@ -541,7 +554,7 @@ def create_app(db_path=None):
         if hidden_answer or source_hidden or source_stale:
             result.update(answer="这份回答的引用来源已不可见，内容暂时隐藏。" if source_hidden else "引用原文已更新，旧回答暂时隐藏，请重新查阅核对。" if source_stale else "这份历史回答可能包含赛果，已按当前避剧透设置隐藏。",
                           evidence_ids=[], spoiler_hidden=hidden_answer, source_hidden=source_hidden, source_stale=source_stale, steps=[], structured_answer=None,
-                          warnings=[], error=None,
+                          warnings=[], error=None, source_errors=[],
                           verification={"status": "not_requested", "claims": [], "warnings": ["核对记录按避剧透设置隐藏。"]})
         if with_evidence:
             selected_match = store.get("matches", run.get("match_id")) if run.get("match_id") else None

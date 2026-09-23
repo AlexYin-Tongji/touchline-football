@@ -14,7 +14,8 @@ SKY_HOSTS = frozenset({"www.skysports.com", "skysports.com"})
 FEED_HOSTS = frozenset({"feeds.bbci.co.uk", "www.skysports.com"})
 AS_HOSTS = frozenset({"feeds.as.com", "as.com"})
 TYC_HOSTS = frozenset({"www.tycsports.com", "tycsports.com"})
-REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS
+RMC_HOSTS = frozenset({"rmcsport.bfmtv.com"})
+REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS | RMC_HOSTS
 # These shorthand names are safe in a club-specific feed, but can identify
 # another club or an ordinary word worldwide. Keep stronger club identities.
 AMBIGUOUS_GLOBAL_ALIASES = {
@@ -37,6 +38,14 @@ def additional_sources(team_id):
                 "allowed_hosts": sorted(BBC_HOSTS), "global_feed": True, "shared_index": True,
                 "description": "BBC 足球公开订阅；按当前球队与男足一线队范围筛选。"}]
     sources.extend([
+        {"id": "sky_football", "name": "天空体育 · 足球", "kind": "rss",
+         "url": "https://www.skysports.com/rss/11095", "allowed_hosts": sorted(SKY_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-23",
+         "description": "天空体育官方足球订阅；排除直播、视频及其他球队消息后阅读公开文章。"},
+        {"id": "rmc_football", "name": "RMC Sport · 足球", "kind": "rss",
+         "url": "https://rmcsport.bfmtv.com/rss/football/", "allowed_hosts": sorted(RMC_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-23",
+         "description": "RMC Sport 官方足球订阅；仅收录公开文章，排除直播、视频和人物目录。"},
         {"id": "as_football", "name": "阿斯报 · 足球", "kind": "rss",
          "url": "https://feeds.as.com/mrss-s/pages/as/site/as.com/section/futbol/portada/",
          "allowed_hosts": sorted(AS_HOSTS), "global_feed": True, "shared_index": True,
@@ -73,13 +82,22 @@ def readable_publisher_entry(entry):
         return not re.search(r"/(?:videos?|astv|directo|en-vivo|fotorrelato)(?:/|$)|-v/?$", path)
     if parts.hostname in TYC_HOSTS:
         return not re.search(r"/(?:videos?|vivo)(?:/|$)", path)
+    if parts.hostname in RMC_HOSTS:
+        return bool(re.search(r"_av-\d+\.html$", path))
     return True
 
 
 def global_feed_mentions_team(team_id, entry):
     # Only source-authored article metadata establishes the target club. Feed
     # labels, query wording and inferred player membership do not establish it.
-    value = " ".join(str(entry.get(key) or "") for key in ("title", "description"))
+    host = urlsplit(entry.get("url", "")).hostname
+    # RMC summaries often cite a former club only as biographical background.
+    # Headlines identify the subject more reliably; OM is its established
+    # Marseille shorthand in this French football feed.
+    value = (str(entry.get("title") or "") if host in RMC_HOSTS else
+             " ".join(str(entry.get(key) or "") for key in ("title", "description")))
+    if host in RMC_HOSTS and team_id == "marseille" and contains(value, "om"):
+        return True
     # South American clubs can share the short names of European clubs. Do not
     # assign their stories to the tracked club without a distinct identity.
     for other in OTHER_CLUB_IDENTITIES.get(team_id, ()):

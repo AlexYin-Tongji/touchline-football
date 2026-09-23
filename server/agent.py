@@ -14,7 +14,7 @@ from .agent_tools import LocalTools, TOOL_DEFINITIONS, ToolError, clean_delivery
 from .provider import AgentFailure, endpoint_url, request_completion, assistant_context, protocol_name
 from . import verification
 from .agent_progress import ToolProgress
-from .ingestion import IngestionError
+from .ingestion import IngestionError, source_error_details, source_diagnostics
 from .model_harness import runtime_harness
 from .agent_delegation import Delegation, GUIDANCE, DELEGATION_TOOLS, checked_versions
 from .skill_catalog import PRIMARY_SKILLS, load_workflow, resolve_workflow, skill_metadata
@@ -439,11 +439,13 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                         evidence.update(offset=0, end_offset=evidence["total_characters"], next_offset=None)
                     step("读取来源", "已读取本次任务的来源材料")
                     return evidence, None
-                except (IngestionError, TimeoutError):
+                except (IngestionError, TimeoutError) as exc:
                     # Transport failures may be partial; scope/privacy failures
                     # are fatal and cancel the remaining reads before returning.
                     step("部分来源不可用", "保留已读材料，继续核对可用来源。", "failed")
-                    return None, {"evidence_id": eid, "message": "该来源暂时无法读取，未用旧正文替代。"}
+                    detail = {"evidence_id": eid, **source_error_details(exc)}
+                    current = local.evidence_view(local.scoped_get("evidence", eid))
+                    return None, next(iter(source_diagnostics([detail], [current] if current else [])), detail)
         reads = [asyncio.create_task(read_selected(eid)) for eid in dict.fromkeys(selected_ids)]
         try:
             outcomes = await asyncio.gather(*reads)
@@ -462,9 +464,10 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
         checked_versions(local, local.read_ids)
         if source_errors:
             run["source_errors"] = source_errors
-            run["warnings"].append(f"{len(source_errors)} 篇来源暂时不可读，回答仅依据本次成功读取的资料。")
+            run["warnings"].append(f"{len(source_errors)} 篇来源暂时无法读取，回答仅依据本次成功读取的资料。")
             if not selected_evidence:
-                raise AgentFailure("所选来源暂时都无法读取，请稍后重试；没有使用旧正文或生成未经核对的事实。")
+                reasons = "；".join(dict.fromkeys(error["message"] for error in source_errors))
+                raise AgentFailure("所选来源暂时都无法读取：" + reasons + " 未使用旧正文或其他事件替代。")
         if run["mode"] == "demo":
             run["verification"] = verification.report("not_requested", warnings=["演示未调用模型，不进行原文支持核对。"])
             run["model"] = "规则演示（未调用模型）"

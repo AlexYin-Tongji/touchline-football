@@ -33,6 +33,11 @@ interface Player {
   photo_url?: string;
   photo_credit?: string;
   photo_source_url?: string;
+  photo_file_page?: string;
+  photo_license?: string;
+  photo_restrictions?: string;
+  photo_match?: string;
+  photo_reason?: string;
   photo_updated_at?: string;
   source_url?: string;
   bio?: string;
@@ -871,6 +876,22 @@ export function TeamCenter({
               <span>{player.number}</span>
               <PlayerPhoto player={player} />
             </div>
+            {playerPhotoUrl(player) && (
+              <p className="player-photo-attribution">
+                照片：{player.photo_credit || "图片来源"}
+                {player.photo_license && <> · {player.photo_license}</>}
+                {safeUrl(player.photo_file_page) && (
+                  <> · <a href={safeUrl(player.photo_file_page)!} target="_blank" rel="noopener noreferrer">查看照片文件页 <ArrowUpRight size={12} /></a></>
+                )}
+                {!player.photo_file_page && safeUrl(player.photo_source_url) && (
+                  <> · <a href={safeUrl(player.photo_source_url)!} target="_blank" rel="noopener noreferrer">查看照片来源 <ArrowUpRight size={12} /></a></>
+                )}
+                {player.photo_restrictions && <small>用途提示：{player.photo_restrictions.replace(/\bpersonality\b/gi, "人物肖像权可能另有限制")}</small>}
+              </p>
+            )}
+            {!playerPhotoUrl(player) && player.photo_reason && (
+              <p className="player-photo-reason">暂无可核验照片：{player.photo_reason}</p>
+            )}
             <span className="pill">
               {player.position} · {team.name}
             </span>
@@ -916,11 +937,11 @@ export function TeamCenter({
             <Sources
               sources={[
                 { name: "球员资料", url: player.source_url },
-                ...(player.photo_source_url
+                ...(player.photo_file_page || player.photo_source_url
                   ? [
                       {
-                        name: player.photo_credit || "照片来源",
-                        url: player.photo_source_url,
+                        name: "照片来源",
+                        url: player.photo_file_page || player.photo_source_url,
                       },
                     ]
                   : []),
@@ -946,12 +967,16 @@ export function TeamCenter({
   );
 }
 
-function PlayerPhoto({ player }: { player: Player }) {
+function playerPhotoUrl(player: Player) {
+  if (!safeUrl(player.photo_source_url)) return null;
+  if (player.photo_match?.startsWith("wikimedia_") &&
+      (!player.photo_credit?.trim() || !player.photo_license?.trim() || !safeUrl(player.photo_file_page))) return null;
+  return safeUrl(player.photo_url);
+}
+export function PlayerPhoto({ player }: { player: Player }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [player.id, player.photo_url]);
-  const url = safeUrl(player.photo_source_url)
-    ? safeUrl(player.photo_url)
-    : null;
+  const url = playerPhotoUrl(player);
   return url && !failed ? (
     <img
       className="player-photo"

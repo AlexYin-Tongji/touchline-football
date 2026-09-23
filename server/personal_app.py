@@ -128,6 +128,7 @@ def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
         items.append({"id": event["id"], "team_id": event["team_id"], "title": title, "summary": summary,
                       "topic": message_topic(title), "published_at": published, "updated_at": published or event.get("updated_at") or (report or {}).get("updated_at"),
                       "images": safe_images(images), "sources": sources,
+                      "source_gap_count": len(content.get("source_gaps") or []),
                       "report_id": report["id"] if ready else None, "status": "ready" if ready else "source",
                       "evidence_ids": [s["id"] for s in sources]})
     if topic:
