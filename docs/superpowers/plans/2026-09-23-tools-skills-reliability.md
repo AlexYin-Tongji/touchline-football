@@ -29,4 +29,4 @@
 
 ## Delivery state
 
-Code, isolated live acceptance, full regression, production build and browser QA are complete. Local activation remains pending the user stopping the old V7.4 process: automatic approval rejected the combined stop/start command without a specific reason. The three old waiting workflows were stopped through supported application endpoints and all personal record IDs and the database key were verified intact.
+Code, isolated live acceptance, full regression, production build and browser QA are complete. Following the user's explicit restart request, the idle V7.4 service was stopped and V7.5 was started through the project launcher on 2026-09-23. The running build fingerprint matches the current files; personal record IDs, database integrity, encryption key and stored credentials were verified intact. All workflows remain disabled and startup generated no model requests. Main remains the only working branch; the V7.5 code and rollback tags are ready for GitHub synchronization.
