@@ -249,10 +249,27 @@ class WorkflowManager:
         bad = sum(components.get(p, {}).get("status") in {"failed", "unavailable", "interrupted"} for p in selected)
         self.update(entry, progress={"completed": good, "failed": bad, "remaining": max(0, len(selected)-good)},
                     last_error="部分球队资料暂未更新，仍可查看上次有效资料。" if outcome.get("errors") else None)
-        from .team_portraits import DIRECTORIES
         view = center_view(self.store, entry.team_id)
-        if entry.parts is None and entry.team_id in DIRECTORIES and view.get("roster") and view.get("components", {}).get("portraits", {}).get("status") != "fresh":
+        # This is the active UI start route. The legacy maintenance manager is
+        # not used here; all supported squads can use the Wikimedia provider.
+        if entry.parts is None and view.get("roster") and view.get("components", {}).get("portraits", {}).get("status") != "fresh":
             self.update(entry, phase="portraits", message="核心资料已保存，正在补充可核对的球员照片。")
             async def portraits(context):
                 return await asyncio.wait_for(sync_portraits(self.store, entry.team_id), 120)
-            await self._unit(entry, portraits, {"team_id": entry.team_id})
+            photos = await self._unit(entry, portraits, {"team_id": entry.team_id, "part": "portraits"})
+            photo_complete = photos.get("status") == "completed"
+            photo_failed = photos.get("status") in {"failed", "unavailable", "interrupted"}
+            state = self.status(entry.kind, entry.team_id)
+            progress = state["progress"]
+            note = None
+            if not photo_complete:
+                if photos.get("errors"):
+                    note = "球员照片来源暂时无法读取，已保留核心资料和通过核验的照片。"
+                elif photos.get("remaining_count"):
+                    note = f"已核对本批照片，还有 {photos['remaining_count']} 名球员待核对；再次启动会接续补图。"
+                else:
+                    note = "部分球员暂无通过身份与许可核验的照片，已保留缺图原因。"
+            self.update(entry, progress={"completed": progress["completed"] + int(photo_complete),
+                                         "failed": progress["failed"] + int(photo_failed),
+                                         "remaining": progress["remaining"] + int(not photo_complete and not photo_failed)},
+                        last_error="；".join(value for value in (state.get("last_error"), note) if value) or None)
