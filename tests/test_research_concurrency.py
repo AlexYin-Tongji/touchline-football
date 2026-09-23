@@ -73,6 +73,193 @@ class CollectionConcurrencyTests(unittest.IsolatedAsyncioTestCase):
                 await research.read_candidate(self.store, "arsenal", candidate["id"], force=True)
             self.assertEqual(request.await_count, 2)
 
+    async def test_publisher_connection_failure_cools_down_other_articles_but_not_other_hosts(self):
+        from server.research_transport import shared_request
+        attempted = []
+        async def unavailable():
+            attempted.append("unavailable")
+            raise asyncio.TimeoutError()
+        async def recovered():
+            attempted.append("recovered")
+            return "public article"
+        with self.assertRaises(ingestion.IngestionError):
+            await shared_request(self.store, "first-article", "news.example", unavailable)
+        with self.assertRaises(ingestion.IngestionError):
+            await shared_request(self.store, "second-article", "news.example", recovered)
+        self.assertEqual(await shared_request(self.store, "other-article", "other.example", recovered), "public article")
+        self.assertEqual(attempted, ["unavailable", "recovered"])
+        self.assertEqual(await shared_request(self.store, "second-article", "news.example", recovered, force=True), "public article")
+
+    async def test_manual_force_collection_retries_old_failure_once_per_batch_and_keeps_other_hosts(self):
+        candidates = [self.candidate(i) for i in range(5)]
+        other = {**SOURCE, "id": "other_source", "url": "https://other.example/news"}
+        self.store.put("sources", other)
+        candidate = {**self.candidate(5), "url": "https://other.example/news/article", "source_id": other["id"]}
+        self.store.put("candidates", candidate); candidates.append(candidate)
+        requests = []
+        async def fetch(url, source):
+            requests.append(url)
+            if url.startswith("https://example.com/"):
+                raise ingestion.SourceConnectionError("connection unavailable")
+            return ARTICLE, url, "text/html"
+        with patch.object(research, "discover_news", new=AsyncMock(return_value={"candidates": candidates, "errors": []})), \
+             patch.object(research, "_fetch", side_effect=fetch):
+            for batch in range(2):
+                result = await research.collect_team(self.store, "arsenal", limit=3, force=True)
+                self.assertEqual(sum(url.startswith("https://example.com/") for url in requests), batch + 1)
+                self.assertEqual(len(result["evidence_ids"]), 1)
+                self.assertEqual(result["coverage"], "partial")
+        self.assertFalse(self.store._research_requests.pending)
+
+    async def test_force_waiting_for_global_slot_rechecks_new_host_failure(self):
+        from server.research_transport import RequestCoordinator, shared_request
+        state = self.store._research_requests = RequestCoordinator()
+        state.capacity = asyncio.Semaphore(1)
+        held, release = asyncio.Event(), asyncio.Event()
+        actual = []
+        async def holding():
+            held.set(); await release.wait(); return "other host"
+        async def fail():
+            actual.append("network")
+            raise ingestion.SourceConnectionError("connection unavailable")
+        blocker = asyncio.create_task(shared_request(self.store, "block", "other.example", holding))
+        await held.wait()
+        pending = [asyncio.create_task(shared_request(self.store, i, "news.example", fail, force=True)) for i in range(2)]
+        try:
+            for _ in range(5):
+                await asyncio.sleep(0)
+            release.set()
+            results = await asyncio.gather(*pending, return_exceptions=True)
+            self.assertTrue(all(isinstance(result, ingestion.IngestionError) for result in results))
+            self.assertEqual(actual, ["network"])
+        finally:
+            release.set()
+            await asyncio.gather(blocker, *pending, return_exceptions=True)
+
+    async def test_force_batch_keeps_inflight_host_limit_but_never_restarts_after_failure(self):
+        candidates = [self.candidate(i) for i in range(6)]
+        entered, release = asyncio.Event(), asyncio.Event()
+        actual = []
+        async def fetch(url, source):
+            actual.append(url)
+            if len(actual) == 2:
+                entered.set()
+            await release.wait()
+            raise ingestion.SourceConnectionError("connection unavailable")
+        with patch.object(research, "discover_news", new=AsyncMock(return_value={"candidates": candidates, "errors": []})), \
+             patch.object(research, "_fetch", side_effect=fetch):
+            task = asyncio.create_task(research.collect_team(self.store, "arsenal", limit=3, force=True))
+            try:
+                await asyncio.wait_for(entered.wait(), 1)
+                self.assertEqual(len(actual), 2)
+                release.set()
+                result = await asyncio.wait_for(task, 1)
+                self.assertEqual(result["attempted_reads"], 6)
+                self.assertEqual(len(actual), 2)
+                self.assertEqual(result["coverage"], "unavailable")
+                self.assertFalse(self.store._research_requests.pending)
+            finally:
+                release.set()
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    async def test_nested_force_discovery_keeps_the_outer_operation_failure_boundary(self):
+        from server.research_transport import shared_request
+        nested, actual = False, []
+        async def fail():
+            actual.append("network")
+            raise ingestion.SourceConnectionError("connection unavailable")
+        async def index(*args, **kwargs):
+            nonlocal nested
+            if not nested:
+                nested = True
+                with self.assertRaises(ingestion.IngestionError):
+                    await shared_request(self.store, "first", "example.com", fail, force=True)
+                await research.discover_news(self.store, "arsenal", force=True)
+            else:
+                with self.assertRaises(ingestion.IngestionError):
+                    await shared_request(self.store, "second", "example.com", fail, force=True)
+            return [], [], {"state": "unavailable", "checked_at": ingestion.now()}
+        empty = ([], [], {"id": "optional", "name": "Optional", "state": "fresh", "checked_at": ingestion.now()})
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=index), \
+             patch.object(research, "_web_news_index", new=AsyncMock(return_value=empty)), patch.object(research, "_espn_news_index", new=AsyncMock(return_value=empty)):
+            await research.discover_news(self.store, "arsenal", force=True)
+        self.assertEqual(actual, ["network"])
+
+    async def test_cancelled_force_scope_does_not_leak_into_later_explicit_retry(self):
+        from server.research_transport import shared_request
+        async def fail():
+            raise ingestion.SourceConnectionError("connection unavailable")
+        async def cancelled_discovery(*args, **kwargs):
+            with self.assertRaises(ingestion.IngestionError):
+                await shared_request(self.store, "first", "example.com", fail, force=True)
+            raise asyncio.CancelledError()
+        with patch.object(research, "discover_news", side_effect=cancelled_discovery):
+            with self.assertRaises(asyncio.CancelledError):
+                await research.collect_team(self.store, "arsenal", force=True)
+        async def recovered(): return "new manual retry"
+        result = await shared_request(self.store, "second", "example.com", recovered, force=True)
+        self.assertEqual(result, "new manual retry")
+        self.assertFalse(self.store._research_requests.pending)
+
+    async def test_force_batch_404_cools_only_the_failed_url(self):
+        from server.research_transport import shared_request
+        actual = []
+        async def missing():
+            actual.append("missing")
+            raise ingestion.IngestionError("HTTP 404")
+        async def present(): actual.append("present"); return "article"
+        async def index(*args, **kwargs):
+            for _ in range(2):
+                with self.assertRaises(ingestion.IngestionError):
+                    await shared_request(self.store, "missing", "example.com", missing, force=True)
+            self.assertEqual(await shared_request(self.store, "present", "example.com", present, force=True), "article")
+            return [], [], {"state": "fresh", "checked_at": ingestion.now()}
+        empty = ([], [], {"id": "optional", "name": "Optional", "state": "fresh", "checked_at": ingestion.now()})
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=index), \
+             patch.object(research, "_web_news_index", new=AsyncMock(return_value=empty)), patch.object(research, "_espn_news_index", new=AsyncMock(return_value=empty)):
+            await research.discover_news(self.store, "arsenal", force=True)
+        self.assertEqual(actual, ["missing", "present"])
+
+    async def test_force_collection_still_refreshes_a_successfully_cached_article(self):
+        candidate = self.candidate()
+        calls = []
+        async def fetch(url, source):
+            calls.append(url)
+            body = ARTICLE if len(calls) == 1 else ARTICLE.replace(b"being assessed", b"undergoing a new assessment")
+            return body, url, "text/html"
+        with patch.object(research, "_fetch", side_effect=fetch), \
+             patch.object(research, "discover_news", new=AsyncMock(return_value={"candidates": [candidate], "errors": []})):
+            await research.read_candidate(self.store, "arsenal", candidate["id"])
+            result = await research.collect_team(self.store, "arsenal", limit=1, force=True)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("new assessment", self.store.get("evidence", result["evidence_ids"][0])["text"])
+
+    async def test_missing_article_does_not_disable_the_whole_publisher(self):
+        from server.research_transport import shared_request
+        async def missing():
+            raise ingestion.IngestionError("来源返回 HTTP 404")
+        async def present():
+            return "public article"
+        with self.assertRaises(ingestion.IngestionError):
+            await shared_request(self.store, "missing", "news.example", missing)
+        self.assertEqual(await shared_request(self.store, "present", "news.example", present), "public article")
+
+    async def test_pinned_network_failures_share_the_publisher_cooldown(self):
+        first, second = self.candidate(1), self.candidate(2)
+        class Connection:
+            def request(self, *args, **kwargs):
+                raise TimeoutError("socket address must not be exposed")
+            def close(self):
+                pass
+        with patch.object(ingestion, "public_addresses", return_value=["93.184.216.34"]), \
+                patch.object(ingestion, "_PinnedHTTP", return_value=Connection()) as connection:
+            for row in (first, second):
+                with self.assertRaises(ingestion.IngestionError) as raised:
+                    await research.read_candidate(self.store, "arsenal", row["id"])
+                self.assertNotIn("socket address", str(raised.exception))
+        self.assertEqual(connection.call_count, 1)
+
     async def test_source_index_deduplicates_requests_and_cools_down_parse_failures(self):
         source = {**SOURCE, "kind": "rss"}
         feed = b'<rss><channel><item><title>Arsenal training</title><link>https://example.com/news/main</link></item></channel></rss>'
@@ -386,6 +573,88 @@ class CollectionConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=publisher), patch.object(research, "_web_news_index", side_effect=search), patch.object(research, "_espn_news_index", new=AsyncMock(return_value=([], [], {"id": "espn_news", "name": "ESPN", "state": "fresh", "checked_at": ingestion.now()}))):
             result = await research.discover_news(self.store, "arsenal", "training")
         self.assertEqual(result["errors"], [])
+
+    async def test_default_discovery_overlaps_fallback_after_publishers_start(self):
+        order, search_started = [], asyncio.Event()
+        async def publisher(*args, **kwargs):
+            order.append("publisher")
+            await asyncio.wait_for(search_started.wait(), .3)
+            return [{"url": SOURCE["url"] + "/article-1", "title": "Arsenal training update"}], [], {"state": "fresh", "checked_at": ingestion.now()}
+        async def search(*args, **kwargs):
+            order.append("search"); search_started.set()
+            return [], ["Search temporarily unavailable"], {"id": "bing_news", "name": "Search", "state": "unavailable", "checked_at": ingestion.now()}
+        empty = ([], [], {"id": "espn_news", "name": "ESPN", "state": "fresh", "checked_at": ingestion.now()})
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=publisher), \
+             patch.object(research, "_web_news_index", side_effect=search), patch.object(research, "_espn_news_index", new=AsyncMock(return_value=empty)):
+            result = await research.discover_news(self.store, "arsenal", limit=6)
+        self.assertEqual(order, ["publisher", "search"])
+        self.assertEqual(len(result["candidates"]), 1)
+        self.assertEqual(result["errors"], ["Search temporarily unavailable"])
+        self.assertEqual(result["coverage"], "partial")
+
+    async def test_sufficient_primary_results_cancel_and_exclude_speculative_indexes(self):
+        extras_ready = asyncio.Event()
+        entered, cleaned = [], []
+        entries = [{"url": SOURCE["url"] + f"/article-{i}", "title": f"Arsenal training {i}"} for i in range(6)]
+        async def publisher(*args, **kwargs):
+            await asyncio.wait_for(extras_ready.wait(), .3)
+            return entries, [], {"state": "fresh", "checked_at": ingestion.now()}
+        async def slow_extra(name, *args, **kwargs):
+            entered.append(name)
+            if len(entered) == 2:
+                extras_ready.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaned.append(name)
+        async def web(*args, **kwargs): return await slow_extra("bing", *args, **kwargs)
+        async def espn(*args, **kwargs): return await slow_extra("espn", *args, **kwargs)
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=publisher), \
+             patch.object(research, "_web_news_index", side_effect=web), patch.object(research, "_espn_news_index", side_effect=espn):
+            result = await asyncio.wait_for(research.discover_news(self.store, "arsenal", limit=6), .6)
+        self.assertEqual(len(result["candidates"]), 6)
+        self.assertEqual([row["id"] for row in result["sources"]], [SOURCE["id"]])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(set(cleaned), {"bing", "espn"})
+
+    async def test_immediately_available_complete_indexes_do_not_start_speculative_search(self):
+        entries = [{"url": SOURCE["url"] + f"/article-{i}", "title": f"Arsenal training {i}"} for i in range(6)]
+        async def unexpected(*args, **kwargs):
+            self.fail("Complete cached publisher indexes should not create optional network work")
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), \
+             patch.object(research, "_source_index", new=AsyncMock(return_value=(entries, [], {"state": "cached", "checked_at": ingestion.now()}))), \
+             patch.object(research, "_web_news_index", side_effect=unexpected), patch.object(research, "_espn_news_index", side_effect=unexpected):
+            result = await research.discover_news(self.store, "arsenal", limit=6)
+        self.assertEqual(len(result["candidates"]), 6)
+        self.assertEqual(len(result["sources"]), 1)
+
+    async def test_cancelling_default_discovery_cleans_publishers_and_speculative_search(self):
+        ready = asyncio.Event()
+        active, cleaned = set(), set()
+        async def block(name):
+            active.add(name)
+            if len(active) == 3:
+                ready.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaned.add(name); active.discard(name)
+        async def publisher(*args, **kwargs): return await block("publisher")
+        async def web(*args, **kwargs): return await block("bing")
+        async def espn(*args, **kwargs): return await block("espn")
+        with patch.object(research, "source_catalog", return_value=[SOURCE]), patch.object(research, "_source_index", side_effect=publisher), \
+             patch.object(research, "_web_news_index", side_effect=web), patch.object(research, "_espn_news_index", side_effect=espn):
+            task = asyncio.create_task(research.discover_news(self.store, "arsenal"))
+            try:
+                await asyncio.wait_for(ready.wait(), .3)
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                self.assertEqual(active, set())
+                self.assertEqual(cleaned, {"publisher", "bing", "espn"})
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def test_manual_refresh_bypasses_recent_failure_and_retains_partial_details(self):
         from server.personal_app import PersonalRefreshManager

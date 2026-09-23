@@ -197,7 +197,7 @@ class PersonalRefreshManager:
             self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle"})
             raise
         except Exception:
-            self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle", "error": "消息更新暂未完成，稍后会继续尝试。"})
+            self.store.set_meta(key, {**self.store.get_meta(key, {}), "status": "idle", "error": "消息更新暂未完成，可手动重试。"})
         finally:
             self.tasks.pop(team_id, None)
 

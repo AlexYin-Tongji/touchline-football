@@ -385,7 +385,7 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_bad_check_format_and_missing_ids_fail_closed(self):
         for response in ({"content": "全部正确"}, tool_message("report_source_support", {"claims": []})):
             run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-                tool_message("submit_answer", quoted_submission()), response])
+                tool_message("submit_answer", quoted_submission()), response, response])
             self.assertEqual(run["verification"]["status"], "unavailable")
             self.store.new_run()
 

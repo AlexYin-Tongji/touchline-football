@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 
 from .ingestion import IngestionError, now
-from .league_catalog import LEAGUES
+from .league_catalog import LEAGUES, EUROPEAN_COMPETITIONS
 
 MAX_BODY = 4 * 1024 * 1024
 LEAGUE_UIDS = {row["provider_code"]: row["provider_league_uid"] for row in LEAGUES}
@@ -31,14 +31,15 @@ def fallback_spec(api_url):
         if (parsed.scheme != "https" or parsed.hostname != "site.api.espn.com" or parsed.port not in {None, 443}
                 or parsed.username or parsed.password or parsed.fragment):
             return None
-        team = re.fullmatch(r"/apis/site/v2/sports/soccer/([a-z]+\.1)/teams/([0-9]{1,10})/(roster|schedule)", parsed.path)
+        team = re.fullmatch(r"/apis/site/v2/sports/soccer/([a-z._0-9]+)/teams/([0-9]{1,10})/(roster|schedule)", parsed.path)
         table = re.fullmatch(r"/apis/v2/sports/soccer/([a-z]+\.1)/standings", parsed.path)
         if not team and not table:
             return None
         league = (team or table).group(1)
         query = parse_qs(parsed.query, keep_blank_values=True)
         allowed = {"season", "fixture"} if team and team.group(3) == "schedule" else {"season"}
-        if league not in LEAGUE_UIDS or not set(query).issubset(allowed) or any(len(value) != 1 for value in query.values()):
+        allowed_leagues = {*LEAGUE_UIDS, "all", *EUROPEAN_COMPETITIONS} if team and team.group(3) == "schedule" else set(LEAGUE_UIDS)
+        if league not in allowed_leagues or not set(query).issubset(allowed) or any(len(value) != 1 for value in query.values()):
             return None
         year = query.get("season", [""])[0]
         if not re.fullmatch(r"20[0-9]{2}", year) or query.get("fixture", ["true"])[0] != "true":
@@ -140,11 +141,21 @@ def _schedule(content, spec):
     if len(matching) != 1 or not matching[0].get("title") or matching[0]["title"] != content.get("competitionName"):
         _fail("未明确确认所选联赛")
     league_name = matching[0]["title"]
+    names = {}
+    for item in leagues:
+        if isinstance(item, dict) and item.get("title") and item.get("value"):
+            names.setdefault(item["title"], set()).add(str(item["value"]).lower())
     events = []
     for event in _array(content.get("events")):
         event = _object(event)
-        if event.get("league") != league_name:
+        codes = names.get(event.get("league"), set())
+        if len(codes) != 1:
+            _fail("的赛事名称没有唯一来源编号")
+        event_code = next(iter(codes))
+        if spec["league"] != "all" and event.get("league") != league_name:
             _fail("混入了其他赛事")
+        if event_code not in LEAGUE_UIDS and event_code not in EUROPEAN_COMPETITIONS:
+            continue
         competitors = _array(event.get("competitors"), 2)
         if (len(competitors) != 2 or any(not isinstance(row, dict) or type(row.get("isHome")) is not bool for row in competitors)
                 or {row["isHome"] for row in competitors} != {True, False}
@@ -177,7 +188,7 @@ def _schedule(content, spec):
                     "team": {"displayName": row.get("displayName", "")}, "score": scores[index] if scores else None}
                    for index, row in enumerate(competitors)]
         events.append({"id": event.get("id"), "date": event.get("date"), "season": {"year": season["year"]},
-                       "league": {"slug": spec["league"], "id": LEAGUE_UIDS[spec["league"]].rsplit(":", 1)[-1]},
+                       "league": {"slug": event_code, **({"id": LEAGUE_UIDS[event_code].rsplit(":", 1)[-1]} if event_code in LEAGUE_UIDS else {})},
                        "competitions": [{"date": event.get("date"), "timeValid": event.get("tbd") is False,
                                          "status": {"type": typ}, "competitors": players,
                                          "venue": event.get("venue") if isinstance(event.get("venue"), dict) else {}}]})

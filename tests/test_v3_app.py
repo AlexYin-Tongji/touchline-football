@@ -110,6 +110,13 @@ class AutomationTests(unittest.IsolatedAsyncioTestCase):
         self.store.close()
         self.directory.cleanup()
 
+    async def test_legacy_enabled_setting_never_schedules_an_update(self):
+        self.store.save_settings({'automation': {'enabled': True, 'interval_minutes': 15}})
+        self.store.set_meta('automation_status', {'last_checked': '2000-01-01T00:00:00+00:00'})
+        self.assertFalse(self.manager.due())
+        self.assertIsNone(self.manager.status()['next_check'])
+        self.assertFalse(self.manager.status()['running'])
+
     async def test_manual_updates_work_when_schedule_off_and_unchanged_skip_model(self):
         self.store.save_settings({'automation':{'enabled':False,'generate_brief':True},'llm':{'base_url':'http://127.0.0.1:9/v1','model':'fixture'}})
         self.store.put('evidence',{'id':'e1','mode':'live','team_id':'arsenal','title':'Training','text':'Training note','spoiler':False})

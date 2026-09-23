@@ -56,6 +56,7 @@ class TrackingTests(unittest.TestCase):
             self.assertEqual(second["model"], "本次未调用模型")
         saved = self.app.state.store.get("tracking", track["id"])
         self.assertEqual(saved["status"], "unchanged")
+        self.assertIsNone(saved["next_check"])
         self.assertEqual(len(saved["updates"]), 1)
         self.assertEqual(saved["baseline_evidence_ids"], [doc["evidence"]["id"]])
         paused = self.client.patch(f"/api/tracking/{track['id']}", json={"enabled": False}).json()
@@ -76,8 +77,19 @@ class TrackingTests(unittest.TestCase):
             record = self.app.state.store.get("tracking", task["id"])
             self.assertFalse(record["enabled"])
             self.assertEqual(record["status"], "paused")
+            self.assertIsNone(record["next_check"])
             restored = self.client.patch(f"/api/tracking/{task['id']}", json={"enabled": True}).json()
             self.assertEqual(restored["status"], "idle")
+            self.assertIsNone(restored["next_check"])
+
+    def test_creating_or_editing_tracking_requires_a_manual_check(self):
+        from server.tracking import is_due
+        task = self.create_tracking()
+        self.assertIsNone(task["next_check"])
+        self.assertFalse(is_due({**task, "next_check": "2000-01-01T00:00:00+00:00"}))
+        edited = self.client.patch(f"/api/tracking/{task['id']}", json={"query": "伤病"}).json()
+        self.assertIsNone(edited["next_check"])
+        self.assertIsNone(edited["last_run_id"])
 
     def test_tracking_scope_and_configuration_protocol_validation(self):
         bad = self.client.post("/api/tracking", json={"team_id": "liverpool", "title": "错误范围", "query": "训练", "event_id": "event_demo_arsenal_1"})

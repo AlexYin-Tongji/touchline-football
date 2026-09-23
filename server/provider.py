@@ -5,6 +5,7 @@ Only ordinary assistant text and function calls leave the adapter for display.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import copy
 import re
@@ -19,9 +20,10 @@ PROTOCOLS = {"chat_completions": "/chat/completions", "responses": "/responses",
 class AgentFailure(Exception):
     """Curated diagnostics only; never contains a URL, key or upstream body."""
 
-    def __init__(self, message, *, response_received=False):
+    def __init__(self, message, *, response_received=False, retryable=False):
         super().__init__(message)
         self.response_received = response_received
+        self.retryable = retryable
 
 
 def protocol_name(config):
@@ -212,6 +214,7 @@ def http_failure(status, body):
     }.get(status, "模型服务暂时不可用" if status >= 500 else "模型请求失败")
     if 300 <= status < 400:
         message = "接口发生重定向，请填写服务实际的接口地址"
+    code = None
     try:
         error = json.loads(body).get("error", {})
         if isinstance(error, dict):
@@ -229,10 +232,30 @@ def http_failure(status, body):
                 message += f"（参数：{parameter}）"
     except (ValueError, AttributeError, TypeError):
         pass
-    return AgentFailure(f"{message}，HTTP {status}。请核对设置；系统不会自动切换协议。", response_received=True)
+    return AgentFailure(f"{message}，HTTP {status}。请核对设置；系统不会自动切换协议。", response_received=True,
+                        retryable=status in {408, 429, 500, 502, 503, 504} and code != "insufficient_quota")
 
 
 async def request_completion(config, messages, *, tools=None, tool_choice="auto", timeout=None):
+    """Recover brief transport outages without rerunning any executed tool.
+
+    A retry uses the same provider, protocol and immutable request input. The
+    caller's deadline and cancellation still bound the complete operation.
+    Authentication, quota, malformed output and semantic rejection never retry.
+    """
+    for attempt in range(3):
+        try:
+            result = await _request_once(config, messages, tools=tools, tool_choice=tool_choice, timeout=timeout, attempt=attempt)
+            if attempt:
+                result["_transport_retries"] = attempt
+            return result
+        except AgentFailure as exc:
+            if not exc.retryable or attempt == 2:
+                raise
+            await asyncio.sleep(0.25 * (2 ** attempt))
+
+
+async def _request_once(config, messages, *, tools=None, tool_choice="auto", timeout=None, attempt=0):
     endpoint = endpoint_url(config)
     seconds = float(timeout if timeout is not None else config.get("timeout_seconds", 45))
     payload = make_payload(config, messages, tools, tool_choice)
@@ -250,6 +273,9 @@ async def request_completion(config, messages, *, tools=None, tool_choice="auto"
     try:
         async with httpx.AsyncClient(timeout=seconds, follow_redirects=False,
                                      trust_env=bool(config.get("use_env_proxy", True))) as client:
+            on_attempt = config.get("_on_transport_attempt")
+            if on_attempt:
+                on_attempt(attempt)
             async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
                 chunks, size = [], 0
                 async for chunk in response.aiter_bytes():
@@ -265,8 +291,8 @@ async def request_completion(config, messages, *, tools=None, tool_choice="auto"
                 except (ValueError, KeyError, IndexError, TypeError, UnicodeError, AttributeError):
                     raise AgentFailure("收到服务响应，但格式不符合所选接口。请检查协议及模型的工具调用支持。", response_received=True) from None
     except httpx.TimeoutException:
-        raise AgentFailure("模型请求超时，请重试或调整设置中的请求超时。") from None
+        raise AgentFailure("模型请求超时，请重试或调整设置中的请求超时。", retryable=True) from None
     except httpx.ProxyError:
         raise AgentFailure("系统代理连接失败。请检查代理，或在设置中关闭使用环境代理。") from None
     except httpx.HTTPError:
-        raise AgentFailure("无法连接模型服务，请检查地址、网络、环境代理和本地模型是否已启动。") from None
+        raise AgentFailure("无法连接模型服务，请检查地址、网络、环境代理和本地模型是否已启动。", retryable=True) from None

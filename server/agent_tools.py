@@ -66,6 +66,7 @@ TOOL_DEFINITIONS = [
 ]
 TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 TOOL_DEFINITIONS.extend([
+    {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID或官网身份匹配并返回图片出处；可指定球员，无匹配则留空。先查看球队阵容，照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
@@ -106,11 +107,25 @@ def tool_definitions(skill="ask"):
     report_quotes["items"]["required"] = ["evidence_id", "passage_id"]
     fields["analysis"].update(description="仅有必要且有来源依据的进一步解释才填写。信息已在正文交代或没有额外依据时留空，不重复正文或泛谈影响。")
     fields["unknowns"].update(description="只保留影响读者理解的具体未决事项；正文已交代条件或没有相关缺口时用空数组，不罗列报道未涉及的名单、赛程等。")
+    definitions.append({"name": "revise_news", "description": "只在新闻修订阶段使用：仅返回需要修改的标题、导语、指定正文段或文末新增段，其余稿件原样保留。replacements.index从0开始；不能删除原有段落。引用必须使用当前已读原文片段，修订后统一提交完整稿件。", "parameters": {
+        "type": "object", "properties": {
+            "title": copy.deepcopy(fields["title"]), "summary": copy.deepcopy(fields["summary"]),
+            "replacements": {"type": "array", "minItems": 1, "items": {"type": "object", "properties": {
+                "index": {"type": "integer", "minimum": 0, "maximum": 64000}, "fact": copy.deepcopy(fact)},
+                "required": ["index", "fact"], "additionalProperties": False}},
+            "append_facts": {"type": "array", "minItems": 1, "items": copy.deepcopy(fact)}},
+        "additionalProperties": False}})
     return definitions
 
 
 def openai_tools(skill="ask"):
-    return [{"type": "function", "function": item} for item in tool_definitions(skill)]
+    definitions = copy.deepcopy(tool_definitions(skill))
+    if skill == "news_report":
+        schema = next(item["parameters"] for item in definitions if item["name"] == "submit_answer")
+        for field in ("analysis", "unknowns"):
+            schema["properties"].pop(field, None)
+            schema["required"].remove(field)
+    return [{"type": "function", "function": item} for item in definitions]
 
 # Small, inspectable football vocabulary, not a remote search service or an LLM.
 CONCEPTS = [
@@ -247,7 +262,7 @@ def team_data_text(payload, team_id):
         if stats:
             fields.append("该球员本赛季统计=" + "、".join(f"{label}:{supplied(stats[key])}" for key, label in stat_labels.items() if key in stats))
         lines.append("；".join(fields) + "。")
-    for field, label in (("stats", "球队统计"), ("recent_matches", "近期比赛"), ("upcoming_matches", "未来赛程")):
+    for field, label in (("standings", "所属联赛完整积分榜"), ("stats", "球队统计"), ("recent_matches", "近期比赛"), ("upcoming_matches", "未来赛程")):
         data = payload.get(field)
         entries = list(data.items()) if isinstance(data, dict) else list(enumerate(data or [], 1))
         for key, value in entries:
@@ -276,6 +291,7 @@ class LocalTools:
         self.read_cache = {}
         self.redacted_ids = set()
         self.submission = None
+        self.news_draft = None
         self.verification_enabled = self.mode == "live" and not run.get("internal_agent") and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
@@ -515,11 +531,13 @@ class LocalTools:
     def available_tools(self):
         """Only advertise executable capabilities; guards still enforce scope."""
         excluded = set()
+        if self.skill != "news_report" or not isinstance(self.news_draft, dict):
+            excluded.add("revise_news")
         if self.mode != "live" or self.match or self.run.get("report_id"):
-            excluded.update({"get_team_data", "maintain_team_data"})
+            excluded.update({"get_team_data", "maintain_team_data", "fetch_player_photos"})
         if (not self.allow_network
                 or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff)):
-            excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data"})
+            excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data", "fetch_player_photos"})
         if not self.allow_network or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff):
             excluded.add("read_article")
         if self.run.get("report_id"):
@@ -556,6 +574,17 @@ class LocalTools:
 
     def submit_answer(self, arguments):
         arguments = copy.deepcopy(arguments)
+        # Repair redundant JSON escaping in reader-facing prose, never in
+        # source quotations or identifiers. Football text has no code strings.
+        def prose(value):
+            return re.sub(r"\\+([\"'])", r"\1", value)
+        for field in ("title", "summary", "analysis"):
+            if field in arguments:
+                arguments[field] = prose(arguments[field])
+        arguments["unknowns"] = [prose(value) for value in arguments.get("unknowns", [])]
+        for fact in arguments["facts"]:
+            for field in ("title", "detail"):
+                fact[field] = prose(fact[field])
         # Resolve IDs only from this run's actual read snapshot. Unknown IDs are
         # left for per-fact verification so one bad selection cannot discard
         # another fact with valid evidence.
@@ -620,7 +649,55 @@ class LocalTools:
         return {"submitted": True, "status": arguments["status"], "evidence_ids": cited,
                 "facts_count": len(arguments["facts"]), "notice": "最终答复已经通过结构与引用检查，任务现在结束，无需再输出文字。"}
 
+    def revise_news(self, arguments):
+        """Apply a bounded edit without re-generating or mutating untouched prose."""
+        if self.skill != "news_report" or not isinstance(self.news_draft, dict):
+            raise ToolError("新闻局部修订只在已有稿件的修订阶段可用。")
+        draft = {"analysis": "", "unknowns": [], **copy.deepcopy(self.news_draft)}
+        if draft.get("status") != "complete" or not isinstance(draft.get("facts"), list) or not draft["facts"]:
+            raise ToolError("没有可供局部修订的完整新闻稿件。")
+        candidate = copy.deepcopy(draft)
+        for field in ("title", "summary"):
+            if field in arguments:
+                candidate[field] = arguments[field]
+        replaced = set()
+        for replacement in arguments.get("replacements", []):
+            index = replacement["index"]
+            if type(index) is not int or not 0 <= index < len(draft["facts"]) or index in replaced:
+                raise ToolError("修订段落编号必须在原稿范围内且不能重复，编号从0开始。")
+            replaced.add(index)
+            candidate["facts"][index] = copy.deepcopy(replacement["fact"])
+        candidate["facts"].extend(copy.deepcopy(arguments.get("append_facts", [])))
+
+        def comparable(value):
+            result = copy.deepcopy(value)
+            # Previously submitted drafts include server-resolved literal quotes;
+            # omitting that internal field is not an actual content revision.
+            for fact in result["facts"]:
+                for quote in fact.get("quotes", []):
+                    if quote.get("passage_id"):
+                        quote.pop("quote", None)
+            return result
+
+        if comparable(candidate) == comparable(draft):
+            raise ToolError("局部修订必须包含至少一处实际修改或新增正文。")
+        cited = {eid for fact in candidate["facts"] for eid in fact["evidence_ids"]}
+        if any(eid not in self.read_ids or not self.cache_is_current(eid) for eid in cited):
+            raise ToolError("修订引用不属于当前仍有效的已读原文，请先重新读取来源。")
+        from .verification import prepare_claims
+        claims, _ = prepare_claims(self, candidate)
+        if any(claim.get("validation_failed") for claim in claims):
+            raise ToolError("修订引用必须对应当前已读来源的真实片段，不能使用未知或伪造的片段编号。")
+        previous = self.submission
+        result = self.submit_answer(candidate)
+        if comparable(self.submission["structured_answer"]) == comparable(draft):
+            self.submission = previous
+            raise ToolError("局部修订必须包含至少一处实际修改或新增正文。")
+        return result
+
     def call(self, name, arguments):
+        if name == "submit_answer" and self.skill == "news_report" and isinstance(arguments, dict):
+            arguments = {"analysis": "", "unknowns": [], **arguments}
         self.validate(name, arguments)
         if name == "conversation_history":
             rows = self.conversation_rows()
@@ -643,6 +720,8 @@ class LocalTools:
                     "notice": "中文知识只作检索线索；source_supported仅代表原文支持，实时结论须重新阅读来源。"}
         if name == "submit_answer":
             return self.submit_answer(arguments)
+        if name == "revise_news":
+            return self.revise_news(arguments)
         if name == "source_overview":
             from .research import source_status
             return {"sources": source_status(self.store, self.team_id),
@@ -835,9 +914,18 @@ class LocalTools:
         raise ToolError("未知工具。")
 
     async def acall(self, name, arguments):
+        if name == "submit_answer" and self.skill == "news_report" and isinstance(arguments, dict):
+            arguments = {"analysis": "", "unknowns": [], **arguments}
         self.validate(name, arguments)
         if self.delegation and name in {tool["name"] for tool in self.delegation.definitions}:
             return await self.delegation.call(name, arguments, getattr(self, "_tool_request_id", None))
+        if name == "fetch_player_photos":
+            self.network_guard()
+            if self.match or self.run.get("report_id"):
+                raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
+            self.network_queries += 1
+            from .team_center import fetch_player_photos
+            return await fetch_player_photos(self.store, self.team_id, player_ids=arguments.get("player_ids"), force=arguments.get("force", False))
         if name == "maintain_team_data":
             self.network_guard()
             if self.match or self.run.get("report_id"):
@@ -958,7 +1046,7 @@ class LocalTools:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
             delegated = self.delegation and function.get("name") in {tool["name"] for tool in self.delegation.definitions}
-            arguments = parse_tool_arguments(raw, 64000 if function.get("name") == "submit_answer" else 24000 if delegated else 3000)
+            arguments = parse_tool_arguments(raw, 64000 if function.get("name") in {"submit_answer", "revise_news"} else 24000 if delegated else 3000)
             self._tool_request_id = f"{self.run.get('agent_generation', 1)}:{getattr(self, '_tool_epoch', 0)}:{call.get('id', '')}"
             return await self.acall(function.get("name"), arguments)
         except (json.JSONDecodeError, TypeError):
@@ -975,7 +1063,7 @@ class LocalTools:
         try:
             function = call.get("function", {})
             raw = function.get("arguments", "{}")
-            arguments = parse_tool_arguments(raw, 64000 if function.get("name") == "submit_answer" else 3000)
+            arguments = parse_tool_arguments(raw, 64000 if function.get("name") in {"submit_answer", "revise_news"} else 3000)
             return self.call(function.get("name"), arguments)
         except (json.JSONDecodeError, TypeError):
             return {"error": "工具参数不是有效 JSON 对象。"}

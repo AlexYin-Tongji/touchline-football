@@ -51,6 +51,7 @@ interface TeamMatch {
   result?: string;
   source_url?: string;
   competition?: string;
+  competition_id?: string;
   spoiler_hidden?: boolean;
 }
 interface SeasonStats {
@@ -63,12 +64,21 @@ interface SeasonStats {
   points?: number;
   win_rate?: number;
 }
+interface Standing extends SeasonStats {
+  rank?: number;
+  team_id?: string;
+  team_name?: string;
+  goal_difference?: number;
+  is_current?: boolean;
+}
 interface CenterData {
   team: Team;
   league?: { name?: string };
   season?: { id?: string; label?: string; start_year?: number };
   roster: Player[];
   matches: TeamMatch[];
+  standings?: Standing[];
+  standings_hidden?: boolean;
   stats: {
     hidden?: boolean;
     sample_complete?: boolean;
@@ -105,7 +115,7 @@ interface CenterData {
   }>>;
   coverage?: { matches: number; expected_matches: number | null; has_full_schedule: boolean; results_complete: boolean | null; basis: string };
 }
-const componentNames = { roster: "球员阵容", schedule: "联赛赛程", standings: "积分榜", portraits: "球员照片" };
+const componentNames = { roster: "球员阵容", schedule: "比赛赛程", standings: "积分榜", portraits: "球员照片" };
 const componentStatuses: Record<string, string> = {
   missing: "等待收录", fresh: "已更新", stale: "待更新", running: "更新中", partial: "部分收录", failed: "更新未完成", unavailable: "来源暂无资料",
 };
@@ -171,6 +181,10 @@ export function TeamCenter({
   }, [load]);
   const profile = { ...findClub(team.id), ...team, ...center?.team };
   const season = center?.stats.season;
+  const standingsHidden = center?.stats.hidden || center?.standings_hidden;
+  const standings = [...(center?.standings || [])].sort(
+    (a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity),
+  );
   const matches = (center?.matches || [])
     .filter((match) =>
       matchTab === "recent"
@@ -252,7 +266,7 @@ export function TeamCenter({
           ))}
         </div>
         <div className="center-controls">
-          {center?.stats.hidden && (
+          {standingsHidden && (
             <button
               className="text-button"
               onClick={() => setRevealedTeam(team.id)}
@@ -430,6 +444,61 @@ export function TeamCenter({
               )}
             </section>
           </div>
+          <section className="panel team-standings-panel">
+            <div className="section-heading">
+              <h2>联赛积分榜</h2>
+              <span>{center?.league?.name || team.league_name || team.league}</span>
+            </div>
+            {standingsHidden ? (
+              <div className="empty-state compact">
+                <Shield size={24} />
+                <p>积分榜已随比赛结果隐藏。</p>
+              </div>
+            ) : standings.length ? (
+              <div className="team-standings-scroll" tabIndex={0} role="region" aria-label="联赛积分榜，可横向滚动查看全部数据">
+                <table className="team-standings-table" aria-label="联赛积分榜">
+                  <thead>
+                    <tr>
+                      {["排名", "球队", "已赛", "胜", "平", "负", "进球", "失球", "净胜球", "积分"].map((label) => (
+                        <th key={label} scope="col">{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((standing) => {
+                      const current = standing.team_id === team.id || standing.is_current === true;
+                      const club = current ? profile : data.teams.find((item) => item.id === standing.team_id) || findClub(standing.team_id || "");
+                      return (
+                        <tr key={standing.team_id || `${standing.rank}-${standing.team_name}`} className={current ? "is-current" : undefined} aria-current={current || undefined}>
+                          <td>{numberOrDash(standing.rank)}</td>
+                          <th scope="row">
+                            <div className="team-standing-club">
+                              <Crest team={club} name={standing.team_name} small />
+                              <span>{club?.name || standing.team_name || "球队名称待补充"}</span>
+                              {current && <small>当前球队</small>}
+                            </div>
+                          </th>
+                          <td>{numberOrDash(standing.played)}</td>
+                          <td>{numberOrDash(standing.won)}</td>
+                          <td>{numberOrDash(standing.drawn)}</td>
+                          <td>{numberOrDash(standing.lost)}</td>
+                          <td>{numberOrDash(standing.goals_for)}</td>
+                          <td>{numberOrDash(standing.goals_against)}</td>
+                          <td>{numberOrDash(standing.goal_difference)}</td>
+                          <td><strong>{numberOrDash(standing.points)}</strong></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state compact">
+                <Trophy size={24} />
+                <p>{loading ? "正在读取联赛积分榜。" : "暂无联赛积分榜，启动球队资料更新后会在这里显示。"}</p>
+              </div>
+            )}
+          </section>
           {!center?.stats.hidden && (
             <div className="charts-grid">
               <section className="panel goals-panel">
@@ -731,9 +800,10 @@ export function TeamCenter({
                     name={match.opponent}
                     small
                   />
-                  <strong>
-                    {findClub(match.opponent)?.name || match.opponent}
-                  </strong>
+                  <div className="match-opponent-copy">
+                    <strong>{findClub(match.opponent)?.name || match.opponent}</strong>
+                    {match.competition && <small className="match-competition">{match.competition}</small>}
+                  </div>
                 </div>
                 <span
                   className={`match-score ${match.result ? `result-text-${match.result}` : ""}`}

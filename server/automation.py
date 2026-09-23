@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from .ingestion import safe_evidence_view
 
@@ -19,25 +19,12 @@ class AutomationManager:
     def status(self):
         status = self.store.get_meta("automation_status", {})
         status["running"] = bool(self.task and not self.task.done())
-        config = self.store.settings().get("automation", {})
-        if config.get("enabled") and status.get("last_checked"):
-            status["next_check"] = (datetime.fromisoformat(status["last_checked"]) + timedelta(minutes=config.get("interval_minutes", 60))).isoformat()
-        elif config.get("enabled"):
-            status["next_check"] = now()
-        else:
-            status["next_check"] = None
+        status["next_check"] = None
         return status
 
     def due(self):
-        if not self.store.settings().get("automation", {}).get("enabled") or self.status()["running"]:
-            return False
-        checked = self.status().get("last_checked")
-        if not checked:
-            return True
-        try:
-            return datetime.now(timezone.utc) - datetime.fromisoformat(checked) >= timedelta(minutes=self.store.settings()["automation"]["interval_minutes"])
-        except (ValueError, TypeError):
-            return True
+        # Kept for older API clients; updates only run after an explicit start.
+        return False
 
     def start(self, team_id=None):
         if self.task and not self.task.done():
@@ -98,4 +85,4 @@ class AutomationManager:
         except asyncio.CancelledError:
             self.store.set_meta("automation_status", {**self.status(), "stage": "更新已停止", "last_checked": now(), "last_error": "本次更新已停止。"})
         except Exception:
-            self.store.set_meta("automation_status", {**self.status(), "stage": "更新未完成", "last_checked": now(), "last_error": "本次自动更新未完成，请检查来源或稍后重试。", "teams": details})
+            self.store.set_meta("automation_status", {**self.status(), "stage": "更新未完成", "last_checked": now(), "last_error": "本次更新未完成，请检查来源后手动重试。", "teams": details})

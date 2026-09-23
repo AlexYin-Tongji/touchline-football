@@ -2,7 +2,10 @@
 
 Source documents remain immutable evidence. Reports are separate derived records
 keyed by current source versions and the reader's visibility/preferences. Only a
-fully supported structured Agent delivery can become a completed report.
+source-linked structured Agent delivery can become a completed report. Key-fact
+review is advisory to readers; incomplete semantic checks retain the article
+with one visible notice, while source access and actual-read citations remain
+mandatory.
 """
 from __future__ import annotations
 
@@ -22,8 +25,7 @@ from .provider import AgentFailure, endpoint_url
 from .research import article_url
 from .team_profiles import _evidence_hash
 
-MAX_ATTEMPTS = 3
-REPORT_CONCURRENCY = 2
+REPORT_CONCURRENCY = 4
 
 
 def _worker_lock(store, team_id=None):
@@ -352,13 +354,13 @@ def _public(store, row, settings, budget):
     output.pop("images", None)
     output.pop("illustrations", None)
     output["budget"] = budget
+    output["retry_at"] = None  # Legacy timers no longer schedule another attempt.
     status = output.get("status")
     output["manual_organize"] = _manual_active(output)
     output["can_refresh_retry"] = status == "failed" and not output.get("manual_stop_after_attempt")
     output["queue_note"] = ("已加入本次手动整理，后台将优先处理。" if status == "queued" and output["manual_organize"]
                             else "已加入整理队列，后台正在依次处理。" if status == "queued"
                             else "正在阅读来源并整理中文消息。" if status == "generating"
-                            else "已安排稍后重试。" if status == "failed" and output.get("retry_at")
                             else "本次手动整理未完成，可点击手动整理重试。" if status == "failed" and output.get("manual_stop_after_attempt")
                             else "多次整理未完成，可点击手动整理重试。" if status == "failed"
                             else "请在设置中为球队动态选择可用模型。" if status == "needs_configuration" else None)
@@ -398,7 +400,6 @@ def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
     reports = list_reports(store, team_id=team_id) if reports is None else reports
     result = dict.fromkeys(("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked"), 0)
     result.update(waiting_sources=max(0, waiting_sources), next_retry_at=None, manual_count=0)
-    times = []
     for row in reports:
         status = row.get("status")
         if status == "completed":
@@ -408,17 +409,13 @@ def queue_summary(store, *, team_id=None, reports=None, waiting_sources=0):
             result["manual_count"] += 1
         if status == "queued":
             result["queued"] += 1
-        elif status == "failed" and parse_time(row.get("retry_at")):
-            result["retrying"] += 1
-            times.append(row["retry_at"])
         elif status in {"generating", "failed", "needs_configuration"}:
             result[status] += 1
         else:
             result["waiting_sources"] += 1
-    result["next_retry_at"] = min(times) if times else None
     result["total_pending"] = sum(result[key] for key in ("queued", "generating", "retrying", "failed", "needs_configuration", "budget_blocked", "waiting_sources"))
     messages = []
-    for key, label in (("generating", "条正在整理"), ("queued", "条已排队"), ("retrying", "条稍后自动重试"),
+    for key, label in (("generating", "条正在整理"), ("queued", "条已排队"),
                        ("failed", "条暂未整理成功，可点击手动整理重试"), ("needs_configuration", "条等待配置球队动态模型"),
                        ("waiting_sources", "条正在等待可用来源与整理")):
         if result[key]:
@@ -478,7 +475,7 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=N
             row = {"id": report_id, "event_id": event["id"], "team_id": event["team_id"], "mode": mode,
                    "schema_version": 2,
                    "status": "queued" if _configured(settings) else "needs_configuration",
-                   "error": None if _configured(settings) else "请先在设置中填写模型服务地址、模型名称和所需密钥，连接成功后自动整理。",
+                   "error": None if _configured(settings) else "请先在设置中填写模型服务地址、模型名称和所需密钥，连接成功后手动启动整理。",
                    "created_at": created, "updated_at": created, "attempts": 0, "attempt_history": [],
                    "report": None, "run_id": None, "retry_at": None, "manual_requested": force,
                    "config_revision": _configuration_revision(settings),
@@ -574,7 +571,7 @@ def _finish(store, row, run, settings):
     snapshot = _current(store, row, settings)
     if not snapshot:
         row.update(status="stale", report=None, error="整理期间原文或阅读范围已变化，报告未发布。", updated_at=_stamp())
-    elif (run.get("status") == "completed" and run.get("verification", {}).get("status") == "supported"
+    elif (run.get("status") == "completed" and (run.get("verification", {}).get("status") == "supported" or run.get("citation_integrity_checked") is True)
           and not run.get("delivery_downgraded") and run.get("structured_answer", {}).get("status") == "complete"):
         content = run["structured_answer"]
         facts = content.get("facts", [])
@@ -602,8 +599,17 @@ def _finish(store, row, run, settings):
                   "analysis": content.get("analysis", ""), "next_steps": content.get("unknowns", []), "sources": sources,
                   "source_document_count": len({item.get("url") or item["id"] for item in sources}),
                   "reading_minutes": max(1, math.ceil(length / 400))}
+        review = run.get("verification", {}).get("status")
+        coverage = run.get("news_coverage", {}).get("status")
+        if review == "supported" and coverage not in {"incomplete", "unavailable"} and not run.get("news_repair_incomplete"):
+            review_status, review_notice = "checked", None
+        elif review in {"unavailable", "not_requested", None}:
+            review_status, review_notice = "unavailable", "本文已依据所附来源整理；重点信息核对暂未全部完成，关键细节请对照原文。"
+        else:
+            review_status, review_notice = "partial", "本文已保留完整稿件，部分重点信息或长文内容仍待进一步核对，请结合所附来源阅读。"
+        report.update(review_status=review_status, review_notice=review_notice)
         row.update(status="completed", report=reading_report(report), error=None, completed_at=_stamp(), updated_at=_stamp(),
-                   verification_status="supported", retry_at=None)
+                   verification_status=review, retry_at=None)
     else:
         return _fail(store, row, run.get("error") or "现有原文不足以完成通过核对的中文报告，请补充正文或重试。")
     store.put("reports", row)
@@ -612,8 +618,7 @@ def _finish(store, row, run, settings):
 
 def _fail(store, row, error):
     row.update(status="failed", report=None, error=error, updated_at=_stamp(),
-               retry_at=(now() + timedelta(minutes=5 * 2 ** max(0, row.get("attempts", 1) - 1))).isoformat()
-               if row.get("attempts", 0) < MAX_ATTEMPTS and not row.get("manual_stop_after_attempt") else None)
+               retry_at=None)
     store.put("reports", row)
     return row
 
@@ -630,10 +635,10 @@ def recover_reports(store):
         else:
             if run and run.get("status") in {"running", "queued"}:
                 run.update(status="cancelled", error="服务重启，手动整理已中断，请重新手动整理。" if row.get("manual_stop_after_attempt")
-                           else "服务重启，报告整理任务将从当前原文恢复。", finished_at=_stamp())
+                           else "服务重启，报告整理已中断，请手动启动继续。", finished_at=_stamp())
                 store.put("runs", run)
             _fail(store, row, "上次手动整理被服务重启中断，请再次手动整理。" if row.get("manual_stop_after_attempt")
-                  else "上次整理被服务重启中断，已安排恢复。")
+                  else "上次整理被服务重启中断，请手动启动继续。")
             row = store.get("reports", row["id"])
             if row.get("retry_at"):
                 row.update(status="queued", retry_at=None)
@@ -692,8 +697,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                 settings = _report_settings(store)
                 if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
                     continue
-                retry_at = parse_time(row.get("retry_at"))
-                if row.get("status") == "failed" and (not retry_at or retry_at > now()):
+                if row.get("status") == "failed":
                     continue
                 if not _current(store, row, settings):
                     row.update(status="stale", report=None, updated_at=_stamp(), manual_once=False)
@@ -791,7 +795,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                     current = store.get("reports", row["id"])
                     if current and current.get("run_id") == run_id:
                         final = current if current.get("status") == "stale" else _fail(store, current,
-                            "本次手动整理未完成，请再次手动整理。" if manual else "后台整理未完成，已安排有限次数重试。")
+                            "本次手动整理未完成，请再次手动整理。")
                 finally:
                     active.pop(run_id, None)
                     if final is not None:

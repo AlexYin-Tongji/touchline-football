@@ -1,4 +1,4 @@
-"""Private browser/server HTTP application and scheduler."""
+"""Private browser/server HTTP application with explicit manual work."""
 from __future__ import annotations
 
 import asyncio
@@ -347,18 +347,6 @@ def create_app(db_path=None):
             for target in targets:
                 news_reports.enqueue_reports(store, team_id=target)
 
-    async def scheduled_refresh():
-        while True:
-            await asyncio.sleep(30)
-            from .tracking import is_due
-            for item in store.list("tracking", "live"):
-                if len(tasks) >= 3:
-                    break
-                if is_due(item):
-                    launch_tracking(item)
-            # News/team work is now explicitly owned by WorkflowManager.
-            # Page reads and legacy periodic jobs must not revive stopped work.
-
     @asynccontextmanager
     async def lifespan(app):
         from .agent_delegation import recover_tasks
@@ -371,13 +359,12 @@ def create_app(db_path=None):
                 run.update({"status": "failed", "error": "服务重启，本次运行已中断，请重新发起。", "finished_at": ingestion.now()})
                 store.put("runs", run)
         for item in store.list("tracking", "live"):
+            item.update(next_check=None)
             if item.get("status") == "running":
-                item.update(status="idle" if item.get("enabled") else "paused", next_check=ingestion.now(),
-                            last_error="服务重启，将在恢复后继续检查。")
-                store.put("tracking", item)
-        scheduler = asyncio.create_task(scheduled_refresh())
+                item.update(status="idle" if item.get("enabled") else "paused",
+                            last_error="服务重启，已有资料保留；请手动重新检查。")
+            store.put("tracking", item)
         yield
-        scheduler.cancel()
         await workflows.close()
         await automation.close()
         await league_sync.close()
@@ -387,7 +374,7 @@ def create_app(db_path=None):
         for task, event in active:
             event.set()
             task.cancel()
-        await asyncio.gather(scheduler, *(task for task, event in active), return_exceptions=True)
+        await asyncio.gather(*(task for task, event in active), return_exceptions=True)
         if getattr(store, "_agent_runtime", None):
             await store._agent_runtime.shutdown()
         store.close()
@@ -533,6 +520,9 @@ def create_app(db_path=None):
         # Version bindings can contain titles/URLs later hidden by privacy or
         # spoiler changes. They are server-only even for currently visible runs.
         result.pop("evidence_versions", None)
+        # Editorial completeness feedback can quote material not cited in the
+        # final article. Keep it internal; the reader sees one aggregate notice.
+        result.pop("news_coverage", None)
         protect = store.settings().get("spoiler_free", True)
         source_ids = set(run.get("evidence_ids", [])) | {quote.get("evidence_id")
             for claim in (run.get("verification") or {}).get("claims", []) for quote in claim.get("quotes", []) if quote.get("evidence_id")}
@@ -1074,7 +1064,7 @@ def create_app(db_path=None):
                     raise HTTPException(400, "关联对象不属于当前球队的真实资料。")
         item = {"id": "track_" + uuid.uuid4().hex[:16], "mode": "live", **payload.model_dump(),
             "query": payload.query.strip(), "enabled": True, "status": "idle", "last_checked": None,
-            "next_check": ingestion.now(), "last_run_id": None, "last_error": None, "summary": "等待首次检查。",
+            "next_check": None, "last_run_id": None, "last_error": None, "summary": "请手动开始首次检查。",
             "baseline_evidence_ids": [], "updates": [], "revision": 1, "created_at": ingestion.now()}
         return store.put("tracking", item)
 
@@ -1094,14 +1084,15 @@ def create_app(db_path=None):
                 await cancel_run(item["last_run_id"])
                 item = require("tracking", identifier)
             archived = item.get("archived_updates", []) + [{**update, "query": item["query"]} for update in item.get("updates", [])]
-            item.update(baseline_evidence_ids=[], last_checked=None, next_check=ingestion.now(),
+            item.update(baseline_evidence_ids=[], last_checked=None, next_check=None,
                 revision=item.get("revision", 1) + 1, summary="跟进主题已修改，等待建立新的资料基线。",
                 last_run_id=None, updates=[], archived_updates=archived[-100:], event_id=None, match_id=None)
         item.update(patch)
         if not item["enabled"]:
             item["status"] = "paused"
         elif item["status"] == "paused":
-            item.update(status="idle", next_check=ingestion.now())
+            item.update(status="idle")
+        item["next_check"] = None
         return tracking_response(store.put("tracking", item))
 
     @app.post("/api/tracking/{identifier}/check")
@@ -1246,7 +1237,7 @@ def create_app(db_path=None):
     async def cancel_run(identifier: str):
         run = require("runs", identifier)
         if run.get("internal_report"):
-            raise HTTPException(409, "这是后台报告任务；可在设置中暂停后续自动整理。")
+            raise HTTPException(409, "这是动态整理任务；请在动态页点击结束，停止当前工作。")
         if run["status"] in {"completed", "failed", "cancelled"}:
             return run_response(run, with_evidence=True)
         active = tasks.get(identifier)

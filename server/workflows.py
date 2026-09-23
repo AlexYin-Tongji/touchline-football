@@ -1,10 +1,10 @@
-"""Explicit, team-scoped continuous work over the shared agent runtime."""
+"""Explicit, team-scoped single-pass work over the shared agent runtime."""
 from __future__ import annotations
 
 import asyncio
 import copy
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import time
 import uuid
 
@@ -29,21 +29,20 @@ class Work:
 
 
 class WorkflowManager:
-    INTERVALS = {"news": 15 * 60, "team": 60 * 60}
+    KINDS = {"news", "team"}
 
-    def __init__(self, store, *, cycle_runner=None, intervals=None):
+    def __init__(self, store, *, cycle_runner=None):
         self.store = store
         self.tasks = {}
         self.stops = {}
         self.cycle_runner = cycle_runner
-        self.intervals = intervals or self.INTERVALS
         self.team_slots = asyncio.Semaphore(2)
 
     def status(self, kind, team_id):
-        if kind not in self.INTERVALS or not self.store.get("teams", team_id):
+        if kind not in self.KINDS or not self.store.get("teams", team_id):
             raise ValueError("功能或球队不存在。")
         default = {"kind": kind, "team_id": team_id, "enabled": False, "status": "idle", "phase": "idle",
-                   "message": "点击启动，开始持续更新。", "last_error": None, "started_at": None,
+                   "message": "点击启动，更新一次资料。", "last_error": None, "started_at": None,
                    "finished_at": None, "updated_at": None, "next_run_at": None, "revision": 0,
                    "progress": {"completed": 0, "failed": 0, "remaining": 0},
                    "memory": {"summary": "尚未启动。", "next_steps": [], "completed_count": 0}}
@@ -63,7 +62,7 @@ class WorkflowManager:
 
     def recover(self):
         for team in self.store.list("teams"):
-            for kind in self.INTERVALS:
+            for kind in self.KINDS:
                 state = self.status(kind, team["id"])
                 if state["enabled"] or state["status"] in {"running", "waiting", "stopping"}:
                     state.update(enabled=False, status="interrupted", phase="idle", next_run_at=None,
@@ -97,7 +96,7 @@ class WorkflowManager:
                      progress={"completed": 0, "failed": 0, "remaining": 0})
         self.store.set_meta(state_key(kind, team_id), state)
         self.tasks[key] = entry
-        entry.task = asyncio.create_task(self._loop(entry))
+        entry.task = asyncio.create_task(self._run_once(entry))
         return {**state, "started": True}
 
     async def stop(self, kind, team_id, *, interrupted=False):
@@ -133,52 +132,46 @@ class WorkflowManager:
         await asyncio.gather(*(self.stop(kind, team, interrupted=True) for kind, team in list(self.tasks)), return_exceptions=True)
         await asyncio.gather(*self.stops.values(), return_exceptions=True)
 
-    async def _loop(self, entry):
-        first = True
+    async def _run_once(self, entry):
+        runtime = runtime_for(self.store)
+        entry.cycle_cancel = asyncio.Event()
+        entry.root_id = "workflow_" + uuid.uuid4().hex
+        runtime.register_root(entry.root_id, cancel_event=entry.cycle_cancel, deadline=time.monotonic() + 1800)
+        outcome = "completed"
         try:
-            while not entry.stop.is_set():
-                entry.cycle_cancel = asyncio.Event()
-                entry.root_id = "workflow_" + uuid.uuid4().hex
-                runtime = runtime_for(self.store)
-                runtime.register_root(entry.root_id, cancel_event=entry.cycle_cancel, deadline=time.monotonic() + 1800)
-                self.update(entry, status="running", phase="starting", next_run_at=None, last_error=None,
-                            progress={"completed": 0, "failed": 0, "remaining": 0})
-                try:
-                    if self.cycle_runner:
-                        await self.cycle_runner(self, entry, first)
-                    elif entry.kind == "news":
-                        await self._news_cycle(entry, first)
-                    else:
-                        await self._team_cycle(entry, first)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    self.update(entry, last_error="本轮部分工作未完成，已有内容已保留；稍后会检查新资料。")
-                finally:
-                    await runtime.finish_root(entry.root_id, "cancelled" if entry.stop.is_set() else "completed")
-                if entry.stop.is_set():
-                    break
-                state = self.status(entry.kind, entry.team_id)
-                progress = state["progress"]
-                interval = min(self.intervals[entry.kind], 300) if progress["failed"] or progress["remaining"] else self.intervals[entry.kind]
-                note = (f"本轮完成 {progress['completed']} 项，{progress['failed']} 项暂未完成。" if progress["failed"]
-                        else f"本轮完成 {progress['completed']} 项，正在等待下一次更新。")
-                memory = {**state["memory"], "summary": note,
-                          "completed_count": state["memory"]["completed_count"],
-                          "next_steps": ["检查新增或变化的资料，接续尚可重试的工作。"]}
-                self.update(entry, status="waiting", phase="waiting", message=note, memory=memory,
-                            next_run_at=(datetime.now(timezone.utc) + timedelta(seconds=interval)).isoformat())
-                first = False
-                try:
-                    await asyncio.wait_for(entry.stop.wait(), interval)
-                except TimeoutError:
-                    pass
-        finally:
+            try:
+                if self.cycle_runner:
+                    await self.cycle_runner(self, entry, True)
+                elif entry.kind == "news":
+                    await self._news_cycle(entry, True)
+                else:
+                    await self._team_cycle(entry, True)
+            except asyncio.CancelledError:
+                outcome = "cancelled"
+                raise
+            except Exception:
+                self.update(entry, last_error="本次部分工作未完成，已有内容已保留；点击启动可重试。")
             state = self.status(entry.kind, entry.team_id)
-            if state["enabled"] and not entry.stop.is_set():
-                self.update(entry, enabled=False, status="interrupted", phase="idle", next_run_at=None,
-                            message="运行已中断，已完成内容保留；点击启动继续。")
-            self.tasks.pop((entry.kind, entry.team_id), None)
+            progress = state["progress"]
+            incomplete = bool(state["last_error"] or progress["failed"] or progress["remaining"])
+            outcome = ("partial" if progress["completed"] else "failed") if incomplete else "completed"
+            note = (f"本次完成 {progress['completed']} 项，部分工作未完成，可手动重试。" if outcome == "partial"
+                    else "本次未能完成，点击启动可重试。" if outcome == "failed"
+                    else f"本次更新已完成，共完成 {progress['completed']} 项。")
+            memory = {**state["memory"], "summary": note,
+                      "next_steps": ["点击启动，接续未完成工作。"] if incomplete else []}
+            self.update(entry, enabled=False, status=outcome, phase="idle", message=note, memory=memory,
+                        next_run_at=None, finished_at=now())
+        finally:
+            try:
+                runtime_status = "cancelled" if entry.stop.is_set() else "completed" if outcome == "partial" else outcome
+                await runtime.finish_root(entry.root_id, runtime_status)
+            finally:
+                state = self.status(entry.kind, entry.team_id)
+                if state["enabled"] and not entry.stop.is_set():
+                    self.update(entry, enabled=False, status="interrupted", phase="idle", next_run_at=None,
+                                finished_at=now(), message="运行已中断，已完成内容保留；点击启动继续。")
+                self.tasks.pop((entry.kind, entry.team_id), None)
 
     async def _unit(self, entry, execute, payload):
         runtime = runtime_for(self.store)

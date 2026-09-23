@@ -222,7 +222,7 @@ def _tally(matches):
 def _team_matches(store, team_id, season_id, sync_status):
     ids = sync_status.get("snapshot_match_ids")
     snapshot_ids = set(ids) if isinstance(ids, list) else None
-    records = [r for r in store.list("league_matches") if r.get("season_id") == season_id
+    records = [r for r in store.list("league_matches") if (r.get("season_id") == season_id or snapshot_ids is not None and r["id"] in snapshot_ids)
                and team_id in {r.get("home_team_id"), r.get("away_team_id")}
                and (snapshot_ids is None or r["id"] in snapshot_ids)]
     output = []
@@ -235,6 +235,8 @@ def _team_matches(store, team_id, season_id, sync_status):
         if record.get("status") != "finished" or gf is None or ga is None:
             gf, ga = None, None
         output.append({"id": record["id"], "opponent_id": opponent_id, "opponent": opponent.get("name") or (record.get("away_team") if home else record.get("home_team")),
+                       "competition_id": record.get("league_id") or season_id.rsplit("-", 1)[0],
+                       "competition": record.get("competition") or (store.get("leagues", record.get("league_id") or season_id.rsplit("-", 1)[0]) or {}).get("name", ""),
                        "opponent_crest_url": opponent.get("crest_url", ""), "venue": "home" if home else "away",
                        "kickoff": record.get("kickoff"), "kickoff_date": record.get("kickoff_date"),
                        "kickoff_confirmed": bool(record.get("kickoff_confirmed")), "status": record.get("status"),
@@ -279,6 +281,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
         _, league, season, _ = team_season_context(store, team_id, year)
     except IngestionError as exc:
         return {"team": team, "league": None, "season": None, "roster": [], "matches": [],
+                "standings": [], "standings_hidden": protected,
                 "stats": {"hidden": protected}, "charts": {}, "updated_at": None, "roster_updated_at": None,
                 "refresh_status": "unavailable", "errors": [str(exc)], "sources": [], "stale": True,
                 "components": {part: _component_status(None, 0, False, {"status": "unavailable", "errors": [str(exc)]}) for part in MAINTENANCE_PARTS},
@@ -290,18 +293,22 @@ def center_view(store, team_id, year=None, *, reveal=False):
     league_status = store.get_meta("league_sync_" + season["id"], {})
     recent_status = store.get_meta(league_data.team_schedule_key(season["id"], team_id), {})
     matches = _team_matches(store, team_id, season["id"], recent_status if "snapshot_match_ids" in recent_status else league_status)
-    finished = [m for m in matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
+    domestic_matches = [m for m in matches if m["competition_id"] == league["id"]]
+    finished = [m for m in domestic_matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
     roster = copy.deepcopy(snapshot.get("roster", []))
     table = store.get("standings", season["id"]) or {}
     standing = next((r for r in table.get("rows", []) if r.get("team_id") == team_id), None)
+    standings = [{**copy.deepcopy(row), "team_name": (store.get("teams", row.get("team_id")) or {}).get("name") or row.get("team_id"),
+                  "is_current": row.get("team_id") == team_id} for row in sorted(table.get("rows", []), key=lambda r: r.get("rank", 999))]
     incomplete_results = bool(standing and standing.get("played", 0) > len(finished))
     expected_matches = 2 * (league["expected_team_count"] - 1)
     opponent_ids = {m["team_id"] for m in store.list("league_memberships") if m.get("season_id") == season["id"] and m.get("team_id") != team_id}
     required_pairs = {(opponent, venue) for opponent in opponent_ids for venue in ("home", "away")}
-    has_full_schedule = len(matches) == expected_matches and {(m["opponent_id"], m["venue"]) for m in matches} == required_pairs
-    coverage = {"matches": len(matches), "expected_matches": expected_matches, "has_full_schedule": has_full_schedule,
+    has_full_schedule = len(domestic_matches) == expected_matches and {(m["opponent_id"], m["venue"]) for m in domestic_matches} == required_pairs
+    coverage = {"matches": len(domestic_matches), "all_matches": len(matches), "continental_matches": len(matches) - len(domestic_matches),
+                "expected_matches": expected_matches, "has_full_schedule": has_full_schedule,
                 "results_complete": None if protected or not standing else standing.get("played") == len(finished),
-                "basis": "仅所选赛季联赛；按已核对参赛球队的主客场对阵检查，不包含杯赛和欧战。"}
+                "basis": "完整性和统计按所属联赛主客场对阵检查；赛程另含来源明确确认参赛的欧冠、欧联、欧协联及欧洲超级杯，不宣称欧战后续轮次已经排定。"}
     stats = {"hidden": protected, "season": _tally(finished),
              "home": _tally([m for m in finished if m["venue"] == "home"]), "away": _tally([m for m in finished if m["venue"] == "away"]),
              "recent": [m["result"] for m in finished[-5:]], "standing": standing,
@@ -343,7 +350,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     photo_count = sum(bool(player.get("photo_url")) for player in roster)
     if not portraits_state:
         portraits_state = directory
-    if team_id not in DIRECTORIES and photo_count < len(roster):
+    if not portraits_state and team_id not in DIRECTORIES and photo_count < len(roster):
         portraits_state = {"status": "unavailable", "errors": ["来源未提供的球员照片保留空白。"]}
     photo_times = [player.get("photo_updated_at") or snapshot.get("fetched_at") for player in roster if player.get("photo_url")]
     components = {
@@ -359,6 +366,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     errors = list(dict.fromkeys(error for part in CORE_PARTS for error in components[part]["errors"]))
     return {"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
             "roster": roster, "roster_count": len(roster), "matches": matches, "stats": stats, "charts": charts,
+            "standings": [] if protected else standings, "standings_hidden": protected,
             "updated_at": max(timestamps) if timestamps else None, "roster_updated_at": snapshot.get("fetched_at"),
             "roster_source_updated_at": snapshot.get("source_updated_at"), "fixtures_updated_at": league_status.get("fixtures_at"),
             "team_results_updated_at": results_updated_at,
@@ -373,7 +381,7 @@ def team_context_payload(store, team_id, year=None, *, reveal=False):
     view = center_view(store, team_id, year, reveal=reveal)
     past = [m for m in view["matches"] if m["status"] == "finished"][-10:]
     upcoming = [m for m in view["matches"] if m["status"] != "finished"][:6]
-    return {key: view[key] for key in ("season", "roster", "stats", "sources", "updated_at", "roster_updated_at", "refresh_status", "errors", "stale", "components", "coverage")} | {
+    return {key: view[key] for key in ("season", "roster", "standings", "standings_hidden", "stats", "sources", "updated_at", "roster_updated_at", "refresh_status", "errors", "stale", "components", "coverage")} | {
         "recent_matches": past, "upcoming_matches": upcoming,
         "team_results_updated_at": view.get("team_results_updated_at"),
         "data_policy": "比分、积分和阵容来自明确赛季的结构化来源。资料更新时间不代表事件发生时间；缺失数据不可补造。球员简介为国籍、位置、年龄、号码字段组合，不含战术评价。"}
@@ -384,6 +392,39 @@ def _record_component(store, key, part, patch):
     components = status.get("components", {})
     components[part] = {**components.get(part, {}), **patch}
     store.set_meta(key, {**status, "components": components})
+
+
+async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, force=False):
+    """Independently fetch attributed photos for the checked roster, never facts."""
+    from .team_portraits import enrich_player_photos
+    _, _, season, provider_team_id = team_season_context(store, team_id, year)
+    snapshot_id = _snapshot_id(team_id, season["id"])
+    key = _status_key(team_id, season["id"])
+    snapshot = store.get("team_snapshots", snapshot_id) or {}
+    if not snapshot.get("roster") or snapshot.get("team_id") != team_id or snapshot.get("season_id") != season["id"]:
+        return {"status": "unavailable", "available_count": 0, "total_count": 0, "photos": [],
+                "errors": ["请先取得这个球队和赛季的可核对阵容，再补充球员照片。"]}
+    _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
+    try:
+        updated, summary = await enrich_player_photos(store, snapshot, provider_team_id, player_ids=player_ids, force=force)
+        # The network wait must never resurrect a replaced roster or alter a
+        # freshly corrected membership. Photos attach only to this exact view.
+        if store.get("team_snapshots", snapshot_id) != snapshot:
+            summary = {"status": "interrupted", "errors": ["阵容已在照片获取期间更新，请按新阵容重新核对照片。"]}
+        else:
+            store.put("team_snapshots", updated)
+        _record_component(store, key, "portraits", summary)
+        current = store.get("team_snapshots", snapshot_id) or {}
+        photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match")}
+                  for player in current.get("roster", []) if player.get("photo_url")]
+        return {**summary, "team_id": team_id, "season_id": season["id"], "photos": photos,
+                "available_count": len(photos), "total_count": len(current.get("roster", []))}
+    except asyncio.CancelledError:
+        _record_component(store, key, "portraits", {"status": "interrupted", "errors": ["照片补充中断，已保存资料保留。"]})
+        raise
+    except Exception:
+        _record_component(store, key, "portraits", {"status": "failed", "errors": ["照片暂未获取完成，已保存资料保留。"]})
+        raise
 
 
 async def sync_portraits(store, team_id, year=None):
@@ -443,7 +484,7 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None):
             "schedule": lambda: league_data.sync_team_recent(store, team_id, season["season_start_year"], force=force and prior.get("components", {}).get("schedule", {}).get("status") != "partial"),
             # All teams in a league share one independently cached table.
             "standings": lambda: league_data.sync_standings(store, league["id"], season["season_start_year"], force=force),
-            "portraits": lambda: sync_portraits(store, team_id, year),
+            "portraits": lambda: fetch_player_photos(store, team_id, year),
         }
         async def refresh(part):
             _record_component(store, key, part, {"status": "running", "last_attempt": started, "errors": []})

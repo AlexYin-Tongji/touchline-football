@@ -35,6 +35,30 @@ class TeamScheduleParserTests(unittest.TestCase):
         self.assertEqual(row["status"], "finished")
         self.assertTrue(row["kickoff_confirmed"])
 
+    def test_confirmed_european_opponents_use_provider_ids_and_preserve_competition(self):
+        payload = schedule()
+        cup = copy.deepcopy(payload["events"][0])
+        cup.update(id="999999", league={"slug": "uefa.champions", "id": "775"})
+        cup["competitions"][0]["competitors"][0].update(id="432", team={"displayName": "Galatasaray"})
+        payload["events"].append(cup)
+        rows = league_data.parse_team_schedule(payload, LEAGUE, SEASON, MAPPING, "83", include_continental=True)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[1]["competition"], "欧冠")
+        self.assertEqual(rows[1]["season_id"], "CL-2026")
+        self.assertEqual(rows[1]["home_team_id"], "espn-team-432")
+        cup["competitions"][0]["competitors"][0]["id"] = "unverified"
+        with self.assertRaises(IngestionError):
+            league_data.parse_team_schedule(payload, LEAGUE, SEASON, MAPPING, "83", include_continental=True)
+
+    def test_european_super_cup_requires_same_season_and_actual_team_participation(self):
+        payload = schedule()
+        payload["events"][0]["league"] = {"slug": "uefa.super_cup"}
+        rows = league_data.parse_team_schedule(payload, LEAGUE, SEASON, MAPPING, "83", include_continental=True)
+        self.assertEqual((rows[0]["competition"], rows[0]["season_id"]), ("欧洲超级杯", "USC-2026"))
+        payload["events"][0]["season"]["year"] = 2025
+        with self.assertRaises(IngestionError):
+            league_data.parse_team_schedule(payload, LEAGUE, SEASON, MAPPING, "83", include_continental=True)
+
     def test_response_team_and_both_season_echoes_must_match(self):
         cases = []
         for key in ("season", "requestedSeason"):
@@ -98,6 +122,21 @@ class TeamScheduleSyncTests(unittest.IsolatedAsyncioTestCase):
         return {**row, "id": "espn-PD-2026-future", "provider_match_id": "9999999", "status": "scheduled",
                 "kickoff": "2027-01-01T20:00:00+00:00", "kickoff_date": "2027-01-01", "home_score": None, "away_score": None}
 
+    async def test_european_matches_join_calendar_but_never_domestic_stats_or_snapshot(self):
+        payload = schedule()
+        cup = copy.deepcopy(payload["events"][0])
+        cup.update(id="999999", league={"slug": "uefa.champions", "id": "775"})
+        cup["competitions"][0]["competitors"][0].update(id="432", team={"displayName": "Galatasaray"})
+        payload["events"].append(cup)
+        with patch.object(league_data, "fetch_json", new=AsyncMock(return_value=payload)):
+            result = await league_data.sync_team_recent(self.store, "barcelona")
+        self.assertEqual(result["match_count"], 2)
+        view = team_center.center_view(self.store, "barcelona")
+        self.assertEqual(len(view["matches"]), 2)
+        self.assertEqual(view["stats"]["season"]["played"], 1)
+        self.assertEqual(len(self.store.get_meta("league_sync_PD-2026")["snapshot_match_ids"]), 1)
+        self.assertEqual({m["competition"] for m in view["matches"]}, {"西甲", "欧冠"})
+
     async def test_partial_team_feed_preserves_future_snapshot_ids_and_full_league_age(self):
         future = self.future()
         self.store.put("league_matches", future)
@@ -113,7 +152,7 @@ class TeamScheduleSyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(current["snapshot_match_ids"]), 2)
         for key in ("last_sync", "fixtures_at", "sync_status", "fixtures_status", "errors"):
             self.assertEqual(current[key], original[key])
-        self.assertEqual(fetch.await_args_list[0].args[0], "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams/83/schedule?season=2026")
+        self.assertEqual(fetch.await_args_list[0].args[0], "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/83/schedule?season=2026")
         self.assertTrue(fetch.await_args_list[1].args[0].endswith("&fixture=true"))
         view = team_center.center_view(self.store, "barcelona")
         self.assertEqual(view["stats"]["season"]["played"], 1)

@@ -1,4 +1,4 @@
-"""Season-scoped Big Five data, sourced from ESPN's public website feeds.
+"""Season-scoped domestic leagues and checked European team fixtures from ESPN.
 
 The provider is a sports publisher, not an official league feed. No credential,
 embedded private $ref, or arbitrary URL is followed. Failed snapshots preserve
@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .ingestion import IngestionError, now, published_time
+from .league_catalog import EUROPEAN_COMPETITIONS
 
 API = "https://site.api.espn.com"
 MAX_BODY = 16 * 1024 * 1024
@@ -139,6 +140,7 @@ def parse_scoreboard(payload, league, season, mapping):
         if state == "finished" and (hs is None or aws is None):
             raise IngestionError("已完赛比赛缺少有效比分，保留上次完整赛程。")
         record = {"id": f"espn-{league['id']}-{season['season_start_year']}-{provider_id}", "league_id": league["id"],
+                  "competition": league.get("name", league["id"]),
                   "season_id": season["id"], "season_start_year": season["season_start_year"], "provider": "ESPN",
                   "provider_match_id": provider_id, "home_team_id": mapping[h_id], "away_team_id": mapping[a_id],
                   "home_team": (home.get("team") or {}).get("displayName", ""), "away_team": (away.get("team") or {}).get("displayName", ""),
@@ -223,12 +225,12 @@ async def sync_standings(store, league_id, year=None, *, force=False):
         return result
 
 
-def parse_team_schedule(payload, league, season, mapping, provider_team_id):
+def parse_team_schedule(payload, league, season, mapping, provider_team_id, *, include_continental=False, provider_mapping=None):
     """Validate the fixed team's feed, then reuse the normal match parser.
 
-    Team schedules can also contain cups and continental competitions. Only an
-    explicit matching league slug is accepted; another competition is skipped,
-    and a missing/contradictory identity invalidates the import.
+    Domestic opponents must belong to the reviewed season directory. Optional
+    European games require explicit competition and provider-team identities;
+    other cups are skipped and missing/contradictory identity fails the import.
     """
     if not isinstance(payload, dict):
         raise IngestionError("球队赛程格式无法识别，已保留旧记录。")
@@ -247,7 +249,7 @@ def parse_team_schedule(payload, league, season, mapping, provider_team_id):
     events = payload.get("events")
     if not isinstance(events, list) or len(events) > 250:
         raise IngestionError("球队赛程没有返回可读取的比赛列表。")
-    selected = []
+    selected, continental = [], []
     league_provider_id = str(league.get("provider_league_uid", "")).rsplit(":", 1)[-1]
     for event in events:
         if not isinstance(event, dict):
@@ -257,6 +259,16 @@ def parse_team_schedule(payload, league, season, mapping, provider_team_id):
         if not slug:
             raise IngestionError("球队赛程缺少可核对的赛事归属。")
         if slug != league["provider_code"]:
+            if include_continental and slug in EUROPEAN_COMPETITIONS:
+                competition = EUROPEAN_COMPETITIONS[slug]
+                competitors = [row for game in event.get("competitions", []) for row in game.get("competitors", [])]
+                if (len(competitors) != 2 or not any(str(row.get("id")) == identity for row in competitors)
+                        or any(not str(row.get("id", "")).isdigit() or not (row.get("team") or {}).get("displayName") for row in competitors)):
+                    raise IngestionError("欧战赛程缺少可核对的球队编号与参赛关系。")
+                foreign_mapping = {str(row["id"]): (provider_mapping or {}).get(str(row["id"]), mapping.get(str(row["id"]), "espn-team-" + str(row["id"]))) for row in competitors}
+                foreign_season = {**season, "id": f"{competition['id']}-{expected_year}"}
+                continental.extend(parse_scoreboard({"leagues": [{"slug": slug, "season": {"year": expected_year}}],
+                    "events": [event]}, competition, foreign_season, foreign_mapping))
             continue
         if competition_league.get("id") is not None and league_provider_id.isdigit() and str(competition_league["id"]) != league_provider_id:
             raise IngestionError("球队赛程的联赛编号互相冲突。")
@@ -264,12 +276,12 @@ def parse_team_schedule(payload, league, season, mapping, provider_team_id):
         if not any(str(row.get("id")) == identity for row in competitors):
             raise IngestionError("球队赛程混入了另一支球队的比赛。")
         selected.append(event)
-    if not selected:
+    if not selected and not continental:
         raise IngestionError("球队来源暂未返回本赛季的联赛比赛，已保留旧记录。")
     # Header identity is established above from the fixed request, the response
     # team/season and each event's explicit league. No score is synthesized.
-    records = parse_scoreboard({"leagues": [{"slug": league["provider_code"], "season": {"year": expected_year}}],
-                               "events": selected}, league, season, mapping)
+    records = (parse_scoreboard({"leagues": [{"slug": league["provider_code"], "season": {"year": expected_year}}],
+                               "events": selected}, league, season, mapping) if selected else []) + continental
     source = payload.get("_touchline_source") or {}
     if source.get("method") == "espn_public_page":
         for record in records:
@@ -302,13 +314,15 @@ async def sync_team_recent(store, team_id, year=None, *, force=False):
         if not needed:
             return {**prior, "cached": True}
         attempt_at = now()
-        source_url = f"https://www.espn.com/soccer/team/results/_/id/{provider_id}/league/{league['provider_code']}/season/{season['season_start_year']}"
-        upcoming_source_url = f"https://www.espn.com/soccer/team/fixtures/_/id/{provider_id}/league/{league['provider_code']}/season/{season['season_start_year']}"
+        source_url = f"https://www.espn.com/soccer/team/results/_/id/{provider_id}/league/all/season/{season['season_start_year']}"
+        upcoming_source_url = f"https://www.espn.com/soccer/team/fixtures/_/id/{provider_id}/league/all/season/{season['season_start_year']}"
         parts = copy.deepcopy(previous_parts)
         for part in needed:
             parts[part] = {**parts.get(part, {}), "status": "running", "last_attempt": attempt_at, "errors": []}
         store.set_meta(key, {**prior, "sync_status": "running", "last_attempt": attempt_at, "errors": [], "parts": parts})
-        url = f"{API}/apis/site/v2/sports/soccer/{league['provider_code']}/teams/{provider_id}/schedule?season={season['season_start_year']}"
+        url = f"{API}/apis/site/v2/sports/soccer/all/teams/{provider_id}/schedule?season={season['season_start_year']}"
+        provider_mapping = {str(row["provider_team_id"]): row["team_id"] for row in store.list("league_memberships")
+                            if row.get("season_start_year") == season["season_start_year"]}
         try:
             responses = await asyncio.gather(*(fetch_json(url + ("&fixture=true" if part == "upcoming" else "")) for part in needed), return_exceptions=True)
             combined, errors, checked = {}, [], {}
@@ -316,7 +330,8 @@ async def sync_team_recent(store, team_id, year=None, *, force=False):
                 try:
                     if isinstance(payload, BaseException):
                         raise payload
-                    parsed = parse_team_schedule(payload, league, season, mapping, provider_id)
+                    parsed = parse_team_schedule(payload, league, season, mapping, provider_id,
+                                                 include_continental=True, provider_mapping=provider_mapping)
                     candidate = dict(combined)
                     for row in parsed:
                         previous = candidate.get(row["id"])
@@ -350,7 +365,8 @@ async def sync_team_recent(store, team_id, year=None, *, force=False):
             # Serialize snapshot-ID merges with the full-league writer. A
             # concurrent refresh must not discard either writer's new matches.
             async with store._league_locks.setdefault(season["id"], asyncio.Lock()):
-                existing = {row["id"]: row for row in store.list("league_matches") if row.get("season_id") == season["id"]}
+                existing = {row["id"]: row for row in store.list("league_matches") if row.get("season_id") == season["id"]
+                            or (row.get("season_start_year") == season["season_start_year"] and team_id in {row.get("home_team_id"), row.get("away_team_id")})}
                 for row in records:
                     old = existing.get(row["id"])
                     if old and old.get("status") == "finished" and row["status"] != "finished":
@@ -359,13 +375,15 @@ async def sync_team_recent(store, team_id, year=None, *, force=False):
                         raise IngestionError("球队赛程与已有比赛的对阵不一致，已保留旧记录。")
                     row.setdefault("source_method", "team_schedule")
                 league_status = store.get_meta(_sync_key(season["id"]), {})
-                ids = list(dict.fromkeys([*league_status.get("snapshot_match_ids", list(existing)), *(row["id"] for row in records)]))
+                ids = list(dict.fromkeys([*league_status.get("snapshot_match_ids", [row["id"] for row in existing.values() if row.get("season_id") == season["id"]]),
+                                          *(row["id"] for row in records if row["season_id"] == season["id"])]))
                 store.put_many("league_matches", records)
                 # Deliberately retain full-league errors and timestamps. Only
                 # this team's checked matches were refreshed by this endpoint.
                 store.set_meta(_sync_key(season["id"]), {**league_status, "snapshot_match_ids": ids,
                                "fixture_count": len(ids)})
-                materialize_team(store, team_id, season["id"])
+                for record_season in {season["id"], *(row["season_id"] for row in records)}:
+                    materialize_team(store, team_id, record_season)
             selected_ids = set()
             for part in ("results", "upcoming"):
                 if "snapshot_match_ids" in parts.get(part, {}):
@@ -480,7 +498,7 @@ def materialize_team(store, team_id, season_id=None):
         gf, ga = (source["home_score"], source["away_score"]) if home else (source["away_score"], source["home_score"])
         identity = source["id"] + "-" + team_id
         old = store.get("matches", identity) or {}
-        evidence_text = "ESPN 男足联赛比赛资料（公开数据字段，非模型生成）\n" + json.dumps({k: v for k, v in source.items() if k != "fetched_at"}, ensure_ascii=False, indent=2)
+        evidence_text = "ESPN 男足比赛资料（公开数据字段，非模型生成）\n" + json.dumps({k: v for k, v in source.items() if k != "fetched_at"}, ensure_ascii=False, indent=2)
         evidence_id = "ev_league_" + hashlib.sha256((team_id + evidence_text).encode()).hexdigest()[:22]
         if not store.get("evidence", evidence_id):
             store.put("evidence", {"id": evidence_id, "mode": "live", "team_id": team_id, "text": evidence_text,
@@ -489,7 +507,7 @@ def materialize_team(store, team_id, season_id=None):
                                    "published_at": None, "fetched_at": source["fetched_at"], "spoiler": source["status"] in {"finished", "live"},
                                    "content_status": "full_text", "content_method": "structured_fixture", "fingerprint": hashlib.sha256(evidence_text.encode()).hexdigest()})
         updated = {**old, "id": identity, "mode": "live", "team_id": team_id, "opponent": opponent_name, "opponent_id": opponent_id,
-                       "competition": league.get("name", source["league_id"]), "league_id": source["league_id"], "season_id": source["season_id"],
+                       "competition": source.get("competition") or league.get("name", source["league_id"]), "league_id": source["league_id"], "season_id": source["season_id"],
                        "provider": "ESPN", "venue": "home" if home else "away", "stadium": source["stadium"], "kickoff": source["kickoff"],
                        "kickoff_date": source["kickoff_date"], "kickoff_confirmed": source["kickoff_confirmed"],
                        "status": "finished" if source["status"] == "finished" else "scheduled", "fixture_status": source["status"],

@@ -113,7 +113,7 @@ class ModelHarnessTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("synthetic-provider", str(store._model_harness.snapshot()))
 
     async def test_independent_models_overlap_with_global_and_provider_limits(self):
-        harness = ModelHarness()
+        harness = ModelHarness(global_limit=3, provider_limit=2)
         active, peaks = Counter(), Counter()
         ready, release = asyncio.Event(), asyncio.Event()
         async def work(provider):

@@ -2,27 +2,16 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def due_at(minutes):
-    return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
-
-
 def is_due(item):
-    if not item.get("enabled") or item.get("status") == "running":
-        return False
-    value = item.get("next_check")
-    if not value:
-        return True
-    try:
-        return datetime.fromisoformat(value) <= datetime.now(timezone.utc)
-    except (ValueError, TypeError):
-        return True
+    """Compatibility for saved jobs; checks are always started manually."""
+    return False
 
 
 async def execute_tracking(store, run_id, cancel_event):
@@ -70,7 +59,7 @@ async def execute_tracking(store, run_id, cancel_event):
                 evidence_ids=[], finished_at=now(), error=None)
         else:
             run.update(status="queued", allow_network=False, resume_evidence_ids=visible,
-                question=f"持续跟进主题：{item['title']}。\n关注的问题：{item['query']}。\n"
+                question=f"本次检查主题：{item['title']}。\n关注的问题：{item['query']}。\n"
                          f"本次已收集的相关原文编号：{', '.join(visible)}。\n"
                          f"其中自上次检查后新出现的编号：{', '.join(fresh)}。\n"
                          "请读取原文并比较变化。分清新来源内容与真正的新事实，不将重复转述当独立核实；"
@@ -82,7 +71,7 @@ async def execute_tracking(store, run_id, cancel_event):
         current = store.get("tracking", item["id"])
         if not current:
             return
-        current.update(last_checked=checked_at, next_check=due_at(current["interval_minutes"]),
+        current.update(last_checked=checked_at, next_check=None,
                        last_run_id=run_id, last_error=run.get("error"))
         if run["status"] == "completed":
             current["status"] = "changed" if fresh else "unchanged"
@@ -105,7 +94,7 @@ async def execute_tracking(store, run_id, cancel_event):
         current = store.get("tracking", item["id"])
         if current:
             current.update(status="idle" if current.get("enabled") else "paused",
-                           next_check=due_at(current["interval_minutes"]), last_error="本次检查已停止。")
+                           next_check=None, last_error="本次检查已停止。")
             store.put("tracking", current)
     except Exception as exc:
         # Research errors are locally curated; arbitrary transport messages remain private.
@@ -120,5 +109,5 @@ async def execute_tracking(store, run_id, cancel_event):
         current = store.get("tracking", item["id"])
         if current:
             current.update(status="failed" if current.get("enabled") else "paused",
-                last_checked=checked_at, next_check=due_at(current["interval_minutes"]), last_error=detail)
+                last_checked=checked_at, next_check=None, last_error=detail)
             store.put("tracking", current)

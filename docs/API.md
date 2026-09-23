@@ -1,5 +1,13 @@
 # 看台 MVP 接口与模块约定
 
+## V7.5 增量
+
+- 工作流 start 只执行一轮，结束状态为 completed/partial/failed，enabled=false、next_run_at=null；旧 tracking/automation 到期配置不启动工作。
+- 球队 center 的 standings 返回完整所属联赛排名与 is_current；欧战赛程包含 competition_id/competition，国内统计保持所属联赛口径。
+- 新工具 fetch_player_photos 接受可选 player_ids/force，使用当前球队已核对阵容，返回有明确出处的照片；不可跨球队、比赛或固定新闻范围执行。
+- 新闻 submit_answer 的模型表单使用 status/title/summary/facts；服务端保留旧 analysis/unknowns 兼容，实质背景与条件写入正文。
+- 模型请求总并发6、同服务4，新闻报告并发4；无每日token或篇数配额，取消和资料权限边界继续生效。
+
 ## V7.4 增量
 
 - `GET /api/workflows/{kind}/{team_id}`：只读当前工作与进度，kind为news/team。

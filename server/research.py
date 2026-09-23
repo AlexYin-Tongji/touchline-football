@@ -18,17 +18,18 @@ from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
 from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
 from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, feed_published_time,
-                           global_feed_mentions_team, readable_publisher_entry)
+                           global_feed_mentions_team, readable_publisher_entry, REGIONAL_PUBLISHER_HOSTS, TYC_HOSTS)
+from .research_transport import manual_refresh_scope
 
 
 CATALOG = RESEARCH_CATALOG
-TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | FEED_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk", "www.espn.com", "espn.com", "www.skysports.com", "skysports.com", "www.reuters.com", "reuters.com", "www.bing.com", "bing.com", "site.api.espn.com"}
+TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | FEED_HOSTS | REGIONAL_PUBLISHER_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk", "www.espn.com", "espn.com", "www.skysports.com", "skysports.com", "www.reuters.com", "reuters.com", "www.bing.com", "bing.com", "site.api.espn.com"}
 for _host in ("football.london", "espn.co.uk", "goal.com", "eurosport.com", "lequipe.fr", "kicker.de", "marca.com", "as.com", "sport.es", "gazzetta.it", "corrieredellosport.it"):
     TRUSTED_HOSTS.update({_host, "www." + _host})
 TOPICS = [
-    ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out"),
-    ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return"),
-    ("转会", "签约", "续约", "租借", "transfer", "signing", "contract", "loan", "signed", "signs"),
+    ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out", "lesión", "lesiones", "lesionado", "lesionados", "lesão", "lesões"),
+    ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return", "entrenamiento", "entrenamientos", "recuperación", "treino", "treinos", "recuperação"),
+    ("转会", "签约", "续约", "租借", "transfer", "signing", "contract", "loan", "signed", "signs", "fichaje", "fichajes", "renovación", "contrato", "traspaso", "cesión", "contratação", "transferência", "renovação"),
     ("首发", "阵容", "名单", "line-up", "lineup", "squad", "team news"),
     ("赛前", "比赛", "赛程", "备战", "欧冠", "对手", "preview", "fixture", "match", "kickoff",
      "champions league", "trip", "travel", "team news", "opponent", "opposition", "pre-match", "prematch", "ahead of"),
@@ -136,7 +137,7 @@ def _first_team_entry(entry):
     value = " ".join(str(entry.get(key) or "") for key in ("title", "description"))
     value += " " + unquote(urlsplit(entry.get("url", "")).path).replace("-", " ")
     return (readable_publisher_entry(entry) and not re.search(
-        r"\b(?:women|womens|wsl|femeni|femení|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
+        r"\b(?:women|womens|wsl|femeni|femení|femenin[oa]s?|feminin[oa]s?|sub[ -]?\d{1,2}|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
         r"youth[ -]+(?:teams?|squads?|league|sector|cup)(?![ -]+(?:graduates?|products?|alumni)\b))\b|女足|青年队|青年联赛",
         value, re.I))
 
@@ -185,9 +186,9 @@ async def _fetch(url, source):
                             chunks.append(chunk)
                         return b"".join(chunks), current, content_type
     except (asyncio.TimeoutError, httpx.TimeoutException):
-        raise ingestion.IngestionError("来源请求超时，请稍后重试") from None
+        raise ingestion.SourceConnectionError("来源请求超时，请稍后重试") from None
     except httpx.HTTPError:
-        raise ingestion.IngestionError("无法读取来源，请检查网络或系统代理") from None
+        raise ingestion.SourceConnectionError("无法读取来源，请检查网络或系统代理") from None
     raise ingestion.IngestionError("来源重定向次数过多")
 
 
@@ -259,6 +260,8 @@ def _walk(value, depth=0):
 
 def _article_path(url, source):
     path = urlsplit(url).path.rstrip("/")
+    if urlsplit(url).hostname in TYC_HOSTS:
+        return bool(re.fullmatch(r"/(?:[a-z0-9-]+/)+[a-z0-9-]+-id\d+\.html", path))
     if source["id"] == "official_arsenal":
         return bool(re.match(r"/(news|feature)/[^/]+-a[A-Za-z0-9]+$", path))
     if source["id"] == "official_liverpool":
@@ -419,6 +422,39 @@ async def _source_index(store, team_id, source, *, force=False):
     return [], errors, {"state": "unavailable", "checked_at": checked_at}
 
 
+async def _verify_article_dates(store, team_id, source, entries, *, force=False):
+    """Verify only a few matching undated links; retain metadata, never bodies."""
+    pending = list({entry["url"]: entry for entry in entries if not entry.get("published_at")}.values())[:3]
+    async def verify(entry):
+        try:
+            body, url, _ = await _fetch_shared(store, entry["url"], source, force=force)
+            if article_url(url) != entry["url"]:
+                raise ingestion.IngestionError("核实日期时来源跳转到了其他文章，未作为近期消息。")
+            article = ingestion.extract_html(body, url, source["name"])[0]
+            return entry["url"], article.get("published_at"), None
+        except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
+            return entry["url"], None, source["name"] + "：" + (str(exc) or "文章日期核实超时")
+        except Exception:
+            return entry["url"], None, source["name"] + "：文章日期解析未完成，已保留其他可读资料。"
+    results = await asyncio.gather(*(verify(entry) for entry in pending))
+    verified = {url: stamp for url, stamp, _ in results if stamp}
+    if verified:
+        for entry in entries:
+            if entry["url"] in verified:
+                entry["published_at"] = verified[entry["url"]]
+        key = _index_key(team_id, source)
+        cached = store.get_meta(key, {})
+        for entry in cached.get("entries", []):
+            try:
+                stamp = verified.get(article_url(entry["url"]))
+            except (KeyError, ingestion.IngestionError):
+                continue
+            if stamp:
+                entry["published_at"] = stamp
+        store.set_meta(key, cached)
+    return [error for _, _, error in results if error]
+
+
 def _search_query(store, team_id, query):
     team = store.get("teams", team_id) or {}
     people, groups, words = _query_parts(team_id, query)
@@ -504,6 +540,7 @@ async def _espn_news_index(store, team_id, *, force=False):
         return [], ["ESPN 新闻：索引暂不可用"], {"id": "espn_news", "name": "ESPN 新闻", "state": "unavailable", "checked_at": checked}
 
 
+@manual_refresh_scope
 async def discover_news(store, team_id, query="", limit=6, *, category="all", max_age_days=None, offset=0, force=False):
     _check_team(store, team_id)
     limit = max(1, min(40, int(limit)))
@@ -531,29 +568,37 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
                               "index_state": status["state"], "index_checked_at": status["checked_at"],
                               "categories": article_categories(entry)})
                 if (_first_team_entry(entry) and (not source.get("global_feed") or global_feed_mentions_team(team_id, entry))
-                        and within_days(entry, max_age_days)
                         and (category == "all" or category in entry["categories"]) and relevance(team_id, query, entry)):
                     clean.append(entry)
+            if max_age_days is not None and source.get("builtin") and source.get("verify_article_dates"):
+                failures = [*failures, *await _verify_article_dates(store, team_id, source, clean, force=force)]
+            clean = [entry for entry in clean if within_days(entry, max_age_days)]
             return clean, failures, {"id": source["id"], "name": source["name"], **status, "matched_count": len(clean)}
 
-    # Explicit questions always need the separate indexes. Start them together
-    # with publisher indexes instead of adding a second network wait afterwards.
+    # Let publisher indexes enter their bounded transport queues first. While
+    # they are in flight, overlap optional searches within this invocation only;
+    # the original coverage rule still decides whether their results are used.
+    publisher_tasks = [asyncio.create_task(discover(source)) for source in sources]
     extra_tasks = []
     def start_extras():
         extra_tasks.extend([asyncio.create_task(_web_news_index(store, team_id, query, force=force)),
                             asyncio.create_task(_espn_news_index(store, team_id, force=force))])
-    if query.strip():
-        start_extras()
+    def needs_extras(batches):
+        return bool(query.strip()) or sum(len(entries) for entries, _, _ in batches) < limit + offset
     try:
-        batches = await asyncio.gather(*(discover(source) for source in sources))
-        if not extra_tasks and sum(len(entries) for entries, _, _ in batches) < limit + offset:
+        await asyncio.sleep(0)
+        batches = [task.result() for task in publisher_tasks] if all(task.done() for task in publisher_tasks) else None
+        # A complete cached index needs no speculative network requests.
+        if batches is None or needs_extras(batches):
             start_extras()
-        extras = await asyncio.gather(*extra_tasks)
+        if batches is None:
+            batches = await asyncio.gather(*publisher_tasks)
+        extras = await asyncio.gather(*extra_tasks) if needs_extras(batches) else []
     finally:
-        for task in extra_tasks:
-            if not task.done():
+        for task in [*publisher_tasks, *extra_tasks]:
+            if not task.done() and not task.cancelling():
                 task.cancel()
-        await asyncio.gather(*extra_tasks, return_exceptions=True)
+        await asyncio.gather(*publisher_tasks, *extra_tasks, return_exceptions=True)
     if extras:
         for web_entries, errors, web_status in extras:
             web_entries = [{**entry, "team_id": team_id, "mode": "live", "builtin": True,
@@ -725,6 +770,7 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
         raise ingestion.IngestionError(message) from None
 
 
+@manual_refresh_scope
 async def collect_team(store, team_id, query="", limit=4, event_id=None, match_id=None, *, category="all", max_age_days=None, max_attempts=None, force=False):
     limit = max(1, min(40, int(limit)))
     found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(40, limit + 6), category=category, max_age_days=max_age_days, force=force)

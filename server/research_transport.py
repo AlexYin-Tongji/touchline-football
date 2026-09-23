@@ -4,14 +4,30 @@ from __future__ import annotations
 import asyncio
 import time
 from contextvars import ContextVar
+from functools import wraps
 
-from .ingestion import IngestionError
+from .ingestion import IngestionError, SourceConnectionError
 
 REQUEST_CONCURRENCY = 4
 HOST_CONCURRENCY = 2
 FAILURE_COOLDOWN_SECONDS = 30
 MAX_FAILURES = 256
 _blocking_workers = ContextVar("research_blocking_workers", default=None)
+_manual_refresh_started = ContextVar("research_manual_refresh_started", default=None)
+
+
+def manual_refresh_scope(function):
+    """One explicit refresh may retry old failures, not failures it just found."""
+    @wraps(function)
+    async def scoped(*args, **kwargs):
+        if not kwargs.get("force") or _manual_refresh_started.get() is not None:
+            return await function(*args, **kwargs)
+        token = _manual_refresh_started.set(time.monotonic())
+        try:
+            return await function(*args, **kwargs)
+        finally:
+            _manual_refresh_started.reset(token)
+    return scoped
 
 
 async def blocking_request(function, *args, timeout, **kwargs):
@@ -30,6 +46,7 @@ class RequestCoordinator:
         self.loop = asyncio.get_running_loop()
         self.pending = {}
         self.failures = {}
+        self.host_failures = {}
         self.capacity = asyncio.Semaphore(REQUEST_CONCURRENCY)
         self.hosts = {}
         self.draining = set()
@@ -58,10 +75,23 @@ class RequestCoordinator:
     async def request(self, key, host, factory, *, force=False):
         now = time.monotonic()
         self.failures = {key: value for key, value in self.failures.items() if value[0] > now}
+        self.host_failures = {key: value for key, value in self.host_failures.items() if value[0] > now}
         if force:
-            self.failures.pop(key, None)
-        elif key in self.failures:
-            raise IngestionError(self.failures[key][1])
+            started = _manual_refresh_started.get()
+            # A standalone explicit read is a new retry boundary. Child tasks
+            # of collect/discover inherit the earlier operation boundary.
+            started = now if started is None else started
+            for failures, identity in ((self.failures, key), (self.host_failures, host)):
+                previous = failures.get(identity)
+                if previous is not None and previous[2] < started:
+                    failures.pop(identity, None)
+
+        def check_failure():
+            for failure in (self.failures.get(key), self.host_failures.get(host)):
+                if failure and failure[0] > time.monotonic():
+                    raise IngestionError(failure[1])
+
+        check_failure()
         entry = self.pending.get(key)
         if entry is None:
             async def perform():
@@ -71,6 +101,9 @@ class RequestCoordinator:
                     host_capacity = self.hosts.setdefault(host, asyncio.Semaphore(HOST_CONCURRENCY))
                     await host_capacity.acquire()
                     try:
+                        # A queued article must not pay another connection
+                        # timeout after this publisher has already failed.
+                        check_failure()
                         await self.capacity.acquire()
                     except BaseException:
                         host_capacity.release()
@@ -78,13 +111,21 @@ class RequestCoordinator:
                     workers = set()
                     token = _blocking_workers.set(workers)
                     try:
+                        # A sibling can fail while this request waits for a
+                        # global slot even though its host slot was available.
+                        check_failure()
                         return await factory()
                     finally:
                         _blocking_workers.reset(token)
                         self.release_when_idle(host_capacity, workers)
                 except (IngestionError, asyncio.TimeoutError) as exc:
                     message = str(exc) or "来源请求超时，请稍后重试"
-                    self.failures[key] = (time.monotonic() + FAILURE_COOLDOWN_SECONDS, message)
+                    failed_at = time.monotonic()
+                    self.failures[key] = (failed_at + FAILURE_COOLDOWN_SECONDS, message, failed_at)
+                    if isinstance(exc, (SourceConnectionError, asyncio.TimeoutError)):
+                        self.host_failures[host] = self.failures[key]
+                        while len(self.host_failures) > MAX_FAILURES:
+                            self.host_failures.pop(next(iter(self.host_failures)))
                     while len(self.failures) > MAX_FAILURES:
                         self.failures.pop(next(iter(self.failures)))
                     raise IngestionError(message) from None

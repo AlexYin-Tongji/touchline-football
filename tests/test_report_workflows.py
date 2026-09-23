@@ -97,7 +97,7 @@ class ReportWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         release.set()
         results = await asyncio.gather(first, *others)
-        self.assertEqual(peak, 2)
+        self.assertEqual(peak, 4)
         self.assertEqual(len(seen), 7)
         self.assertEqual(len(set(seen)), 7)
         self.assertEqual(sum(row["completed"] for row in results), 7)

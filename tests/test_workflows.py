@@ -1,4 +1,4 @@
-"""User-owned continuous work; synthetic executors and isolated state only."""
+"""User-owned single-pass work; synthetic executors and isolated state only."""
 import asyncio
 import json
 import tempfile
@@ -24,6 +24,44 @@ class MemoryStore(FakeStore):
 
 
 class WorkflowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_each_start_finishes_one_cycle_without_scheduling_another(self):
+        from server.workflows import WorkflowManager
+        store = MemoryStore()
+        for expected, progress, error in (
+            ("completed", {"completed": 2, "failed": 0, "remaining": 0}, False),
+            ("partial", {"completed": 1, "failed": 1, "remaining": 1}, False),
+            ("partial", {"completed": 1, "failed": 0, "remaining": 0}, True),
+            ("failed", {"completed": 0, "failed": 0, "remaining": 0}, True),
+        ):
+            with self.subTest(expected=expected, error=error):
+                calls = []
+                async def cycle(manager, entry, first):
+                    calls.append(entry.root_id)
+                    manager.update(entry, progress=progress)
+                    if error:
+                        raise RuntimeError("synthetic unavailable source")
+                manager = WorkflowManager(store, cycle_runner=cycle)
+                try:
+                    for attempt in range(2):
+                        self.assertTrue(manager.start("news", "arsenal")["started"])
+                        task = manager.tasks[("news", "arsenal")].task
+                        try:
+                            await asyncio.wait_for(asyncio.shield(task), .5)
+                        except TimeoutError:
+                            self.fail("One manual update must finish without waiting for another cycle")
+                        result = manager.status("news", "arsenal")
+                        self.assertEqual(result["status"], expected)
+                        self.assertFalse(result["enabled"])
+                        self.assertIsNone(result["next_run_at"])
+                        self.assertIsNotNone(result["finished_at"])
+                        self.assertEqual(result["progress"], progress)
+                        self.assertFalse(manager.tasks)
+                        self.assertEqual(len(calls), attempt + 1)
+                    await manager.close()
+                    self.assertEqual(manager.status("news", "arsenal")["status"], expected)
+                finally:
+                    await manager.close()
+
     async def test_start_is_idempotent_stop_awaits_cleanup_and_keeps_memory(self):
         from server.workflows import WorkflowManager
         store = MemoryStore()
@@ -66,18 +104,18 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(context["功能"], "球队动态")
             self.assertEqual(context["球队"], "arsenal")
             await successful_runner(store, rid, cancel)
-        async def waiting():
+        async def completed():
             async with asyncio.timeout(1):
-                while manager.status("news", "arsenal")["status"] != "waiting":
+                while manager.status("news", "arsenal")["status"] != "completed":
                     await asyncio.sleep(.001)
         with patch("server.agent.run_agent", new=runner), patch("server.research.collect_team", new=AsyncMock(return_value={"errors": [], "evidence_ids": []})):
             try:
                 manager.start("news", "arsenal")
-                await waiting()
+                await completed()
                 self.assertEqual(manager.status("news", "arsenal")["progress"]["completed"], 1)
                 await manager.stop("news", "arsenal")
                 manager.start("news", "arsenal")
-                await waiting()
+                await completed()
                 self.assertEqual(len(model_runs), 1)
                 self.assertEqual(store.list("reports")[0]["status"], "completed")
             finally:
@@ -121,6 +159,42 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WorkflowAPITests(unittest.IsolatedAsyncioTestCase):
+    async def test_startup_and_page_reads_do_not_revive_legacy_schedules(self):
+        import httpx
+        from server.main import create_app
+        from server.task_memory import state_key
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(Path(directory) / "manual.db")
+            store = app.state.store
+            store.save_settings({"auto_refresh": True, "automation": {"enabled": True},
+                                 "reports": {"auto_generate": True}})
+            store.set_meta(state_key("news", "arsenal"), {"enabled": True, "status": "waiting",
+                                                         "next_run_at": "2000-01-01T00:00:00+00:00"})
+            store.put("tracking", {"id": "old_schedule", "mode": "live", "team_id": "arsenal",
+                "query": "training", "title": "training", "enabled": True, "status": "idle",
+                "interval_minutes": 15, "next_check": "2000-01-01T00:00:00+00:00"})
+            original_sleep = asyncio.sleep
+            async def advance_scheduler(delay, *args, **kwargs):
+                await original_sleep(.001 if delay == 30 else delay, *args, **kwargs)
+            with patch("server.main.asyncio.sleep", new=advance_scheduler), \
+                 patch("server.research.collect_team", new=AsyncMock(return_value={"errors": [], "evidence_ids": []})), \
+                 patch("server.agent.run_agent", new=AsyncMock()):
+                async with app.router.lifespan_context(app):
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+                        responses = []
+                        for path in ("/api/feed?team_id=arsenal", "/api/teams/arsenal/center", "/api/workflows/news/arsenal"):
+                            responses.append((await client.get(path)).status_code)
+                        await original_sleep(.03)
+                        runs = store.list("runs", "live")
+                        active = bool(app.state.workflows.tasks or app.state.personal.tasks or app.state.team_maintenance.tasks)
+                        enabled = app.state.workflows.status("news", "arsenal")["enabled"]
+                        next_check = store.get("tracking", "old_schedule")["next_check"]
+            self.assertEqual(responses, [200, 200, 200])
+            self.assertEqual(runs, [])
+            self.assertFalse(active)
+            self.assertFalse(enabled)
+            self.assertIsNone(next_check)
+
     async def test_legacy_targeted_maintenance_preserves_requested_parts(self):
         import httpx
         from server.main import create_app
@@ -205,7 +279,7 @@ class WorkflowAPITests(unittest.IsolatedAsyncioTestCase):
                 await app.state.workflows.close()
                 store.close()
 
-    async def test_idle_reads_do_not_start_and_waiting_is_not_busy_model_polling(self):
+    async def test_idle_reads_do_not_start_and_completed_work_stays_idle(self):
         from server.workflows import WorkflowManager
         store = MemoryStore()
         cycle_done = asyncio.Event()
@@ -221,9 +295,9 @@ class WorkflowAPITests(unittest.IsolatedAsyncioTestCase):
             manager.start("news", "arsenal")
             await cycle_done.wait()
             async with asyncio.timeout(1):
-                while manager.status("news", "arsenal")["status"] != "waiting":
+                while manager.status("news", "arsenal")["status"] != "completed":
                     await asyncio.sleep(.001)
-            self.assertEqual(manager.status("news", "arsenal")["status"], "waiting")
+            self.assertEqual(manager.status("news", "arsenal")["status"], "completed")
             for _ in range(5):
                 manager.status("news", "arsenal")
             self.assertEqual(calls, 1)

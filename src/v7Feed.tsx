@@ -280,6 +280,12 @@ export function FeedView({
     !!selected &&
     (!selected.report_id ||
       (report?.status === "completed" && !!report.report));
+  const reviewStatus = report?.report?.review_status;
+  const reviewNotice = reviewStatus === "partial" || reviewStatus === "unavailable"
+    ? report?.report?.review_notice?.trim() || (reviewStatus === "partial"
+      ? "部分重点信息尚未完成核对，可结合原始来源阅读。"
+      : "重点信息核对暂不可用，可结合原始来源阅读。")
+    : null;
   return (
     <div className="feed-layout">
       <section className="feed-main">
@@ -382,7 +388,7 @@ export function FeedView({
           <div className="empty-state feed-empty">
             <Newspaper size={35} />
             <h2>{topic ? "这个分类还没有新消息" : "中文动态会陆续出现在这里"}</h2>
-            <p>{topic ? "看看其他分类，或等待后续消息。" : "点击上方“启动”持续跟进球队消息。每轮完成后会等待新的资料，结束后仍可阅读已有动态。"}</p>
+            <p>{topic ? "看看其他分类，或手动更新球队消息。" : "点击上方“启动”更新一次球队消息。处理完成后会结束；也可随时点击“结束”，保留已完成的动态。"}</p>
           </div>
         )}
         {feed?.next_cursor && (
@@ -510,6 +516,11 @@ export function FeedView({
                 )}
                 {readable && (
                   <>
+                    {reviewNotice ? (
+                      <p className="story-review-notice" role="note">{reviewNotice}</p>
+                    ) : reviewStatus === "checked" ? (
+                      <p className="story-review-checked">重点信息已核对</p>
+                    ) : null}
                     <p className="story-lead">
                       {selected.report_id
                         ? report?.report?.lead

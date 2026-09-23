@@ -96,7 +96,7 @@ const data = { matches: [], evidence: [], setup: { model_configured: true }, set
 const modelState = { providers: [{ id: "provider", name: "Local mock", models: [{ id: "available", name: "available" }] }], active: { provider_id: "provider", model: "available" } };
 const workflowState = (changes = {}) => ({
   kind: "news", team_id: team.id, enabled: false, status: "idle", phase: "idle",
-  message: "启动后持续跟进球队动态。", last_error: null, started_at: null,
+  message: "点击启动，更新一次球队动态。", last_error: null, started_at: null,
   finished_at: null, next_run_at: null, updated_at: null,
   progress: { completed: 0, failed: 0, remaining: 0 },
   memory: { summary: "", next_steps: [], completed_count: 0 }, ...changes,
@@ -121,14 +121,40 @@ test("feed uses workflow updates without losing loaded pages or showing old retr
   await host.flush();
   const controls = nodes(host.tree, node => node.type === "WorkflowControls")[0];
   assert.ok(controls);
-  controls.props.onChange(workflowState({ enabled: true, status: "waiting" }));
+  controls.props.onChange(workflowState({ status: "completed" }));
   await host.flush();
   assert.equal(nodes(host.tree, node => node.type === "article").length, 40);
   assert.equal(new URL(paths.at(-1), "http://local").searchParams.get("limit"), "40");
   host.unmount();
 });
 
-test("workflow starts, waits, stops and restores persisted active state after remount", async () => {
+test("partial and unavailable news reviews keep the full story with one notice and the original source", async () => {
+  for (const reviewStatus of ["partial", "unavailable"]) {
+    const reviewNotice = reviewStatus === "partial" ? "部分重点信息尚未完成核对，请结合来源阅读。" : "重点信息核对暂不可用，请结合来源阅读。";
+    const source = { id: "source", title: "原始报道", source_name: "公开媒体", url: "https://example.com/original-news" };
+    const report = { status: "completed", report: { title: "完整球队新闻", lead: "完整导语仍可阅读。",
+      sections: ["开头的事实", "中间的条件和归因", "结尾的重要进展"].map((body, index) => ({ heading: `第${index + 1}部分`, body, evidence_ids: [source.id] })),
+      sources: [source], review_status: reviewStatus, review_notice: reviewNotice } };
+    const host = component("v7Feed.tsx", "FeedView", { team, data, ask() {}, openModel() {} }, path =>
+      Promise.resolve(path.startsWith("/reports/") ? report : { items: [{ id: "news", title: "完整球队新闻", summary: "摘要", report_id: "report", team_id: team.id }], next_cursor: null }));
+    await host.flush();
+    button(host, "展开阅读").props.onClick();
+    await host.flush();
+    const reader = nodes(host.tree, node => node.type === "article" && node.props.className === "story-reader")[0];
+    assert.ok(reader);
+    assert.match(text(reader), /完整导语仍可阅读/);
+    assert.deepEqual(nodes(reader, node => node.type === "Markdown").map(node => node.props.text), ["开头的事实", "中间的条件和归因", "结尾的重要进展"]);
+    assert.equal(text(reader).split(reviewNotice).length - 1, 1);
+    assert.equal(nodes(reader, node => node.props?.role === "note").length, 1);
+    assert.doesNotMatch(text(reader), /已全面验证|重点信息已核对/);
+    const sources = nodes(reader, node => node.type === "Sources").flatMap(node => node.props.sources || []);
+    assert.ok(sources.length > 0);
+    assert.ok(sources.every(item => item.url === "https://example.com/original-news"));
+    host.unmount();
+  }
+});
+
+test("workflow completes one manual update, stays idle, and can start and stop again", async () => {
   let current = workflowState();
   const calls = [], changed = [];
   const request = (path, method) => {
@@ -147,11 +173,20 @@ test("workflow starts, waits, stops and restores persisted active state after re
   await host.flush();
   assert.equal(button(host, "启动").props.disabled, true);
   assert.equal(button(host, "结束").props.disabled, false);
-  current = workflowState({ enabled: true, status: "waiting", message: "本轮完成，等待下一轮。", progress: { completed: 3, failed: 0, remaining: 0 } });
+  current = workflowState({ status: "completed", message: "本次更新已完成。", progress: { completed: 3, failed: 0, remaining: 0 } });
   host.tickIntervals(4000);
   await host.flush();
-  assert.match(text(host.tree), /本轮完成/);
+  assert.match(text(host.tree), /本次更新已完成/);
   assert.match(text(host.tree), /已完成 3/);
+  assert.equal(button(host, "启动").props.disabled, false);
+  assert.equal(button(host, "结束").props.disabled, true);
+  const completedCalls = calls.length;
+  host.tickIntervals(30000);
+  host.tickIntervals(4000);
+  await host.flush();
+  assert.equal(calls.length, completedCalls);
+  await button(host, "启动").props.onClick();
+  await host.flush();
   host.unmount();
   const restored = component("WorkflowControls.tsx", "WorkflowControls", props, request);
   await restored.flush();
@@ -161,8 +196,8 @@ test("workflow starts, waits, stops and restores persisted active state after re
   await restored.flush();
   assert.match(text(restored.tree), /已有内容保留/);
   assert.equal(button(restored, "启动").props.disabled, false);
-  assert.deepEqual(calls.filter(([, method]) => method === "POST").map(([path]) => path), ["/workflows/news/arsenal/start", "/workflows/news/arsenal/stop"]);
-  assert.deepEqual(changed, ["running", "waiting", "stopped"]);
+  assert.deepEqual(calls.filter(([, method]) => method === "POST").map(([path]) => path), ["/workflows/news/arsenal/start", "/workflows/news/arsenal/start", "/workflows/news/arsenal/stop"]);
+  assert.deepEqual(changed, ["running", "completed", "running", "stopped"]);
   restored.unmount();
 });
 
@@ -171,7 +206,7 @@ test("workflow ignores slow GET and POST responses after switching teams", async
     const slow = deferred(), changes = [];
     const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: "arsenal", onChange: state => changes.push(state.team_id) }, (path, method) => {
       if (path.includes("arsenal") && method === slowMethod) return slow.promise;
-      return Promise.resolve(workflowState(path.includes("liverpool") ? { team_id: "liverpool", enabled: true, status: "waiting", message: "利物浦等待下一轮" } : {}));
+      return Promise.resolve(workflowState(path.includes("liverpool") ? { team_id: "liverpool", enabled: true, status: "running", message: "利物浦正在更新" } : {}));
     });
     await host.flush();
     let action;
@@ -181,7 +216,7 @@ test("workflow ignores slow GET and POST responses after switching teams", async
     slow.resolve(workflowState({ enabled: true, status: "running", message: "阿森纳旧响应" }));
     await action;
     await host.flush();
-    assert.match(text(host.tree), /利物浦等待下一轮/);
+    assert.match(text(host.tree), /利物浦正在更新/);
     assert.doesNotMatch(text(host.tree), /阿森纳旧响应/);
     assert.equal(button(host, "结束").props.disabled, false);
     assert.deepEqual(changes, []);
@@ -229,7 +264,7 @@ test("workflow shows model configuration failure without pretending work started
 
 test("workflow shows current source failures before any report exists but hides inactive historical errors", async () => {
   for (const [status, enabled, failed, visible] of [
-    ["waiting", true, 0, true],
+    ["partial", false, 0, true],
     ["running", true, 0, true],
     ["blocked", false, 0, true],
     ["failed", false, 0, true],
@@ -281,6 +316,70 @@ test("team center reads only and preserves existing players while workflow chang
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
   assert.ok(calls.every(([path, method]) => path === "/teams/arsenal/center" && method === "GET"));
+  host.unmount();
+});
+
+test("team center shows every league standing by source rank and identifies the current club", async () => {
+  const standings = [
+    { rank: 3, team_id: "other", team_name: "另一支球队", played: 0, points: 0 },
+    { rank: 2, team_id: team.id, team_name: team.name, played: 4, won: 2, drawn: 1, lost: 1, goals_for: 7, goals_against: 3, goal_difference: 4, points: 7 },
+    { rank: 1, team_id: "leader", team_name: "榜首球队", played: 4, points: 10 },
+  ];
+  const center = { team, roster: [], matches: [], stats: {}, standings };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  const table = nodes(host.tree, node => node.type === "table")[0];
+  assert.ok(table, "league standings render as an accessible table");
+  const body = nodes(table, node => node.type === "tbody")[0];
+  const rows = nodes(body, node => node.type === "tr");
+  assert.equal(rows.length, 3, "keep every club, including clubs the reader does not follow");
+  assert.deepEqual(rows.map(row => text(nodes(row, node => node.type === "td")[0])), ["1", "2", "3"]);
+  assert.deepEqual(standings.map(row => row.rank), [3, 2, 1], "sorting does not mutate the loaded snapshot");
+  assert.equal(rows[1].props["aria-current"], true);
+  assert.equal(rows.filter(row => row.props["aria-current"]).length, 1);
+  assert.match(text(rows[1]), /阿森纳当前球队/);
+  assert.ok(rows[1].props.className.includes("is-current"));
+  const zeroCells = nodes(rows[2], node => node.type === "td").map(text);
+  assert.ok(zeroCells.includes("0"), "zero is not treated as missing data");
+  assert.ok(zeroCells.includes("—"), "missing source values stay unknown");
+  host.unmount();
+});
+
+test("team center keeps standings hidden until results are explicitly revealed", async () => {
+  for (const flag of ["hidden", "standings_hidden"]) {
+    const paths = [];
+    const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, path => {
+      paths.push(path);
+      const hidden = !path.includes("reveal=true");
+      return Promise.resolve({ team, roster: [], matches: [], stats: { hidden: flag === "hidden" && hidden },
+        standings_hidden: flag === "standings_hidden" && hidden,
+        standings: [{ rank: 1, team_id: "other", team_name: "隐藏榜首球队", points: 12 }] });
+    });
+    await host.flush();
+    assert.equal(nodes(host.tree, node => node.type === "table").length, 0);
+    assert.doesNotMatch(text(host.tree), /隐藏榜首球队/);
+    assert.ok(button(host, "显示比赛结果"));
+    button(host, "显示比赛结果").props.onClick();
+    await host.flush();
+    assert.match(text(host.tree), /隐藏榜首球队/);
+    assert.equal(paths.at(-1), "/teams/arsenal/center?reveal=true");
+    host.unmount();
+  }
+});
+
+test("team center schedule names each competition alongside its opponent", async () => {
+  const center = { team, roster: [], stats: {}, matches: [
+    { id: "euro", opponent: "欧洲对手", status: "scheduled", competition: "欧冠", competition_id: "CL", kickoff: "2026-09-30T19:00:00Z" },
+    { id: "league", opponent: "联赛对手", status: "scheduled", competition: "英超", kickoff: "2026-10-03T14:00:00Z" },
+  ] };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  button(host, "比赛日程").props.onClick();
+  await host.flush();
+  const rows = nodes(host.tree, node => node.props?.className === "match-row");
+  assert.equal(rows.length, 2);
+  assert.match(text(rows[0]), /欧洲对手欧冠/);
+  assert.match(text(rows[1]), /联赛对手英超/);
   host.unmount();
 });
 

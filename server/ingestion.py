@@ -66,6 +66,10 @@ class IngestionError(ValueError):
     pass
 
 
+class SourceConnectionError(IngestionError):
+    """Publisher connection is unavailable, independently of an article path."""
+
+
 def normalize_url(url: str, *, allow_local=False):
     if not isinstance(url, str) or len(url) > 4096 or any(ord(char) < 32 for char in url):
         raise IngestionError("网址格式不正确")
@@ -101,7 +105,7 @@ def public_addresses(host: str, port: int):
     try:
         addresses = sorted({result[4][0] for result in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
     except OSError:
-        raise IngestionError("来源域名无法解析，请检查网址") from None
+        raise SourceConnectionError("来源域名无法解析，请检查网址") from None
     if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
         raise IngestionError("来源域名解析到本机或私有网络，已阻止访问")
     return addresses
@@ -130,7 +134,7 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
             raise IngestionError("文章或重定向超出了该来源的已允许域名")
         remaining = 20 - (time.monotonic() - started)
         if remaining <= 0:
-            raise IngestionError("来源请求超时，请稍后重试")
+            raise SourceConnectionError("来源请求超时，请稍后重试")
         parts = urlsplit(current)
         port = parts.port or (443 if parts.scheme == "https" else 80)
         addresses = public_addresses(parts.hostname, port)
@@ -158,7 +162,7 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
             chunks, total = [], 0
             while True:
                 if time.monotonic() - started > 20:
-                    raise IngestionError("来源请求超时，请稍后重试")
+                    raise SourceConnectionError("来源请求超时，请稍后重试")
                 chunk = response.read(min(65536, max_body + 1 - total))
                 if not chunk:
                     break
@@ -170,7 +174,7 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
         except IngestionError:
             raise
         except (OSError, http.client.HTTPException, ssl.SSLError):
-            raise IngestionError("无法安全读取来源：网络、证书或响应异常") from None
+            raise SourceConnectionError("无法安全读取来源：网络、证书或响应异常") from None
         finally:
             connection.close()
     raise IngestionError("来源重定向次数过多")
@@ -195,8 +199,21 @@ def clean_text(value):
     return "\n".join(line for line in (re.sub(r"[ \t]+", " ", line).strip() for line in value.splitlines()) if line)
 
 
+def _remove_hidden_nodes(soup):
+    # Honour explicit visibility declarations without evaluating CSS or JS.
+    # Remove parents before extraction so neither their text nor images leak.
+    for element in soup.find_all(True):
+        if element.attrs is None:
+            continue
+        style = element.get("style", "")
+        if (element.has_attr("hidden") or str(element.get("aria-hidden", "")).lower() == "true"
+                or re.search(r"(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!\s*important\s*)?(?:;|$)", style, re.I)):
+            element.decompose()
+
+
 def html_text(value):
     soup = BeautifulSoup(value, "html.parser")
+    _remove_hidden_nodes(soup)
     for element in soup(["script", "style", "noscript", "iframe", "svg", "nav", "footer", "header", "form"]):
         element.decompose()
     # Paragraph boundaries carry meaning; inline emphasis and spans do not.
@@ -295,6 +312,82 @@ def _primary_article_node(soup, url):
     matching_titles = [node for node in unbound if normalize(node.get("headline") or node.get("title"))
                        in {normalize(title) for title in titles}]
     return matching_titles[0] if len(matching_titles) == 1 else None
+
+
+def _rich_text(value, depth=0):
+    """Read the publisher's inert Contentful text, retaining block boundaries."""
+    if not isinstance(value, dict) or depth > 24:
+        return None
+    kind = value.get("nodeType")
+    if kind == "text":
+        return value.get("value") if isinstance(value.get("value"), str) else None
+    if kind not in {"document", "paragraph", "blockquote", "ordered-list", "unordered-list", "list-item",
+                    "hyperlink", "entry-hyperlink", "asset-hyperlink", "hr", *[f"heading-{level}" for level in range(1, 7)]}:
+        return None
+    children = value.get("content", [])
+    if not isinstance(children, list):
+        return None
+    parts = [_rich_text(child, depth + 1) for child in children]
+    if any(part is None for part in parts):
+        return None
+    text = "".join(parts)
+    return text if kind.endswith("hyperlink") else text + "\n"
+
+
+def _inter_article_text(soup, url):
+    """Separate Inter's public story components from reader/navigation cards."""
+    parts = urlsplit(url)
+    if parts.hostname not in {"www.inter.it", "inter.it"} or not parts.path.startswith("/en/news/"):
+        return ""
+    visible = soup.find("article")
+    if not visible:
+        return ""
+    normalize = lambda text: re.sub(r"\s+", "", text)
+    visible_text = normalize(html_text(str(visible)))
+    for data in embedded_json(soup):
+        root = data.get("props") if isinstance(data, dict) else None
+        props = root.get("pageProps") if isinstance(root, dict) else None
+        if not isinstance(props, dict):
+            continue
+        page, components = props.get("page"), props.get("components")
+        if (not isinstance(page, dict) or not isinstance(components, list)
+                or parts.path.rstrip("/") != "/en/news/" + str(page.get("slug"))
+                or page.get("pageType") != "article" or page.get("published") is not True
+                or page.get("accessLevel") != "Free"):
+            continue
+        sections = [clean_text(page["subtitle"])] if isinstance(page.get("subtitle"), str) and page["subtitle"].strip() else []
+        valid = True
+        for component in components:
+            if not isinstance(component, dict):
+                valid = False
+                break
+            kind = component.get("__typename")
+            if kind == "TextComponent":
+                rich = component.get("text")
+                text = _rich_text(rich.get("json")) if isinstance(rich, dict) else None
+                if text is None:
+                    valid = False
+                    break
+                if isinstance(component.get("title"), str) and component["title"].strip():
+                    sections.append(clean_text(component["title"]))
+                sections.append(clean_text(text))
+            elif kind == "QuoteComponent":
+                if not isinstance(component.get("quote"), str):
+                    valid = False
+                    break
+                sections.append(html_text(component["quote"]))
+                if isinstance(component.get("author"), str):
+                    sections.append(clean_text(component["author"]))
+            elif kind == "EmbedComponent" and not html_text(str(component.get("embedHtml") or "")):
+                continue
+            elif kind not in {"InlineArticleLinkComponent", "VideoPlayerComponent", "CarouselComponent"}:
+                # Unknown components may contain substantive article text.
+                # Preserve the visible page instead of silently dropping it.
+                valid = False
+                break
+        if valid and sections and all(normalize(section) in visible_text for section in sections if section):
+            return clean_text("\n".join(sections))
+    return ""
 
 
 def safe_image_url(value, source_url):
@@ -463,6 +556,7 @@ def extract_images(soup, url, source_name):
 
 def extract_html(body, url, source_name):
     soup = BeautifulSoup(body, "html.parser")
+    _remove_hidden_nodes(soup)
     images = extract_images(soup, url, source_name)
     title = soup.find("meta", property="og:title")
     title = title.get("content") if title else None
@@ -479,12 +573,17 @@ def extract_html(body, url, source_name):
         date = published_time(tag.get("datetime")) if tag else None
     structured_text = ""
     node = _primary_article_node(soup, url)
+    subscriber_only = bool(node and str(node.get("isAccessibleForFree", "")).lower() == "false")
     if node:
-        structured_text = _body_blocks(node.get("articleBody") or node.get("blocks"))
+        # A paid article's inert metadata must not reveal content beyond the
+        # public page preview. Only use the visible HTML in this case.
+        structured_text = "" if subscriber_only else _body_blocks(node.get("articleBody") or node.get("blocks"))
         if structured_text and isinstance(node.get("byline"), str):
             structured_text = html_text(node["byline"]) + "\n" + structured_text
         title = node.get("headline") or node.get("title") or title
         date = published_time(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt")) or date
+    if not structured_text and not subscriber_only:
+        structured_text = _inter_article_text(soup, url)
     # Prefer publisher article bodies, then semantic containers. Generic page
     # fallbacks remain partial: a long menu is not evidence of a complete story.
     container = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article-body-viewer-selector, .article__body, .article-body, .article-content, .story-body, .entry-content')
@@ -494,6 +593,12 @@ def extract_html(body, url, source_name):
         method = "html_article"
     for element in container.select("aside, .related-articles, .related-content, .article-related, .newsletter, .social-share, .share-buttons, [role='navigation'], [aria-hidden='true'], [data-component='RelatedArticles'], [data-spacefinder-type*='RichLink'], [data-spacefinder-type*='Newsletter'], gu-island[name='EmailSignUpWrapper']"):
         element.decompose()
+    if urlsplit(url).hostname in {"www.tycsports.com", "tycsports.com"}:
+        for element in container.select(".alsoReadContainer, .articleComments, .breadcrumbs, #followGoogleBtn"):
+            element.decompose()
+        for section in container.select("section.containerGrid"):
+            if section.select_one(".card"):
+                section.decompose()
     raw_text = structured_text or html_text(str(container))
     if structured_text:
         method = "structured_article"
@@ -502,7 +607,7 @@ def extract_html(body, url, source_name):
         raise IngestionError("未提取到足够正文；页面可能需要登录或 JavaScript，可改为手动导入")
     if len(text) < 1500 and re.search(r"checking your browser|just a moment|enable javascript|access denied|verify you are human|page not found|404 not found|正在加载|请启用.{0,10}javascript", text, re.I):
         raise IngestionError("来源返回了加载或访问验证页面，请改为手动导入正文")
-    gated = bool(re.search(r"subscribe to (?:continue|read)|sign in to (?:continue|read)|already a subscriber|unlock (?:this|the) article|订阅后阅读|登录后阅读", text, re.I))
+    gated = subscriber_only or bool(re.search(r"subscribe to (?:continue|read)|sign in to (?:continue|read)|already a subscriber|unlock (?:this|the) article|suscr[ií]bete para (?:seguir leyendo|leer)|assine para (?:continuar|ler)|订阅后阅读|登录后阅读", text, re.I))
     full = method != "html_fallback" and len(text) >= 500 and not gated and len(raw_text) <= MAX_ARTICLE_TEXT
     note = ("原站仅提供订阅或登录前的可见部分，未绕过访问限制。" if gated else
             "正文超过保存上限，当前保留前 30000 字符。" if len(raw_text) > MAX_ARTICLE_TEXT else

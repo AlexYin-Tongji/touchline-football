@@ -61,6 +61,23 @@ class PublicPageParserTests(unittest.TestCase):
     def parse(self, payload, endpoint="roster?season=2026"):
         return espn_pages.parse_page(html(payload), espn_pages.fallback_spec(API + endpoint))
 
+    def test_all_competitions_public_page_keeps_explicit_european_events(self):
+        data = schedule()
+        data["competitionName"] = "All Competitions"
+        data["dropdownLeagues"] += [{"value": "all", "title": "All Competitions"},
+                                   {"value": "UEFA.CHAMPIONS", "title": "UEFA Champions League"}]
+        cup = copy.deepcopy(data["events"][0])
+        cup.update(id="789", league="UEFA Champions League")
+        data["events"].append(cup)
+        page = document("results", data)
+        page["routing"]["params"]["league"] = "all"
+        spec = espn_pages.fallback_spec(API.replace("esp.1", "all") + "schedule?season=2026")
+        normalized = espn_pages.parse_page(html(page), spec)
+        self.assertEqual([r["league"]["slug"] for r in normalized["events"]], ["esp.1", "uefa.champions"])
+        page["page"]["content"]["results"]["events"][1]["league"] = "Unidentified Cup"
+        with self.assertRaises(IngestionError):
+            espn_pages.parse_page(html(page), spec)
+
     def test_explicit_roster_identity_and_missing_values_survive_existing_parser(self):
         normalized = self.parse(document())
         snapshot = team_center.parse_roster(normalized, TEAM, LEAGUE, SEASON, "83")

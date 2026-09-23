@@ -131,6 +131,18 @@ class TeamCenterTests(unittest.TestCase):
         self.assertTrue(view["stale"])
         self.assertEqual(self.store.list("team_snapshots"), [])
 
+    def test_full_standings_are_ranked_named_and_current_team_marked(self):
+        self.store.put("standings", {"id": "PL-2026", "rows": [
+            {"team_id": "arsenal", "rank": 2, "played": 0, "points": 0},
+            {"team_id": "chelsea", "rank": 1, "played": 0, "points": 0}]})
+        view = team_center.center_view(self.store, "arsenal")
+        self.assertEqual([row["team_name"] for row in view["standings"]], ["切尔西", "阿森纳"])
+        self.assertEqual([row["is_current"] for row in view["standings"]], [False, True])
+        self.store.save_settings({"spoiler_free": True})
+        hidden = team_center.center_view(self.store, "arsenal")
+        self.assertEqual(hidden["standings"], [])
+        self.assertTrue(hidden["standings_hidden"])
+
     def test_home_away_and_result_charts_come_only_from_valid_season_matches(self):
         for record in [fixture(), fixture("m2", home=False, score=(2, 2), day=11),
                        fixture("m3", home=False, score=(1, 0), day=12), fixture("next", score=(0, 0), status="scheduled", day=20),
@@ -205,6 +217,31 @@ class TeamCenterTests(unittest.TestCase):
             result = asyncio.run(team_center.sync_roster(self.store, "arsenal"))
         self.assertTrue(result["cached"])
         fetch.assert_not_called()
+
+    def test_dedicated_player_photo_tool_keeps_roster_facts_and_timestamp(self):
+        snapshot = self.save_squad()
+        updated = __import__("copy").deepcopy(snapshot)
+        updated["roster"][0].update(photo_url="https://a.espncdn.com/i/headshots/soccer/players/full/102.png", photo_credit="ESPN 球员资料图片")
+        summary = {"status": "completed", "available_count": 2, "total_count": 2, "updated_count": 1, "errors": []}
+        with patch("server.team_portraits.enrich_player_photos", AsyncMock(return_value=(updated, summary)), create=True) as enrich:
+            result = asyncio.run(team_center.fetch_player_photos(self.store, "arsenal", player_ids=["102"]))
+        stored = self.store.get("team_snapshots", snapshot["id"])
+        self.assertEqual(stored["fetched_at"], snapshot["fetched_at"])
+        self.assertEqual(stored["roster"][0]["name"], snapshot["roster"][0]["name"])
+        self.assertEqual(result["available_count"], 2)
+        self.assertEqual(enrich.await_args.kwargs["player_ids"], ["102"])
+        self.assertEqual(len(result["photos"]), 2)
+
+    def test_dedicated_photos_cannot_overwrite_a_newer_roster(self):
+        snapshot = self.save_squad()
+        newer = {**snapshot, "fetched_at": "2099-01-01T00:00:00Z"}
+        async def enrich(*args, **kwargs):
+            self.store.put("team_snapshots", newer)
+            return snapshot, {"status": "completed", "errors": []}
+        with patch("server.team_portraits.enrich_player_photos", enrich, create=True):
+            result = asyncio.run(team_center.fetch_player_photos(self.store, "arsenal"))
+        self.assertEqual(self.store.get("team_snapshots", snapshot["id"]), newer)
+        self.assertEqual(result["status"], "interrupted")
 
     def test_refresh_failure_preserves_data_and_is_rate_limited(self):
         snapshot = self.save_squad()

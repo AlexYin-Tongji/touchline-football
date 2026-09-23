@@ -1,4 +1,6 @@
 import tempfile
+import json
+from datetime import datetime, timedelta, timezone
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -138,6 +140,112 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         source = {"id": "custom", "url": "https://example.com/feed", "builtin": False, "shared_index": True}
         self.assertNotEqual(research._index_key("arsenal", source), research._index_key("liverpool", source))
 
+    async def test_reviewed_spanish_and_argentine_sources_discover_only_matching_club(self):
+        sources = research.source_catalog(self.store, "barcelona")
+        selected = [source for source in sources if source["id"] in {"as_football", "tyc_international"}]
+        self.assertEqual(len(selected), 2, "Both reviewed regional publishers must be discoverable")
+        as_url = "https://as.com/futbol/primera/barcelona-vuelve-al-entrenamiento-f202609-n/"
+        tyc_url = "https://www.tycsports.com/futbol-internacional/barcelona-y-su-nueva-lesion-id762400.html"
+        as_feed = feed([
+            ("Barcelona vuelve al entrenamiento", as_url, "El primer equipo prepara el partido", "Tue, 22 Sep 2026 12:00:00 GMT"),
+            ("Barcelona femenino prepara el partido", "https://as.com/futbol/femenino/barcelona-f202609-n/", "", "Tue, 22 Sep 2026 12:00:00 GMT"),
+            ("Barcelona noticia externa", "https://unreviewed.example/article", "", "Tue, 22 Sep 2026 12:00:00 GMT"),
+        ])
+        tyc_html = ('<main><h2><a href="' + tyc_url + '">Barcelona y su nueva lesión</a></h2>'
+                    '<a href="/futbol-internacional.html">Fútbol internacional</a>'
+                    '<a href="/futbol-internacional/arsenal-de-sarandi-id762401.html">Arsenal de Sarandí prepara el partido</a></main>').encode()
+        async def fetch(url, source):
+            return (as_feed, url, "application/xml") if source["id"] == "as_football" else (tyc_html, url, "text/html")
+        empty = ([], [], {"id": "external", "name": "External", "state": "unavailable", "checked_at": ingestion.now()})
+        with patch.object(research, "source_catalog", return_value=selected), patch.object(research, "_fetch", side_effect=fetch), \
+                patch.object(research, "_web_news_index", new=AsyncMock(return_value=empty)), \
+                patch.object(research, "_espn_news_index", new=AsyncMock(return_value=empty)):
+            result = await research.discover_news(self.store, "barcelona", "最近消息", 10)
+        self.assertEqual({row["url"] for row in result["candidates"]}, {as_url, tyc_url})
+        self.assertIsNone(next(row for row in result["candidates"] if row["url"] == tyc_url)["published_at"])
+
+    def test_spanish_topics_and_other_squads_keep_existing_scope(self):
+        for title, category in (("Barcelona confirma una lesión", "injury"), ("Barcelona vuelve al entrenamiento", "training"),
+                                ("Inter de Milán anuncia un fichaje", "transfer")):
+            with self.subTest(title=title):
+                row = {"title": title, "url": "https://as.com/futbol/primera/noticia-n/"}
+                self.assertIn(category, research.article_categories(row))
+        for title in ("Barcelona femenino prepara el partido", "Barcelona sub-20 prepara el partido", "Barcelona feminino volta aos treinos"):
+            with self.subTest(title=title):
+                self.assertFalse(research._first_team_entry({"title": title, "url": "https://as.com/futbol/noticia-n/"}))
+        for team, title, expected in (("inter", "Inter de Milán anuncia un fichaje", True),
+                                      ("inter", "Inter Miami anuncia un fichaje", False),
+                                      ("arsenal", "Arsenal de Sarandí prepara el partido", False),
+                                      ("barcelona", "Barcelona SC anuncia un fichaje", False)):
+            with self.subTest(team=team, title=title):
+                self.assertEqual(research.global_feed_mentions_team(team, {"title": title}), expected)
+
+    def test_argentine_article_keeps_all_paragraphs_and_excludes_recommendations(self):
+        opening = "El entrenador explicó la preparación del equipo y confirmó las novedades. " * 5
+        ending = "La decisión definitiva dependerá del entrenamiento del viernes, no está confirmada. " * 5
+        body = ('<html><title>Barcelona prepara el partido</title><article class="col8"><p>' + opening + '</p>'
+                '<div class="alsoReadContainer">Real Madrid unrelated transfer</div><p>' + ending + '</p>'
+                '<div class="articleComments">Readers speculate about a transfer</div>'
+                '<section class="containerGrid"><h2>Te puede interesar</h2><div class="card">Unrelated injury</div></section>'
+                '</article></html>').encode()
+        row = ingestion.extract_html(body, "https://www.tycsports.com/futbol-internacional/barcelona-id762400.html", "TyC Sports")[0]
+        self.assertIn(opening.strip(), row["text"])
+        self.assertIn(ending.strip(), row["text"])
+        self.assertNotIn("unrelated", row["text"].lower())
+        self.assertNotIn("Readers speculate", row["text"])
+        self.assertEqual(row["content_status"], "full_text")
+
+    def test_subscriber_metadata_does_not_expose_hidden_structured_body(self):
+        url = "https://as.com/futbol/primera/reportaje-f202609-n/"
+        node = {"@type": "NewsArticle", "url": url, "headline": "Reportaje de Barcelona",
+                "isAccessibleForFree": False, "articleBody": "Subscriber-only tactical details. " * 40}
+        visible = "Este es el adelanto público de la noticia. " * 20
+        body = ('<html><script type="application/ld+json">' + json.dumps(node) + '</script>'
+                '<article><p>' + visible + '</p><p>Suscríbete para seguir leyendo</p></article></html>').encode()
+        row = ingestion.extract_html(body, url, "AS")[0]
+        self.assertEqual(row["content_status"], "partial")
+        self.assertIn(visible.strip(), row["text"])
+        self.assertNotIn("Subscriber-only", row["text"])
+
+    def test_explicitly_hidden_body_and_images_are_not_public_article_content(self):
+        url = "https://as.com/futbol/primera/reportaje-f202609-n/"
+        for attribute in ('hidden', 'style="display: none !important"', 'style="visibility: hidden;"', 'aria-hidden="true"'):
+            with self.subTest(attribute=attribute):
+                body = ('<html><title>Reportaje de Barcelona</title>'
+                        f'<div itemprop="articleBody" {attribute}><p>PRIVATE_SUBSCRIBER_BODY</p>'
+                        '<figure><img src="https://as.com/hidden-photo.jpg"><figcaption>Reportaje de Barcelona</figcaption></figure></div>'
+                        '<article><p>' + "Este es el adelanto público de la noticia. " * 20 + '</p></article></html>').encode()
+                row = ingestion.extract_html(body, url, "AS")[0]
+                self.assertNotIn("PRIVATE_SUBSCRIBER_BODY", row["text"])
+                self.assertIn("adelanto público", row["text"])
+                self.assertFalse(row["images"])
+
+    async def test_recent_discovery_verifies_bounded_undated_publisher_articles(self):
+        source = next(s for s in research.source_catalog(self.store, "barcelona") if s["id"] == "tyc_international")
+        urls = [f"https://www.tycsports.com/futbol-internacional/barcelona-news-id76240{number}.html" for number in range(4)]
+        index = ("<main>" + "".join(f'<a href="{url}">Barcelona update number {number}</a>' for number, url in enumerate(urls)) + "</main>").encode()
+        stamps = [ingestion.now(), (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(), None, ingestion.now()]
+        reads = []
+        async def fetch(url, selected):
+            if url == source["url"]:
+                return index, url, "text/html"
+            reads.append(url)
+            number = urls.index(url)
+            meta = f'<meta property="article:published_time" content="{stamps[number]}">' if stamps[number] else ""
+            return (f'<html><title>Barcelona update number {number}</title>{meta}<article>'
+                    + "Barcelona prepara su próximo partido. " * 30 + "</article></html>").encode(), url, "text/html"
+        empty = ([], [], {"id": "external", "name": "External", "state": "unavailable", "checked_at": ingestion.now()})
+        with patch.object(research, "source_catalog", return_value=[source]), patch.object(research, "_fetch", side_effect=fetch), \
+                patch.object(research, "_web_news_index", new=AsyncMock(return_value=empty)), \
+                patch.object(research, "_espn_news_index", new=AsyncMock(return_value=empty)):
+            result = await research.discover_news(self.store, "barcelona", limit=10, max_age_days=7)
+        self.assertEqual([row["url"] for row in result["candidates"]], [urls[0]])
+        self.assertEqual(set(reads), set(urls[:3]))
+        self.assertFalse(self.store.list("evidence", "live"), "Date verification must not publish read evidence")
+        cached = self.store.get_meta(research._index_key("barcelona", source))
+        self.assertTrue(next(row for row in cached["entries"] if row["url"] == urls[0])["published_at"])
+        self.assertNotIn("Barcelona prepara su próximo partido", json.dumps(cached))
+
     def test_global_feed_requires_unambiguous_club_identity(self):
         for team_id, title, expected in (
             ("inter", "Inter Milan prepare for weekend fixture", True),
@@ -164,6 +272,58 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         for url in ("https://www.skysports.com/football/news/1", "https://fake.bbc.com/article", "http://127.0.0.1/private"):
             with self.subTest(url=url), self.assertRaises(ingestion.IngestionError):
                 research._checked_url(url, hosts)
+
+
+class InterPublisherExtractionTests(unittest.TestCase):
+    def page(self, *, slug="ronaldo-50", access="Free", published=True, hidden=False):
+        # Reduced from Inter's public Next.js page: text/quote components are
+        # siblings of podcast embeds/cards; the article also wraps UI chrome.
+        self.opening = "In an interview on Daily Podcast, Max Pezzali recalled Ronaldo's first match. " * 4
+        self.quote = "Remember our players and teach the Academy respect, hard work and belonging. " * 4
+        self.ending = "He scored 59 goals in 99 appearances. Ronaldo's team is, and will always be, Inter."
+        rich = lambda text: {"json": {"nodeType": "document", "content": [{"nodeType": "paragraph", "content": [{"nodeType": "text", "value": text, "marks": []}]}]}}
+        data = {"props": {"pageProps": {"page": {"slug": slug, "title": "Ronaldo - 50", "pageType": "article",
+                    "published": published, "accessLevel": access, "subtitle": None},
+                "components": [{"__typename": "TextComponent", "text": rich(self.opening)},
+                    {"__typename": "QuoteComponent", "quote": self.quote, "author": "Giuseppe Marotta"},
+                    {"__typename": "InlineArticleLinkComponent", "title": "International Morning Club", "tag": "Daily Podcast"},
+                    {"__typename": "TextComponent", "text": rich(self.ending)},
+                    {"__typename": "VideoPlayerComponent", "videoEntryId": "video"}],
+                "relatedNews": [{"title": "Unrelated transfer story"}]}}}
+        content = (f'<div class="css-v4u6zg" {"hidden" if hidden else ""}><div class="chakra-container css-y5jgc7">'
+                   f'<div class="css-13pau54"><div class="css-efeopg"><p>{self.opening}</p></div></div></div>'
+                   f'<div class="chakra-container css-1259f0x"><div class="css-1ncqdei"><p>{self.quote}</p><span>Giuseppe Marotta</span></div></div>'
+                   '<div class="chakra-container css-y5jgc7"><div>Daily Podcast</div><h2>International Morning Club</h2><a>TUTTE LE PUNTATE</a></div>'
+                   f'<div class="chakra-container css-y5jgc7"><p>{self.ending}</p></div></div>')
+        return ('<html><title>Ronaldo - 50</title><script id="__NEXT_DATA__" type="application/json">'
+                + json.dumps(data) + '</script><article><div class="css-utb8f8"><h1>Ronaldo - 50</h1>'
+                '<span>Legends — 16 hours ago</span><div>2 MIN READING</div></div>' + content
+                + ('<p>A public preview is available for this football story.</p>' if hidden else '')
+                + '<div class="chakra-container"><a href="/it/notizie/ronaldo-50">Italian version</a><a>Legends</a></div></article></html>').encode()
+
+    def test_text_and_quote_components_preserve_body_and_author_without_ui_cards(self):
+        body = self.page()
+        row = ingestion.extract_html(body, "https://www.inter.it/en/news/ronaldo-50", "Inter")[0]
+        self.assertEqual(row["text"], "\n".join((self.opening.strip(), self.quote.strip(), "Giuseppe Marotta", self.ending)))
+        self.assertEqual(row["content_status"], "full_text")
+        self.assertIn("Daily Podcast", row["text"], "A medium actually discussed in prose remains part of the story")
+        self.assertNotIn("MIN READING", row["text"])
+        self.assertNotIn("Italian version", row["text"])
+
+    def test_publisher_components_cannot_restore_hidden_or_unbound_page_text(self):
+        for changes in ({"hidden": True}, {"access": "Paid", "hidden": True},
+                        {"slug": "another-story", "hidden": True}, {"published": False, "hidden": True}):
+            with self.subTest(changes=changes):
+                row = ingestion.extract_html(self.page(**changes), "https://www.inter.it/en/news/ronaldo-50", "Inter")[0]
+                self.assertNotIn("59 goals", row["text"])
+                self.assertNotIn("Academy respect", row["text"])
+                self.assertIn("public preview", row["text"])
+
+    def test_unrelated_malformed_page_data_does_not_break_public_article(self):
+        body = self.page().replace(b"<html>", b'<html><script type="application/json">{"props":[]}</script>')
+        row = ingestion.extract_html(body, "https://www.inter.it/en/news/ronaldo-50", "Inter")[0]
+        self.assertIn(self.ending, row["text"])
+        self.assertNotIn("MIN READING", row["text"])
 
 
 if __name__ == "__main__":

@@ -344,6 +344,8 @@ export interface AutoReport {
     sources: { id: string; title: string; source_name?: string; url?: string; published_at?: string }[];
     source_document_count?: number;
     reading_minutes?: number;
+    review_notice?: string | null;
+    review_status?: "checked" | "partial" | "unavailable";
   };
   verification_status?: string;
   queue_note?: string;

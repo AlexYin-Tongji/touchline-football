@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, Square } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { dateTime } from "./components";
 
 export interface WorkflowState {
   kind: "news" | "team";
   team_id: string;
   enabled: boolean;
-  status: "idle" | "running" | "waiting" | "stopping" | "stopped" | "interrupted" | "blocked" | "failed";
+  status: "idle" | "running" | "completed" | "partial" | "stopping" | "stopped" | "interrupted" | "blocked" | "failed";
   phase: string;
   message: string;
   last_error: string | null;
@@ -22,9 +21,10 @@ export interface WorkflowState {
 const isActive = (state: WorkflowState | null) => !!state &&
   (state.enabled || state.status === "running" || state.status === "stopping");
 const messages: Record<WorkflowState["status"], string> = {
-  idle: "点击启动，开始持续跟进。",
+  idle: "点击启动，更新一次资料。",
   running: "正在处理本轮资料，已完成的内容会陆续显示。",
-  waiting: "本轮已完成，等待下一轮跟进。",
+  completed: "本次更新已完成。",
+  partial: "本次部分工作未完成，已有内容保留，可手动重试。",
   stopping: "正在结束当前工作，已有内容会保留。",
   stopped: "已结束，已有内容保留。",
   interrupted: "上次跟进已中断，点击启动继续。",
@@ -109,10 +109,10 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
     const refreshVisible = () => {
       if (document.visibilityState === "visible") void load();
     };
-    const timer = window.setInterval(refreshVisible, active ? 4000 : 30000);
+    const timer = active ? window.setInterval(refreshVisible, 4000) : null;
     document.addEventListener("visibilitychange", refreshVisible);
     return () => {
-      clearInterval(timer);
+      if (timer !== null) clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [active, load]);
@@ -150,12 +150,11 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const failure = current && current.status !== "idle" && current.status !== "stopped"
     ? current.last_error || "" : "";
   return (
-    <section className="workflow-controls" aria-label={kind === "news" ? "动态持续跟进" : "球队资料持续跟进"}>
+    <section className="workflow-controls" aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"}>
       <div className="workflow-status" role="status" aria-live="polite">
         <strong>{action === "start" ? "正在启动…" : action === "stop" ? "正在结束…" :
           current?.message || (current ? messages[current.status] : requestError ? "暂时无法读取跟进状态。" : "正在读取跟进状态…")}</strong>
         {showProgress && <p>本轮：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
-        {current?.status === "waiting" && current.next_run_at && <small>下一轮：{dateTime(current.next_run_at)}</small>}
         {(requestError || failure) && <p className="workflow-error" role="alert">
           {requestError || failure}
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&

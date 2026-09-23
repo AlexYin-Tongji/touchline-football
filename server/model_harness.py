@@ -22,7 +22,7 @@ class _Request:
 
 
 class ModelHarness:
-    def __init__(self, global_limit=3, provider_limit=2):
+    def __init__(self, global_limit=6, provider_limit=4):
         if global_limit < 1 or provider_limit < 1:
             raise ValueError("Model request limits must be positive")
         self.global_limit = global_limit

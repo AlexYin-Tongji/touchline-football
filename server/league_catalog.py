@@ -19,6 +19,15 @@ SEASONS = CATALOG["seasons"]
 MEMBERSHIPS = CATALOG["memberships"]
 REVIEWED_AT = CATALOG["reviewed_at"]
 
+# Competition identity only. Participation is established by each season's
+# source-backed team fixtures, never by this list or a historical club name.
+EUROPEAN_COMPETITIONS = {
+    "uefa.champions": {"id": "CL", "name": "欧冠", "provider_code": "uefa.champions"},
+    "uefa.europa": {"id": "EL", "name": "欧联", "provider_code": "uefa.europa"},
+    "uefa.europa.conf": {"id": "ECL", "name": "欧协联", "provider_code": "uefa.europa.conf"},
+    "uefa.super_cup": {"id": "USC", "name": "欧洲超级杯", "provider_code": "uefa.super_cup"},
+}
+
 
 def seed_league_catalog(store):
     """Fill absent reviewed records and fields without losing personal data.

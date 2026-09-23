@@ -151,18 +151,16 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
         news_reports.retry_report(self.store, row["id"])
         self.assertEqual((await news_reports.process_report_queue(self.store, runner=runner))["completed"], 1)
 
-    async def test_failure_retries_are_bounded_but_attempt_history_is_not_a_quota(self):
+    async def test_failure_retries_require_clicks_and_attempt_history_is_not_a_quota(self):
         row = news_reports.enqueue_reports(self.store)[0]
         async def failure(store, rid, cancel):
             store.put("runs", {**store.get("runs", rid), "status": "failed", "error": "测试中的模型暂不可用"})
         for attempt in range(3):
             if attempt:
-                stored = self.store.get("reports", row["id"])
-                stored["retry_at"] = (news_reports.now() - timedelta(seconds=1)).isoformat()
-                self.store.put("reports", stored)
+                news_reports.retry_report(self.store, row["id"])
             await news_reports.process_report_queue(self.store, runner=failure)
         failed = news_reports.get_report(self.store, row["id"])
-        self.assertEqual(failed["attempts"], 3)
+        self.assertEqual(len(self.store.get("reports", row["id"])["attempt_history"]), 3)
         self.assertIsNone(failed["retry_at"])
         self.assertEqual((await news_reports.process_report_queue(self.store, runner=failure))["processed"], 0)
         raw = self.store.get("reports", row["id"])
@@ -365,6 +363,7 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_harness_verifies_model_chosen_report_delivery_once(self):
         self.store.config["llm"]["max_output_tokens"] = 16000
+        self.store.config["llm"]["timeout_seconds"] = 37
         def checked(config, messages, **kwargs):
             payload = json.loads(messages[-1]["content"])
             return tool_message("report_source_support", {"claims": [{"id": item["id"], "verdict": "supported", "reason": "对应所引原文中的训练可用性说明。"} for item in payload["claims"]]})
@@ -376,7 +375,7 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(kwargs["timeout"], 120)
                 return checked(config, messages, **kwargs)
             self.assertNotEqual(function, "submit_answer")
-            self.assertEqual(kwargs["timeout"], 240)
+            self.assertEqual(kwargs["timeout"], 37)
             self.assertEqual(config["max_output_tokens"], 16000)
             schema = next(item for item in kwargs["tools"] if item["function"]["name"] == "submit_answer")
             self.assertNotIn("maxItems", schema["function"]["parameters"]["properties"]["facts"])
@@ -388,7 +387,7 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run["status"], "completed", run.get("error"))
         self.assertEqual(run["verification"]["status"], "supported")
         self.assertEqual(run["progress"]["time_limit_seconds"], agent.TASK_TIMEOUT_SECONDS)
-        self.assertEqual(self.store.settings()["llm"]["timeout_seconds"], 10)
+        self.assertEqual(self.store.settings()["llm"]["timeout_seconds"], 37)
         self.assertEqual(provider.await_count, 2)
         self.assertEqual(run["structured_answer"]["title"], manuscript()["title"])
 

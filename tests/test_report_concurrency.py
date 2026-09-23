@@ -15,7 +15,7 @@ class ParallelReportTests(unittest.IsolatedAsyncioTestCase):
         news_reports.enqueue_reports(store)
         return store
 
-    async def test_two_reports_overlap_but_each_report_runs_once(self):
+    async def test_four_reports_overlap_but_each_report_runs_once(self):
         store = self.store(5)
         active, maximum, seen = 0, 0, []
         async def runner(store, rid, cancel):
@@ -27,10 +27,10 @@ class ParallelReportTests(unittest.IsolatedAsyncioTestCase):
             await successful_runner(store, rid, cancel)
             active -= 1
         result = await news_reports.process_report_queue(store, runner=runner)
-        self.assertEqual(maximum, 2)
+        self.assertEqual(maximum, 4)
         self.assertEqual(len(set(seen)), 5)
         self.assertEqual(result["completed"], 5)
-        self.assertEqual(result["budget"]["concurrency"], 2)
+        self.assertEqual(result["budget"]["concurrency"], 4)
 
     async def test_older_report_finishing_last_cannot_hide_current_completed_version(self):
         store = self.store(1)
@@ -74,12 +74,12 @@ class ParallelReportTests(unittest.IsolatedAsyncioTestCase):
             release.set()
             await task
 
-    async def test_shutdown_awaits_both_workers_and_leaves_no_generating_rows(self):
+    async def test_shutdown_awaits_all_workers_and_leaves_no_generating_rows(self):
         store = self.store(4)
         entered, started = asyncio.Event(), []
         async def runner(store, rid, cancel):
             started.append(rid)
-            if len(started) == 2:
+            if len(started) == 4:
                 entered.set()
             try:
                 await asyncio.Event().wait()
@@ -93,9 +93,9 @@ class ParallelReportTests(unittest.IsolatedAsyncioTestCase):
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-        self.assertEqual(len(started), 2)
+        self.assertEqual(len(started), 4)
         self.assertFalse(any(row["status"] == "generating" for row in store.list("reports")))
-        self.assertEqual(sum(row["status"] == "failed" for row in store.list("reports")), 2)
+        self.assertEqual(sum(row["status"] == "failed" for row in store.list("reports")), 4)
         self.assertFalse(news_reports._worker_lock(store).locked())
 
     async def test_one_failure_does_not_discard_other_reports(self):
