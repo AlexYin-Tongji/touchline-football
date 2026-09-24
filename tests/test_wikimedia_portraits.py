@@ -126,9 +126,12 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
                 await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
 
     async def test_team_flow_uses_bounded_batches_and_advances_cursor(self):
+        # Two full batches plus one leftover player, so the bound and the
+        # cursor advance are both exercised regardless of the batch size.
+        size = team_portraits.PLAYER_PAGE_LIMIT * 2 + 1
         squad = {"team_id": "arsenal", "season_id": "eng.1:2026", "roster": [
             {"id": f"espn-player-{i}", "provider_id": str(i), "name": f"Player {i}",
-             "birth_date": "", "number": str(i), "photo_url": ""} for i in range(1, 18)]}
+             "birth_date": "", "number": str(i), "photo_url": ""} for i in range(1, size + 1)]}
         async def missing(store, player, team_id):
             result = {"status": "missing", "photo_reason": "没有自由照片。", "fetched_at": now()}
             store.set_meta(wikimedia_portraits._portrait_key(player, team_id), result)
@@ -142,7 +145,7 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary2["attempted_count"], team_portraits.PLAYER_PAGE_LIMIT)
         self.assertEqual(summary2["remaining_count"], 1)
         self.assertEqual([call.args[1]["provider_id"] for call in resolve.call_args_list],
-                         [str(i) for i in range(1, 17)])
+                         [str(i) for i in range(1, size)])
         self.assertEqual(second["roster"][0]["photo_reason"], "没有自由照片。")
 
     async def test_force_identity_rejection_removes_old_wikimedia_portrait(self):
@@ -224,12 +227,38 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(*tasks, return_exceptions=True)
 
     def test_future_or_ended_wikidata_membership_is_not_current(self):
-        def claim(start=None, end=None):
+        def claim(start=None, end=None, qid="Q42"):
             qualifiers = {}
             if start:
                 qualifiers["P580"] = [{"datavalue": {"value": {"time": start}}}]
             if end:
                 qualifiers["P582"] = [{"datavalue": {"value": {"time": end}}}]
-            return {"mainsnak": {"datavalue": {"value": {"id": "Q42"}}}, "qualifiers": qualifiers}
-        self.assertEqual(wikimedia_portraits._active_team_ids({"P54": [
-            claim(start="+2099-01-01T00:00:00Z"), claim(end="+2020-01-01T00:00:00Z")]}), set())
+            return {"mainsnak": {"datavalue": {"value": {"id": qid}}}, "qualifiers": qualifiers}
+        active, undated = wikimedia_portraits._team_claim_ids({"P54": [
+            claim(start="+2099-01-01T00:00:00Z"), claim(end="+2020-01-01T00:00:00Z")]})
+        self.assertEqual((active, undated), (set(), set()))
+
+    def test_undated_career_claim_is_an_unproven_candidate_not_a_rejection(self):
+        # Wikidata career entries often carry no P580/P582 at all. Discarding
+        # them rejected real players whose only membership claims were undated.
+        def claim(qid, start=None, end=None):
+            qualifiers = {}
+            if start:
+                qualifiers["P580"] = [{"datavalue": {"value": {"time": start}}}]
+            if end:
+                qualifiers["P582"] = [{"datavalue": {"value": {"time": end}}}]
+            return {"mainsnak": {"datavalue": {"value": {"id": qid}}}, "qualifiers": qualifiers}
+        active, undated = wikimedia_portraits._team_claim_ids({"P54": [
+            claim("Q9617"), claim("Q9617", end="+2020-01-01T00:00:00Z"), claim("Q99")]})
+        self.assertEqual(active, set())
+        self.assertEqual(undated, {"Q9617", "Q99"})
+
+    def test_club_label_matches_despite_punctuation(self):
+        # "Arsenal F.C." normalises to "arsenal f c" and never equalled the
+        # stored alias "arsenal fc", so every real player was rejected.
+        import server.club_library as club_library
+        self.assertIn("arsenal fc", {alias.lower() for alias in club_library.TEAM_ALIASES["arsenal"]})
+        normalised = wikimedia_portraits._name("Arsenal F.C.").replace(" ", "")
+        self.assertEqual(normalised, "arsenal f c".replace(" ", ""))
+        self.assertIn(normalised, {wikimedia_portraits._name(a).replace(" ", "")
+                                   for a in club_library.TEAM_ALIASES["arsenal"]})

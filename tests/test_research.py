@@ -171,6 +171,31 @@ class ResearchTests(unittest.IsolatedAsyncioTestCase):
                 await task
         self.assertEqual(self.store.list("evidence", "live"), [])
 
+    async def test_one_bulky_source_cannot_crowd_out_every_other_source(self):
+        # A club sitemap returns dozens of links in one request. Without a cap it
+        # filled almost every candidate slot, so the publisher feeds the owner
+        # added contributed nothing and looked broken. A second source supplies
+        # enough results for the cap to matter (with only one source the backfill
+        # rule correctly restores it).
+        moderate = {"id": "moderate_source", "name": "Moderate source", "url": "https://second.example/news",
+                    "kind": "html", "team_id": "arsenal", "mode": "live", "enabled": True, "builtin": False}
+        self.store.put("sources", moderate)
+        bulk = [{"url": f"https://example.com/news/bulk-{i}", "title": f"Saka injury update {i}",
+                 "description": "Saka is being assessed.", "published_at": "2026-09-08T12:00:00Z"} for i in range(30)]
+        other = [{"url": f"https://second.example/news/mod-{i}", "title": f"Rice injury update {i}",
+                  "description": "Declan Rice is being assessed.", "published_at": "2026-09-08T12:00:00Z"} for i in range(30)]
+        async def index(store, team_id, source, **kwargs):
+            return (bulk if source["id"] == SOURCE["id"] else other), [], {"state": "fresh", "checked_at": ingestion.now()}
+        with patch("server.research._source_index", side_effect=index):
+            result = await research.discover_news(self.store, "arsenal", "", 12)
+        source_ids = [item["source_id"] for item in result["candidates"]]
+        self.assertEqual(len(source_ids), 12)
+        # Both sources reach the list instead of the bulky one taking all slots.
+        # The bulky source still leads overall (it has the deeper pool and the
+        # backfill tops the page up), but it can no longer take every slot.
+        self.assertEqual(set(source_ids), {SOURCE["id"], moderate["id"]})
+        self.assertLess(source_ids.count(SOURCE["id"]), len(source_ids))
+
     async def test_custom_source_fetch_retains_domain_guard(self):
         with patch("server.ingestion.fetch_document", return_value=(ARTICLE, "https://example.com/news/a", "text/html")) as fetch:
             await research._fetch("https://example.com/news/a", SOURCE)

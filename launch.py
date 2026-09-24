@@ -12,10 +12,10 @@ import time
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
-from server.build_info import BUILD_ID
+from server.build_info import BUILD_ID, listen_port, local_url
 
 ROOT = Path(__file__).resolve().parent
-URL = "http://127.0.0.1:8765"
+URL = local_url()
 WORKSPACE_ID = hashlib.sha256(str(ROOT).lower().encode()).hexdigest()[:12]
 
 
@@ -66,7 +66,7 @@ def main():
         stamp = time.strftime("%Y%m%d-%H%M%S")
         with (output / f"service-{stamp}.log").open("a", encoding="utf-8") as log:
             flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            process = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8765"],
+            process = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", str(listen_port())],
                 cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 creationflags=flags, start_new_session=os.name != "nt")
             for _ in range(40):

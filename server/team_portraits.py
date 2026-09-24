@@ -25,11 +25,17 @@ DIRECTORIES = {
 }
 CACHE_SECONDS = 86400
 RETRY_SECONDS = 3600
-PLAYER_PAGE_LIMIT = 8
+# Each attempted player costs several paced Wikimedia requests (2.2s apart), so
+# a batch must fit the 120s phase budget in workflows._team_cycle. At roughly
+# 6-7s per player, 12 players is a safe batch; the cursor carries the rest into
+# the next run. Raising this without raising that timeout truncates the batch
+# and reports it as "interrupted", which is what made photos look missing.
+PLAYER_PAGE_LIMIT = 12
 PLAYER_PAGE_CONCURRENCY = 3
 PLAYER_PAGE_MAX_BODY = 4 * 1024 * 1024
 PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
-                       "photo_file_page", "photo_license", "photo_restrictions", "photo_reason")
+                       "photo_file_page", "photo_license", "photo_restrictions", "photo_reason",
+                       "retryable", "reason_code")
 
 
 class _PortraitIdentityError(IngestionError):
@@ -206,6 +212,13 @@ def apply_cached_portraits(store, snapshot):
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
             player.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
             player["photo_updated_at"] = cached.get("fetched_at")
+        elif cached:
+            # Carry the known non-photo verdict onto the rebuilt row too, so a
+            # refreshed roster still explains why a player has no image instead
+            # of showing an empty placeholder with no reason.
+            player["photo_reason"] = cached.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            player["retryable"] = bool(cached.get("retryable"))
+            player["reason_code"] = cached.get("reason_code") or "rejected"
     return snapshot
 
 
@@ -481,6 +494,8 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
                 row["photo_url"] = ""
                 row["photo_credit"] = ""
             row["photo_reason"] = cached.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            row["retryable"] = bool(cached.get("retryable"))
+            row["reason_code"] = cached.get("reason_code") or "rejected"
             if cached.get("status") == "unavailable":
                 errors.append(f"球员 {row['provider_id']}：{row['photo_reason']}")
     candidates = [row for row in ordered if (not row.get("photo_url") or
@@ -501,8 +516,12 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row["photo_url"] = ""
             row["photo_credit"] = ""
             row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            row["retryable"] = bool(photo.get("retryable"))
+            row["reason_code"] = photo.get("reason_code") or "rejected"
         elif not row.get("photo_url"):
             row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            row["retryable"] = bool(photo.get("retryable"))
+            row["reason_code"] = photo.get("reason_code") or "rejected"
         if photo.get("status") == "unavailable":
             errors.append(f"球员 {row['provider_id']}：{row.get('photo_reason', '照片来源暂不可用。')}")
     if not explicit_selection and requested:

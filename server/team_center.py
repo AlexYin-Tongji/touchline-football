@@ -416,7 +416,7 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
         current = store.get("team_snapshots", snapshot_id) or {}
         photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license", "photo_restrictions", "photo_updated_at", "photo_match")}
                   for player in current.get("roster", []) if player.get("photo_url")]
-        missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason")}
+        missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason", "retryable", "reason_code")}
                    for player in current.get("roster", []) if not player.get("photo_url")]
         return {**summary, "team_id": team_id, "season_id": season["id"], "photos": photos, "missing": missing,
                 "available_count": len(photos), "total_count": len(current.get("roster", []))}

@@ -77,7 +77,11 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         roster = self.store.get('team_snapshots', self.snapshot_id)['roster']
         self.assertEqual(roster[0]['name'], 'Martin Ødegaard')
         self.assertFalse(roster[0]['photo_url'])
-        self.assertIn('暂不可用', roster[0]['photo_reason'])
+        # A throttle is transient, so it must be reported as retryable rather
+        # than as a permanent verdict about this player.
+        self.assertIn('重试', roster[0]['photo_reason'])
+        self.assertTrue(roster[0].get('retryable'))
+        self.assertEqual(roster[0].get('reason_code'), 'http_rate_limited')
 
     async def test_stop_during_photo_fetch_keeps_roster_and_cleans_up_work(self):
         entered = asyncio.Event()

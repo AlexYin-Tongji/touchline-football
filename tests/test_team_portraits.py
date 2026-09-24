@@ -202,12 +202,15 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
                 current -= 1
             identity = url.rsplit("/", 1)[-1]
             return player_html(player_page(identity)), url, "text/html"
+        # One full batch plus two leftovers, so the bound and the continuation
+        # are both exercised whatever the configured batch size is.
+        squad_size = team_portraits.PLAYER_PAGE_LIMIT + 2
         with patch.object(team_portraits, "fetch_document", side_effect=fetch_page) as fetch:
-            first, summary = await team_portraits.enrich_player_photos(self.store, espn_squad(10), "359")
-            self.assertEqual(fetch.call_count, 8)
+            first, summary = await team_portraits.enrich_player_photos(self.store, espn_squad(squad_size), "359")
+            self.assertEqual(fetch.call_count, team_portraits.PLAYER_PAGE_LIMIT)
             self.assertEqual(summary["remaining_count"], 2)
             second, _ = await team_portraits.enrich_player_photos(self.store, first, "359")
-        self.assertEqual(fetch.call_count, 10)
+        self.assertEqual(fetch.call_count, squad_size)
         self.assertLessEqual(maximum, 3)
         self.assertGreater(maximum, 1)
         self.assertTrue(all(row.get("photo_url") for row in second["roster"]))

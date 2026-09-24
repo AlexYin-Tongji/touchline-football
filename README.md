@@ -18,7 +18,13 @@ V7.3 将工作规程整理为球队动态、球队信息、问答助手三个标
 
 ## 打开使用
 
-Windows 双击 `启动看台.cmd` 或已有桌面快捷方式，打开 **http://127.0.0.1:8765/**。
+Windows 双击 `启动看台.cmd` 或已有桌面快捷方式，打开 **http://127.0.0.1:9080/**。
+
+若该端口被系统保留（Windows 会把成片端口分配给 Hyper-V/WSL，且重启后会变化），启动会提示 `WinError 10013`。此时设一个空闲端口再启动即可：
+
+```powershell
+$env:TOUCHLINE_PORT = "9123"
+```
 
 模型配置参考 DeepSeek 官方 Harness 的简洁流程：添加服务商 → 填写地址、协议和密钥 → 获取或手动添加模型 → 选择使用。支持 Chat Completions、Responses 和 Anthropic Messages。旧模型配置会自动迁移，密钥不回显。
 
@@ -45,10 +51,10 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt -c requirements.lock.txt
 npm ci
 npm run build
-.\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 8765
+.\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 9080
 ```
 
-开发前端使用 `npm run dev`，其 API 代理到 8765。
+开发前端使用 `npm run dev`，其 API 代理到 9080（同样可用 `TOUCHLINE_PORT` 覆盖）。
 
 ```powershell
 python scripts/check.py --suite fast

@@ -13,7 +13,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from bs4 import BeautifulSoup
 
 from .club_library import TEAM_ALIASES
-from .ingestion import IngestionError, fetch_document, now, published_time
+from .ingestion import IngestionError, fetch_document, now, published_time, source_error_details
 from .news_sources import AMBIGUOUS_GLOBAL_ALIASES, OTHER_CLUB_IDENTITIES, global_feed_mentions_team
 from .research_transport import blocking_request, shared_request
 
@@ -22,13 +22,19 @@ WIKIDATA = "www.wikidata.org"
 COMMONS = "commons.wikimedia.org"
 HOSTS = frozenset({WIKIPEDIA, WIKIDATA, COMMONS})
 SUCCESS_SECONDS = 86400
-RETRY_SECONDS = 3600
+# A verified identity, a missing page and a licence refusal are durable answers.
+# A throttle or transport fault is not, so it expires quickly and is rechecked.
+RETRY_SECONDS = 300
 MAX_SEARCH_RESULTS = 4
 MAX_ARTICLES = 2
 MAX_JSON_BYTES = 512 * 1024
 WIKIMEDIA_MIN_INTERVAL_SECONDS = 2.2
+# Each entry is the wait before the next attempt; the last attempt waits 0.
+# Long enough to clear the coordinator's 30s failure cooldown.
+WIKIMEDIA_RETRY_BACKOFF_SECONDS = (5.0, 32.0, 0.0)
 PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_file_page",
-                "photo_license", "photo_restrictions", "photo_match", "photo_reason")
+                "photo_license", "photo_restrictions", "photo_match", "photo_reason",
+                "retryable", "reason_code")
 
 
 def _name(value):
@@ -76,19 +82,31 @@ def _safe_url(value, host, path_prefix):
     return ""
 
 
+async def _pace(store):
+    """One shared interval across every Wikimedia host.
+
+    Pacing was per-host, so Wikipedia, Wikidata and Commons each ran at the
+    full rate and the combined traffic still tripped HTTP 429. A single shared
+    clock holds the whole Wikimedia budget to one request per interval.
+    """
+    if not hasattr(store, "_wikimedia_pace_lock"):
+        store._wikimedia_pace_lock = asyncio.Lock()
+        store._wikimedia_last_request = 0.0
+    async with store._wikimedia_pace_lock:
+        gap = WIKIMEDIA_MIN_INTERVAL_SECONDS - (time.monotonic() - store._wikimedia_last_request)
+        if gap > 0:
+            await asyncio.sleep(gap)
+        # Stamped after the wait, so a queued caller cannot reuse the slot the
+        # previous request already consumed.
+        store._wikimedia_last_request = time.monotonic()
+
+
 async def request_json(store, host, params):
     """One pinned, coordinated API read; no unreviewed URL or image bytes."""
     if host not in HOSTS or not isinstance(params, dict):
         raise IngestionError("球员照片来源地址未获允许。")
-    if not hasattr(store, "_wikimedia_pace_locks"):
-        store._wikimedia_pace_locks = {}
-        store._wikimedia_last_request = {}
-    async with store._wikimedia_pace_locks.setdefault(host, asyncio.Lock()):
-        gap = WIKIMEDIA_MIN_INTERVAL_SECONDS - (time.monotonic() - store._wikimedia_last_request.get(host, 0))
-        if gap > 0:
-            await asyncio.sleep(gap)
-        store._wikimedia_last_request[host] = time.monotonic()
     url = f"https://{host}/w/api.php?{urlencode(params)}"
+
     async def factory():
         body, final_url, content_type = await blocking_request(fetch_document, url, timeout=22,
             allowed_hosts={host}, max_body=MAX_JSON_BYTES,
@@ -103,7 +121,26 @@ async def request_json(store, host, params):
         if not isinstance(result, dict) or result.get("error"):
             raise IngestionError("维基媒体接口拒绝了照片查询。")
         return result
-    return await shared_request(store, "portrait:" + url, host, factory)
+
+    # A throttle is transient by definition, so back off and retry instead of
+    # surfacing 429 as "this player has no photo". The backoff must outlast the
+    # coordinator's own failure cooldown (research_transport.FAILURE_COOLDOWN_
+    # SECONDS), otherwise the retry is answered from that cached error without
+    # touching the network and every attempt is wasted.
+    last = None
+    for attempt, wait in enumerate(WIKIMEDIA_RETRY_BACKOFF_SECONDS):
+        await _pace(store)
+        try:
+            return await shared_request(store, "portrait:" + url, host, factory, force=attempt > 0)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            last = exc
+            if source_error_details(exc)["code"] != "http_rate_limited":
+                raise
+            if wait:
+                await asyncio.sleep(wait)
+    raise last
 
 
 def _page(payload):
@@ -140,8 +177,16 @@ def _current_club(extract, team_id):
     return "unknown"
 
 
-def _active_team_ids(claims):
-    active = set()
+def _team_claim_ids(claims):
+    """Split P54 memberships into currently-active and undated candidates.
+
+    Wikidata career entries frequently carry no P580/P582 qualifiers at all --
+    David Raya has five such claims and no dated ones. Treating a missing date
+    as "not this club" silently discarded the whole career and rejected real
+    players, so an undated claim is an unproven candidate instead. Only a claim
+    that provably ended before today, or starts in the future, is excluded.
+    """
+    active, undated = set(), set()
     today = date.today()
     def qualifier_dates(claim, property_id):
         rows = claim.get("qualifiers", {}).get(property_id, [])
@@ -162,10 +207,37 @@ def _active_team_ids(claims):
         if not isinstance(qid, str) or not re.fullmatch(r"Q[1-9]\d{0,11}", qid):
             continue
         starts, ends = qualifier_dates(claim, "P580"), qualifier_dates(claim, "P582")
-        if starts is None or ends is None or any(start > today for start in starts) or any(end < today for end in ends):
+        if any(end < today for end in (ends or [])) or any(start > today for start in (starts or [])):
             continue
-        active.add(qid)
-    return active
+        (active if starts or ends else undated).add(qid)
+    return active, undated
+
+
+async def _club_qid_matches(store, ids, team_id):
+    """True when this club label matches exactly one candidate and nothing else.
+
+    Wikidata labels the club "Arsenal F.C.", which normalises to "arsenal f c"
+    and never equals the stored alias "arsenal fc" -- the old equality test
+    therefore rejected every real player. Punctuation is dropped before
+    comparing so label and alias reduce to the same form, and the club id must
+    still be the only candidate that matches. Non-Latin aliases are skipped:
+    the Wikidata call below only reads English labels, and a Chinese alias
+    would otherwise reduce to an empty string and match an empty label.
+    """
+    aliases = {_name(alias).replace(" ", "") for alias in TEAM_ALIASES.get(team_id, ())
+               if alias not in AMBIGUOUS_GLOBAL_ALIASES.get(team_id, ())}
+    aliases.discard("")
+    if not aliases or not ids:
+        return False
+    labels = await request_json(store, WIKIDATA, {"action": "wbgetentities", "format": "json",
+                                                 "ids": "|".join(sorted(ids)), "props": "labels", "languages": "en"})
+    entities = labels.get("entities", {})
+    matched = set()
+    for candidate in ids:
+        label = entities.get(candidate, {}).get("labels", {}).get("en", {}).get("value")
+        if _name(label).replace(" ", "") in aliases:
+            matched.add(candidate)
+    return len(matched) == 1
 
 
 async def _wikidata_club(store, qid, team_id, birth_date):
@@ -183,16 +255,17 @@ async def _wikidata_club(store, qid, team_id, birth_date):
                  for row in claims.get("P569", [])]
         if known and birth_date not in known:
             return False
-    ids = _active_team_ids(claims)
-    if not ids or len(ids) > 5:
+    active, undated = _team_claim_ids(claims)
+    if len(active) > 5:
         return False
-    labels = await request_json(store, WIKIDATA, {"action": "wbgetentities", "format": "json",
-                                                 "ids": "|".join(sorted(ids)), "props": "labels", "languages": "en"})
-    aliases = {_name(alias) for alias in TEAM_ALIASES.get(team_id, ())
-               if alias not in AMBIGUOUS_GLOBAL_ALIASES.get(team_id, ())}
-    matched = [candidate for candidate in ids
-               if _name(labels.get("entities", {}).get(candidate, {}).get("labels", {}).get("en", {}).get("value")) in aliases]
-    return len(matched) == 1 and len(ids) == 1
+    # A dated current membership is the strongest evidence, but a career with
+    # only undated claims still proves the club -- as long as exactly one of
+    # those candidates is this club and no other dated team contradicts it.
+    if await _club_qid_matches(store, active, team_id):
+        return True
+    if not active and undated:
+        return await _club_qid_matches(store, undated, team_id)
+    return False
 
 
 def _license_metadata(payload, file_name):
@@ -236,7 +309,9 @@ async def _commons_license(store, file_name, *, force=False):
 
 def _portrait_key(player, team_id):
     identity = f"{team_id}|{_name(player.get('name'))}|{player.get('birth_date') or ''}"
-    return "wikimedia_portrait_v1_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
+    # v2 invalidates results cached by the earlier logic, which stored a throttle
+    # as a one-hour "no photo for this player" verdict.
+    return "wikimedia_portrait_v2_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
 
 
 def cached_portrait(store, player, team_id):
@@ -246,6 +321,23 @@ def cached_portrait(store, player, team_id):
             or cached.get("status") == "unavailable" and _age_seconds(cached.get("last_attempt")) < RETRY_SECONDS):
         return cached
     return None
+
+
+RETRYABLE_REASON = "维基媒体查询过于频繁或暂时不可达，稍后自动重试。"
+
+
+def _retryable(exc):
+    """A throttle or transport fault is not a verdict about this player.
+
+    The cache used to store every exception as "unavailable" for a full hour,
+    so one HTTP 429 froze twenty Arsenal players as unphotographable. Those are
+    retried on the short backoff; only a real identity/licence rejection is held
+    for the long term.
+    """
+    details = source_error_details(exc)
+    return details["code"] in {"http_rate_limited", "http_unavailable", "timeout", "connection_reset",
+                              "connection_error", "dns_failed", "tls_error", "tls_certificate",
+                              "source_unavailable"}
 
 
 async def resolve_portrait(store, player, team_id, *, force=False):
@@ -317,8 +409,14 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                                   "photo_match": "wikimedia_verified_club", "photo_reason": ""}
     except asyncio.CancelledError:
         raise
-    except Exception:
-        result = {"status": "unavailable", "photo_reason": "维基媒体照片来源暂不可用，未采用未经核验图片。"}
+    except Exception as exc:
+        # Keep the real class of failure in the record instead of collapsing
+        # every cause to one sentence; a throttled recheck must stay retryable.
+        if _retryable(exc):
+            result = {"status": "unavailable", "photo_reason": RETRYABLE_REASON,
+                      "retryable": True, "reason_code": source_error_details(exc)["code"]}
+        else:
+            result = {"status": "rejected", "photo_reason": "维基媒体资料无法核对，未采用未经核验图片。"}
     result.update(fetched_at=now(), last_attempt=attempted)
     store.set_meta(key, result)
     return result

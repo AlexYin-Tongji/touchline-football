@@ -739,7 +739,26 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
         freshness = 3 if age is not None and 0 <= age <= 3 else 2 if age is not None and 0 <= age <= 14 else 1 if age is None else 0
         return (freshness, relevance(team_id, query, item), item["source_id"].startswith("official_"), stamp.timestamp() if stamp else 0)
     ranked = sorted(unique.values(), key=rank, reverse=True)
-    selected = ranked[offset:offset + limit]
+    # A club sitemap can supply dozens of pages in one request and would
+    # otherwise occupy almost every slot (Arsenal: 39 of 40), leaving the
+    # publisher feeds the owner just added with one result between them. Cap
+    # any single source's share so several independent sources reach the
+    # candidate list; a small limit keeps at least one slot per source family.
+    per_source_cap = max(2, limit // 3)
+    selected, overflow, used = [], [], {}
+    for item in ranked:
+        source_id = item["source_id"]
+        if used.get(source_id, 0) < per_source_cap:
+            used[source_id] = used.get(source_id, 0) + 1
+            selected.append(item)
+        else:
+            overflow.append(item)
+    # Backfill from the remainder when capping left the page short, so a club
+    # with only one working source still fills the requested list.
+    if len(selected) < limit:
+        selected.extend(overflow[:limit - len(selected)])
+        selected.sort(key=rank, reverse=True)
+    selected = selected[offset:offset + limit]
     # Official statements lead; leave room for a publisher's independently
     # authored coverage instead of letting one long sitemap occupy every slot.
     if limit >= 4 and selected and all(item["source_id"].startswith("official_") for item in selected):

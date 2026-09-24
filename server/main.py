@@ -21,7 +21,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import ingestion
 from .seed import seed
 from .storage import Store, provider_origin
-from .build_info import BUILD_ID, VERSION
+from .build_info import BUILD_ID, VERSION, listen_port, local_url
 
 ROOT = Path(__file__).resolve().parent.parent
 Mode = Literal["demo", "live"]
@@ -608,7 +608,7 @@ def create_app(db_path=None):
     @app.get("/api/service")
     async def get_service():
         from .service_control import service_status
-        return {**service_status(), **runtime.describe(), "url": runtime.public_url or "http://127.0.0.1:8765/",
+        return {**service_status(), **runtime.describe(), "url": runtime.public_url or local_url() + "/",
                 "version": VERSION, "build_id": BUILD_ID}
 
     @app.post("/api/service/shortcut")
@@ -1308,4 +1308,4 @@ async def app(scope, receive, send):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server.main:app", host="127.0.0.1", port=8765, reload=False)
+    uvicorn.run("server.main:app", host="127.0.0.1", port=listen_port(), reload=False)

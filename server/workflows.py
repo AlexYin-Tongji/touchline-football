@@ -252,10 +252,20 @@ class WorkflowManager:
         view = center_view(self.store, entry.team_id)
         # This is the active UI start route. The legacy maintenance manager is
         # not used here; all supported squads can use the Wikimedia provider.
-        if entry.parts is None and view.get("roster") and view.get("components", {}).get("portraits", {}).get("status") != "fresh":
+        # A roster refresh rebuilds rows from the provider and drops their
+        # photos, so "portraits are fresh" must not skip the phase when the
+        # current roster is actually missing images.
+        portraits_state = view.get("components", {}).get("portraits", {})
+        roster_rows = view.get("roster") or []
+        photos_present = sum(bool(row.get("photo_url")) for row in roster_rows)
+        if entry.parts is None and view.get("roster") and (
+                portraits_state.get("status") != "fresh" or photos_present < len(roster_rows)):
             self.update(entry, phase="portraits", message="核心资料已保存，正在补充可核对的球员照片。")
             async def portraits(context):
-                return await asyncio.wait_for(sync_portraits(self.store, entry.team_id), 120)
+                # Bounded so one slow publisher cannot hold the whole cycle, but
+                # wide enough for a full PLAYER_PAGE_LIMIT batch at the paced
+                # Wikimedia rate; otherwise the batch is truncated mid-way.
+                return await asyncio.wait_for(sync_portraits(self.store, entry.team_id), 180)
             photos = await self._unit(entry, portraits, {"team_id": entry.team_id, "part": "portraits"})
             photo_complete = photos.get("status") == "completed"
             photo_failed = photos.get("status") in {"failed", "unavailable", "interrupted"}

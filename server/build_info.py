@@ -4,12 +4,32 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
-VERSION = "7.6.1"
+VERSION = "7.6.2"
 ROOT = Path(__file__).resolve().parent.parent
 PARTS = ("python", "node", "frontend")
+
+# One place for the local port. Windows can reserve a whole block of ports for
+# Hyper-V/WSL ("netsh interface ipv4 show excludedportrange"), and the block
+# moves between reboots, so a hard-coded 8765 that binds today may be refused
+# tomorrow with WinError 10013. Override with TOUCHLINE_PORT when that happens.
+DEFAULT_PORT = 9080
+
+
+def listen_port():
+    value = os.environ.get("TOUCHLINE_PORT", "")
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_PORT
+    return port if 1 <= port <= 65535 else DEFAULT_PORT
+
+
+def local_url():
+    return f"http://127.0.0.1:{listen_port()}"
 
 
 def _files(root, directory, pattern="*"):
