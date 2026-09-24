@@ -1,9 +1,27 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ArrowUpRight, ImageOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { safeUrl } from "./components";
 import type { Evidence } from "./types";
+
+// Stable across renders: react-markdown keys its parse cache on these
+// references, so an inline array/object here would invalidate the cache on
+// every render and re-parse every card in the list on each poll.
+const remarkPlugins = [remarkGfm];
+const markdownComponents = {
+  a: ({ href, children }: { href?: string; children?: ReactNode }) =>
+    safeUrl(href) ? (
+      <a href={safeUrl(href)!} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    ) : (
+      <span>{children}</span>
+    ),
+  // Images are rendered separately from verified source metadata.
+  img: () => null,
+};
 
 export interface SourceLink {
   id?: string;
@@ -36,7 +54,7 @@ export function uniqueImages(
     return true;
   });
 }
-export function Photo({
+export const Photo = memo(function Photo({
   image,
   className = "",
   placeholder = false,
@@ -63,6 +81,7 @@ export function Photo({
         src={url}
         alt={image?.alt || "球队相关图片"}
         loading="lazy"
+        decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
       />
@@ -83,8 +102,12 @@ export function Photo({
       )}
     </figure>
   );
-}
-export function Sources({ sources = [] }: { sources?: SourceLink[] }) {
+});
+export const Sources = memo(function Sources({
+  sources = [],
+}: {
+  sources?: SourceLink[];
+}) {
   const unique = sources.filter(
     (source, i, all) =>
       safeUrl(source.url) &&
@@ -108,47 +131,33 @@ export function Sources({ sources = [] }: { sources?: SourceLink[] }) {
       ))}
     </div>
   );
-}
-export function Markdown({
+});
+export const Markdown = memo(function Markdown({
   text,
   evidence = [],
 }: {
   text: string;
   evidence?: (SourceLink | Evidence)[];
 }) {
-  const content = text.replace(/\[([^\]\n]+)\]/g, (original, id: string) => {
-    const index = evidence.findIndex((item) => item.id === id);
-    const item = evidence[index];
-    return item && safeUrl(item.url)
-      ? `[${index + 1}](${safeUrl(item.url)})`
-      : original;
-  });
+  const content = useMemo(
+    () =>
+      text.replace(/\[([^\]\n]+)\]/g, (original, id: string) => {
+        const index = evidence.findIndex((item) => item.id === id);
+        const item = evidence[index];
+        return item && safeUrl(item.url)
+          ? `[${index + 1}](${safeUrl(item.url)})`
+          : original;
+      }),
+    [text, evidence],
+  );
   return (
     <div className="markdown">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ href, children }) =>
-            safeUrl(href) ? (
-              <a
-                href={safeUrl(href)!}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {children}
-              </a>
-            ) : (
-              <span>{children}</span>
-            ),
-          // Images are rendered separately from verified source metadata.
-          img: () => null,
-        }}
-      >
+      <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
         {content}
       </ReactMarkdown>
     </div>
   );
-}
+});
 export function friendlyTime(value?: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return "";
   const minutes = Math.floor((Date.now() - Date.parse(value)) / 60000);

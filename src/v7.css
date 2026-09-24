@@ -34,11 +34,12 @@ textarea {
 }
 button {
   cursor: pointer;
+  /* Only paint-cheap properties. `box-shadow` and `color` under a global
+     transition meant every button in a list animated its own repaint as the
+     pointer crossed it. */
   transition:
     background 0.16s,
-    color 0.16s,
-    border-color 0.16s,
-    box-shadow 0.16s;
+    border-color 0.16s;
 }
 button:disabled {
   cursor: not-allowed;
@@ -57,7 +58,21 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: 3px solid #a9ce79;
-  outline-offset: 3px;
+  outline-offset: 2px;
+}
+/* Visually hidden, still announced. The article follow-up form referenced
+   this class but no rule was ever defined, so its label rendered as visible
+   text. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 button {
   border: 0;
@@ -543,19 +558,21 @@ button:focus:not(:focus-visible) {
   background: #fff;
   border: 1px solid #e6eade;
   border-radius: 12px;
-  padding: 24px 25px 0;
+  padding: 21px 23px 0;
   box-shadow: 0 2px 3px #27382603;
   overflow: hidden;
+  /* Keeps one card's hover/paint work from invalidating its siblings. */
+  contain: layout paint;
 }
 .feed-card-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 13px;
 }
 .feed-card-meta > div {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   flex-direction: column;
 }
 .feed-card-meta strong {
@@ -563,7 +580,7 @@ button:focus:not(:focus-visible) {
   font-weight: 600;
 }
 .feed-card-meta > div > span {
-  font-size: 14px;
+  font-size: 13px;
   color: #a1a896;
 }
 .topic-tag {
@@ -588,10 +605,11 @@ button:focus:not(:focus-visible) {
   color: #709265;
 }
 .feed-card h2 {
-  font-size: 21px;
-  line-height: 1.65;
-  letter-spacing: -0.4px;
-  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: -0.35px;
+  margin: 0 0 11px;
 }
 .feed-card h2 button {
   text-align: left;
@@ -605,8 +623,8 @@ button:focus:not(:focus-visible) {
 .feed-summary {
   color: #626e5f;
   font-size: 14px;
-  line-height: 1.9;
-  margin-bottom: 17px;
+  line-height: 1.88;
+  margin-bottom: 15px;
 }
 .feed-summary .markdown p {
   margin: 0 0 8px;
@@ -1498,7 +1516,7 @@ button:focus:not(:focus-visible) {
 }
 .team-standings-scroll:focus-visible {
   outline: 3px solid #a9ce79;
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 .team-standings-table {
   width: 100%;
@@ -2132,7 +2150,9 @@ button:focus:not(:focus-visible) {
 .assistant-page {
   max-width: 860px;
   margin: 0 auto;
-  min-height: calc(100vh - 245px);
+  /* The composer is a flex child rather than a sticky overlay, so the
+     welcome grid can never slide underneath it. */
+  min-height: calc(100dvh - 245px);
   display: flex;
   flex-direction: column;
 }
@@ -2186,8 +2206,7 @@ button:focus:not(:focus-visible) {
 .assistant-welcome {
   padding: 12px 0 40px;
   text-align: center;
-}
-.welcome-mark {
+}.welcome-mark {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2216,7 +2235,7 @@ button:focus:not(:focus-visible) {
   gap: 11px;
   text-align: left;
   max-width: 740px;
-  margin: auto;
+  margin: 0 auto;
 }
 .skill-grid > button {
   display: flex;
@@ -2279,10 +2298,11 @@ button:focus:not(:focus-visible) {
   flex-shrink: 0;
 }
 .composer-area {
-  position: sticky;
-  bottom: 0;
-  padding: 12px 0 0;
-  background: linear-gradient(transparent, #f6f7f4 12px);
+  /* flex child, not a sticky overlay: it reserves its own height so content
+     above it cannot end up underneath. */
+  flex-shrink: 0;
+  padding: 12px 0 16px;
+  background: #f6f7f4;
   z-index: 10;
 }
 .composer {
@@ -3999,22 +4019,23 @@ button:focus:not(:focus-visible) {
     radial-gradient(ellipse at 95% 8%, #e9f0e34d, transparent 42%), #f6f7f4;
   min-height: 100dvh;
 }
+/* Solid instead of translucent + blur: the sticky header sits on the scroll
+   path, so a backdrop-filter here forced a per-frame offscreen blur of all
+   content passing behind it. */
 .site-header {
-  background: #fffffff2;
-  backdrop-filter: blur(18px);
+  background: #fff;
   box-shadow: 0 2px 18px #20372d04;
 }
-.feed-card,
 .side-card,
-.panel,
-.skill-grid > button,
-.player-card {
+.panel {
   transition:
-    transform 0.2s ease,
     box-shadow 0.2s ease,
     border-color 0.2s ease;
 }
+/* List cards animate only their border: a shadow transition repaints the
+   whole card on every pointer move across the list. */
 .feed-card {
+  transition: border-color 0.2s ease;
   box-shadow:
     0 3px 10px #20372d03,
     0 13px 35px #20372d03;
@@ -4023,6 +4044,8 @@ button:focus:not(:focus-visible) {
 .panel {
   box-shadow: 0 5px 22px #20372d04;
 }
+/* Border animates; the shadow change lands instantly rather than repainting
+   the card frame by frame. */
 .feed-card:hover {
   border-color: #cddac4;
   box-shadow: 0 8px 26px #20372d08;
@@ -4504,4 +4527,500 @@ button:focus:not(:focus-visible) {
   .button.primary:active {
     transform: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Reader and run surfaces.
+
+   These classes are rendered by src/components.tsx but had no rule here, so
+   the article reader toolbar and the "read with the assistant" panel fell back
+   to unstyled markup. Definitions below fill the gaps; they do not add new
+   structure.
+--------------------------------------------------------------------------- */
+.reader-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 0;
+  margin-bottom: 20px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--muted);
+}
+.reader-toolbar > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.reader-toolbar .text-button {
+  color: #568141;
+  font-size: 14px;
+}
+.reader-toolbar .text-button:hover {
+  color: #355e26;
+  text-decoration: underline;
+}
+.reader-toolbar .source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: #568141;
+  font-size: 14px;
+}
+.reader-toolbar .source-link:hover {
+  color: #355e26;
+  text-decoration: underline;
+}
+.reader-quality-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: #f7f4ec;
+  color: #8a7752;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.reader-quality-note > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.article-body {
+  font-size: 16px;
+  line-height: 1.95;
+  color: #3c4a41;
+}
+.article-body > p {
+  margin-bottom: 18px;
+}
+.article-reader.large-type .article-body {
+  font-size: 18px;
+  line-height: 2.05;
+}
+.fine-print {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #9ba48f;
+}
+.reader-assistant {
+  margin-top: 26px;
+  padding: 20px 21px;
+  border: 1px solid #e6eade;
+  border-radius: 12px;
+  background: #fafbf8;
+}
+.reader-assistant > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #355e26;
+}
+.reader-assistant > p {
+  margin: 0 0 15px;
+  font-size: 14px;
+  color: #626e5f;
+}
+.reader-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 15px;
+}
+.reader-assistant form {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.reader-assistant form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid #dfe5d6;
+  border-radius: 9px;
+  background: #fff;
+  font-size: 14px;
+}
+.reader-assistant form input:focus {
+  border-color: #a9ce79;
+}
+.reader-assistant form .dark-button {
+  flex-shrink: 0;
+  min-height: 42px;
+}
+
+/* Run progress: the status and step tokens are composed at runtime
+   (status-*, step-*), so each state needs its own colour. */
+.run-card {
+  border: 1px solid #e6eade;
+  border-radius: 12px;
+  background: #fff;
+  padding: 20px 21px;
+}
+.run-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.run-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+.run-question {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: #3c4a41;
+}
+.run-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+.run-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.run-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.step-running .run-label,
+.status-running {
+  color: #568141;
+}
+.step-failed .run-label,
+.step-error .run-label,
+.status-failed {
+  color: #aa8476;
+}
+.status-queued {
+  color: #8a7752;
+}
+.data-state-fresh {
+  color: #568141;
+}
+.data-state-running {
+  color: #568141;
+}
+.data-state-failed {
+  color: #aa8476;
+}
+.empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #f1f4ea;
+  color: #8a9a7c;
+}
+.empty-action {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.warning-notice,
+.error-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 14px;
+  line-height: 1.75;
+  margin: 0 0 18px;
+}
+.warning-notice {
+  background: #f7f4ec;
+  color: #8a7752;
+}
+.error-notice {
+  background: #f8eeeb;
+  color: #9d6552;
+}
+.citation {
+  font-size: 0.86em;
+  vertical-align: 0.18em;
+  color: #568141;
+  padding: 0 1px;
+}
+.content-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #f1f3ea;
+  color: #7d8869;
+}
+.content-badge.full_text {
+  background: #eaf1e7;
+  color: #568141;
+}
+.content-badge.partial,
+.content-badge.summary {
+  background: #f7f4ec;
+  color: #8a7752;
+}
+.meta {
+  font-size: 14px;
+  color: #9ba48f;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f1f3ea;
+  color: #7d8869;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.brief-expand {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #568141;
+}
+.brief-expand:hover {
+  text-decoration: underline;
+}
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7fae5f;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+.detail-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 26px;
+  margin: 0 0 18px;
+  font-size: 14px;
+}
+.detail-metadata > div {
+  display: flex;
+  gap: 7px;
+}
+.detail-metadata dt {
+  color: #9ba48f;
+}
+.detail-metadata dd {
+  margin: 0;
+  color: #626e5f;
+}
+.section-caption {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.team-center .reader-toolbar {
+  border-top: 0;
+  padding-top: 0;
+}
+@media (max-width: 640px) {
+  .reader-toolbar .source-link {
+    margin-left: 0;
+  }
+  .reader-assistant form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .reader-assistant form .dark-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot {
+    animation: none;
+  }
+}
+
+/* Answer body, citation list, reader images and the login pitch: same gap —
+   rendered by components.tsx / AuthGate.tsx, previously undefined here. */
+.answer-text {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #3c4a41;
+}
+.answer-text > * + * {
+  margin-top: 12px;
+}
+.answer-text.brief-answer {
+  position: relative;
+  max-height: 15.5em;
+  overflow: hidden;
+}
+.answer-text.brief-answer:after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3.4em;
+  background: linear-gradient(transparent, #fff);
+  pointer-events: none;
+}
+.demo-inline {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f7f4ec;
+  color: #8a7752;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.evidence-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+}
+.evidence-row:hover {
+  border-color: #cddac4;
+  background: #fafbf8;
+}
+.evidence-row > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.evidence-row strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.evidence-row small {
+  display: block;
+  font-size: 12px;
+  color: #9ba48f;
+  line-height: 1.7;
+}
+.evidence-row > svg {
+  flex-shrink: 0;
+  color: #9ba48f;
+}
+.evidence-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #eef3e6;
+  color: #568141;
+  font-size: 12px;
+  font-weight: 600;
+}
+.evidence-detail {
+  padding: 24px 25px;
+}
+.story-images {
+  margin: 18px 0 20px;
+}
+.story-images .photo img {
+  aspect-ratio: 1.9;
+}
+.feed-empty .empty-icon {
+  margin-bottom: 14px;
+}
+.read-more:hover {
+  color: #355e26;
+}
+.login-pitch {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 3 / 2;
+  margin: 28px 0 0;
+  border: 1px solid #c9d3c0;
+  border-radius: 8px;
+  background:
+    linear-gradient(transparent 49.6%, #c9d3c0 49.6% 50.4%, transparent 50.4%),
+    linear-gradient(90deg, transparent 49.6%, #c9d3c0 49.6% 50.4%, transparent 50.4%);
+  opacity: 0.7;
+}
+.login-pitch > span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 78px;
+  height: 78px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #c9d3c0;
+  border-radius: 50%;
+}
+.provider-address,
+.provider-key {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #626e5f;
+}
+.provider-address > input,
+.provider-key > input {
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid #dfe5d6;
+  border-radius: 9px;
+  background: #fff;
+  font-size: 14px;
+}
+.provider-address > input:focus,
+.provider-key > input:focus {
+  border-color: #a9ce79;
 }
