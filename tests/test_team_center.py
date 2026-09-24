@@ -19,7 +19,7 @@ def roster_payload():
             "team": {"id": "359", "seasonSummary": "2026-27"}, "athletes": [
         {"id": "101", "displayName": "Example Player", "citizenship": "Spain", "jersey": "8",
          "dateOfBirth": "2000-01-10T00:00Z", "age": 99, "height": 72, "weight": 160,
-         "position": {"abbreviation": "M"}, "headshot": {"href": "https://a.espncdn.com/i/headshots/soccer/players/full/101.png"},
+         "position": {"abbreviation": "M"},
          "statistics": {"splits": {"categories": [{"stats": [{"name": "appearances", "value": 2}, {"name": "totalGoals", "value": 1}]}]}}},
         {"id": "102", "displayName": "Keeper", "position": {"abbreviation": "G"}, "jersey": "1"}]}
 
@@ -45,7 +45,11 @@ class RosterParserTests(unittest.TestCase):
         self.assertNotEqual(player["age"], 99)
         self.assertEqual(player["stats"]["goals"], 1)
         self.assertIsNone(player["stats"]["assists"])
-        self.assertIn("ESPN", player["photo_credit"])
+        # A roster row carries facts only. A portrait is added later, by a
+        # provider that has checked the player's identity and licence, so the
+        # squad payload itself must never supply one.
+        self.assertEqual(player["photo_url"], "")
+        self.assertEqual(player["photo_credit"], "")
         self.assertIn("/id/101", player["source_url"])
         self.assertEqual(parsed["season_id"], "PL-2026")
         self.assertIn("/season/2026", parsed["source_url"])
@@ -82,13 +86,6 @@ class RosterParserTests(unittest.TestCase):
             payload["athletes"] = athletes
             with self.assertRaises(IngestionError):
                 self.parse(payload)
-
-    def test_unsafe_or_unattributed_photo_is_not_used(self):
-        for url in ("http://a.espncdn.com/a.png", "https://127.0.0.1/a.png", "https://a.espncdn.com.evil.test/a.png",
-                    "https://secret@a.espncdn.com/a.png", "https://a.espncdn.com/a.svg", "https://a.espncdn.com:42/a.png"):
-            payload = roster_payload()
-            payload["athletes"][0]["headshot"]["href"] = url
-            self.assertEqual(next(p for p in self.parse(payload)["roster"] if p["provider_id"] == "101")["photo_url"], "")
 
     def test_invalid_measurements_do_not_create_misleading_facts(self):
         payload = roster_payload()
@@ -221,17 +218,21 @@ class TeamCenterTests(unittest.TestCase):
     def test_dedicated_player_photo_tool_keeps_roster_facts_and_timestamp(self):
         snapshot = self.save_squad()
         updated = __import__("copy").deepcopy(snapshot)
-        updated["roster"][0].update(photo_url="https://a.espncdn.com/i/headshots/soccer/players/full/102.png", photo_credit="ESPN 球员资料图片")
+        updated["roster"][0].update(photo_url="https://r2.thesportsdb.com/images/media/player/cutout/a.png",
+            photo_credit="TheSportsDB 社区球员资料图片", photo_source_url="https://www.thesportsdb.com/player/1",
+            photo_file_page="https://www.thesportsdb.com/player/1", photo_license="第三方社区数据库转载；未声明开放许可",
+            photo_match="community_name_and_nationality")
         summary = {"status": "completed", "available_count": 2, "total_count": 2, "updated_count": 1, "errors": []}
         with patch("server.team_portraits.enrich_player_photos", AsyncMock(return_value=(updated, summary)), create=True) as enrich:
             result = asyncio.run(team_center.fetch_player_photos(self.store, "arsenal", player_ids=["102"]))
         stored = self.store.get("team_snapshots", snapshot["id"])
         self.assertEqual(stored["fetched_at"], snapshot["fetched_at"])
         self.assertEqual(stored["roster"][0]["name"], snapshot["roster"][0]["name"])
-        self.assertEqual(result["available_count"], 2)
+        self.assertEqual(result["available_count"], 1)
         self.assertEqual(enrich.await_args.kwargs["player_ids"], ["102"])
-        self.assertEqual(enrich.await_args.kwargs["provider"], "wikimedia")
-        self.assertEqual(len(result["photos"]), 2)
+        # Only rows that actually carry a checked portrait are returned as
+        # photos, so the one enriched player is what this reports.
+        self.assertEqual(len(result["photos"]), 1)
 
     def test_automatic_portraits_start_for_non_directory_team(self):
         self.save_squad()

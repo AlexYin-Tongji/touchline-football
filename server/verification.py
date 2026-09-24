@@ -157,9 +157,18 @@ def prepare_claims(local, structured):
                        "verdict": "unsupported" if errors else "uncertain",
                        "reason": "；".join(dict.fromkeys(errors)) if errors else "等待独立原文支持核对。",
                        "quotes": quotes, "validation_failed": bool(errors), "_local_error": bool(errors)})
-    # Check the whole delivery, not just easy-to-verify quoted facts. Summary
-    # and analysis must never introduce another unsupported event or venue.
-    for field in ("title", "summary", "analysis", "unknowns"):
+    # Check the whole delivery, not just easy-to-verify quoted facts. The lead
+    # and the analysis must never introduce another unsupported event or venue.
+    # A news report leads with `summary`; a question is delivered as the prose
+    # `answer`. Either name is accepted, but the delivery claim is always
+    # labelled `summary` so the checker prompt, the repair path and
+    # conservative delivery all recognise the same claim.
+    structured = {**structured}
+    if not structured.get("summary") and structured.get("answer"):
+        structured["summary"] = structured["answer"]
+    for field in ("title", "summary", "answer", "analysis", "unknowns"):
+        if field == "answer":
+            continue
         value = structured.get(field)
         value = "；".join(value) if isinstance(value, list) else value
         if value:

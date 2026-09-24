@@ -137,8 +137,12 @@ class LocalRetrievalEnhancementTests(unittest.TestCase):
 
     def test_source_overview_needs_no_network_and_is_in_chinese(self):
         result = self.local.call("source_overview", {})
-        self.assertEqual(result["sources"][0]["name"], "阿森纳官网")
-        self.assertEqual(result["sources"][0]["source_type"], "official")
+        # No publisher outranks another, so the club's own site is asserted by
+        # presence and label rather than by position in the list.
+        official = [row for row in result["sources"] if row["source_type"] == "official"]
+        self.assertEqual([row["name"] for row in official], ["阿森纳官网"])
+        self.assertTrue(any("·" in row["name"] for row in result["sources"]))
+        self.assertTrue(result["sources"])
         self.assertEqual(self.local.network_queries, 0)
 
     def test_filters_reject_unknown_categories_and_non_integer_days(self):

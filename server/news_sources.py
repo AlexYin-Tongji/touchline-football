@@ -15,7 +15,24 @@ FEED_HOSTS = frozenset({"feeds.bbci.co.uk", "www.skysports.com"})
 AS_HOSTS = frozenset({"feeds.as.com", "as.com"})
 TYC_HOSTS = frozenset({"www.tycsports.com", "tycsports.com"})
 RMC_HOSTS = frozenset({"rmcsport.bfmtv.com"})
-REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS | RMC_HOSTS
+MARCA_HOSTS = frozenset({"e00-marca.uecdn.es", "www.marca.com", "marca.com"})
+GAZZETTA_HOSTS = frozenset({"www.gazzetta.it", "gazzetta.it"})
+KICKER_HOSTS = frozenset({"newsfeed.kicker.de", "www.kicker.de", "kicker.de"})
+ESPN_HOSTS = frozenset({"www.espn.com", "espn.com", "www.espn.co.uk", "espn.co.uk"})
+REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS | RMC_HOSTS | MARCA_HOSTS | GAZZETTA_HOSTS | KICKER_HOSTS
+
+# Hosts that serve more than one reviewed subscription. A transport fault there
+# says nothing about one feed path, so the failure is recorded against the host
+# and shared by every feed on it instead of being re-observed per subscription.
+SHARED_FEED_HOSTS = frozenset({"feeds.bbci.co.uk"})
+
+
+def shared_host(url):
+    """Whether one host-level health record covers this feed's siblings."""
+    try:
+        return (urlsplit(url).hostname or "").lower() in SHARED_FEED_HOSTS
+    except ValueError:
+        return False
 # These shorthand names are safe in a club-specific feed, but can identify
 # another club or an ordinary word worldwide. Keep stronger club identities.
 AMBIGUOUS_GLOBAL_ALIASES = {
@@ -30,12 +47,17 @@ OTHER_CLUB_IDENTITIES = {
 
 
 def additional_sources(team_id):
-    """Only reviewed feed URLs; a global feed is filtered after index caching."""
+    """Reviewed media feeds, plus one club-specific subscription per big club.
+
+    Every entry here is an independent publisher; each is discovered in
+    parallel and none outranks another after discovery.
+    """
     if team_id not in TEAM_ALIASES:
         return []
     sources = [{"id": "bbc_football", "name": "BBC 体育 · 足球", "kind": "rss",
                 "url": "https://feeds.bbci.co.uk/sport/football/rss.xml",
                 "allowed_hosts": sorted(BBC_HOSTS), "global_feed": True, "shared_index": True,
+                "reviewed_at": "2026-09-24",
                 "description": "BBC 足球公开订阅；按当前球队与男足一线队范围筛选。"}]
     sources.extend([
         {"id": "sky_football", "name": "天空体育 · 足球", "kind": "rss",
@@ -55,11 +77,23 @@ def additional_sources(team_id):
          "allowed_hosts": sorted(TYC_HOSTS), "global_feed": True, "shared_index": True,
          "verify_article_dates": True, "reviewed_at": "2026-09-23",
          "description": "阿根廷 TyC Sports 国际足球公开新闻；指定时间窗口时，限量读取匹配文章核实发布日期。"},
+        {"id": "espn_soccer", "name": "ESPN · 足球", "kind": "rss",
+         "url": "https://www.espn.com/espn/rss/soccer/news", "allowed_hosts": sorted(ESPN_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-24",
+         "description": "ESPN 足球公开订阅；按球队筛选后阅读公开正文。"},
+        {"id": "marca_football", "name": "马卡报 · 足球", "kind": "rss",
+         "url": "https://e00-marca.uecdn.es/rss/futbol.xml", "allowed_hosts": sorted(MARCA_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-24",
+         "description": "西班牙马卡报官方足球订阅；仅阅读公开正文，按球队筛选。"},
+        {"id": "gazzetta_football", "name": "米兰体育报 · 足球", "kind": "rss",
+         "url": "https://www.gazzetta.it/rss/calcio.xml", "allowed_hosts": sorted(GAZZETTA_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-24",
+         "description": "意大利米兰体育报足球订阅；仅阅读公开正文，按球队筛选。"},
+        {"id": "kicker_football", "name": "踢球者 · 足球", "kind": "rss",
+         "url": "https://newsfeed.kicker.de/news/aktuell", "allowed_hosts": sorted(KICKER_HOSTS),
+         "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-24",
+         "description": "德国踢球者公开订阅；仅阅读公开正文，按球队筛选。"},
     ])
-    if team_id == "arsenal":
-        sources.append({"id": "sky_arsenal", "name": "天空体育 · 阿森纳", "kind": "rss",
-                        "url": "https://www.skysports.com/rss/11670", "allowed_hosts": sorted(SKY_HOSTS),
-                        "description": "天空体育已核验的阿森纳公开订阅源。"})
     return sources
 
 
@@ -84,6 +118,14 @@ def readable_publisher_entry(entry):
         return not re.search(r"/(?:videos?|vivo)(?:/|$)", path)
     if parts.hostname in RMC_HOSTS:
         return bool(re.search(r"_av-\d+\.html$", path))
+    if parts.hostname in ESPN_HOSTS:
+        return bool(re.search(r"/story/_/id/\d+/", path))
+    if parts.hostname in MARCA_HOSTS:
+        return not re.search(r"/(?:videos?|directo|en-vivo|minuto-a-minuto)(?:/|$)", path)
+    if parts.hostname in GAZZETTA_HOSTS:
+        return not re.search(r"/(?:diretta|video|videos)(?:/|$)", path)
+    if parts.hostname in KICKER_HOSTS:
+        return not re.search(r"/(?:live|video|videos)(?:/|$)", path)
     return True
 
 

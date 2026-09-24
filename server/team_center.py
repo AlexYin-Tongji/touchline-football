@@ -74,21 +74,6 @@ def _text(value, maximum=150):
     return " ".join(value.split())[:maximum] if isinstance(value, str) else ""
 
 
-def _image_url(value):
-    """Only accept an actual image URL supplied by the checked provider record."""
-    if not isinstance(value, str) or len(value) > 2048:
-        return ""
-    try:
-        parsed = urlsplit(value)
-        if (parsed.scheme == "https" and parsed.hostname in {"a.espncdn.com", "a1.espncdn.com", "a2.espncdn.com", "a3.espncdn.com", "a4.espncdn.com"}
-                and not parsed.username and not parsed.password and parsed.port in {None, 443}
-                and parsed.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))):
-            return value
-    except ValueError:
-        pass
-    return ""
-
-
 def team_season_context(store, team_id, year=None):
     team = store.get("teams", team_id)
     if not team:
@@ -161,8 +146,6 @@ def parse_roster(payload, team, league, season, provider_team_id):
         weight = _number(athlete.get("weight"), 75, 300)
         number = _text(str(athlete.get("jersey") or ""), 3)
         number = number if number.isdigit() else ""
-        headshot = athlete.get("headshot") or {}
-        photo = _image_url(headshot.get("href")) if isinstance(headshot, dict) else ""
         stats = {}
         for category in ((athlete.get("statistics") or {}).get("splits") or {}).get("categories", []):
             for stat in category.get("stats", []):
@@ -178,7 +161,10 @@ def parse_roster(payload, team, league, season, provider_team_id):
                        "birth_date": birth_date, "age": age, "age_as_of": today.isoformat(),
                        "height_cm": round(height * 2.54) if height is not None else None,
                        "weight_kg": round(weight * .45359237, 1) if weight is not None else None,
-                       "photo_url": photo, "photo_credit": "ESPN 球员资料图片" if photo else "",
+                       # A squad row starts with no photo. Portraits are added
+                       # only by the checked official, Wikimedia and community
+                       # providers, so nothing here can show an unverified face.
+                       "photo_url": "", "photo_credit": "",
                        "source_url": source_url, "bio": " · ".join(bio_parts), "stats": player_stats})
     order = {"GK": 0, "DF": 1, "MF": 2, "FW": 3, "OTHER": 4}
     roster.sort(key=lambda p: (order[p["position_group"]], int(p["number"]) if p["number"] else 999, p["name"]))
@@ -404,8 +390,8 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
                 "errors": ["请先取得这个球队和赛季的可核对阵容，再补充球员照片。"]}
     _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
     try:
-        updated, summary = await enrich_player_photos(store, snapshot, provider_team_id,
-                                                       player_ids=player_ids, force=force, provider="wikimedia")
+        updated, summary = await enrich_player_photos(store, snapshot,
+                                                       player_ids=player_ids, force=force)
         # The network wait must never resurrect a replaced roster or alter a
         # freshly corrected membership. Photos attach only to this exact view.
         if store.get("team_snapshots", snapshot_id) != snapshot:

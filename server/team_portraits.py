@@ -1,9 +1,11 @@
 """Bounded source-backed portraits; never search by a loose surname.
 
-The Barcelona directory is one public HTML page. Images are accepted only from
-explicit player cards on that page, uniquely matched to a verified ESPN squad by
-full name and shirt number. This adds images, never squad membership or facts.
-Other clubs use an ESPN player page only after provider player and team IDs agree.
+Two kinds of checked directory are supported. A club that marks up each player
+with its own stable classes uses ``cards``; a club whose page only exposes a
+player link, a plain name and a portrait uses ``entries``. Either way an image
+is accepted only when the roster's full name is unique on both sides AND the
+shirt number matches, so a photo can never attach to the wrong person. This
+adds images, never squad membership or facts.
 """
 from __future__ import annotations
 
@@ -20,8 +22,26 @@ from bs4 import BeautifulSoup
 from .ingestion import IngestionError, fetch_document, now, published_time
 
 DIRECTORIES = {
-    "barcelona": {"url": "https://www.fcbarcelona.com/en/football/first-team/players",
-                  "host": "www.fcbarcelona.com", "credit": "FC Barcelona 官方球员目录"},
+    "barcelona": {
+        "url": "https://www.fcbarcelona.com/en/football/first-team/players",
+        "host": "www.fcbarcelona.com", "credit": "FC Barcelona 官方球员目录",
+        "profile_prefix": "/en/football/first-team/players/",
+        "image_prefix": "/photo-resources/",
+        "cards": {"selector": "a.team-person[href]",
+                  "name": ".team-person__first-name, .team-person__last-name",
+                  "number": ".team-person__number", "image": "img.team-person__image"},
+    },
+    "juventus": {
+        "url": "https://www.juventus.com/en/teams/first-team-men/squad/",
+        "host": "www.juventus.com", "credit": "尤文图斯官方球员目录",
+        "profile_prefix": "/en/teams/first-team-men/squad/",
+        "image_prefix": "/images/image/",
+        # Coach and staff are separate containers, so only player cards are read.
+        "entries": {"selector": "div.jcom-player-item",
+                    "profile": "a[href]", "name": "img[alt]",
+                    "number": ".jcom-player-info__number",
+                    "image": "img[src], img[data-src]"},
+    },
 }
 CACHE_SECONDS = 86400
 RETRY_SECONDS = 3600
@@ -32,14 +52,22 @@ RETRY_SECONDS = 3600
 # and reports it as "interrupted", which is what made photos look missing.
 PLAYER_PAGE_LIMIT = 12
 PLAYER_PAGE_CONCURRENCY = 3
-PLAYER_PAGE_MAX_BODY = 4 * 1024 * 1024
+# The community database throttles bursts, so its requests are paced serially
+# at about one per second, one player at a time. The bound must leave room in
+# the 180s phase for the Wikimedia batch that runs before it (about 6-7s per
+# player for up to PLAYER_PAGE_LIMIT players); the cursor carries the rest of
+# the squad into the next round rather than overrunning the phase. Measured:
+# a 29-player squad completes in ~32s when the data is there, but a squad whose
+# names mostly miss costs a full paced lookup each and runs four times longer,
+# which is why an unbounded loop is not safe.
+COMMUNITY_PAGE_LIMIT = 40
 PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
                        "photo_file_page", "photo_license", "photo_restrictions", "photo_reason",
                        "retryable", "reason_code")
-
-
-class _PortraitIdentityError(IngestionError):
-    """An explicit mismatch must not revive an older provider photo from cache."""
+# A photo carrying one of these matches was checked against the roster's own
+# name AND number, so a later refresh may re-derive or replace it.
+REFRESHABLE_PHOTO_MATCHES = frozenset({"exact_name_and_number", "wikimedia_verified_club",
+                                       "community_name_and_nationality"})
 
 
 async def _portrait_document(store, url, *, allowed_hosts, max_body, content_types=("text/html", "xhtml")):
@@ -124,13 +152,61 @@ def _public_url(value, config, *, image=False):
                 or parsed.port not in {None, 443}):
             return ""
         if image:
-            if not parsed.path.startswith("/photo-resources/") or not parsed.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+            if not parsed.path.startswith(config["image_prefix"]) or not parsed.path.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".webp")):
                 return ""
-        elif not parsed.path.startswith("/en/football/first-team/players/"):
+        elif not parsed.path.startswith(config["profile_prefix"]) or parsed.path.rstrip("/") == \
+                config["profile_prefix"].rstrip("/"):
+            # A bare directory link is not a player's own page.
             return ""
         return url
     except ValueError:
         return ""
+
+
+def _card_image(node):
+    image = node.select_one("img.team-person__image") if node else None
+    return image.get("data-image-src") or image.get("src") if image else ""
+
+
+def _parse_cards(soup, config):
+    """A directory that marks up each player with its own stable classes."""
+    markup = config["cards"]
+    entries = []
+    for card in soup.select(markup["selector"]):
+        names = card.select(markup["name"])
+        number = card.select_one(markup["number"])
+        entries.append({
+            "profile": card.get("href"),
+            "name": " ".join(node.get_text(" ", strip=True) for node in names).strip(),
+            "number": number.get_text(strip=True) if number else "",
+            "image": _card_image(card),
+        })
+    return entries
+
+
+def _parse_entries(soup, config):
+    """A directory that only exposes a player link, a name and a portrait.
+
+    The name comes from the portrait's own alt text, which the club writes for
+    this player, rather than from concatenated DOM fragments that may include a
+    position, a nationality or a sponsor.
+    """
+    markup = config["entries"]
+    entries = []
+    for node in soup.select(markup["selector"]):
+        profile = node.select_one(markup["profile"])
+        image = node.select_one(markup["image"])
+        if image is None:
+            continue
+        number = node.select_one(markup["number"])
+        entries.append({
+            "profile": profile.get("href") if profile else "",
+            "name": str(image.get("alt") or "").strip(),
+            "number": number.get_text(strip=True) if number else "",
+            "image": image.get("src") or image.get("data-src") or "",
+        })
+    return entries
 
 
 def parse_directory(body, team_id):
@@ -138,16 +214,15 @@ def parse_directory(body, team_id):
     if not config:
         return []
     soup = BeautifulSoup(body, "html.parser")
+    raw = _parse_cards(soup, config) if config.get("cards") else _parse_entries(soup, config)
     cards = []
-    for card in soup.select("a.team-person[href]"):
-        # Coach and other team sections do not qualify as first-team players.
-        profile = _public_url(card.get("href"), config)
-        names = card.select(".team-person__first-name, .team-person__last-name")
-        name = " ".join(node.get_text(" ", strip=True) for node in names).strip()
-        number = card.select_one(".team-person__number")
-        number = number.get_text(strip=True) if number else ""
-        image = card.select_one("img.team-person__image")
-        image_url = _public_url(image.get("data-image-src") or image.get("src"), config, image=True) if image else ""
+    for entry in raw:
+        profile = _public_url(entry["profile"], config)
+        image_url = _public_url(entry["image"], config, image=True)
+        name = re.sub(r"\s+", " ", str(entry["name"] or "")).strip()
+        number = str(entry["number"] or "").strip()
+        # A number is required: it is the second identity fact that stops a
+        # same-name squad member from taking another player's portrait.
         if not profile or not name or not number.isdigit() or not image_url:
             continue
         cards.append({"name": name, "normalized_name": normalized_name(name), "number": number,
@@ -193,7 +268,7 @@ async def portrait_directory(store, team_id):
 async def enrich_portraits(store, snapshot):
     team_id = snapshot.get("team_id")
     if team_id not in DIRECTORIES or not any(not player.get("photo_url") or player.get("photo_match") in
-            {"exact_name_and_number", "wikimedia_verified_club"} for player in snapshot.get("roster", [])):
+            REFRESHABLE_PHOTO_MATCHES for player in snapshot.get("roster", [])):
         return snapshot
     directory = await portrait_directory(store, team_id)
     return _apply_directory(snapshot, directory)
@@ -201,6 +276,7 @@ async def enrich_portraits(store, snapshot):
 
 def apply_cached_portraits(store, snapshot):
     """Reuse checked cards without making a core roster fetch wait on HTML."""
+    from .community_portraits import cached_portrait as cached_community
     from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait
 
     snapshot = _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
@@ -212,13 +288,20 @@ def apply_cached_portraits(store, snapshot):
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
             player.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
             player["photo_updated_at"] = cached.get("fetched_at")
-        elif cached:
+            continue
+        community = cached_community(store, player, snapshot.get("team_id"))
+        if community and community.get("status") == "completed" and community.get("photo_url"):
+            player.update({field: community[field] for field in PHOTO_FIELDS if community.get(field)})
+            player["photo_updated_at"] = community.get("fetched_at")
+            continue
+        verdict = cached if cached and cached.get("photo_reason") else community
+        if verdict:
             # Carry the known non-photo verdict onto the rebuilt row too, so a
             # refreshed roster still explains why a player has no image instead
             # of showing an empty placeholder with no reason.
-            player["photo_reason"] = cached.get("photo_reason") or "球员照片未通过身份与许可核验。"
-            player["retryable"] = bool(cached.get("retryable"))
-            player["reason_code"] = cached.get("reason_code") or "rejected"
+            player["photo_reason"] = verdict.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            player["retryable"] = bool(verdict.get("retryable"))
+            player["reason_code"] = verdict.get("reason_code") or "rejected"
     return snapshot
 
 
@@ -262,143 +345,15 @@ def _apply_directory(snapshot, directory):
     return snapshot
 
 
-def _provider_id(value):
-    identity = str(value)
-    if not re.fullmatch(r"[0-9]{1,10}", identity):
-        raise IngestionError("球员照片需要可核对的 ESPN 球员和球队编号。")
-    return identity
-
-
-def _player_object(value):
-    if not isinstance(value, dict):
-        raise IngestionError("ESPN 球员网页缺少可核对的身份资料。")
-    return value
-
-
-def _espn_headshot_url(value):
-    if not isinstance(value, str) or len(value) > 2048:
-        return ""
-    try:
-        parsed = urlsplit(value)
-        if (parsed.scheme == "https" and parsed.hostname in {"a.espncdn.com", "a1.espncdn.com", "a2.espncdn.com", "a3.espncdn.com", "a4.espncdn.com"}
-                and not parsed.username and not parsed.password and parsed.port in {None, 443}
-                and not parsed.fragment and parsed.path.startswith("/i/headshots/soccer/players/")
-                and parsed.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))):
-            return value
-    except ValueError:
-        pass
-    return ""
-
-
-def parse_player_portrait(body, provider_player_id, provider_team_id):
-    """Read only the identified player's explicit headshot, never related media."""
-    player_id, team_id = _provider_id(provider_player_id), _provider_id(provider_team_id)
-    if isinstance(body, bytes):
-        if len(body) > PLAYER_PAGE_MAX_BODY:
-            raise IngestionError("ESPN 球员网页超过读取上限。")
-        try:
-            body = body.decode("utf-8")
-        except UnicodeError:
-            raise IngestionError("ESPN 球员网页编码无法识别。") from None
-    if not isinstance(body, str) or len(body.encode("utf-8")) > PLAYER_PAGE_MAX_BODY:
-        raise IngestionError("ESPN 球员网页超过读取上限。")
-    markers = list(re.finditer(r"window(?:\[['\"]__espnfitt__['\"]\]|\.__espnfitt__)\s*=\s*", body))
-    if len(markers) != 1:
-        raise IngestionError("ESPN 球员网页缺少唯一的结构化资料。")
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body[markers[0].end():])
-    except (ValueError, RecursionError):
-        raise IngestionError("ESPN 球员网页结构化资料无法读取。") from None
-    params = _player_object(_player_object(_player_object(payload).get("routing")).get("params"))
-    page = _player_object(payload.get("page"))
-    player = _player_object(_player_object(page.get("content")).get("player"))
-    athlete = _player_object(_player_object(player.get("prtlCmnApiRsp")).get("athlete"))
-    team = _player_object(athlete.get("team"))
-    if (params.get("sport") != "soccer" or params.get("pageType") != "player"
-            or str(params.get("id")) != player_id or str(player.get("playerId")) != player_id
-            or player.get("sport", "soccer") != "soccer" or str(athlete.get("id")) != player_id
-            or athlete.get("uid") != "s:600~a:" + player_id or str(team.get("id")) != team_id
-            or team.get("uid", "s:600~t:" + team_id) != "s:600~t:" + team_id):
-        raise _PortraitIdentityError("ESPN 球员网页的球员或所属球队编号不匹配，未采用照片。")
-    photo = athlete.get("headshot")
-    photo = _espn_headshot_url(photo.get("href")) if isinstance(photo, dict) else ""
-    if not photo:
-        header = player.get("plyrHdr")
-        header = header.get("ath") if isinstance(header, dict) else None
-        if isinstance(header, dict):
-            if (any(header[key] != "s:600~t:" + team_id for key in ("tmUid", "tmUID") if key in header)
-                    or "id" in header and str(header["id"]) != player_id
-                    or "uid" in header and header["uid"] != "s:600~a:" + player_id):
-                raise _PortraitIdentityError("ESPN 球员页眉身份不匹配，未采用照片。")
-            supplied = header.get("headshot")
-            photo = _espn_headshot_url(supplied.get("href") if isinstance(supplied, dict) else supplied)
-    return {"photo_url": photo, "photo_credit": "ESPN 球员资料图片" if photo else "",
-            "photo_source_url": f"https://www.espn.com/soccer/player/_/id/{player_id}" if photo else "",
-            "photo_match": "provider_player_id" if photo else ""}
-
-
-def _player_cache_key(team_id, player_id):
-    return f"player_portrait_v1_{team_id}_{player_id}"
-
-
-def _fresh_player_cache(previous, team_id, player_id):
-    if not isinstance(previous, dict) or previous.get("provider_team_id") != team_id or previous.get("provider_player_id") != player_id:
-        return False
-    if previous.get("status") in {"completed", "missing"}:
-        return _elapsed(previous.get("fetched_at")) < CACHE_SECONDS
-    return previous.get("status") == "unavailable" and _elapsed(previous.get("last_attempt")) < RETRY_SECONDS
-
-
-async def _fetch_player_portrait(store, team_id, player_id, *, force=False):
-    key = _player_cache_key(team_id, player_id)
-    lock = store._player_portrait_locks.setdefault(key, asyncio.Lock())
-    async with lock:
-        previous = store.get_meta(key, {})
-        if not force and _fresh_player_cache(previous, team_id, player_id):
-            return previous, True
-        url = f"https://www.espn.com/soccer/player/_/id/{player_id}"
-        attempted = now()
-        try:
-            body, final_url, content_type = await _portrait_document(store, url,
-                allowed_hosts={"www.espn.com"}, max_body=PLAYER_PAGE_MAX_BODY)
-            final = urlsplit(final_url)
-            route = re.fullmatch(r"/soccer/player/_/id/([0-9]{1,10})(?:/[^/]+)?/?", final.path)
-            if (final.scheme != "https" or final.hostname != "www.espn.com" or final.username or final.password
-                    or final.port not in {None, 443} or final.query or final.fragment or not route
-                    or route.group(1) != player_id):
-                raise _PortraitIdentityError("ESPN 球员网页地址不匹配，未采用照片。")
-            if not any(kind in content_type.lower() for kind in ("text/html", "xhtml")):
-                raise IngestionError("ESPN 球员网页内容类型不匹配，未采用照片。")
-            photo = parse_player_portrait(body, player_id, team_id)
-            fetched = now()
-            result = {**photo, "provider_team_id": team_id, "provider_player_id": player_id,
-                      "fetched_at": fetched, "last_attempt": attempted,
-                      "status": "completed" if photo["photo_url"] else "missing", "errors": []}
-            if photo["photo_url"]:
-                result["photo_updated_at"] = fetched
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            # Keep only a prior portrait whose exact provider identity was already
-            # checked; raw page content and network exception details are not saved.
-            identity_rejected = isinstance(exc, _PortraitIdentityError)
-            prior = previous if not identity_rejected and isinstance(previous, dict) and previous.get("provider_team_id") == team_id and previous.get("provider_player_id") == player_id else {}
-            result = {**prior, "provider_team_id": team_id, "provider_player_id": player_id,
-                      "last_attempt": attempted, "status": "unavailable",
-                      "identity_rejected": identity_rejected,
-                      "errors": [str(exc) if isinstance(exc, IngestionError) else "ESPN 球员网页暂不可访问，已有照片保留。"]}
-        store.set_meta(key, result)
-        return result, False
-
-
-async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=None, force=False, provider="espn"):
+async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False):
     """Return a copied snapshot and bounded progress, without changing roster facts."""
-    team_id = _provider_id(provider_team_id)
     result = copy.deepcopy(snapshot)
     roster = result.get("roster", [])
     if not isinstance(roster, list) or len(roster) > 120:
         raise IngestionError("球员照片需要已核对的球队阵容。")
-    identities = [_provider_id(row.get("provider_id")) for row in roster]
+    identities = [str(row.get("provider_id") or "") for row in roster]
+    if any(not re.fullmatch(r"[0-9]{1,10}", identity) for identity in identities):
+        raise IngestionError("球员照片需要可核对的球员编号。")
     if len(set(identities)) != len(identities):
         raise IngestionError("阵容球员编号重复，暂不匹配照片。")
     if player_ids is not None:
@@ -424,49 +379,13 @@ async def enrich_player_photos(store, snapshot, provider_team_id, *, player_ids=
                     row[field] = source[field]
                 else:
                     row.pop(field, None)
-    if provider == "wikimedia":
-        return await _enrich_wikimedia_photos(store, result, selected, before, force=force,
-                                              explicit_selection=player_ids is not None)
-    if provider != "espn":
-        raise IngestionError("球员照片来源未获允许。")
-    if not hasattr(store, "_player_portrait_locks"):
-        store._player_portrait_locks = {}
-    candidates = [row for row in selected if not row.get("photo_url") or force and row.get("photo_match") == "provider_player_id"]
-    requested, pending, fetched = [], 0, 0
-    for row in candidates:
-        identity = str(row["provider_id"])
-        cached = not force and _fresh_player_cache(store.get_meta(_player_cache_key(team_id, identity), {}), team_id, identity)
-        if not cached and fetched >= PLAYER_PAGE_LIMIT:
-            pending += 1
-            continue
-        fetched += not cached
-        requested.append(row)
-    responses = await asyncio.gather(*(_fetch_player_portrait(store, team_id, str(row["provider_id"]), force=force) for row in requested))
-    errors, cached_count = [], 0
-    for row, (photo, cached) in zip(requested, responses):
-        cached_count += cached
-        errors.extend(f"球员 {row['provider_id']}：{error}" for error in photo.get("errors", []))
-        if photo.get("identity_rejected") and row.get("photo_match") == "provider_player_id":
-            for field in PLAYER_PHOTO_FIELDS:
-                row.pop(field, None)
-            row.update(photo_url="", photo_credit="")
-            continue
-        if (photo.get("status") != "unavailable" and _espn_headshot_url(photo.get("photo_url")) and photo.get("photo_match") == "provider_player_id"
-                and photo.get("photo_source_url") == f"https://www.espn.com/soccer/player/_/id/{row['provider_id']}"):
-            row.update({key: photo[key] for key in PLAYER_PHOTO_FIELDS if key in photo})
-    available = sum(bool(row.get("photo_url")) for row in roster)
-    selected_available = sum(bool(row.get("photo_url")) for row in selected)
-    summary = {"status": "completed" if selected_available == len(selected) and not errors else "partial" if selected_available else "unavailable",
-               "updated_count": sum(tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) != before[row["provider_id"]] for row in selected),
-               "available_count": available, "total_count": len(roster), "selected_count": len(selected),
-               "selected_available_count": selected_available, "missing_count": len(selected) - selected_available,
-               "attempted_count": len(responses) - cached_count, "cached_count": cached_count,
-               "remaining_count": pending, "errors": errors, "updated_at": now()}
-    return result, summary
+    return await _enrich_wikimedia_photos(store, result, selected, before, force=force,
+                                          explicit_selection=player_ids is not None)
 
 
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
-    """Advance one bounded squad batch; retain official and ESPN successes."""
+    """Advance one bounded squad batch, then fill the rest from the community
+    database; official directory successes are retained throughout."""
     from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait, resolve_portrait
 
     roster = snapshot["roster"]
@@ -527,6 +446,35 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     if not explicit_selection and requested:
         last = selected.index(requested[-1])
         store.set_meta(cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
+    # Wikimedia is preferred because it carries a checked free licence. Whatever
+    # it cannot supply falls through to the community database, which needs two
+    # agreeing identity facts (full name and nationality) before its unlicensed
+    # portrait is shown. This is what actually fills a squad: a free-licensed
+    # photo exists for only about a fifth of players.
+    from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
+    community_rows = [row for row in ordered if not row.get("photo_url")
+                      and (force or not cached_community(store, row, team_id))]
+    attempted = 0
+    for row in community_rows:
+        if attempted >= COMMUNITY_PAGE_LIMIT and not explicit_selection:
+            break
+        cached = None if force else cached_community(store, row, team_id)
+        if cached:
+            photo = cached
+        else:
+            attempted += 1
+            photo = await resolve_community(store, row, team_id, force=force)
+        if photo.get("status") == "completed" and photo.get("photo_url"):
+            row.update({field: photo[field] for field in PHOTO_FIELDS if photo.get(field)})
+            row["photo_updated_at"] = photo.get("fetched_at") or now()
+        elif not row.get("photo_reason"):
+            # The preferred source already explained this player; only speak up
+            # when the row would otherwise show a placeholder with no reason.
+            row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份核对。"
+            row["retryable"] = bool(photo.get("retryable"))
+            row["reason_code"] = photo.get("reason_code") or "rejected"
+        if photo.get("status") == "unavailable":
+            errors.append(f"球员 {row['provider_id']}：{row.get('photo_reason', '照片来源暂不可用。')}")
     available = sum(bool(row.get("photo_url")) for row in roster)
     selected_available = sum(bool(row.get("photo_url")) for row in selected)
     status = ("completed" if selected_available == len(selected) and not errors else

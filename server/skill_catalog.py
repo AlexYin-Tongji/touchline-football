@@ -69,5 +69,12 @@ def load_workflow(skill, workflow=None):
     sections = [_document(folder + "/SKILL.md")[1]]
     if reference:
         sections.append(_document(folder + "/references/" + reference)[1])
-    sections.append(_document("reader_protocol.md")[1])
+    # The shared protocol is written for report production: it fixes a
+    # submission shape, a fact count policy and a revision path that only a
+    # news draft has. Loading it into a question made ordinary answers read
+    # like a filled-in form, so it applies to the news and team-information
+    # skills only. A question keeps the SKILL.md boundaries, which already
+    # carry the read-before-cite rule.
+    if folder != "football-assistant":
+        sections.append(_document("reader_protocol.md")[1])
     return "\n\n".join(sections)

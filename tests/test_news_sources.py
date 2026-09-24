@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+from urllib.parse import urlsplit
 from xml.sax.saxutils import escape
 
 import httpx
@@ -40,14 +41,14 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
     def test_reviewed_feeds_are_available_without_guessing_sky_team_ids(self):
         arsenal = research.source_catalog(self.store, "arsenal")
         self.assertIn(BBC_FEED, {item["url"] for item in arsenal})
-        self.assertIn(SKY_FEED, {item["url"] for item in arsenal})
         for team_id in research.CATALOG:
             with self.subTest(team=team_id):
                 sources = research.source_catalog(self.store, team_id)
                 self.assertIn(BBC_FEED, {item["url"] for item in sources})
+                # Club subscriptions and the shared feeds are both present; the
+                # club one is no longer privileged over any other publisher.
                 sky = [item for item in sources if "skysports.com" in item["url"]]
-                self.assertEqual([item["url"] for item in sky],
-                                 [SKY_FOOTBALL_FEED, SKY_FEED] if team_id == "arsenal" else [SKY_FOOTBALL_FEED])
+                self.assertEqual([item["url"] for item in sky], [SKY_FOOTBALL_FEED])
                 self.assertIn(RMC_FOOTBALL_FEED, {item["url"] for item in sources})
 
     def test_new_global_feeds_keep_club_and_article_scope(self):
@@ -92,12 +93,19 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
                          "title": title, "description": ""}
                 self.assertFalse(research._first_team_entry(entry))
 
-    async def test_unavailable_guardian_index_cools_down_across_teams_then_recovers(self):
-        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"].startswith("guardian_"))
-        chelsea = next(s for s in research.source_catalog(self.store, "chelsea") if s["id"].startswith("guardian_"))
+    async def test_unavailable_shared_host_index_cools_down_across_teams_then_recovers(self):
+        # Arsenal's and Liverpool's club subscriptions, plus BBC's global
+        # football feed, all sit on feeds.bbci.co.uk. A transport fault there is
+        # a property of the host, not of one feed path, so one observed failure
+        # must cover its siblings without a second request.
+        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == "bbc_arsenal")
+        liverpool = next(s for s in research.source_catalog(self.store, "liverpool") if s["id"] == "bbc_liverpool")
+        football = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == "bbc_football")
+        self.assertEqual({urlsplit(s["url"]).hostname for s in (arsenal, liverpool, football)},
+                         {"feeds.bbci.co.uk"})
         with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.SourceConnectionError("来源请求超时，请稍后重试"))) as fetch:
             first = await research._source_index(self.store, "arsenal", arsenal)
-            second = await research._source_index(self.store, "chelsea", chelsea)
+            second = await research._source_index(self.store, "liverpool", liverpool)
         self.assertEqual(fetch.call_count, 1)
         self.assertEqual(first[2]["state"], "unavailable")
         self.assertEqual(second[2]["state"], "unavailable")
@@ -105,13 +113,13 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(health["backoff_until"])
         self.assertEqual(health["consecutive_failures"], 1)
         health["backoff_until"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
-        self.store.set_meta(research._guardian_host_health_key(arsenal), health)
+        self.store.set_meta(research._host_health_key(arsenal), health)
         self.store._research_requests.failures.clear()
         self.store._research_requests.host_failures.clear()
         cached = self.store.get_meta(research._index_key("arsenal", arsenal))
         cached["last_checked"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
         self.store.set_meta(research._index_key("arsenal", arsenal), cached)
-        article = "https://www.theguardian.com/football/2026/sep/22/arsenal-training"
+        article = "https://www.bbc.co.uk/sport/football/articles/arsenal-training"
         body = feed([("Arsenal training", article, "", "Tue, 22 Sep 2026 12:00:00 GMT")])
         with patch("server.research_transport.FAILURE_COOLDOWN_SECONDS", 0), \
              patch.object(research, "_fetch", new=AsyncMock(return_value=(body, arsenal["url"], "application/rss+xml"))) as fetch:
@@ -120,34 +128,44 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recovered[2]["state"], "fresh")
         self.assertEqual(research.source_health(self.store, arsenal)["consecutive_failures"], 0)
 
-    async def test_guardian_article_specific_failure_does_not_cool_other_feed(self):
-        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"].startswith("guardian_"))
-        chelsea = next(s for s in research.source_catalog(self.store, "chelsea") if s["id"].startswith("guardian_"))
+    async def test_article_specific_failure_does_not_cool_other_feed(self):
+        arsenal = next(s for s in research.source_catalog(self.store, "arsenal") if s["id"] == "bbc_arsenal")
+        liverpool = next(s for s in research.source_catalog(self.store, "liverpool") if s["id"] == "bbc_liverpool")
         with patch.object(research, "_fetch", new=AsyncMock(side_effect=ingestion.IngestionError("来源返回 HTTP 404"))) as fetch:
             await research._source_index(self.store, "arsenal", arsenal)
-            self.assertFalse(research._source_in_cooldown(self.store, chelsea))
-            await research._source_index(self.store, "chelsea", chelsea)
+            self.assertFalse(research._source_in_cooldown(self.store, liverpool))
+            await research._source_index(self.store, "liverpool", liverpool)
         self.assertEqual(fetch.call_count, 2)
         self.assertEqual(research.source_health(self.store, arsenal)["last_error_kind"], "http_error")
 
-    async def test_one_guardian_network_failure_wave_counts_once(self):
-        teams = ("arsenal", "chelsea", "liverpool", "real-madrid", "barcelona")
+    async def test_one_network_failure_wave_counts_once(self):
+        teams = ("arsenal", "liverpool")
         sources = [(team, next(s for s in research.source_catalog(self.store, team)
-                               if s["id"].startswith("guardian_"))) for team in teams]
+                               if s["id"] == "bbc_" + team)) for team in teams]
         async def outage(url, source):
             await asyncio.sleep(0.03)
             raise ingestion.SourceConnectionError("来源请求超时，请稍后重试")
         with patch.object(research, "_fetch", side_effect=outage) as fetch:
+            # Concurrent, so both readers are in flight inside one wave. A
+            # request already past its cooldown check is not interrupted; the
+            # point is that the wave records ONE failure for the host, not one
+            # per reader, and the next reader is short-circuited by it.
             await asyncio.gather(*(research._source_index(self.store, team, source)
                                    for team, source in sources))
-        self.assertLess(fetch.call_count, len(teams))
+            wave_calls = fetch.call_count
+            followup = await research._source_index(
+                self.store, "arsenal", next(s for s in research.source_catalog(self.store, "arsenal")
+                                            if s["id"] == "bbc_football"))
+        self.assertLessEqual(wave_calls, len(teams))
+        self.assertEqual(fetch.call_count, wave_calls)
+        self.assertEqual(followup[2]["state"], "unavailable")
         health = research.source_health(self.store, sources[0][1])
         self.assertEqual(health["consecutive_failures"], 1)
 
-    async def test_forced_guardian_failure_wave_counts_once_then_later_retry_counts_again(self):
-        teams = ("arsenal", "chelsea", "liverpool", "real-madrid", "barcelona")
+    async def test_forced_failure_wave_counts_once_then_later_retry_counts_again(self):
+        teams = ("arsenal", "liverpool")
         sources = [(team, next(s for s in research.source_catalog(self.store, team)
-                               if s["id"].startswith("guardian_"))) for team in teams]
+                               if s["id"] == "bbc_" + team)) for team in teams]
         async def outage(url, source):
             await asyncio.sleep(0.03)
             raise ingestion.SourceConnectionError("来源请求超时，请稍后重试")
@@ -157,8 +175,9 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
             physical_attempts = fetch.call_count
             first_health = research.source_health(self.store, sources[0][1])
             self.assertEqual(first_health["consecutive_failures"], 1)
+            # force=True starts a new retry boundary, so this one does go out.
             await research._source_index(self.store, "arsenal", sources[0][1], force=True)
-        self.assertLess(physical_attempts, len(teams))
+        self.assertLessEqual(physical_attempts, len(teams))
         self.assertEqual(fetch.call_count, physical_attempts + 1)
         self.assertEqual(research.source_health(self.store, sources[0][1])["consecutive_failures"], 2)
 

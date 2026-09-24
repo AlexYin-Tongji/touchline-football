@@ -325,6 +325,28 @@ def cached_portrait(store, player, team_id):
 
 RETRYABLE_REASON = "维基媒体查询过于频繁或暂时不可达，稍后自动重试。"
 
+# Only these answer the question "does this player have an acceptable photo?".
+# Everything else is a failure to find out, and must be rechecked rather than
+# frozen as a permanent verdict about the player.
+_IDENTITY_VERDICT_CODES = frozenset({
+    "ambiguous_identity", "missing_article", "no_free_image", "license_not_free",
+})
+
+
+def _failure_kind(exc):
+    """Classify any exception into a verdict or a retryable failure.
+
+    This used to fall through to ``rejected`` for anything outside a short
+    allowlist, so an unclassified transport or parse fault became a permanent
+    "this player has no photo" answer. Failures now stay retryable unless the
+    cause is positively a verdict about this player.
+    """
+    details = source_error_details(exc)
+    code = str(details.get("code") or "source_unavailable")
+    if code in _IDENTITY_VERDICT_CODES:
+        return False, code
+    return True, code
+
 
 def _retryable(exc):
     """A throttle or transport fault is not a verdict about this player.
@@ -334,10 +356,7 @@ def _retryable(exc):
     retried on the short backoff; only a real identity/licence rejection is held
     for the long term.
     """
-    details = source_error_details(exc)
-    return details["code"] in {"http_rate_limited", "http_unavailable", "timeout", "connection_reset",
-                              "connection_error", "dns_failed", "tls_error", "tls_certificate",
-                              "source_unavailable"}
+    return _failure_kind(exc)[0]
 
 
 async def resolve_portrait(store, player, team_id, *, force=False):
@@ -411,12 +430,16 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         raise
     except Exception as exc:
         # Keep the real class of failure in the record instead of collapsing
-        # every cause to one sentence; a throttled recheck must stay retryable.
-        if _retryable(exc):
+        # every cause to one sentence. An unclassified fault is a failure to
+        # find out, not a verdict about the player, so it is recorded with its
+        # real reason code and rechecked on the short backoff.
+        retryable, code = _failure_kind(exc)
+        if retryable:
             result = {"status": "unavailable", "photo_reason": RETRYABLE_REASON,
-                      "retryable": True, "reason_code": source_error_details(exc)["code"]}
+                      "retryable": True, "reason_code": code}
         else:
-            result = {"status": "rejected", "photo_reason": "维基媒体资料无法核对，未采用未经核验图片。"}
+            result = {"status": "rejected", "photo_reason": "维基媒体资料无法核对，未采用未经核验图片。",
+                      "retryable": False, "reason_code": code}
     result.update(fetched_at=now(), last_attempt=attempted)
     store.set_meta(key, result)
     return result

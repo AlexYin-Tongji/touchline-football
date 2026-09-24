@@ -47,19 +47,6 @@
         }
       },
       {
-        "id": "guardian_arsenal",
-        "name": "The Guardian · Arsenal",
-        "url": "https://www.theguardian.com/football/arsenal/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
-      },
-      {
         "id": "bbc_arsenal",
         "name": "BBC Sport · Arsenal",
         "url": "https://feeds.bbci.co.uk/sport/football/teams/arsenal/rss.xml",
@@ -113,19 +100,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_aston_villa",
-        "name": "The Guardian · Aston Villa",
-        "url": "https://www.theguardian.com/football/aston-villa/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -172,19 +146,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_bournemouth",
-        "name": "The Guardian · Bournemouth",
-        "url": "https://www.theguardian.com/football/bournemouth/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -230,19 +191,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_brentford",
-        "name": "The Guardian · Brentford",
-        "url": "https://www.theguardian.com/football/brentford/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -293,19 +241,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_brighton",
-        "name": "The Guardian · Brighton & Hove Albion",
-        "url": "https://www.theguardian.com/football/brightonfootball/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -351,19 +286,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_chelsea",
-        "name": "The Guardian · Chelsea",
-        "url": "https://www.theguardian.com/football/chelsea/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -412,19 +334,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_coventry_city",
-        "name": "The Guardian · Coventry City",
-        "url": "https://www.theguardian.com/football/coventry/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -469,19 +378,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_crystal_palace",
-        "name": "The Guardian · Crystal Palace",
-        "url": "https://www.theguardian.com/football/crystalpalace/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -533,19 +429,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_everton",
-        "name": "The Guardian · Everton",
-        "url": "https://www.theguardian.com/football/everton/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -591,19 +474,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_fulham",
-        "name": "The Guardian · Fulham",
-        "url": "https://www.theguardian.com/football/fulham/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -651,19 +521,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_hull_city",
-        "name": "The Guardian · Hull City",
-        "url": "https://www.theguardian.com/football/hullcity/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -713,19 +570,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_ipswich_town",
-        "name": "The Guardian · Ipswich Town",
-        "url": "https://www.theguardian.com/football/ipswichtown/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -772,19 +616,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_leeds_united",
-        "name": "The Guardian · Leeds United",
-        "url": "https://www.theguardian.com/football/leedsunited/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -837,19 +668,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_liverpool",
-        "name": "The Guardian · Liverpool",
-        "url": "https://www.theguardian.com/football/liverpool/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       },
       {
@@ -908,19 +726,6 @@
           "status": "restricted",
           "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
         }
-      },
-      {
-        "id": "guardian_manchester_city",
-        "name": "The Guardian · Manchester City",
-        "url": "https://www.theguardian.com/football/manchestercity/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -971,19 +776,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_manchester_united",
-        "name": "The Guardian · Manchester United",
-        "url": "https://www.theguardian.com/football/manchester-united/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1032,19 +824,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_newcastle_united",
-        "name": "The Guardian · Newcastle United",
-        "url": "https://www.theguardian.com/football/newcastleunited/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1095,19 +874,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_nottingham_forest",
-        "name": "The Guardian · Nottingham Forest",
-        "url": "https://www.theguardian.com/football/nottinghamforest/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1152,19 +918,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_sunderland",
-        "name": "The Guardian · Sunderland",
-        "url": "https://www.theguardian.com/football/sunderland/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1214,19 +967,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_tottenham_hotspur",
-        "name": "The Guardian · Tottenham Hotspur",
-        "url": "https://www.theguardian.com/football/tottenham-hotspur/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1283,19 +1023,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_barcelona",
-        "name": "The Guardian · Barcelona",
-        "url": "https://www.theguardian.com/football/barcelona/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1350,19 +1077,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_inter",
-        "name": "The Guardian · Internazionale",
-        "url": "https://www.theguardian.com/football/internazionale/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需要对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1408,19 +1122,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_real_madrid",
-        "name": "The Guardian · Real Madrid",
-        "url": "https://www.theguardian.com/football/realmadrid/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1469,19 +1170,6 @@
           "checked_at": "2026-09-12",
           "status": "timeout",
           "note": "核验时官网请求超时，可稍后重试或从原站手动阅读。"
-        }
-      },
-      {
-        "id": "guardian_bayern_munich",
-        "name": "The Guardian · Bayern Munich",
-        "url": "https://www.theguardian.com/football/bayernmunich/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1532,19 +1220,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_paris_saint_germain",
-        "name": "The Guardian · Paris Saint-Germain",
-        "url": "https://www.theguardian.com/football/parisstgermain/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1591,19 +1266,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_juventus",
-        "name": "The Guardian · Juventus",
-        "url": "https://www.theguardian.com/football/juventus/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1652,19 +1314,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_ac_milan",
-        "name": "The Guardian · AC Milan",
-        "url": "https://www.theguardian.com/football/acmilan/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1716,19 +1365,6 @@
           "status": "restricted",
           "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
         }
-      },
-      {
-        "id": "guardian_atletico_madrid",
-        "name": "The Guardian · Atlético de Madrid",
-        "url": "https://www.theguardian.com/football/atleticomadrid/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1777,19 +1413,6 @@
           "status": "page_available",
           "note": "核验时新闻入口可访问；动态页面的候选发现及文章正文仍需运行时检查。"
         }
-      },
-      {
-        "id": "guardian_borussia_dortmund",
-        "name": "The Guardian · Borussia Dortmund",
-        "url": "https://www.theguardian.com/football/borussiadortmund/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
-        }
       }
     ],
     "profile_reviewed_at": "2026-09-12",
@@ -1836,19 +1459,6 @@
           "checked_at": "2026-09-12",
           "status": "restricted",
           "note": "核验时官网拒绝自动请求（HTTP 403），可从原站手动阅读，并使用球队 RSS 发现报道。"
-        }
-      },
-      {
-        "id": "guardian_roma",
-        "name": "The Guardian · AS Roma",
-        "url": "https://www.theguardian.com/football/roma/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；媒体报道需对照原始声明，订阅摘要不等于文章全文。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "note": "核验时 RSS 返回有效 XML 和文章条目；不表示每篇原文都可读取。"
         }
       }
     ],
@@ -1907,21 +1517,6 @@
         "allowed_hosts": [
           "deportivoalaves.com"
         ]
-      },
-      {
-        "id": "guardian_alaves",
-        "name": "The Guardian · Alavés",
-        "url": "https://www.theguardian.com/football/alaves/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Alaves | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
       },
       {
         "id": "espn_alaves",
@@ -1992,21 +1587,6 @@
         }
       },
       {
-        "id": "guardian_athletic_club",
-        "name": "The Guardian · Athletic Club",
-        "url": "https://www.theguardian.com/football/athleticbilbao/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Athletic Bilbao | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_athletic_club",
         "name": "ESPN · Athletic Club",
         "url": "https://www.espn.com/soccer/club/_/id/93/athletic-club",
@@ -2072,21 +1652,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_celta_vigo",
-        "name": "The Guardian · Celta Vigo",
-        "url": "https://www.theguardian.com/football/celtavigo/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Celta Vigo | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -2159,21 +1724,6 @@
         }
       },
       {
-        "id": "guardian_deportivo_la_coruna",
-        "name": "The Guardian · Deportivo",
-        "url": "https://www.theguardian.com/football/deportivo-la-coruna/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Deportivo A Coruña | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_deportivo_la_coruna",
         "name": "ESPN · Deportivo",
         "url": "https://www.espn.com/soccer/club/_/id/90/deportivo",
@@ -2238,21 +1788,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_elche",
-        "name": "The Guardian · Elche",
-        "url": "https://www.theguardian.com/football/elche-cf/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Elche CF | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -2323,21 +1858,6 @@
         }
       },
       {
-        "id": "guardian_espanyol",
-        "name": "The Guardian · Espanyol",
-        "url": "https://www.theguardian.com/football/espanyol/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Espanyol | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_espanyol",
         "name": "ESPN · Espanyol",
         "url": "https://www.espn.com/soccer/club/_/id/88/espanyol",
@@ -2405,21 +1925,6 @@
         }
       },
       {
-        "id": "guardian_getafe",
-        "name": "The Guardian · Getafe",
-        "url": "https://www.theguardian.com/football/getafe/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Getafe | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_getafe",
         "name": "ESPN · Getafe",
         "url": "https://www.espn.com/soccer/club/_/id/2922/getafe",
@@ -2484,21 +1989,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_levante",
-        "name": "The Guardian · Levante",
-        "url": "https://www.theguardian.com/football/levante/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Levante | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -2570,21 +2060,6 @@
         }
       },
       {
-        "id": "guardian_malaga",
-        "name": "The Guardian · Málaga",
-        "url": "https://www.theguardian.com/football/malaga/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Málaga | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_malaga",
         "name": "ESPN · Málaga",
         "url": "https://www.espn.com/soccer/club/_/id/99/malaga",
@@ -2649,21 +2124,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_osasuna",
-        "name": "The Guardian · Osasuna",
-        "url": "https://www.theguardian.com/football/osasuna/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Osasuna | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -2736,21 +2196,6 @@
         }
       },
       {
-        "id": "guardian_racing_santander",
-        "name": "The Guardian · Racing Santander",
-        "url": "https://www.theguardian.com/football/racingsantander/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Racing Santander | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_racing_santander",
         "name": "ESPN · Racing Santander",
         "url": "https://www.espn.com/soccer/club/_/id/87/racing-santander",
@@ -2816,21 +2261,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_rayo_vallecano",
-        "name": "The Guardian · Rayo Vallecano",
-        "url": "https://www.theguardian.com/football/rayo-vallecano/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Rayo Vallecano | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -2903,21 +2333,6 @@
         }
       },
       {
-        "id": "guardian_real_betis",
-        "name": "The Guardian · Real Betis",
-        "url": "https://www.theguardian.com/football/realbetis/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Real Betis | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_real_betis",
         "name": "ESPN · Real Betis",
         "url": "https://www.espn.com/soccer/club/_/id/244/real-betis",
@@ -2985,21 +2400,6 @@
         }
       },
       {
-        "id": "guardian_real_sociedad",
-        "name": "The Guardian · Real Sociedad",
-        "url": "https://www.theguardian.com/football/realsociedad/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Real Sociedad | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_real_sociedad",
         "name": "ESPN · Real Sociedad",
         "url": "https://www.espn.com/soccer/club/_/id/89/real-sociedad",
@@ -3064,21 +2464,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_sevilla",
-        "name": "The Guardian · Sevilla",
-        "url": "https://www.theguardian.com/football/sevilla/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Sevilla | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3150,21 +2535,6 @@
         }
       },
       {
-        "id": "guardian_valencia",
-        "name": "The Guardian · Valencia",
-        "url": "https://www.theguardian.com/football/valencia/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Valencia | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_valencia",
         "name": "ESPN · Valencia",
         "url": "https://www.espn.com/soccer/club/_/id/94/valencia",
@@ -3230,21 +2600,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_villarreal",
-        "name": "The Guardian · Villarreal",
-        "url": "https://www.theguardian.com/football/villarreal/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Villarreal | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3315,21 +2670,6 @@
         }
       },
       {
-        "id": "guardian_atalanta",
-        "name": "The Guardian · Atalanta",
-        "url": "https://www.theguardian.com/football/atalanta/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Atalanta | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_atalanta",
         "name": "ESPN · Atalanta",
         "url": "https://www.espn.com/soccer/club/_/id/105/atalanta",
@@ -3394,21 +2734,6 @@
           "checked_at": "2026-09-12",
           "status": "access_limited",
           "note": "自动访问受限：HTTP Error 403: Forbidden。保留真实官网入口，优先使用公开媒体来源。"
-        }
-      },
-      {
-        "id": "guardian_bologna",
-        "name": "The Guardian · Bologna",
-        "url": "https://www.theguardian.com/football/bologna/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Bologna | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3479,21 +2804,6 @@
         }
       },
       {
-        "id": "guardian_cagliari",
-        "name": "The Guardian · Cagliari",
-        "url": "https://www.theguardian.com/football/cagliari/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Cagliari | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_cagliari",
         "name": "ESPN · Cagliari",
         "url": "https://www.espn.com/soccer/club/_/id/2925/cagliari",
@@ -3558,21 +2868,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_como",
-        "name": "The Guardian · Como",
-        "url": "https://www.theguardian.com/football/como/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Como | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3644,21 +2939,6 @@
         }
       },
       {
-        "id": "guardian_fiorentina",
-        "name": "The Guardian · Fiorentina",
-        "url": "https://www.theguardian.com/football/fiorentina/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Fiorentina | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_fiorentina",
         "name": "ESPN · Fiorentina",
         "url": "https://www.espn.com/soccer/club/_/id/109/fiorentina",
@@ -3723,21 +3003,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_frosinone",
-        "name": "The Guardian · Frosinone",
-        "url": "https://www.theguardian.com/football/frosinone/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Frosinone | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3808,21 +3073,6 @@
         }
       },
       {
-        "id": "guardian_genoa",
-        "name": "The Guardian · Genoa",
-        "url": "https://www.theguardian.com/football/genoa/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Genoa | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_genoa",
         "name": "ESPN · Genoa",
         "url": "https://www.espn.com/soccer/club/_/id/3263/genoa",
@@ -3887,21 +3137,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_lazio",
-        "name": "The Guardian · Lazio",
-        "url": "https://www.theguardian.com/football/lazio/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lazio | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -3975,21 +3210,6 @@
         ]
       },
       {
-        "id": "guardian_lecce",
-        "name": "The Guardian · Lecce",
-        "url": "https://www.theguardian.com/football/lecce/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lecce | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_lecce",
         "name": "ESPN · Lecce",
         "url": "https://www.espn.com/soccer/club/_/id/113/lecce",
@@ -4054,21 +3274,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_monza",
-        "name": "The Guardian · Monza",
-        "url": "https://www.theguardian.com/football/monza/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Monza | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4139,21 +3344,6 @@
         }
       },
       {
-        "id": "guardian_napoli",
-        "name": "The Guardian · Napoli",
-        "url": "https://www.theguardian.com/football/napoli/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Napoli | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_napoli",
         "name": "ESPN · Napoli",
         "url": "https://www.espn.com/soccer/club/_/id/114/napoli",
@@ -4218,21 +3408,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_parma",
-        "name": "The Guardian · Parma",
-        "url": "https://www.theguardian.com/football/parma/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Parma | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4303,21 +3478,6 @@
         }
       },
       {
-        "id": "guardian_sassuolo",
-        "name": "The Guardian · Sassuolo",
-        "url": "https://www.theguardian.com/football/sassuolo/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Sassuolo | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_sassuolo",
         "name": "ESPN · Sassuolo",
         "url": "https://www.espn.com/soccer/club/_/id/3997/sassuolo",
@@ -4382,21 +3542,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_torino",
-        "name": "The Guardian · Torino",
-        "url": "https://www.theguardian.com/football/torino/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Torino | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4467,21 +3612,6 @@
         }
       },
       {
-        "id": "guardian_udinese",
-        "name": "The Guardian · Udinese",
-        "url": "https://www.theguardian.com/football/udinese/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Udinese | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_udinese",
         "name": "ESPN · Udinese",
         "url": "https://www.espn.com/soccer/club/_/id/118/udinese",
@@ -4546,21 +3676,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_venezia",
-        "name": "The Guardian · Venezia",
-        "url": "https://www.theguardian.com/football/venezia/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Venezia | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4631,21 +3746,6 @@
         }
       },
       {
-        "id": "guardian_union_berlin",
-        "name": "The Guardian · 1. FC Union Berlin",
-        "url": "https://www.theguardian.com/football/union-berlin/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Union Berlin | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_union_berlin",
         "name": "ESPN · 1. FC Union Berlin",
         "url": "https://www.espn.com/soccer/club/_/id/598/1-fc-union-berlin",
@@ -4711,21 +3811,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_bayer_leverkusen",
-        "name": "The Guardian · Bayer Leverkusen",
-        "url": "https://www.theguardian.com/football/bayerleverkusen/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Bayer Leverkusen | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4798,21 +3883,6 @@
         }
       },
       {
-        "id": "guardian_borussia_monchengladbach",
-        "name": "The Guardian · Borussia Mönchengladbach",
-        "url": "https://www.theguardian.com/football/borussiamoenchengladbach/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Borussia Mönchengladbach | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_borussia_monchengladbach",
         "name": "ESPN · Borussia Mönchengladbach",
         "url": "https://www.espn.com/soccer/club/_/id/268/borussia-monchengladbach",
@@ -4875,21 +3945,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_eintracht_frankfurt",
-        "name": "The Guardian · Eintracht Frankfurt",
-        "url": "https://www.theguardian.com/football/eintrachtfrankfurt/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Eintracht Frankfurt | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -4956,21 +4011,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_augsburg",
-        "name": "The Guardian · FC Augsburg",
-        "url": "https://www.theguardian.com/football/augsburg/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Augsburg | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5043,21 +4083,6 @@
         }
       },
       {
-        "id": "guardian_cologne",
-        "name": "The Guardian · FC Cologne",
-        "url": "https://www.theguardian.com/football/cologne/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Cologne | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_cologne",
         "name": "ESPN · FC Cologne",
         "url": "https://www.espn.com/soccer/club/_/id/122/fc-cologne",
@@ -5123,21 +4148,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_hamburg",
-        "name": "The Guardian · Hamburg SV",
-        "url": "https://www.theguardian.com/football/hamburg/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Hamburg | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5209,21 +4219,6 @@
         }
       },
       {
-        "id": "guardian_mainz",
-        "name": "The Guardian · Mainz",
-        "url": "https://www.theguardian.com/football/mainz-05/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Mainz 05 | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_mainz",
         "name": "ESPN · Mainz",
         "url": "https://www.espn.com/soccer/club/_/id/2950/mainz",
@@ -5288,21 +4283,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_rb_leipzig",
-        "name": "The Guardian · RB Leipzig",
-        "url": "https://www.theguardian.com/football/red-bull-leipzig/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "RB Leipzig | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5373,21 +4353,6 @@
         }
       },
       {
-        "id": "guardian_freiburg",
-        "name": "The Guardian · SC Freiburg",
-        "url": "https://www.theguardian.com/football/freiburg/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Freiburg | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_freiburg",
         "name": "ESPN · SC Freiburg",
         "url": "https://www.espn.com/soccer/club/_/id/126/sc-freiburg",
@@ -5451,21 +4416,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_paderborn",
-        "name": "The Guardian · SC Paderborn 07",
-        "url": "https://www.theguardian.com/football/paderborn/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Paderborn | The Guardian",
-          "item_count": 5,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5533,21 +4483,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_elversberg",
-        "name": "The Guardian · SV Elversberg",
-        "url": "https://www.theguardian.com/football/sv-elversberg/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "SV Elversberg | The Guardian",
-          "item_count": 8,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5619,21 +4554,6 @@
         }
       },
       {
-        "id": "guardian_schalke_04",
-        "name": "The Guardian · Schalke 04",
-        "url": "https://www.theguardian.com/football/schalke/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Schalke | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_schalke_04",
         "name": "ESPN · Schalke 04",
         "url": "https://www.espn.com/soccer/club/_/id/133/schalke-04",
@@ -5701,21 +4621,6 @@
         }
       },
       {
-        "id": "guardian_hoffenheim",
-        "name": "The Guardian · TSG Hoffenheim",
-        "url": "https://www.theguardian.com/football/hoffenheim/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "1899 Hoffenheim | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_hoffenheim",
         "name": "ESPN · TSG Hoffenheim",
         "url": "https://www.espn.com/soccer/club/_/id/7911/tsg-hoffenheim",
@@ -5779,21 +4684,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_stuttgart",
-        "name": "The Guardian · VfB Stuttgart",
-        "url": "https://www.theguardian.com/football/stuttgart/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Stuttgart | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -5865,21 +4755,6 @@
         }
       },
       {
-        "id": "guardian_werder_bremen",
-        "name": "The Guardian · Werder Bremen",
-        "url": "https://www.theguardian.com/football/werderbremen/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Werder Bremen | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_werder_bremen",
         "name": "ESPN · Werder Bremen",
         "url": "https://www.espn.com/soccer/club/_/id/137/werder-bremen",
@@ -5943,21 +4818,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_auxerre",
-        "name": "The Guardian · AJ Auxerre",
-        "url": "https://www.theguardian.com/football/auxerre/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Auxerre | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6027,21 +4887,6 @@
         }
       },
       {
-        "id": "guardian_monaco",
-        "name": "The Guardian · AS Monaco",
-        "url": "https://www.theguardian.com/football/monaco/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Monaco | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_monaco",
         "name": "ESPN · AS Monaco",
         "url": "https://www.espn.com/soccer/club/_/id/174/as-monaco",
@@ -6105,21 +4950,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_angers",
-        "name": "The Guardian · Angers",
-        "url": "https://www.theguardian.com/football/angers-sco/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Angers SCO | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6187,21 +5017,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_brest",
-        "name": "The Guardian · Brest",
-        "url": "https://www.theguardian.com/football/brest/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Brest | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6273,21 +5088,6 @@
         ]
       },
       {
-        "id": "guardian_le_havre",
-        "name": "The Guardian · Le Havre AC",
-        "url": "https://www.theguardian.com/football/lehavre/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Le Havre | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_le_havre",
         "name": "ESPN · Le Havre AC",
         "url": "https://www.espn.com/soccer/club/_/id/3236/le-havre-ac",
@@ -6354,21 +5154,6 @@
         }
       },
       {
-        "id": "guardian_le_mans",
-        "name": "The Guardian · Le Mans",
-        "url": "https://www.theguardian.com/football/lemans/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Le Mans | The Guardian",
-          "item_count": 17,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_le_mans",
         "name": "ESPN · Le Mans",
         "url": "https://www.espn.com/soccer/club/_/id/2697/le-mans",
@@ -6432,21 +5217,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_lens",
-        "name": "The Guardian · Lens",
-        "url": "https://www.theguardian.com/football/lens/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lens | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6517,21 +5287,6 @@
         }
       },
       {
-        "id": "guardian_lille",
-        "name": "The Guardian · Lille",
-        "url": "https://www.theguardian.com/football/lille/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lille | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_lille",
         "name": "ESPN · Lille",
         "url": "https://www.espn.com/soccer/club/_/id/166/lille",
@@ -6595,21 +5350,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_lorient",
-        "name": "The Guardian · Lorient",
-        "url": "https://www.theguardian.com/football/lorient/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lorient | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6679,21 +5419,6 @@
         }
       },
       {
-        "id": "guardian_lyon",
-        "name": "The Guardian · Lyon",
-        "url": "https://www.theguardian.com/football/lyon/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Lyon | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_lyon",
         "name": "ESPN · Lyon",
         "url": "https://www.espn.com/soccer/club/_/id/167/lyon",
@@ -6757,21 +5482,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_marseille",
-        "name": "The Guardian · Marseille",
-        "url": "https://www.theguardian.com/football/marseille/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Marseille | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -6841,21 +5551,6 @@
         }
       },
       {
-        "id": "guardian_nice",
-        "name": "The Guardian · Nice",
-        "url": "https://www.theguardian.com/football/nice/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Nice | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_nice",
         "name": "ESPN · Nice",
         "url": "https://www.espn.com/soccer/club/_/id/2502/nice",
@@ -6919,21 +5614,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_paris_fc",
-        "name": "The Guardian · Paris FC",
-        "url": "https://www.theguardian.com/football/paris-fc/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Paris FC | The Guardian",
-          "item_count": 12,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -7004,21 +5684,6 @@
         }
       },
       {
-        "id": "guardian_rennes",
-        "name": "The Guardian · Stade Rennais",
-        "url": "https://www.theguardian.com/football/rennes/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Rennes | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_rennes",
         "name": "ESPN · Stade Rennais",
         "url": "https://www.espn.com/soccer/club/_/id/169/stade-rennais",
@@ -7083,21 +5748,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_strasbourg",
-        "name": "The Guardian · Strasbourg",
-        "url": "https://www.theguardian.com/football/strasbourg/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Strasbourg | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {
@@ -7167,21 +5817,6 @@
         }
       },
       {
-        "id": "guardian_toulouse",
-        "name": "The Guardian · Toulouse",
-        "url": "https://www.theguardian.com/football/toulouse/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Toulouse | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
-        }
-      },
-      {
         "id": "espn_toulouse",
         "name": "ESPN · Toulouse",
         "url": "https://www.espn.com/soccer/club/_/id/179/toulouse",
@@ -7245,21 +5880,6 @@
           "checked_at": "2026-09-12",
           "status": "page_available",
           "note": "已核验官网页面可以打开；新闻列表与文章正文仍需运行时检查。"
-        }
-      },
-      {
-        "id": "guardian_troyes",
-        "name": "The Guardian · Troyes",
-        "url": "https://www.theguardian.com/football/troyes-ac/rss",
-        "kind": "rss",
-        "description": "卫报公开球队订阅源；提供报道线索，具体事实需读取文章并对照原始声明。",
-        "reviewed_at": "2026-09-12",
-        "access_review": {
-          "checked_at": "2026-09-12",
-          "status": "feed_available",
-          "feed_title": "Troyes AC | The Guardian",
-          "item_count": 20,
-          "note": "已核验 RSS 为该球队的有效 XML 和文章条目；不代表每篇原文均可完整读取。"
         }
       },
       {

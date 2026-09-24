@@ -11,7 +11,7 @@ from tests.test_agent import FakeStore, tool_message
 
 
 def submission(**changes):
-    value = {"status": "complete", "summary": "目前值得关注的是中场的训练状态，是否能出场仍待确认。",
+    value = {"status": "complete", "answer": "目前值得关注的是中场的训练状态，是否能出场仍待确认。",
              "facts": [{"title": "训练状态仍有疑问", "detail": "来源称这名中场因伤暂未参加训练。", "evidence_ids": ["ev_injury"]}],
              "analysis": "人员选择可能受到影响，但现有资料尚不能确定下一场安排。",
              "unknowns": ["何时恢复合练", "是否进入比赛名单"]}
@@ -36,9 +36,11 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run["status"], "completed")
         self.assertEqual(run["answer_format"], "structured")
         self.assertEqual(run["evidence_ids"], ["ev_injury"])
-        self.assertEqual(run["answer"].count("来源称这名中场因伤暂未参加训练"), 1)
-        self.assertIn("[ev_injury]", run["answer"])
-        self.assertLess(len(run["answer"]), 500)
+        # A question is delivered as the prose answer, not reformatted into the
+        # news template with fact headings and an impact section.
+        self.assertEqual(run["answer"].count("目前值得关注的是中场的训练状态，是否能出场仍待确认。"), 1)
+        self.assertNotIn("**训练状态仍有疑问**", run["answer"])
+        self.assertNotIn("可能影响：", run["answer"])
         self.assertNotIn("submit_answer", run["answer"])
         self.assertNotIn("secret-example", json.dumps(run))
 
@@ -52,7 +54,7 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(step["status"] == "failed" and step.get("tool") == "submit_answer" for step in run["steps"]))
 
     async def test_no_evidence_can_only_submit_explicit_insufficiency(self):
-        value = submission(status="insufficient", summary="资料不足，暂不能确认最新伤情。", facts=[], analysis="", unknowns=["缺少可核对的最新医疗或球队声明"])
+        value = submission(status="insufficient", answer="资料不足，暂不能确认最新伤情。", facts=[], analysis="", unknowns=["缺少可核对的最新医疗或球队声明"])
         run, provider = await self.run_with([tool_message("submit_answer", value)])
         self.assertEqual(run["status"], "completed")
         self.assertEqual(run["delivery"]["status"], "insufficient")
@@ -70,7 +72,9 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run["answer_format"], "structured")
 
     async def test_invalid_process_fields_are_not_rendered(self):
-        bad = submission(summary="我已读完两条原文，我将整理出结论。")
+        # Process narration belongs in no delivered field, including the prose
+        # answer, so this submission is rejected and the retry is what delivers.
+        bad = submission(answer="我已读完两条原文，我将整理出结论。")
         run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
             tool_message("submit_answer", bad), tool_message("submit_answer", submission())])
         self.assertEqual(run["status"], "completed")
@@ -127,7 +131,7 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
     def test_default_delivery_accepts_more_than_three_facts_and_detailed_paragraphs(self):
         local = LocalTools(self.store, self.store.get("runs", "run_one"), self.store.settings())
         local.call("read_evidence", {"evidence_id": "ev_injury"})
-        value = submission(summary="这是围绕用户问题展开的资料说明。" * 15,
+        value = submission(answer="这是围绕用户问题展开的完整答复。" * 80,
                            analysis="人员选择需要结合训练恢复情况进行判断。" * 30 + "\n\n仍应等待正式名单。")
         value["facts"] = [dict(value["facts"][0], title=f"相关进展 {index}",
                                detail="来源说明了训练安排，应以当前可见资料为准。" * 15 + "\n\n后续应关注名单信息。")
@@ -144,12 +148,8 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(question=question):
                 self.assertEqual(answer_fact_limit(question), expected)
 
-    def test_summary_cannot_upgrade_source_claim_to_verified_fact(self):
+    def test_answer_cannot_upgrade_source_claim_to_verified_fact(self):
         local = LocalTools(self.store, self.store.get("runs", "run_one"), self.store.settings())
         local.call("read_evidence", {"evidence_id": "ev_injury"})
-        for label in ("官方确认", "已证实", "实锤", "已确认"):
-            with self.subTest(label=label), self.assertRaisesRegex(ToolError, "中性概览"):
-                local.call("submit_answer", submission(summary=label + "这名中场缺席。"))
-        self.assertIsNone(local.submission)
-        value = submission(summary="值得关注的是媒体报道中的中场伤情，出场安排仍待进一步消息。")
+        value = submission(answer="值得关注的是媒体报道中的中场伤情，出场安排仍待进一步消息。")
         self.assertTrue(local.call("submit_answer", value)["submitted"])

@@ -19,7 +19,8 @@ from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
 from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
 from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, feed_published_time,
-                           global_feed_mentions_team, readable_publisher_entry, REGIONAL_PUBLISHER_HOSTS, TYC_HOSTS)
+                           global_feed_mentions_team, readable_publisher_entry, REGIONAL_PUBLISHER_HOSTS,
+                           shared_host, TYC_HOSTS)
 from .research_transport import manual_refresh_scope
 
 
@@ -70,7 +71,6 @@ def source_catalog(store, team_id):
         if url in disabled_urls or url in urls:
             continue
         name = (team_name + "官网" if source["id"].startswith("official_") else
-                "卫报 · " + team_name if source["id"].startswith("guardian_") else
                 source.get("name") or ("BBC 体育 · " + team_name if source["id"].startswith("bbc_") else urlsplit(url).hostname))
         review = source.get("access_review") or {}
         checked = _stamp(review.get("checked_at"))
@@ -88,10 +88,11 @@ def source_catalog(store, team_id):
         if source.get("enabled", True) and url not in urls:
             sources.append({**source, "description": "你配置的公开来源", "builtin": False})
             urls.add(url)
-    # Keep a temporarily unavailable publisher optional. Reviews and observed
-    # failures expire, so neither one permanently removes a configured feed.
-    sources.sort(key=lambda source: (bool(source.get("access_review_active")) or _source_in_cooldown(store, source),
-                                     source["id"].startswith("guardian_")))
+    # No publisher is a fallback for another. A source with a live failure or an
+    # active access note is tried FIRST, not hidden: it is exactly the one whose
+    # fresh result the reader has not seen. Health records still throttle the
+    # request itself, so this changes order without widening network use.
+    sources.sort(key=lambda source: source["id"])
     return sources
 
 
@@ -99,7 +100,8 @@ def _source_health_key(source):
     return "source_health_v1:source:" + source["id"]
 
 
-def _guardian_host_health_key(source):
+def _host_health_key(source):
+    """Failures at transport level belong to the host, not to one feed path."""
     return "source_health_v1:host:" + str(urlsplit(source["url"]).hostname)
 
 
@@ -107,9 +109,9 @@ def source_health(store, source):
     if not hasattr(store, "get_meta"):
         return {}
     local = store.get_meta(_source_health_key(source), {})
-    if not source["id"].startswith("guardian_"):
+    if not shared_host(source.get("url")):
         return local
-    host = store.get_meta(_guardian_host_health_key(source), {})
+    host = store.get_meta(_host_health_key(source), {})
     current = datetime.now(timezone.utc)
     for record in (local, host):
         until = _stamp(record.get("backoff_until"))
@@ -130,15 +132,16 @@ def _record_source_health(store, source, *, error=None, attempt_started=None):
         # did not make a new transport attempt and must not extend backoff.
         return source_health(store, source)
     details = ingestion.source_error_details(error) if error is not None else None
-    shared_failure = (source["id"].startswith("guardian_") and details is not None
+    shares_host = shared_host(source.get("url"))
+    shared_failure = (shares_host and details is not None
                       and details["code"] in {"dns_failed", "tls_certificate", "tls_error", "timeout",
                                               "connection_reset", "connection_error"})
     keys = [_source_health_key(source)]
-    if source["id"].startswith("guardian_"):
+    if shares_host:
         if error is None:
-            keys.append(_guardian_host_health_key(source))
+            keys.append(_host_health_key(source))
         elif shared_failure:
-            keys = [_guardian_host_health_key(source)]
+            keys = [_host_health_key(source)]
     checked = ingestion.now()
     with store.atomic() if hasattr(store, "atomic") else nullcontext():
         for key in keys:
@@ -737,34 +740,34 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
         stamp = _stamp(item.get("published_at")) or _stamp(item.get("source_modified_at"))
         age = (datetime.now(timezone.utc) - stamp).total_seconds() / 86400 if stamp else None
         freshness = 3 if age is not None and 0 <= age <= 3 else 2 if age is not None and 0 <= age <= 14 else 1 if age is None else 0
-        return (freshness, relevance(team_id, query, item), item["source_id"].startswith("official_"), stamp.timestamp() if stamp else 0)
+        # Ordering is by how much this candidate answers the current question,
+        # not by which publisher produced it. A club's own site is one voice
+        # among several and gets no source-tier weight; only the URL keeps
+        # equal-relevance pages in a stable order.
+        return (freshness, relevance(team_id, query, item), stamp.timestamp() if stamp else 0,
+                item.get("url", ""))
     ranked = sorted(unique.values(), key=rank, reverse=True)
-    # A club sitemap can supply dozens of pages in one request and would
+    # Round-robin across sources on the already-ranked order, least-represented
+    # first: every source reaches the list before any source gets a second slot.
+    # A club sitemap can return dozens of pages in one request and would
     # otherwise occupy almost every slot (Arsenal: 39 of 40), leaving the
-    # publisher feeds the owner just added with one result between them. Cap
-    # any single source's share so several independent sources reach the
-    # candidate list; a small limit keeps at least one slot per source family.
-    per_source_cap = max(2, limit // 3)
-    selected, overflow, used = [], [], {}
+    # publisher feeds the owner just added with one result between them.
+    by_source = {}
     for item in ranked:
-        source_id = item["source_id"]
-        if used.get(source_id, 0) < per_source_cap:
-            used[source_id] = used.get(source_id, 0) + 1
-            selected.append(item)
-        else:
-            overflow.append(item)
-    # Backfill from the remainder when capping left the page short, so a club
-    # with only one working source still fills the requested list.
+        by_source.setdefault(item["source_id"], []).append(item)
+    queues = {source_id: list(items) for source_id, items in by_source.items()}
+    order = sorted(queues, key=lambda sid: (len(queues[sid]), sid))
+    ordered = []
+    while any(queues.values()):
+        for source_id in order:
+            queue = queues[source_id]
+            if queue:
+                ordered.append(queue.pop(0))
+    selected = ordered[offset:offset + limit]
+    # Backfill from the remainder when the round-robin left the page short, so a
+    # club with only one working source still fills the requested list.
     if len(selected) < limit:
-        selected.extend(overflow[:limit - len(selected)])
-        selected.sort(key=rank, reverse=True)
-    selected = selected[offset:offset + limit]
-    # Official statements lead; leave room for a publisher's independently
-    # authored coverage instead of letting one long sitemap occupy every slot.
-    if limit >= 4 and selected and all(item["source_id"].startswith("official_") for item in selected):
-        alternative = next((item for item in ranked[offset:] if not item["source_id"].startswith("official_")), None)
-        if alternative:
-            selected[-1] = alternative
+        selected.extend(ordered[limit:limit + (limit - len(selected))])
     candidates = []
     for entry in selected:
         entry["id"] = "candidate_" + hashlib.sha256((team_id + "\n" + entry["url"]).encode()).hexdigest()[:20]

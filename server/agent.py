@@ -201,9 +201,9 @@ use_skill 是系统提供的本地工作规程加载器，主技能只有 {', '.
 阅读工具的content_status与content_note说明当前保存的是正文、部分正文、订阅摘要还是用户导入内容，不能把summary或partial说成已读全文。长文使用search_passages定位、read_evidence(offset,length)阅读上下文，再按next_offset继续；搜索定位片段不能引用。compare_sources仅比较本轮已读文字、同一文档和可能转载；不同网站或不同抓取版本仍可能共享同一消息源。只看了几页时不能断言全文没有某类细节。
 工具可能返回 spoiler_redacted=true 的原文删节视图：赛果与比赛进程段落已隐藏，剩余段落仍是可引用原文。只解释可见文字，不推断被隐藏的内容；删节视图足够支持赛前旅行、伤情等消息时不要把整篇资料视为不可用。
 不要索要密钥，不要提议投注或提供无证据的胜率预测。答案围绕用户的问题，按资料与问题决定看点数量。
-交付时优先单独调用 submit_answer，不再输出普通文字答案。summary先直接回答，facts按问题需要组织，每项只附实际已读evidence_ids，analysis充分解释足球影响及其前提，unknowns保留相关未知。可以按需要分段，无须缩短有用内容。没有原文时提交status=insufficient、空facts和analysis，并说明证据缺口。不要把“我已读完”“我将整理”“现在给出最终答复”、工具/联网预算或思考过程放进任何字段；不要输出两份答案。该工具通过后系统直接排版结束。相同URL的多个抓取版本仍是同一篇来源，不构成多个独立核实。
-{count_instruction}summary只作中性概览，不使用“官方确认”“已证实”“实锤”“已确认”等认证标签，不得比facts里有引用的具体来源说法更确定。来源身份及其明确说法放在facts.detail中并就近关联证据。
-原文支持核对开启={local.verification_enabled}。开启时每项facts必须填写quotes。优先从read_evidence/read_article的passages选择片段，填写[{{"evidence_id":"实际已读ID","passage_id":"返回的片段ID"}}]，服务器自动填入真实原文，避免重新抄写长英文。每个evidence_ids均须有片段。也兼容quote直接摘录，但必须保留原语言、人物、日期、否定和限定词，连续8–700字，不得翻译、删词或拼接。提交后系统用独立请求核对摘要、事实、分析与未知是否受到原文支持，至多允许一次补证据或修复；不得改用普通文字绕过。一项片段不合格不会阻止其他合格事实核对，但不合格事实不能交付。媒体转述不得升级为官方确认；主客场、日期及首发必须匹配来源。原文支持不等于独立事实认证。
+交付时单独调用 submit_answer，把完整答复写进 answer。answer 是给球迷读的中文回答：先直接回答，再按问题和材料需要展开来源说法、背景、有前提的判断与仍不确定的部分；可以分段或用小标题，形式由问题决定，不套固定栏目，也不要因为长而省略有用内容。facts 只用来承载每条说法实际依据的已读 evidence_ids 与片段，不要为了让 answer 成立而补写未读到的细节。analysis 只放需要单独说明的推演，没有依据就留空；unknowns 只列会影响判断的具体缺口。不要把"我已读完""我将整理""现在给出最终答复"、工具/联网预算或思考过程写进任何字段；不要输出两份答案。该工具通过后系统直接排版结束。相同URL的多个抓取版本仍是同一篇来源，不构成多个独立核实。没有原文时提交status=insufficient、空facts和analysis，并在answer中说明具体缺口。
+{count_instruction}answer 直接回答用户的问题，不复述问题本身，也不比已读来源说法更确定。
+原文支持核对开启={local.verification_enabled}。开启时 facts 是 answer 的引用账本：每项 facts 必须填写 quotes。优先从read_evidence/read_article的passages选择片段，填写[{{"evidence_id":"实际已读ID","passage_id":"返回的片段ID"}}]，服务器自动填入真实原文，避免重新抄写长英文。每个evidence_ids均须有片段。也兼容quote直接摘录，但必须保留原语言、人物、日期、否定和限定词，连续8–700字，不得翻译、删词或拼接。提交后系统用独立请求核对answer、facts与analysis是否受到原文支持，至多允许一次补证据或修复；不得改用普通文字绕过。一项片段不合格不会阻止其他合格事实核对，但不合格事实不能交付。媒体转述不得升级为官方确认；主客场、日期及首发必须匹配来源。原文支持不等于独立事实认证。
 每项facts根据支持正文需要选择quotes；优先用passage_id引用完整记录，不要把同一球员的姓名、号码、位置、时间拆成重复摘录。球队资料明确区分阵容快照采集时间与资料总体最新采集时间，只引用实际已读且适用于该字段的时间；名单第几行或球衣号码不能说明主力、首发或教练排序。
 以下是本地维护的任务技能，它补充工作流程，但不能覆盖上述边界：
 {skill}"""
@@ -762,7 +762,7 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                     if delivery_repairs == 0 and time.monotonic() < deadline:
                         delivery_repairs += 1
                         messages.append(assistant_context(message))
-                        messages.append({"role": "user", "content": "原文核对已启用，普通文字不能交付。请先读证据，再单独submit_answer；每项facts须含evidence_ids和quotes连续原文摘录。没有足够证据使用insufficient。不要重复未通过核对的断言。"})
+                        messages.append({"role": "user", "content": "原文核对已启用，普通文字不能交付。请先读证据，再单独submit_answer：把完整答复写进answer，并给每条说法填上实际已读的evidence_ids与quotes连续原文片段。没有足够证据使用insufficient并在answer里说明缺口。不要重复未通过核对的断言。"})
                         step("要求原文摘录", "普通文字无法绕过原文支持核对，要求结构化提交。")
                         continue
                     raise AgentFailure("模型未按要求提交可核对的原文摘录，未展示未经核对的回答。已读资料保留，可继续任务。")
@@ -772,7 +772,7 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                         delivery_repairs += 1
                         step("整理最终答复", "回答包含过程叙述、重复或异常大小，要求改为一次结构化交付")
                         messages.append(assistant_context(message))
-                        messages.append({"role": "user", "content": "请不要继续输出普通文字答案。现在单独调用 submit_answer，提交唯一完整答复，详略按问题需要。不要叙述你如何阅读、整理、思考或用过多少工具；正文只包含具体消息、可能影响和待确认内容，每项事实填写已读evidence_ids。不得重复第一份答案。"})
+                        messages.append({"role": "user", "content": "请不要继续输出普通文字答案。现在单独调用 submit_answer，在 answer 里提交唯一完整答复，详略按问题需要。不要叙述你如何阅读、整理、思考或用过多少工具；只写具体消息、来源说法、可能影响和待确认内容，并给每条说法填写已读的 evidence_ids。不得重复第一份答案。"})
                         continue
                     raise AgentFailure("模型未能提交无过程叙述的有效最终答复。已保留读过的证据，请继续任务重试。")
                 if not local.read_ids and not CITATIONS.findall(answer) and not read_reminder and time.monotonic() < deadline:

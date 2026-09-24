@@ -48,6 +48,8 @@ TOOL_DEFINITIONS = [
     {"name": "submit_answer", "description": "阅读原文并完成研究后，单独调用此工具提交唯一最终答复。提交通过即结束，无需再写文字。正文不得写思考过程、工具预算或引用括号；引用仅填evidence_ids。", "parameters": {
         "type": "object", "properties": {
             "status": {"type": "string", "enum": ["complete", "insufficient"]},
+            "answer": {"type": "string", "minLength": 1, "maxLength": 24000,
+                       "description": "完整答复正文。先用几句话直接回答问题，再按需要展开来源说法、解释与仍不确定的部分。可以自然分段，也可以用小标题，形式由问题决定；不必凑成固定栏目。只要证据支持，就充分展开，不要因为长而省略。信息不足时说明具体缺什么。"},
             "summary": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "直接回应问题，按用户需求与资料决定详略。不写过程叙述。"},
             "facts": {"type": "array", "items": {"type": "object", "properties": {
                 "title": {"type": "string", "minLength": 1, "maxLength": 200},
@@ -62,7 +64,7 @@ TOOL_DEFINITIONS = [
                 "required": ["title", "detail", "evidence_ids"], "additionalProperties": False}},
             "analysis": {"type": "string", "maxLength": 16000, "description": "按问题需要解释可能的足球影响与依赖的前提，可分段。不能写内部推理过程；无依据时留空。"},
             "unknowns": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 2000}}},
-        "required": ["status", "summary", "facts", "analysis", "unknowns"], "additionalProperties": False}},
+        "required": ["status", "answer", "facts", "analysis", "unknowns"], "additionalProperties": False}},
 ]
 TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 TOOL_DEFINITIONS.extend([
@@ -88,11 +90,16 @@ OPENAI_TOOLS = [{"type": "function", "function": item} for item in TOOL_DEFINITI
 
 def tool_definitions(skill="ask"):
     """Content length follows the task; size guards only reject abnormal payloads."""
-    if skill != "news_report":
-        return TOOL_DEFINITIONS
     definitions = copy.deepcopy(TOOL_DEFINITIONS)
     submit = next(item for item in definitions if item["name"] == "submit_answer")
     fields = submit["parameters"]["properties"]
+    if skill != "news_report":
+        # A question is delivered as prose: `answer` carries it. `summary` is
+        # kept as an accepted alias so a model that still fills it is not
+        # rejected for a naming habit, but it is not requested.
+        submit["parameters"]["required"] = ["status", "answer", "facts", "analysis", "unknowns"]
+        return definitions
+    submit["parameters"]["required"].remove("answer")
     fields["title"] = {"type": "string", "minLength": 4, "maxLength": 80,
                        "description": "具体的中文报道标题，不用媒体名加动态分类充当标题。"}
     submit["parameters"]["required"].append("title")
@@ -578,9 +585,25 @@ class LocalTools:
         # source quotations or identifiers. Football text has no code strings.
         def prose(value):
             return re.sub(r"\\+([\"'])", r"\1", value)
-        for field in ("title", "summary", "analysis"):
+        for field in ("title", "summary", "answer", "analysis"):
             if field in arguments:
                 arguments[field] = prose(arguments[field])
+        # A news report leads with `summary`; a question is delivered as the
+        # prose `answer`. Either name is accepted from the model, and the
+        # reader-facing text is resolved here without adding a field the model
+        # never sent to the stored submission. When both are present they can
+        # disagree, so an insufficiency is resolved to whichever of the two
+        # actually states the gap rather than to a leftover complete draft.
+        is_report = self.skill == "news_report"
+        primary, fallback = ("summary", "answer") if is_report else ("answer", "summary")
+        lead = str(arguments.get(primary) or arguments.get(fallback) or "").strip()
+        if arguments.get("status") == "insufficient":
+            gap = re.compile(r"不足|无法|未能|尚不能|暂不能|未找到|没有找到|缺乏")
+            for name in (primary, fallback, "analysis"):
+                candidate = str(arguments.get(name) or "")
+                if gap.search(candidate):
+                    lead = candidate.strip()
+                    break
         arguments["unknowns"] = [prose(value) for value in arguments.get("unknowns", [])]
         for fact in arguments["facts"]:
             for field in ("title", "detail"):
@@ -595,13 +618,12 @@ class LocalTools:
                     passage = next((p for p in source.get("passages", []) if p["id"] == quote["passage_id"]), None)
                     if passage:
                         quote["quote"] = passage["text"]
-        is_report = self.skill == "news_report"
         limit = answer_fact_limit(self.run.get("question", ""))
         if limit is not None and len(arguments["facts"]) > limit:
             raise ToolError(f"用户明确限制最多 {limit} 项消息，请合并或筛选 facts 后重新提交，不要增加用户未要求的条目。")
-        if SUMMARY_CERTAINTY.search(arguments["summary"]):
+        if is_report and SUMMARY_CERTAINTY.search(lead):
             raise ToolError("summary 只能使用中性概览，不能使用官方确认、已证实、实锤或已确认等认证标签。请把具体来源说法放在带 evidence_ids 的事实正文中，摘要不得提高其确定性。")
-        strings = [arguments["summary"], arguments["analysis"], *arguments["unknowns"]]
+        strings = [lead, arguments["analysis"], *arguments["unknowns"]]
         if is_report:
             strings.append(arguments.get("title", ""))
         for fact in arguments["facts"]:
@@ -623,8 +645,11 @@ class LocalTools:
         if arguments["status"] == "insufficient":
             if arguments["facts"] or arguments["analysis"].strip() or not arguments["unknowns"]:
                 raise ToolError("资料不足时 facts 必须为空、analysis 留空，并在 unknowns 说明缺少哪些证据。")
-            if not re.search(r"不足|无法|未能|尚不能|暂不能|未找到", arguments["summary"]):
-                raise ToolError("资料不足的 summary 应直接说明目前无法确认，不能提交无引用的事实结论。")
+            # The reader-facing sentence differs by task: a report lead states
+            # the gap, a Q&A answer states what could not be confirmed.
+            if not re.search(r"不足|无法|未能|尚不能|暂不能|未找到|没有找到|缺乏", lead):
+                raise ToolError("资料不足时应当直接说明目前无法确认什么、缺少哪些证据，不能提交带引用的结论。" +
+                                ("请先补充 summary。" if is_report else "请在 answer 中说明。"))
         cited = []
         for fact in arguments["facts"]:
             for eid in fact["evidence_ids"]:
@@ -633,17 +658,27 @@ class LocalTools:
                 if eid not in cited:
                     cited.append(eid)
         source_keys = {self.read_cache[eid].get("url") or eid for eid in cited}
-        lines = (["# " + arguments["title"].strip()] if is_report and arguments.get("title") else []) + [arguments["summary"].strip()]
-        for fact in arguments["facts"]:
-            refs = " ".join(f"[{eid}]" for eid in dict.fromkeys(fact["evidence_ids"]))
-            lines.append(f"**{fact['title'].strip()}**\n{fact['detail'].strip()} {refs}")
-        if arguments["analysis"].strip():
-            lines.append("可能影响：" + arguments["analysis"].strip())
-        if arguments["unknowns"]:
-            lines.append("仍待确认：" + "；".join(value.strip().rstrip("。；") for value in arguments["unknowns"]) + "。")
+        # A news report has its own fixed shape: title, lead, and sections. A
+        # question is answered in prose, so `answer` is the delivered text and
+        # the fact entries exist only to carry the evidence each paragraph
+        # rests on. Formatting a Q&A into the report's template is what made
+        # ordinary answers read like a form.
+        if is_report:
+            lines = (["# " + arguments["title"].strip()] if arguments.get("title") else [])
+            lines.append(lead)
+            for fact in arguments["facts"]:
+                refs = " ".join(f"[{eid}]" for eid in dict.fromkeys(fact["evidence_ids"]))
+                lines.append(f"**{fact['title'].strip()}**\n{fact['detail'].strip()} {refs}")
+            if arguments["analysis"].strip():
+                lines.append("可能影响：" + arguments["analysis"].strip())
+            if arguments["unknowns"]:
+                lines.append("仍待确认：" + "；".join(value.strip().rstrip("。；") for value in arguments["unknowns"]) + "。")
+            text = "\n\n".join(lines)
+        else:
+            text = lead
         if cited and len(source_keys) == 1 and not is_report:
-            lines.append("来源范围：以上依据同一篇来源原文，尚未形成独立交叉核实。")
-        self.submission = {"answer": "\n\n".join(lines), "evidence_ids": cited, "status": arguments["status"],
+            text += "\n\n来源范围：以上依据同一篇来源原文，尚未形成独立交叉核实。"
+        self.submission = {"answer": text, "evidence_ids": cited, "status": arguments["status"],
                            "structured_answer": copy.deepcopy(arguments),
                            "facts_count": len(arguments["facts"]), "source_document_count": len(source_keys)}
         return {"submitted": True, "status": arguments["status"], "evidence_ids": cited,

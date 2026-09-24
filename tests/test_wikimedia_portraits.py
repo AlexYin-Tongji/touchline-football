@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from server import team_portraits, wikimedia_portraits
+from server import community_portraits, team_portraits, wikimedia_portraits
 from server.ingestion import now
 from server.storage import Store
 
@@ -31,6 +31,13 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.temp.name) / "test.sqlite3")
         self.player = {"name": "Martin Ødegaard", "birth_date": "1998-12-17"}
+        # These tests exercise the Wikimedia resolver. The community fallback
+        # that runs after it in the same batch must never touch the network
+        # here, so its transport is refused for the whole class.
+        offline = patch.object(community_portraits, "fetch_document",
+                               side_effect=AssertionError("community source must not be contacted"))
+        offline.start()
+        self.addCleanup(offline.stop)
 
     def tearDown(self):
         self.store.close()
@@ -137,10 +144,8 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             store.set_meta(wikimedia_portraits._portrait_key(player, team_id), result)
             return result
         with patch.object(wikimedia_portraits, "resolve_portrait", side_effect=missing) as resolve:
-            first, summary1 = await team_portraits.enrich_player_photos(
-                self.store, squad, "359", provider="wikimedia")
-            second, summary2 = await team_portraits.enrich_player_photos(
-                self.store, first, "359", provider="wikimedia")
+            first, summary1 = await team_portraits.enrich_player_photos(self.store, squad)
+            second, summary2 = await team_portraits.enrich_player_photos(self.store, first)
         self.assertEqual(summary1["attempted_count"], team_portraits.PLAYER_PAGE_LIMIT)
         self.assertEqual(summary2["attempted_count"], team_portraits.PLAYER_PAGE_LIMIT)
         self.assertEqual(summary2["remaining_count"], 1)
@@ -157,8 +162,7 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             "photo_file_page": "https://commons.wikimedia.org/wiki/File:Martin.jpg"}]}
         with patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock,
                           return_value={"status": "rejected", "photo_reason": "页面记载的当前俱乐部与阵容不一致。"}):
-            result, summary = await team_portraits.enrich_player_photos(
-                self.store, squad, "359", force=True, provider="wikimedia")
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad, force=True)
         self.assertFalse(result["roster"][0]["photo_url"])
         self.assertFalse(result["roster"][0].get("photo_file_page"))
         self.assertEqual(summary["status"], "missing")
@@ -174,8 +178,7 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal"), {
             "status": "rejected", "photo_reason": "页面记载的当前俱乐部与阵容不一致。", "fetched_at": now()})
         with patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock) as resolve:
-            result, summary = await team_portraits.enrich_player_photos(
-                self.store, squad, "359", provider="wikimedia")
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad)
         resolve.assert_not_awaited()
         self.assertFalse(result["roster"][0]["photo_url"])
         self.assertFalse(result["roster"][0].get("photo_file_page"))

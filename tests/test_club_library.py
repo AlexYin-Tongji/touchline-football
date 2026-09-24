@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 from server.club_library import CLUBS, RESEARCH_CATALOG, TEAM_ALIASES, TRUSTED_SOURCE_HOSTS
+from server.news_sources import additional_sources
 from server.seed import seed
 from server.storage import Store
 
@@ -50,20 +51,29 @@ class ClubLibraryTests(unittest.TestCase):
     def test_all_teams_have_public_sources_and_scoped_aliases(self):
         self.assertEqual(set(RESEARCH_CATALOG), {club["id"] for club in CLUBS})
         for club in CLUBS:
-            sources = RESEARCH_CATALOG[club["id"]]
+            # The catalog holds club-specific entries only; the shared publisher
+            # feeds are added per team by news_sources.additional_sources, so
+            # the merged list is what a reader actually gets.
+            sources = [*RESEARCH_CATALOG[club["id"]], *additional_sources(club["id"])]
             with self.subTest(club=club["id"]):
                 self.assertGreaterEqual(len(sources), 2)
                 self.assertTrue(any(source["id"].startswith("official_") for source in sources))
                 self.assertTrue(any(not source["id"].startswith("official_") for source in sources))
                 self.assertTrue(any(source["kind"] == "rss" for source in sources))
                 self.assertTrue(all(source["kind"] in {"rss", "html"} for source in sources))
-                for source in sources:
-                    if source.get("access_review", {}).get("feed_title"):
-                        self.assertNotEqual(source["access_review"]["feed_title"], "Football | The Guardian")
                 self.assertEqual(len({source["id"] for source in sources}), len(sources))
-                for source in sources:
+                for source in RESEARCH_CATALOG[club["id"]]:
                     self.assertIn(urlsplit(source["url"]).hostname, TRUSTED_SOURCE_HOSTS)
                 self.assertIn(club["name"], TEAM_ALIASES[club["id"]])
+
+    def test_no_guardian_source_remains(self):
+        for club in CLUBS:
+            for source in RESEARCH_CATALOG[club["id"]]:
+                with self.subTest(club=club["id"], source=source["id"]):
+                    self.assertFalse(source["id"].startswith("guardian_"))
+                    self.assertNotIn("theguardian.com", urlsplit(source["url"]).hostname or "")
+        self.assertFalse(any(source["id"].startswith("guardian_")
+                             for club in CLUBS for source in additional_sources(club["id"])))
 
     def test_upgrade_preserves_custom_values_disabled_sources_and_followed_clubs(self):
         with tempfile.TemporaryDirectory() as directory:
