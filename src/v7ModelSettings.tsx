@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { api, errorText, post, put } from "./api";
 import { Spinner } from "./components";
-import "./modelSettings.css";
+// Styles live in v7-app.css with the rest of the design system.
 
 interface Model {
   id: string;
