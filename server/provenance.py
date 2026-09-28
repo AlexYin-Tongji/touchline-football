@@ -474,28 +474,72 @@ class UnregisteredSource(ProvenanceError):
     """Raised when a source asks for a tier it was never granted."""
 
 
+def _host_keys(domain):
+    """Registry keys a host declaration covers.
+
+    A plain name covers only that host and its ``www.`` alias. A leading dot
+    covers that host and every subdomain, which some providers genuinely need
+    (Wikimedia serves API traffic from several). The distinction is explicit so
+    a provider cannot cover a whole domain by accident.
+    """
+    host = str(domain or "").strip().lower()
+    if not host:
+        return []
+    if host.startswith("."):
+        base = host[1:]
+        if "." not in base:
+            raise ProvenanceError("子域授权必须写明根域名。")
+        return ["." + base, base]
+    if "." not in host:
+        raise ProvenanceError("来源必须有明确域名。")
+    return [host, host[4:] if host.startswith("www.") else "www." + host]
+
+
 def register(source_id, domain, tier, *, name="", kinds=(), note=""):
     """Record one reviewed source. Only version-controlled code calls this."""
     if not str(source_id or "").strip():
         raise ProvenanceError("来源必须有编号。")
-    host = str(domain or "").strip().lower()
-    if not host or "." not in host:
+    keys = _host_keys(domain)
+    if not keys:
         raise ProvenanceError("来源必须有明确域名。")
     if not isinstance(tier, SourceTier):
         tier = SourceTier(str(tier))
-    previous = _REGISTRY.get(host)
-    if previous and previous["tier"] is not tier and source_id != previous["source_id"]:
-        # Two reviewers disagreeing about one host is a configuration defect,
-        # not a runtime condition: refuse rather than silently pick one.
-        raise ProvenanceError(f"{host} 已被登记为 {previous['tier'].value}，不能同时登记为 {tier.value}。")
-    _REGISTRY[host] = {"source_id": source_id, "tier": tier, "name": str(name or source_id)[:120],
-                       "kinds": tuple(kinds), "note": str(note or "")[:400], "domain": host}
-    _REGISTRY["id:" + source_id] = _REGISTRY[host]
-    return _REGISTRY[host]
+    entry = {"source_id": source_id, "tier": tier, "name": str(name or source_id)[:120],
+             "kinds": tuple(kinds), "note": str(note or "")[:400], "domain": keys[-1]}
+    for key in keys:
+        previous = _REGISTRY.get(key)
+        if previous and previous["tier"] is not tier and previous["source_id"] != source_id:
+            # Two reviewers disagreeing about one host is a configuration defect,
+            # not a runtime condition: refuse rather than silently pick one.
+            raise ProvenanceError(
+                f"{key} 已被登记为 {previous['tier'].value}，不能同时登记为 {tier.value}。")
+        _REGISTRY[key] = entry
+    _REGISTRY["id:" + source_id] = entry
+    return entry
 
 
 def registered(host):
     return _REGISTRY.get(str(host or "").strip().lower())
+
+
+def snapshot_registry():
+    """The granted tiers, for a test that is about to change them.
+
+    Restoration is preferred over clearing: wiping the registry would hide every
+    reviewed source from every test that runs afterwards, which produces
+    failures far from their cause.
+    """
+    return dict(_REGISTRY)
+
+
+def restore_registry(state):
+    _REGISTRY.clear()
+    _REGISTRY.update(state)
+
+
+def clear_registry():
+    """Forget every granted tier. Only a test wanting an empty registry."""
+    _REGISTRY.clear()
 
 
 def tier_for_url(url):
@@ -504,10 +548,23 @@ def tier_for_url(url):
         host = (urlsplit(url).hostname or "").lower()
     except ValueError:
         return None
+    entry = _entry_for_host(host)
+    return entry["tier"] if entry else None
+
+
+def _entry_for_host(host):
+    """Exact host first, then a granted subdomain, longest suffix first."""
     if not host:
         return None
-    entry = _REGISTRY.get(host) or (_REGISTRY.get(host[4:]) if host.startswith("www.") else None)
-    return entry["tier"] if entry else None
+    entry = _REGISTRY.get(host)
+    if entry is not None:
+        return entry
+    parts = host.split(".")
+    for index in range(1, len(parts) - 1):
+        entry = _REGISTRY.get("." + ".".join(parts[index:]))
+        if entry is not None:
+            return entry
+    return None
 
 
 def _registry_entry(source):
@@ -522,7 +579,7 @@ def _registry_entry(source):
             host = (urlsplit(url).hostname or "").lower()
         except ValueError:
             host = ""
-        entry = _REGISTRY.get(host) or (_REGISTRY.get(host[4:]) if host.startswith("www.") else None)
+        entry = _entry_for_host(host)
         if entry is not None:
             return entry
     return _REGISTRY.get("id:" + str(source.get("id") or "").strip().lower())

@@ -5,7 +5,22 @@ import unittest
 from server import provenance as prov
 from server.providers import (Answer, BaseProvider, Capability, Cost, Latency, ProviderError, Source,
                               SourceTier, adapter, configure_credentials, merge_answers, provider, reset,
-                              source, sources)
+                              restore, snapshot, source, sources)
+
+
+class RegistryCase(unittest.TestCase):
+    """Restore the registry rather than clearing it.
+
+    Clearing would hide the shipped providers from every test that runs after
+    this module, so a failure would surface somewhere else entirely.
+    """
+
+    def setUp(self):
+        self.state = snapshot()
+        self.addCleanup(restore, self.state)
+        configure_credentials(None)
+        reset()
+        self.addCleanup(restore, self.state)
 
 
 def registered(source_id="fake", tier=SourceTier.COMMUNITY, capabilities=(Capability.NEWS,),
@@ -23,16 +38,7 @@ def registered(source_id="fake", tier=SourceTier.COMMUNITY, capabilities=(Capabi
     return Stub
 
 
-class RegistryTests(unittest.TestCase):
-    def setUp(self):
-        self.registry = dict(prov._REGISTRY)
-        self.addCleanup(self._restore)
-
-    def _restore(self):
-        reset()
-        prov._REGISTRY.clear()
-        prov._REGISTRY.update(self.registry)
-
+class RegistryTests(RegistryCase):
     def test_a_declared_provider_becomes_askable(self):
         registered()
         self.assertEqual([row.id for row in sources()], ["fake"])
@@ -62,26 +68,15 @@ class RegistryTests(unittest.TestCase):
         self.assertIsNot(source("fake"), source("fake"))
 
 
-class CredentialTests(unittest.TestCase):
-    def setUp(self):
-        self.registry = dict(prov._REGISTRY)
-        self.addCleanup(self._restore)
-
-    def _restore(self):
-        reset()
-        prov._REGISTRY.clear()
-        prov._REGISTRY.update(self.registry)
-
+class CredentialTests(RegistryCase):
     def test_a_provider_needing_a_missing_key_is_not_offered(self):
         registered(source_id="paid", requires_key="api_football")
         configure_credentials(lambda name: False)
-        self.addCleanup(configure_credentials, None)
         self.assertEqual(sources(capability=Capability.NEWS), [])
 
     def test_it_appears_once_the_key_exists(self):
         registered(source_id="paid", requires_key="api_football")
         configure_credentials(lambda name: name == "api_football")
-        self.addCleanup(configure_credentials, None)
         self.assertEqual([row.id for row in sources(capability=Capability.NEWS)], ["paid"])
 
     def test_an_unconfigured_credential_raises_rather_than_guessing(self):
@@ -91,16 +86,7 @@ class CredentialTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "missing_credential")
 
 
-class EnvelopeTests(unittest.TestCase):
-    def setUp(self):
-        self.registry = dict(prov._REGISTRY)
-        self.addCleanup(self._restore)
-
-    def _restore(self):
-        reset()
-        prov._REGISTRY.clear()
-        prov._REGISTRY.update(self.registry)
-
+class EnvelopeTests(RegistryCase):
     def test_a_failure_is_a_gap_and_never_an_empty_success(self):
         Stub = registered()
         answer = Stub().unavailable(Capability.NEWS, "来源超时", retryable=True)
@@ -149,7 +135,6 @@ class PacingTests(unittest.TestCase):
     def test_two_callers_share_one_interval(self):
         from server.providers import paced
         gate = paced("paced_test", 0.05)
-        reset()
         calls = []
 
         async def run():
@@ -157,9 +142,8 @@ class PacingTests(unittest.TestCase):
                 await gate.wait()
                 calls.append(1)
 
-        started = asyncio.get_event_loop_policy().new_event_loop().run_until_complete(run())
+        asyncio.get_event_loop_policy().new_event_loop().run_until_complete(run())
         self.assertEqual(len(calls), 3)
-        reset()
 
 
 if __name__ == "__main__":

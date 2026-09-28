@@ -136,6 +136,38 @@ class Answer:
 _ADAPTERS = {}
 _REGISTERED = {}
 _THROTTLE = {}
+# Registrations made by importing the shipped provider modules. A test that
+# registers its own sources restores this baseline afterwards instead of wiping
+# the registry, which would leave later tests unable to see the real ones.
+_BUILTIN = None
+
+
+def snapshot():
+    """The current registrations, for a test that is about to change them."""
+    return (dict(_ADAPTERS), dict(_REGISTERED), prov.snapshot_registry())
+
+
+def restore(state):
+    """Put back a snapshot taken by :func:`snapshot`."""
+    adapters, registered_sources, registry = state
+    _ADAPTERS.clear()
+    _ADAPTERS.update(adapters)
+    _REGISTERED.clear()
+    _REGISTERED.update(registered_sources)
+    prov.restore_registry(registry)
+
+
+def reset():
+    """Drop every registration, including the shipped providers.
+
+    Tests that only add their own sources should use :func:`snapshot` and
+    :func:`restore`; this is for cases that need a genuinely empty registry.
+    """
+    _ADAPTERS.clear()
+    _REGISTERED.clear()
+    _THROTTLE.clear()
+    from .. import provenance as prov_module
+    prov_module.clear_registry()
 
 
 def provider(source, capabilities, *, cost=Cost.LIGHT, latency=Latency.NORMAL,
@@ -146,9 +178,19 @@ def provider(source, capabilities, *, cost=Cost.LIGHT, latency=Latency.NORMAL,
     tier this host may speak with, and records what the registry may ask for.
     """
     def decorate(cls):
-        declared = source if isinstance(source, Source) else Source(
-            capabilities=capabilities, cost=cost, latency=latency,
-            requires_key=requires_key, note=note, reviewed_at=reviewed_at, **source)
+        if isinstance(source, Source):
+            declared = source
+        else:
+            fields = dict(source or {})
+            # Explicit decorator keywords win over the mapping, so a provider
+            # may keep its descriptive fields together and still override one.
+            fields.update({key: value for key, value in
+                           (("cost", cost), ("latency", latency), ("note", note), ("reviewed_at", reviewed_at))
+                           if value})
+            fields.setdefault("capabilities", capabilities)
+            if requires_key:
+                fields["requires_key"] = requires_key
+            declared = Source(**fields)
         register_provider(declared)
         cls.source = declared
         cls.pacing = paced(declared.id, getattr(cls, "min_interval", 0.0))
@@ -222,10 +264,16 @@ def adapter(source_id):
 
 
 def reset():
-    """Test seam: forget registrations so a case can register its own."""
+    """Temporarily kept for callers that want an empty registry.
+
+    Prefer :func:`snapshot` and :func:`restore`: wiping the registry hides the
+    shipped providers from every test that runs afterwards.
+    """
     _ADAPTERS.clear()
     _REGISTERED.clear()
     _THROTTLE.clear()
+    from .. import provenance as prov_module
+    prov_module.clear_registry()
 
 
 # --- pacing ----------------------------------------------------------------
