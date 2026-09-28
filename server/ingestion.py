@@ -171,8 +171,14 @@ class _PinnedHTTP(http.client.HTTPConnection):
             self.sock = ssl.create_default_context().wrap_socket(self.sock, server_hostname=self.host)
 
 
-def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_types=("text/", "xml", "xhtml")):
-    """Resolve and pin a public address for each hop; never re-resolve in transport."""
+def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_types=("text/", "xml", "xhtml"),
+                   headers=None):
+    """Resolve and pin a public address for each hop; never re-resolve in transport.
+
+    ``headers`` carries credentials for keyed APIs. They are sent to the pinned
+    address only, are never logged, and are not part of the URL, so a stored
+    request key cannot leak them.
+    """
     # Fixed first-party fixture adapters may read larger embedded JSON pages.
     # Other callers retain the original 2 MiB/text-only defaults.
     max_body = max(1, min(int(max_body), 8 * 1024 * 1024))
@@ -190,7 +196,13 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
         connection = _PinnedHTTP(parts.hostname, port, addresses[0], parts.scheme == "https", min(8, remaining))
         try:
             target = urlunsplit(("", "", parts.path or "/", parts.query, ""))
-            connection.request("GET", target, headers={"Host": parts.netloc, "User-Agent": "Touchline/1.0 (personal football reader)", "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml", "Accept-Encoding": "identity"})
+            request_headers = {"Host": parts.netloc, "User-Agent": "Touchline/1.0 (personal football reader)",
+                               "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json",
+                               "Accept-Encoding": "identity"}
+            for key, value in (headers or {}).items():
+                if isinstance(key, str) and isinstance(value, str) and "\n" not in key and "\n" not in value:
+                    request_headers[key] = value
+            connection.request("GET", target, headers=request_headers)
             response = connection.getresponse()
             if response.status in {301, 302, 303, 307, 308}:
                 location = response.getheader("Location")

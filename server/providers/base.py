@@ -287,8 +287,20 @@ class Paced:
     def __init__(self, source_id, min_interval):
         self.source_id = source_id
         self.min_interval = float(min_interval)
+        self.enabled = True
+
+    def disable(self):
+        """Stop waiting. Only a test should do this, and it says so explicitly.
+
+        Without it, every provider test pays its provider's real interval, and
+        a suite with five metered providers takes minutes for no extra
+        coverage.
+        """
+        self.enabled = False
 
     async def wait(self, store=None, *, loop=None):
+        if not self.enabled or self.min_interval <= 0:
+            return
         key = self.source_id
         now = time.monotonic()
         last = _THROTTLE.get(key, 0.0)
@@ -296,6 +308,12 @@ class Paced:
         if gap > 0:
             await asyncio.sleep(gap)
         _THROTTLE[key] = time.monotonic()
+
+
+def unpaced():
+    """Turn off pacing for every registered adapter, for a test suite."""
+    for cls in _ADAPTERS.values():
+        getattr(cls, "pacing", None) and cls.pacing.disable()
 
 
 def paced(source_id, min_interval):

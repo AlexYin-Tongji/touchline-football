@@ -8,18 +8,18 @@ from __future__ import annotations
 from ..provenance import SourceTier
 from .base import (Answer, BaseProvider, Capability, Cost, Latency, ProviderError, Paced,
                    Source, adapter, configure_credentials, merge_answers, paced, provider,
-                   register_provider, reset, restore, snapshot, source, sources)
+                   register_provider, reset, restore, snapshot, source, sources, unpaced)
 
 __all__ = ["Answer", "BaseProvider", "Capability", "Cost", "Latency", "ProviderError", "Paced",
            "Source", "SourceTier", "adapter", "configure_credentials", "load", "merge_answers",
            "paced", "provider", "register_provider", "reset", "restore", "snapshot", "source",
-           "sources"]
+           "sources", "unpaced"]
 
 
 # Modules that declare providers. Importing one runs its registration, so the
 # registry is populated by importing rather than by whoever happens to reach an
 # adapter first. A provider missing from this tuple is simply not offered.
-_MODULES = ("espn", "portraits", "reddit", "fan_feeds")
+_MODULES = ("espn", "portraits", "reddit", "fan_feeds", "football_data")
 
 
 def load():
