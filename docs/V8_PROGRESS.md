@@ -27,22 +27,22 @@
 
 ## 进行中
 
-- [ ] **3. 搬迁现有来源到 providers**（行为不变）
-  - ESPN（DATASET, FIXTURE/SQUAD/STANDINGS）← team_center.py + league_data.py
-  - Wikimedia（OFFICIAL? no → 自由许可来源，按现有判定，IM… 定为 DATASET）← wikimedia_portraits.py
-  - TheSportsDB（COMMUNITY, PERSON/IMAGE）← community_portraits.py
-  - 现有多家媒体源（PRESS, NEWS）← news_sources.py + research.py
-  - 注意：搬迁必须行为不变，跑全量对比
+- [ ] **5. collection/ 常驻调度**：采集与入库解耦（claim 直接入库，新闻稿是视图）；优先级队列 + 配额闸门 + 新鲜度驱动重查
 
 ## 待办
 
-- [ ] **4. 核验全部放开**：删 verify_submission 语义门 / conservative_delivery / revise_news / restore_*_checkpoint / news_coverage 覆盖率门；保留 prepare_claims 引用硬检查（本地确定性）；改为每条主张带 source_support 标注 + UI tier 标签。动态页与问答都放开。
-- [ ] **5. 阵容时效性修复**：ROSTER_CACHE_SECONDS 一刀切 → 按转会窗/赛季阶段/临近开球推导 TTL；赛季目录不全时明确显示"当前为 2025/26 名单"
-- [ ] **6. collection/ 常驻调度**：采集与入库解耦（claim 直接入库，新闻稿是视图）；优先级队列 + 配额闸门 + 新鲜度驱动重查
-- [ ] **7. 工具层重构**：注册表 + 能力标签 + 统一信封；合并冗余工具（context.pack / news.search / doc.read / entity.view / search+locate+conflicts）；先扫 runs.steps 统计再砍（maintain_team_data / fetch_player_photos / conversation_history 是删除候选）
-- [ ] **8. 新来源接入**：football-data.org、API-Football（命名密钥表）、Reddit JSON 端点（COMMUNITY，corroboration=upvote）、球迷博客/论坛 RSS
-- [ ] **9. 拆 agent.py** → harness/loop.py + policy.py + delivery.py；修 agent_progress.py 交替循环判定（按是否产生新证据判断）
-- [ ] **10. 决策日志**
+- [ ] **6. 工具层重构**：注册表 + 能力标签 + 统一信封；合并冗余工具（context.pack / news.search / doc.read / entity.view / search+locate+conflicts）；先扫 runs.steps 统计再砍（maintain_team_data / fetch_player_photos / conversation_history 是删除候选）
+- [ ] **7. 新来源接入**：football-data.org、API-Football（命名密钥表）
+- [ ] **8. 拆 agent.py** → harness/loop.py + policy.py + delivery.py；修 agent_progress.py 交替循环判定
+- [ ] **9. 决策日志**
+
+## 完成记录
+
+- [x] **1. 溯源层** `server/provenance.py`（45 项）：tier / field-level Claim / TTL 按场次与转会窗推导 / Relation 解决租借歧义 / 登记表 5 条不变量
+- [x] **2. providers 层** `server/providers/`（65 项）：统一信封（失败是 gap 不是空成功）/ 能力注册表 / 缺凭据不对外提供 / ESPN(DATASET) + Wikimedia(DATASET) + TheSportsDB(COMMUNITY) + Reddit(COMMUNITY) + 球迷 RSS(COMMUNITY)
+- [x] **3. 阵容时效性**（13 项）：`roster_ttl` 按转会窗/临近开球/赛季推导，锚定 fetched_at；`transfer_window_note` 向用户解释当前时钟
+- [x] **4. 核验放开**：删语义门/修订循环/恢复路径/覆盖率门；引用硬检查前移到 `submit_answer`（可重试）+ 交付兜底；`verification.annotations` 逐条标注；动态与问答都放开
+- [x] **4b. 来源标注**（7 项）：`source_tier` + 前端 `.tier-badge`，未登记域名回落"未分类来源"不默认提级
 
 ## 用户明确要求
 
