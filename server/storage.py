@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 
-COLLECTIONS = frozenset({"teams", "evidence", "events", "matches", "sources", "runs", "tracking", "candidates", "recommendations", "fixture_sources", "knowledge", "leagues", "seasons", "league_memberships", "league_matches", "standings", "reports", "model_profiles", "players", "squads", "team_snapshots", "agent_tasks"})
+COLLECTIONS = frozenset({"teams", "evidence", "events", "matches", "sources", "runs", "tracking", "candidates", "recommendations", "fixture_sources", "knowledge", "leagues", "seasons", "league_memberships", "league_matches", "standings", "reports", "model_profiles", "players", "squads", "team_snapshots", "agent_tasks", "decisions"})
 DEFAULT_SETTINGS = {
     "mode": "live", "followed_teams": ["arsenal"], "spoiler_free": True,
     "explanation_depth": "standard", "auto_refresh": False, "refresh_minutes": 30,

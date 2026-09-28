@@ -22,6 +22,63 @@ def submission(eid="ev_injury"):
 
 
 class DelegationIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_long_provider_call_ids_keep_bounded_runtime_idempotency(self):
+        import time
+        store = FakeStore()
+        run = store.new_run()
+        local = LocalTools(store, run, store.settings())
+        local.delegation = Delegation(store, run, local, store.settings(), asyncio.Event(), time.monotonic() + 30)
+        identity = "provider-signature-" + "x" * 500
+        call = tool_message("spawn_agent", {"task": "读取测试资料"}, identity)["tool_calls"][0]
+        try:
+            first = await local.arun_tool_call(call)
+            self.assertNotIn("error", {k: v for k, v in first.items() if v})
+            again = await local.arun_tool_call(call)
+            self.assertEqual(first["id"], again["id"])
+            distinct = await local.arun_tool_call({**call, "id": identity + "y"})
+            self.assertNotEqual(first["id"], distinct["id"])
+            changed = tool_message("spawn_agent", {"task": "不同任务"}, identity)["tool_calls"][0]
+            self.assertIn("error", await local.arun_tool_call(changed))
+            self.assertEqual(call["id"], identity, "provider protocol IDs must remain unchanged")
+        finally:
+            await runtime_for(store).shutdown()
+
+    async def test_release_of_completed_child_is_recorded_as_success(self):
+        store = FakeStore()
+        store.new_run()
+        child_id = None
+        parent_round = 0
+        released = False
+        parent_read = False
+        async def provider(config, messages, **options):
+            nonlocal child_id, parent_round, released, parent_read
+            if config["_session_id"].startswith("agent_"):
+                if not any(m.get("role") == "tool" for m in messages):
+                    return tool_message("read_evidence", {"evidence_id": "ev_injury"})
+                return tool_message("submit_answer", submission())
+            parent_round += 1
+            if parent_round == 1:
+                return tool_message("spawn_agent", {"task": "查阅训练状态"})
+            if parent_round == 2:
+                child_id = json.loads(messages[-1]["content"])["id"]
+                return tool_message("wait_agents", {"agent_ids": [child_id], "timeout_seconds": 2})
+            if not released:
+                latest = json.loads(messages[-1]["content"])
+                if latest.get("agents") and latest["agents"][0]["status"] != "completed":
+                    return tool_message("wait_agents", {"agent_ids": [child_id], "after_cursor": latest["cursor"], "timeout_seconds": 2})
+                released = True
+                return tool_message("release_agent", {"agent_id": child_id})
+            if not parent_read:
+                parent_read = True
+                return tool_message("read_evidence", {"evidence_id": "ev_injury"})
+            return tool_message("submit_answer", submission())
+        with patch.object(agent, "request_completion", new=provider):
+            await asyncio.wait_for(agent.run_agent(store, "run_one", asyncio.Event()), 3)
+        run = store.get("runs", "run_one")
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual([s["status"] for s in run["steps"] if s.get("tool") in {"spawn_agent", "release_agent"}],
+                         ["completed", "completed"])
+
     async def test_parent_spawns_overlapping_children_then_reads_their_sources(self):
         store = FakeStore()
         store.new_run()
@@ -70,6 +127,9 @@ class DelegationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(agent, "request_completion", new=provider):
             await asyncio.wait_for(agent.run_agent(store, "run_one", asyncio.Event()), 3)
         self.assertEqual(store.get("runs", "run_one")["status"], "completed")
+        spawn_steps = [step for step in store.get("runs", "run_one")["steps"] if step.get("tool") == "spawn_agent"]
+        self.assertEqual([step["status"] for step in spawn_steps], ["completed", "completed"])
+        self.assertTrue(all(step["detail"] for step in spawn_steps))
         self.assertEqual(len(child_started), 2)
         self.assertEqual({r["id"] for r in store.list("runs")}, {"past", "run_one"})
         self.assertTrue(store.list("agent_tasks"))

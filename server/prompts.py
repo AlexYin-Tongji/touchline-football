@@ -90,6 +90,7 @@ use_skill 是系统提供的本地工作规程加载器，主技能只有 {', '.
 {skill}"""
     if local.delegation:
         prompt += GUIDANCE
+    prompt += "\ncontext_pack中的decision_history只记录当前球队最近的更新决策、检查时间和变化标记，可用于回答多久未确认或后来是否变化；它不证明具体说法。需要结构化阵容、赛程或积分时，可按需调用query_structured_sources；它会先发现并核对当前球队的提供商身份，发现过程可能消耗配额，无密钥、范围不符或发现失败会返回缺口。返回的主张只是线索，不能绕过read_evidence与prepare_claims的本轮原文引用检查。"
     prompt += "\n\n" + system_mission()
     if run.get("internal_agent"):
         prompt += "\n本次是独立子任务，仅完成明确交代的目标。你的答复是交给父任务的候选结果，不直接发布。保持来源引用与资料缺口，不能读取其他任务的会话。"

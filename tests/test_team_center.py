@@ -185,6 +185,62 @@ class TeamCenterTests(unittest.TestCase):
         self.store.put("team_snapshots", snapshot)
         self.assertEqual(team_center.center_view(self.store, "arsenal")["roster"], [])
 
+    def test_incomplete_new_directory_uses_and_labels_actual_roster_season(self):
+        old = {**SEASON, "id": "PL-2025", "season_start_year": 2025, "label": "2025/26"}
+        self.store.put("seasons", old)
+        for provider_id, team in (("359", "arsenal"), ("363", "chelsea")):
+            self.store.put("league_memberships", {"id": "PL-2025-" + team, "season_id": old["id"],
+                "league_id": "PL", "season_start_year": 2025, "team_id": team, "provider_team_id": provider_id})
+        payload = roster_payload()
+        payload["season"]["year"] = 2025
+        payload["team"]["seasonSummary"] = "2025-26"
+        snapshot = team_center.parse_roster(payload, TEAM, LEAGUE, old, "359")
+        self.store.put("team_snapshots", snapshot)
+        self.store.delete("league_memberships", "PL-2026-chelsea")
+
+        self.assertEqual(team_center.league_data.season_context(self.store, "PL")[1]["label"], "2025/26")
+        with self.assertRaises(IngestionError):
+            team_center.league_data.season_context(self.store, "PL", 2026)
+
+        view = team_center.center_view(self.store, "arsenal")
+        self.assertEqual(view["season"]["label"], "2025/26")
+        self.assertEqual(view["roster_season"]["label"], "2025/26")
+        self.assertEqual(view["latest_season"]["label"], "2026/27")
+        self.assertTrue(view["roster_fallback"])
+        self.assertEqual(len(view["roster"]), 2)
+        self.assertEqual(view["roster_updated_at"], snapshot["fetched_at"])
+        historical = team_center.center_view(self.store, "arsenal", year=2025)
+        self.assertEqual(historical["roster_season"]["label"], "2025/26")
+        self.assertFalse(historical["roster_fallback"])
+        self.assertEqual(team_center.center_view(self.store, "arsenal", year=2026)["roster"], [])
+
+        self.store.delete("team_snapshots", snapshot["id"])
+        self.assertIsNone(team_center.center_view(self.store, "arsenal")["roster_season"])
+
+    def test_complete_new_directory_does_not_use_old_roster(self):
+        self.save_squad()
+        self.store.put("seasons", {"id": "PL-2027", "league_id": "PL", "season_start_year": 2027, "label": "2027/28"})
+        for provider_id, team in (("359", "arsenal"), ("363", "chelsea")):
+            self.store.put("league_memberships", {"id": "PL-2027-" + team, "season_id": "PL-2027",
+                "league_id": "PL", "season_start_year": 2027, "team_id": team, "provider_team_id": provider_id})
+        view = team_center.center_view(self.store, "arsenal")
+        self.assertEqual(view["season"]["label"], "2027/28")
+        self.assertEqual(view["roster"], [])
+        self.assertIsNone(view["roster_season"])
+        self.assertFalse(view["roster_fallback"])
+
+    def test_complete_new_directory_without_team_does_not_claim_incomplete_directory(self):
+        self.save_squad()
+        self.store.put("teams", {"id": "newcomer", "name": "升班马"})
+        self.store.put("seasons", {"id": "PL-2027", "league_id": "PL", "season_start_year": 2027, "label": "2027/28"})
+        for provider_id, team in (("363", "chelsea"), ("777", "newcomer")):
+            self.store.put("league_memberships", {"id": "PL-2027-" + team, "season_id": "PL-2027",
+                "league_id": "PL", "season_start_year": 2027, "team_id": team, "provider_team_id": provider_id})
+        view = team_center.center_view(self.store, "arsenal")
+        self.assertEqual(view["roster_season"]["label"], "2026/27")
+        self.assertEqual(view["latest_season"]["label"], "2027/28")
+        self.assertFalse(view["roster_fallback"])
+
     def test_snapshot_content_must_match_the_requested_team_and_season(self):
         snapshot = self.save_squad()
         snapshot["team_id"] = "chelsea"

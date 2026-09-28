@@ -72,14 +72,16 @@ def season_context(store, league_id, year=None):
     if not league:
         raise IngestionError("联赛不存在。")
     seasons = [item for item in store.list("seasons") if item["league_id"] == league_id]
-    season = next((s for s in seasons if s["season_start_year"] == year), None) if year is not None else max(seasons, key=lambda s: s["season_start_year"], default=None)
-    if not season:
+    candidates = ([s for s in seasons if s["season_start_year"] == year] if year is not None
+                  else sorted(seasons, key=lambda s: s["season_start_year"], reverse=True))
+    if not candidates:
         raise IngestionError("这个赛季尚未建立可核对的参赛球队目录。")
-    members = [m for m in store.list("league_memberships") if m["season_id"] == season["id"]]
-    mapping = {str(m["provider_team_id"]): m["team_id"] for m in members}
-    if len(mapping) != league["expected_team_count"]:
-        raise IngestionError("该联赛的赛季球队目录不完整，暂不导入比赛。")
-    return league, season, mapping
+    members = store.list("league_memberships")
+    for season in candidates:
+        mapping = {str(m["provider_team_id"]): m["team_id"] for m in members if m["season_id"] == season["id"]}
+        if len(mapping) == league["expected_team_count"]:
+            return league, season, mapping
+    raise IngestionError("该联赛的赛季球队目录不完整，暂不导入比赛。")
 
 
 def _number(value, *, signed=False):

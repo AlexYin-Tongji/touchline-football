@@ -1,5 +1,15 @@
 # 看台 MVP 接口与模块约定
 
+## V8 增量（优先于下方历史说明）
+
+- `GET /api/collection/status`：常驻资料维护的启用、运行、轮转与重试状态。应用生命周期驱动，仅维护关注球队；不启动付费模型。
+- `GET /api/teams/{id}/decisions?limit=20`：按球队读取有限条更新记录，包含理由、来源观察、双时钟和变化；避剧透在读取时生效。
+- `GET /api/teams/{id}/center`：增加 `roster_season`、`latest_season`、`roster_fallback`，名单的实际赛季不靠页面所选年份猜测。
+- `GET /api/data-sources`：来源能力、是否已配置与配额状态；`PUT/DELETE /api/data-sources/{id}/credential` 保存或移除加密凭据，永不回显。
+- `context_pack` 包含当前球队最近的紧凑更新记录；固定比赛或文章范围不读当前维护历史。
+- `query_structured_sources(capability)` 按需读取 API-Football，身份从已核对的官方目录解析；无凭据、歧义、配额不足或来源失败均返回 gap。
+- 引用硬检查仍生效；语义判定作为逐条标注，不删除或暂扣正文。旧 `conservative_delivery` 已删除。
+
 ## V7.5 增量
 
 - 工作流 start 只执行一轮，结束状态为 completed/partial/failed，enabled=false、next_run_at=null；旧 tracking/automation 到期配置不启动工作。

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api, errorText } from "./api";
 import { WorkflowControls } from "./WorkflowControls";
+import { DecisionHistory } from "./DecisionHistory";
 import { Crest, Modal, safeUrl, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
 import { Sources, friendlyTime, type SourceLink } from "./v7Shared";
@@ -80,6 +81,9 @@ interface CenterData {
   team: Team;
   league?: { name?: string };
   season?: { id?: string; label?: string; start_year?: number };
+  roster_season?: { id: string; label: string; start_year: number } | null;
+  latest_season?: { id: string; label: string; start_year: number } | null;
+  roster_fallback?: boolean;
   roster: Player[];
   matches: TeamMatch[];
   standings?: Standing[];
@@ -340,6 +344,9 @@ export function TeamCenter({
           <span>
             <Users size={13} /> {center.roster.length} 名已收录球员
           </span>
+          {center.roster_season && (
+            <span>当前为 {center.roster_season.label} 赛季名单</span>
+          )}
           <span>
             <CalendarDays size={13} /> {center.matches.length} 场比赛记录
           </span>
@@ -370,6 +377,9 @@ export function TeamCenter({
           </div>
         </details>
       )}
+      <DecisionHistory teamId={team.id} version={[
+        center?.updated_at, center?.components?.portraits?.updated_at, center?.refresh_status,
+      ].join("|")} />
       {center?.coverage && <p className="team-coverage">
         本赛季联赛已收录 {center.coverage.matches}{center.coverage.expected_matches != null ? ` / ${center.coverage.expected_matches}` : ""} 场赛程。
         {center.coverage.expected_matches != null && !center.coverage.has_full_schedule && "其余赛程待补充。"}
@@ -730,9 +740,12 @@ export function TeamCenter({
             <div>
               <h2>一线队阵容</h2>
               <p>
-                {center?.season?.label || "当前赛季"} ·{" "}
+                {center?.roster_season?.label || center?.season?.label || "当前赛季"} ·{" "}
                 {center?.roster.length || 0} 名球员
               </p>
+              {center?.roster_fallback && (
+                <p>当前为 {center?.roster_season?.label} 赛季名单；{center?.latest_season?.label} 赛季球队目录尚未齐全。</p>
+              )}
             </div>
             <Users size={21} />
           </div>

@@ -47,6 +47,9 @@ def main():
         return subprocess.call([str(python), "-X", "utf8", str(Path(__file__).resolve()), *sys.argv[1:]], cwd=ROOT)
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))
+    # The release suite must never start real background collection. Scheduler
+    # behavior is covered with temporary stores and controlled source adapters.
+    os.environ["TOUCHLINE_COLLECTION_ENABLED"] = "0"
     # Individual test durations are reported below; asyncio's debug slow-task
     # lines otherwise obscure failures on slower Windows filesystems.
     logging.getLogger("asyncio").setLevel(logging.ERROR)

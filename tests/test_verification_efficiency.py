@@ -106,7 +106,7 @@ class VerificationInputTests(unittest.TestCase):
 
 
 class VerificationCompactRequestTests(unittest.IsolatedAsyncioTestCase):
-    async def test_compaction_preserves_exact_claim_obligations_and_conservative_rejection(self):
+    async def test_compaction_preserves_exact_claim_obligations_and_annotations(self):
         store = FakeStore()
         local = LocalTools(store, store.new_run(), store.settings())
         local.call("read_evidence", {"evidence_id": "ev_injury"})
@@ -122,8 +122,8 @@ class VerificationCompactRequestTests(unittest.IsolatedAsyncioTestCase):
         result = await verification.verify_submission(local, value, store.settings()["llm"], requester=checker)
         self.assertEqual(result["status"], "partial")
         self.assertEqual(next(c["verdict"] for c in result["claims"] if c["id"] == "analysis"), "unsupported")
-        safe = verification.conservative_delivery(value, result)
-        self.assertEqual(safe["analysis"], "")
+        annotated = verification.annotations(value, result)
+        self.assertEqual(annotated["prose"]["analysis"]["verdict"], "unsupported")
 
     async def test_locally_rejected_quote_never_reaches_checker_after_compaction(self):
         store = FakeStore()

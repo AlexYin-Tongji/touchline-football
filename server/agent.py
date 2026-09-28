@@ -42,6 +42,7 @@ TOOL_LABELS = {"team_context": "读取球队背景", "source_overview": "查看�
                "event_timeline": "对比事件进展", "match_context": "读取比赛上下文",
                "discover_news": "寻找相关新闻", "read_article": "阅读来源原文", "refresh_team_sources": "收集球队资料",
                "reader_profile": "读取跟队偏好", "search_passages": "定位正文段落", "compare_sources": "对照来源说法",
+               "query_structured_sources": "查询结构化来源",
                "conversation_history": "查阅当前对话", "search_team_knowledge": "检索球队知识",
                "use_skill": "组合工作技能", "submit_answer": "交付最终答复", "revise_news": "修订新闻段落",
                "spawn_agent": "分派子任务", "list_agents": "查看子任务", "wait_agents": "等待子任务",
@@ -478,7 +479,11 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                             result = {"error": "submit_answer 必须在原文阅读完成后单独调用，不能与其他工具并行提交。"}
                         else:
                             result = await cancellable(local.arun_tool_call(tool_call), cancel_event, deadline)
-                        detail = result.get("error", "已完成范围校验与工具操作")
+                        # Runtime status envelopes include ``error: null`` for
+                        # successful delegation commands. Only an actual error
+                        # message marks a tool call as failed.
+                        tool_error = result.get("error")
+                        detail = tool_error or "已完成范围校验与工具操作"
                         summary = {}
                         for key in ("results", "candidates", "evidence_ids"):
                             if isinstance(result.get(key), list):
@@ -498,7 +503,7 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                             detail = (f"已整理 {result.get('facts_count', 0)} 节中文报告，准备核对原文依据"
                                       if run["skill"] == "news_report" else
                                       f"已交付 {result.get('facts_count', 0)} 项有依据的事实和简洁解读")
-                        run["steps"][-1].update(status="failed" if "error" in result else "completed",
+                        run["steps"][-1].update(status="failed" if tool_error else "completed",
                                                 detail=detail, result_summary=summary)
                         run["evidence_ids"] = sorted(local.read_ids)
                         save()

@@ -1,4 +1,4 @@
-"""Private browser/server HTTP application with explicit manual work."""
+"""Private football app with explicit model work and resident data maintenance."""
 from __future__ import annotations
 
 import asyncio
@@ -317,7 +317,7 @@ def safe_settings(settings):
     return result
 
 
-def create_app(db_path=None):
+def create_app(db_path=None, *, collection_enabled=None):
     from .web_runtime import WebRuntime, PrivateAccess
     runtime = WebRuntime.from_env()
     access = PrivateAccess(runtime)
@@ -327,12 +327,17 @@ def create_app(db_path=None):
     # an unimported provider would look like an unreviewed one.
     from . import providers
     providers.load()
+    providers.configure_credentials(store.get_secret)
     with store.atomic():
         seed(store)
     from .personal_app import install_personal_defaults, PersonalRefreshManager
     from .team_center import TeamMaintenanceManager
     install_personal_defaults(store)
     team_maintenance = TeamMaintenanceManager(store)
+    from .collection_scheduler import CollectionScheduler
+    if collection_enabled is None:
+        collection_enabled = os.environ.get("TOUCHLINE_COLLECTION_ENABLED", "1") != "0"
+    collection_scheduler = CollectionScheduler(store, team_maintenance, enabled=collection_enabled)
     personal = PersonalRefreshManager(store, team_maintenance)
     from .workflows import WorkflowManager
     workflows = WorkflowManager(store)
@@ -355,7 +360,9 @@ def create_app(db_path=None):
     @asynccontextmanager
     async def lifespan(app):
         from .agent_delegation import recover_tasks
+        from . import decisions
         recover_tasks(store)
+        decisions.recover(store)
         workflows.recover()
         news_reports.recover_reports(store)
         await league_sync.close()
@@ -369,7 +376,9 @@ def create_app(db_path=None):
                 item.update(status="idle" if item.get("enabled") else "paused",
                             last_error="服务重启，已有资料保留；请手动重新检查。")
             store.put("tracking", item)
+        collection_scheduler.start()
         yield
+        await collection_scheduler.close()
         await workflows.close()
         await automation.close()
         await league_sync.close()
@@ -394,11 +403,14 @@ def create_app(db_path=None):
     app.state.personal = personal
     app.state.workflows = workflows
     app.state.team_maintenance = team_maintenance
+    app.state.collection_scheduler = collection_scheduler
     app.state.runtime = runtime
     app.state.access = access
     access.register(app)
     from .model_config import register_routes as register_model_routes
     register_model_routes(app, store)
+    from .source_config import register_routes as register_source_routes
+    register_source_routes(app, store)
     from .team_profiles import register_team_profile_routes
     register_team_profile_routes(app, store)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=runtime.hosts)
@@ -785,6 +797,16 @@ def create_app(db_path=None):
         from .team_center import center_view
         team_exists(team_id)
         return center_view(store, team_id, reveal=reveal)
+
+    @app.get("/api/teams/{team_id}/decisions")
+    async def team_decisions(team_id: Identifier, limit: int = Query(20, ge=1, le=50), reveal: bool = False):
+        from .decisions import history
+        team_exists(team_id)
+        return history(store, team_id, limit=limit, reveal=reveal)
+
+    @app.get("/api/collection/status")
+    async def collection_status():
+        return collection_scheduler.status()
 
     @app.post("/api/teams/{team_id}/maintain", status_code=202)
     async def maintain_team_center(team_id: Identifier, payload: TeamMaintenanceInput = TeamMaintenanceInput()):

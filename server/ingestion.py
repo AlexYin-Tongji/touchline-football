@@ -184,7 +184,21 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
     max_body = max(1, min(int(max_body), 8 * 1024 * 1024))
     started = time.monotonic()
     current = normalize_url(url)
+    origin = urlsplit(current)
+    pinned_origin = (origin.scheme, origin.hostname, origin.port or 443)
+    if headers:
+        if origin.scheme != "https":
+            raise IngestionError("带凭据的来源请求必须使用 HTTPS。")
+        for key, value in headers.items():
+            if (not isinstance(key, str) or not isinstance(value, str)
+                    or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", key)
+                    or any(ord(char) < 32 or ord(char) == 127 for char in value)
+                    or key.lower() in {"host", "connection", "content-length", "transfer-encoding"}):
+                raise IngestionError("来源请求头格式不正确。")
     for redirect in range(5):
+        hop = urlsplit(current)
+        if headers and (hop.scheme, hop.hostname, hop.port or (443 if hop.scheme == "https" else 80)) != pinned_origin:
+            raise IngestionError("带凭据的来源重定向不得离开原 HTTPS 地址。")
         if allowed_hosts is not None and urlsplit(current).hostname not in allowed_hosts:
             raise IngestionError("文章或重定向超出了该来源的已允许域名")
         remaining = 20 - (time.monotonic() - started)
@@ -199,9 +213,7 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
             request_headers = {"Host": parts.netloc, "User-Agent": "Touchline/1.0 (personal football reader)",
                                "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json",
                                "Accept-Encoding": "identity"}
-            for key, value in (headers or {}).items():
-                if isinstance(key, str) and isinstance(value, str) and "\n" not in key and "\n" not in value:
-                    request_headers[key] = value
+            request_headers.update(headers or {})
             connection.request("GET", target, headers=request_headers)
             response = connection.getresponse()
             if response.status in {301, 302, 303, 307, 308}:

@@ -404,7 +404,6 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(by_id["fact_2"]["verdict"], "uncertain")
         self.assertEqual(by_id["summary"]["verdict"], "uncertain")
         self.assertEqual(by_id["unknowns"]["verdict"], "supported")
-        self.assertEqual(len(verification.conservative_delivery(candidate, checked)["facts"]), 1)
         for text in ("此点存疑", "不受原文支持", "无法确认这一描述", "但相关细节未体现", "不过出现了新增事实"):
             self.assertTrue(verification.inconsistent_support_reason(text))
         for text in ("资料未提供首发，与未知项相符", "原文说法受支持，未加入新事实", "原文未提阵容，unknowns准确表达了缺口", "这是有前提的分析，但未新增事实"):
@@ -718,5 +717,3 @@ class LabelledContractTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(checked["claims"][0]["verdict"], expected)
                 payload = json.loads(stub.call_args.args[1][-1]["content"])
                 self.assertIn(source, payload["sources"][0]["passages"][0])
-                safe = candidate if checked["status"] == "supported" else verification.conservative_delivery(candidate, checked)
-                self.assertEqual(bool(safe["facts"]), expected == "supported")

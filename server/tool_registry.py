@@ -80,6 +80,7 @@ TOOL_CAPABILITIES = {
     "event_timeline": (EVENTS,),
     "match_context": (MATCH, TEAM),
     "get_team_data": (TEAM, PERSON),
+    "query_structured_sources": (TEAM,),
     "maintain_team_data": (TEAM, PERSON, NEWS),
     "fetch_player_photos": (PERSON,),
     "conversation_history": (IDENTITY,),

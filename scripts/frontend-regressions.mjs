@@ -352,6 +352,7 @@ test("team center reads only and preserves existing players while workflow chang
     return calls.length === 1 ? Promise.resolve(center) : next.promise;
   });
   await host.flush();
+  assert.equal(nodes(host.tree, node => node.type === "DecisionHistory")[0].props.teamId, team.id);
   button(host, "球员阵容").props.onClick();
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
@@ -364,6 +365,87 @@ test("team center reads only and preserves existing players while workflow chang
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
   assert.ok(calls.every(([path, method]) => path === "/teams/arsenal/center" && method === "GET"));
+  host.unmount();
+});
+
+test("team center labels the roster's actual season and explains a newer incomplete directory", async () => {
+  const center = { team, season: { label: "2025/26" },
+    roster_season: { id: "PL-2025", label: "2025/26", start_year: 2025 },
+    latest_season: { id: "PL-2026", label: "2026/27", start_year: 2026 }, roster_fallback: true,
+    roster: [{ id: "player", name: "已有球员", position: "中场", position_group: "MF" }],
+    matches: [], stats: {}, sources: [] };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  assert.match(text(host.tree), /当前为 2025\/26 赛季名单/);
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  assert.match(text(host.tree), /2026\/27 赛季球队目录尚未齐全/);
+  host.unmount();
+
+  const history = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} },
+    () => Promise.resolve({ ...center, roster_fallback: false }));
+  await history.flush();
+  button(history, "球员阵容").props.onClick();
+  await history.flush();
+  assert.doesNotMatch(text(history.tree), /球队目录尚未齐全/);
+  history.unmount();
+});
+
+test("decision history explains observations without exposing stored snapshots", async () => {
+  const paths = [];
+  const host = component("DecisionHistory.tsx", "DecisionHistory", { teamId: "arsenal" }, path => {
+    paths.push(path);
+    return Promise.resolve({ items: [{ id: "d1", created_at: "2026-09-28T02:00:00Z", finished_at: "2026-09-28T02:01:00Z",
+      trigger: "automatic", status: "completed", reason: "阵容到期后重新读取。", summary: "来源读取完成。",
+      season_label: "2025/26", parts: ["roster"], changes: [{ field: "roster", changed: false,
+        confirmed: true, last_confirmed_at: "2026-09-28T02:01:00Z" }],
+      before: { fingerprint: "private-fingerprint", values: ["private-before"] },
+      after: { values: ["private-after"] } }] });
+  });
+  await host.flush();
+  assert.deepEqual(paths, ["/teams/arsenal/decisions?limit=5"]);
+  assert.match(text(host.tree), /更新记录/);
+  assert.match(text(host.tree), /阵容到期后重新读取/);
+  assert.match(text(host.tree), /阵容：已重新确认，无变化/);
+  assert.doesNotMatch(text(host.tree), /private-/);
+  host.unmount();
+});
+
+test("decision history ignores the previous team's late response and explains empty or failed reads", async () => {
+  const old = deferred();
+  let retry = false;
+  const host = component("DecisionHistory.tsx", "DecisionHistory", { teamId: "arsenal" }, path => {
+    if (path.includes("arsenal")) return old.promise;
+    return retry ? Promise.resolve({ items: [], history_note: "仅记录启用后的观察。" }) : Promise.reject(new Error("暂时不可读"));
+  });
+  await host.flush();
+  host.rerender({ teamId: "barcelona" });
+  await host.flush();
+  assert.match(text(host.tree), /暂时不可读/);
+  retry = true;
+  button(host, "重试").props.onClick();
+  await host.flush();
+  old.resolve({ items: [{ id: "old", created_at: "2026-09-28T02:00:00Z", trigger: "manual",
+    status: "completed", reason: "旧球队记录", parts: [] }] });
+  await host.flush();
+  assert.match(text(host.tree), /仅记录启用后的观察/);
+  assert.doesNotMatch(text(host.tree), /旧球队记录/);
+  host.unmount();
+});
+
+test("decision history refreshes when opened or the team snapshot version changes", async () => {
+  let reads = 0;
+  const host = component("DecisionHistory.tsx", "DecisionHistory", { teamId: "arsenal", version: "one" }, () =>
+    Promise.resolve({ items: [{ id: String(++reads), created_at: "2026-09-28T02:00:00Z",
+      trigger: "manual", status: "completed", reason: `第 ${reads} 次观察`, parts: [] }] }));
+  await host.flush();
+  const details = nodes(host.tree, node => node.type === "details" && node.props?.className === "decision-history")[0];
+  details.props.onToggle({ currentTarget: { open: true } });
+  await host.flush();
+  assert.match(text(host.tree), /第 2 次观察/);
+  host.rerender({ version: "two" });
+  await host.flush();
+  assert.match(text(host.tree), /第 3 次观察/);
   host.unmount();
 });
 

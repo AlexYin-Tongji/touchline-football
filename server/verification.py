@@ -349,20 +349,3 @@ def counts(annotated):
     for row in annotated.get("facts", []):
         tally[row["support"]] = tally.get(row["support"], 0) + 1
     return tally
-
-
-def conservative_delivery(structured, verification):
-    """Deterministically remove unchecked prose; never ask a model to downgrade itself.
-
-    Retained for the repair path only. Delivery no longer calls it: removing a
-    reader-visible statement is precisely the decision this project hands back
-    to the reader, and callers should use :func:`annotations` instead.
-    """
-    approved = {c["id"] for c in verification.get("claims", []) if c["verdict"] == "supported"}
-    facts = [] if verification["status"] == "unavailable" else [
-        fact for index, fact in enumerate(structured.get("facts", [])) if f"fact_{index + 1}" in approved]
-    return {"status": "complete" if facts else "insufficient",
-            "summary": "以下消息受到所引原文支持，其他判断仍待核实。" if facts else "现有资料不足以完成可靠解读，暂无法确认相关判断。",
-            "facts": facts, "analysis": "",
-            "unknowns": ["部分结论或摘录未通过核对，需要补充原文或重新查证。" if verification["status"] != "unavailable"
-                         else "本次原文支持核对未完成，请稍后重试。"]}

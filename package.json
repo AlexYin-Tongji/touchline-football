@@ -1,6 +1,6 @@
 {
   "name": "touchline-football-agent",
-  "version": "7.8.1",
+  "version": "8.0.0",
   "private": true,
   "type": "module",
   "scripts": {

@@ -83,6 +83,47 @@ class LocalToolTests(unittest.TestCase):
         self.assertNotIn("3-1", text)
         self.assertNotIn("ev_result", text)
 
+    def test_context_includes_compact_decision_history_without_granting_citations(self):
+        import tempfile
+        from pathlib import Path
+        from server.storage import Store
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "isolated.sqlite3")
+            try:
+                store.put("teams", self.store.get("teams", "arsenal"))
+                store.put("runs", self.run)
+                store.put("decisions", {
+                    "id": "decision_one", "mode": "live", "team_id": "arsenal",
+                    "created_at": "2026-09-28T08:00:00Z", "status": "completed",
+                    "reason": "阵容资料超期", "summary": "来源读取完成，已记录前后变化。",
+                    "parts": ["roster", "schedule"],
+                    "before": {"roster": {"values": [{"name": "PRIVATE_DETAIL"}]},
+                               "schedule": {"values": [{"score": "9-0"}]}},
+                    "changes": [{"field": "roster", "changed": True, "confirmed": True,
+                                 "last_confirmed_at": "2026-09-28T08:00:00Z"},
+                                {"field": "schedule", "changed": True, "confirmed": True,
+                                 "last_confirmed_at": "2026-09-28T08:00:00Z"}],
+                })
+                local = LocalTools(store, self.run, store.settings())
+                result = local.call("context_pack", {})
+                history = result["decision_history"]
+                self.assertEqual(history["items"][0]["reason"], "阵容资料超期")
+                self.assertEqual(history["items"][0]["changes"][0]["last_confirmed_at"], "2026-09-28T08:00:00Z")
+                self.assertNotIn("PRIVATE_DETAIL", json.dumps(history))
+                self.assertNotIn("9-0", json.dumps(history))
+                self.assertNotIn("changed", history["items"][0]["changes"][1])
+                self.assertFalse(local.read_ids)
+                # Current maintenance must not leak observations from after a
+                # historical preview cutoff or outside a fixed article.
+                store.put("matches", self.store.get("matches", "match_one"))
+                for scope in ({"skill": "match_preview", "match_id": "match_one"},
+                              {"skill": "news_report", "report_id": "fixed_article"}):
+                    scoped = LocalTools(store, {**self.run, **scope}, store.settings())
+                    self.assertEqual(scoped.call("context_pack", {})["decision_history"]["items"], [])
+            finally:
+                store.close()
+
     def test_preview_uses_strict_availability_cutoff(self):
         self.run.update(skill="match_preview", match_id="match_one")
         local = LocalTools(self.store, self.run, self.store.settings())

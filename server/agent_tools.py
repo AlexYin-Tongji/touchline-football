@@ -5,6 +5,7 @@ import json
 import copy
 import hashlib
 import re
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from .skill_catalog import PRIMARY_SKILLS, WORKFLOWS, resolve_workflow
@@ -36,7 +37,7 @@ def parse_time(value):
 
 
 TOOL_DEFINITIONS = [
-    {"name": "context_pack", "description": "一次读取当前球队背景：球队资料、可见事件索引、比赛基本信息、已存知识线索、可用来源与你的阅读偏好。返回的都是索引与配置，不是已读证据；引用前须 read_evidence。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "context_pack", "description": "一次读取当前球队背景：球队资料、可见事件索引、比赛基本信息、已存知识线索、最近更新记录、可用来源与你的阅读偏好。更新记录可回答何时检查、是否变化，但不是已读证据；引用前须 read_evidence。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_evidence", "description": "检索当前球队和模式内的本地资料，支持中文和英文关键词；返回片段，引用前需 read_evidence。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 500}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_evidence", "description": "按字符位置分页阅读原文，默认前12000字符；next_offset可继续读长文。返回真实passages和正文完整性；只可引用本轮实际读到的片段。", "parameters": {"type": "object", "properties": {"evidence_id": {"type": "string", "maxLength": 120}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}, "length": {"type": "integer", "minimum": 500, "maximum": 12000}}, "required": ["evidence_id"], "additionalProperties": False}},
     {"name": "event_timeline", "description": "查看当前事件中有证据支持的进展，分清发布时间和记录时间，不自行判定事实已获验证。", "parameters": {"type": "object", "properties": {"event_id": {"type": "string", "maxLength": 120}}, "required": ["event_id"], "additionalProperties": False}},
@@ -79,6 +80,7 @@ TOOL_DEFINITIONS.extend([
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "query_structured_sources", "description": "按需发现并核对当前球队的 API-Football 身份，再查询该队的结构化阵容、赛程或积分。发现可能消耗 API 配额；缺密钥、身份或配额会返回明确缺口。模型不能指定球队编号。结果只是来源线索，最终引用仍须本轮 read_evidence 阅读原文。", "parameters": {"type": "object", "properties": {"capability": {"type": "string", "enum": ["squad", "fixture", "standings"]}}, "required": ["capability"], "additionalProperties": False}},
     {"name": "maintain_team_data", "description": "按需补全当前球队缺失或过期资料，可选阵容、赛程、积分或照片；失败保留旧快照并说明范围。先用get_team_data看缺项，避免重复刷新。", "parameters": {"type": "object", "properties": {"parts": {"type": "array", "items": {"type": "string", "enum": ["roster", "schedule", "standings", "portraits"]}, "minItems": 1, "maxItems": 4}}, "additionalProperties": False}},
     {"name": "research_news", "description": "围绕一个足球问题一次完成多来源搜索和原文阅读，返回本轮可以引用的材料、来源覆盖、读取失败与后续线索。优先用于最新新闻、伤病、转会等联网研究；不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 4}}, "required": ["query"], "additionalProperties": False}},
     {"name": "search_passages", "description": "在当前可见长文中定位关键词段落，返回上下文和字符offset。只是定位索引，不增加已读证据；随后read_evidence(offset)阅读该处。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 300}, "evidence_id": {"type": "string", "maxLength": 120}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
@@ -570,8 +572,11 @@ class LocalTools:
             excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data", "fetch_player_photos"})
         if not self.allow_network or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff):
             excluded.add("read_article")
+            excluded.add("query_structured_sources")
         if self.run.get("report_id"):
-            excluded.update({"discover_news", "refresh_team_sources", "research_news", "read_article", "conversation_history", "search_team_knowledge"})
+            excluded.update({"discover_news", "refresh_team_sources", "research_news", "read_article", "query_structured_sources", "conversation_history", "search_team_knowledge"})
+        if self.mode != "live" or self.match:
+            excluded.add("query_structured_sources")
         if not self.run.get("conversation_id") or self.run.get("internal_agent"):
             excluded.add("conversation_history")
         tools = openai_tools(self.skill)
@@ -611,12 +616,27 @@ class LocalTools:
         """
         from .research import source_status
         from .team_profiles import knowledge_for_team
+        from . import decisions
         team = self.store.get("teams", self.team_id)
         events = [self.event_view(event) for event in self.scoped_list("events") if self.event_visible(event)]
         events.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
         saved = knowledge_for_team(self.store, self.team_id, self.mode, spoiler_free=self.spoiler_free,
                                    allowed_evidence_ids={item["id"] for item in self.visible_evidence()}, limit=6)
         matches = [self.safe_match(item) for item in self.scoped_list("matches")[:8]]
+        history = (decisions.history(self.store, self.team_id, limit=3, reveal=False)
+                   if self.mode == "live" and not self.match and not self.run.get("report_id")
+                   and not self.cutoff and hasattr(self.store, "_db")
+                   else {"items": [], "history_note": "当前任务范围没有可用的更新记录。"})
+        decision_history = {
+            "items": [{key: row.get(key) for key in
+                       ("id", "created_at", "finished_at", "status", "reason", "summary", "parts", "season_label")}
+                      | {"changes": [{key: change[key] for key in
+                                      ("field", "changed", "confirmed", "last_confirmed_at") if key in change}
+                                     for change in row.get("changes", [])]}
+                      for row in history["items"]],
+            "history_note": history["history_note"],
+            "notice": "更新记录只说明何时读取来源及数据是否变化，不是事实证据；引用说法前仍须 read_evidence 阅读原文。",
+        }
         return {
             "team": {key: (team or {}).get(key) for key in
                      ("id", "name", "english_name", "league", "league_name", "country", "city", "founded",
@@ -630,6 +650,7 @@ class LocalTools:
             "saved_knowledge": [{key: item.get(key) for key in ("id", "title", "detail", "evidence_ids", "support")}
                                 for item in saved],
             "sources": source_status(self.store, self.team_id),
+            "decision_history": decision_history,
             "reader": self.reader_profile(),
             "mode": self.mode, "spoiler_free": self.spoiler_free,
             "visible_evidence_count": len(self.visible_evidence()),
@@ -1049,6 +1070,73 @@ class LocalTools:
         self.validate(name, arguments)
         if self.delegation and name in {tool["name"] for tool in self.delegation.definitions}:
             return await self.delegation.call(name, arguments, getattr(self, "_tool_request_id", None))
+        if name == "query_structured_sources":
+            from . import providers
+            from .providers.api_football import resolve_team_scope
+
+            capability = arguments["capability"]
+            def gap(code, message):
+                return {"source_id": "api_football", "capability": capability, "items": [],
+                        "gaps": [{"source_id": "api_football", "code": code, "message": message}],
+                        "cached": False, "spent": "free"}
+            if self.mode != "live" or self.match or self.run.get("report_id"):
+                return gap("fixed_scope", "当前任务范围不能查询新的结构化资料。")
+            if capability != "squad" and self.spoiler_free:
+                return gap("spoiler_scope", "避剧透模式不提供赛果或积分查询。")
+            if not self.allow_network:
+                return gap("network_disabled", "当前任务未授权联网。")
+            self.network_guard()
+            if not self.store.get_secret("api_football_api_key"):
+                return gap("missing_credential", "API-Football 尚未配置密钥。")
+            self.network_queries += 1
+            discovery = await resolve_team_scope(self.store, self.team_id, year=None)
+            resolution = {"cached": discovery.cached, "spent": discovery.spent.value,
+                          "gaps": list(discovery.gaps)}
+            if discovery.gaps or not discovery.items:
+                result = gap("provider_mapping_required", "未能核对当前球队的 API-Football 身份。")
+                result["gaps"] = list(discovery.gaps) or result["gaps"]
+                result["scope_resolution"] = resolution
+                return result
+            scope = discovery.items[0].get("scope") or {}
+            team_id = scope.get("team_id")
+            if (type(team_id) is not int or team_id <= 0
+                    or any(type(scope.get(key)) is not int or scope[key] <= 0 for key in ("league_id", "season"))):
+                result = gap("invalid_scope", "来源未返回可核对的球队与赛季编号。")
+                result["scope_resolution"] = resolution
+                return result
+            query_scope = ({"team_id": team_id} if capability == "squad" else
+                           {"team_id": team_id, "league_id": scope["league_id"], "season": scope["season"]})
+            try:
+                answer = await providers.query("api_football", capability, store=self.store, **query_scope)
+            except providers.ProviderError as exc:
+                result = gap(exc.code, "结构化来源本次查询未完成。")
+                result["scope_resolution"] = resolution
+                return result
+            result = answer.safe()
+            if capability == "squad":
+                items = [item for item in result["items"] if item.get("provider_team") == team_id]
+            elif capability == "fixture":
+                items = [item for item in result["items"] if team_id in
+                         (item.get("home_provider_team"), item.get("away_provider_team"))]
+            else:
+                items = [item for item in result["items"] if item.get("provider_team") == team_id]
+            if result["items"] and not items and not result["gaps"]:
+                result["gaps"] = [{"source_id": "api_football", "code": "team_scope_mismatch",
+                                   "message": "来源未返回当前球队的数据。"}]
+            total = len(items)
+            def plain(value):
+                if is_dataclass(value):
+                    return plain(asdict(value))
+                if isinstance(value, dict):
+                    return {key: plain(item) for key, item in value.items()}
+                if isinstance(value, list):
+                    return [plain(item) for item in value]
+                return value
+            result["items"] = plain(items[:40])
+            result.update(total_count=total, truncated=total > 40,
+                          scope_resolution=resolution,
+                          notice="结构化来源结果不是本轮已读原文；最终引用仍须 read_evidence 阅读可见证据。")
+            return result
         if name == "fetch_player_photos":
             self.network_guard()
             if self.match or self.run.get("report_id"):
@@ -1177,7 +1265,11 @@ class LocalTools:
             raw = function.get("arguments", "{}")
             delegated = self.delegation and function.get("name") in {tool["name"] for tool in self.delegation.definitions}
             arguments = parse_tool_arguments(raw, 64000 if function.get("name") in {"submit_answer", "revise_news"} else 24000 if delegated else 3000)
-            self._tool_request_id = f"{self.run.get('agent_generation', 1)}:{getattr(self, '_tool_epoch', 0)}:{call.get('id', '')}"
+            # Some providers encode signatures in tool-call IDs. Keep that ID
+            # intact for protocol pairing, but use a bounded, stable digest for
+            # our task runtime's idempotency key (which is limited to 200 chars).
+            request_identity = f"{self.run.get('agent_generation', 1)}:{getattr(self, '_tool_epoch', 0)}:{call.get('id', '')}"
+            self._tool_request_id = hashlib.sha256(request_identity.encode()).hexdigest()
             return await self.acall(function.get("name"), arguments)
         except (json.JSONDecodeError, TypeError):
             return {"error": "工具参数不是有效 JSON 对象。"}
