@@ -228,7 +228,8 @@ export function Assistant({
     Partial<Record<"chat" | "team", ModelSelection | null>>
   >({});
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const lastTurn = useRef<HTMLElement | null>(null);
+  const prevRuns = useRef(0);
   const request = useRef(0);
   const historyRequest = useRef(0);
   const mounted = useRef(true);
@@ -470,7 +471,12 @@ export function Assistant({
     };
   }, [pending?.id, active, onChanged, loadHistory]);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // 只在新增一轮问答时滚动，并且滚到这一轮的开头：
+    // 滚到底会把刚生成的长回答直接推上去，反而看不到开头。
+    const added = runs.length > prevRuns.current;
+    prevRuns.current = runs.length;
+    if (!added) return;
+    lastTurn.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [runs.length]);
   useEffect(() => {
     if (!textarea.current) return;
@@ -620,356 +626,361 @@ export function Assistant({
           </button>
         </div>
       </div>
-      <div className="conversation-context">
-        <span>
-          <Shield size={13} /> {team.name} ·{" "}
-          {conversationId ? "会话已保存" : "独立新对话"}
-        </span>
-        <span>资料随提问更新 · 仅延续当前会话</span>
-      </div>
-      {!runs.length && histories.length > 0 && !restoring && (
-        <div className="resume-conversation">
-          <History size={17} />
-          <div>
-            <small>上次聊到</small>
-            <strong>{histories[0].title}</strong>
-          </div>
-          <button
-            className="text-button"
-            disabled={busy}
-            onClick={() => loadConversation(histories[0].id)}
-          >
-            继续对话 <ArrowRight size={14} />
-          </button>
-        </div>
-      )}
-      {missingConversationModel && (
-        <div className="model-recovery" role="status">
-          <div>
-            <strong>这段对话使用的模型已移除</strong>
-            <p>历史记录仍然保留。你可以在模型配置中恢复原模型，或使用当前模型继续一个新对话。</p>
-          </div>
-          <button className="button primary" onClick={() => newConversation(true)}>保留问题，开启新对话</button>
-          <button className="text-button" onClick={openModel}>打开模型配置</button>
-        </div>
-      )}
-      {!modelReady && !missingConversationModel && (
-        <div className="model-connect">
+      <div className="assistant-body">
+        <div className="conversation-context">
           <span>
-            <Sparkles size={18} />
-            连接你的模型，开启第一场足球对话。
+            <Shield size={13} /> {team.name} ·{" "}
+            {conversationId ? "会话已保存" : "独立新对话"}
           </span>
-          <button onClick={openModel}>
-            配置模型
-            <ArrowRight size={15} />
-          </button>
+          <span>资料随提问更新 · 仅延续当前会话</span>
         </div>
-      )}
-      <div className="conversation">
-        {restoring && (
-          <div className="thinking-status">
-            <LoaderCircle size={18} className="spin" />
-            正在恢复完整对话记录
-          </div>
-        )}
-        {!runs.length && !restoring && (
-          <section className="assistant-welcome">
-            <span className="welcome-mark">
-              <Sparkles size={28} />
-            </span>
-            <h2>今天，想聊点什么？</h2>
-            <p>
-              关于{team.name}，从一条消息到一场比赛，
-              <br className="desktop-only" />
-              我会带着资料，陪你一起看懂。
-            </p>
-            <div className="skill-grid">
-              {cards.map((card) => (
-                <button
-                  className={skill === card.id ? "selected" : ""}
-                  key={card.id}
-                  onClick={() => {
-                    setSkill(card.id);
-                    setContext(null);
-                    setQuestion(card.prompt(team.name));
-                    textarea.current?.focus();
-                  }}
-                >
-                  <span className={`skill-icon skill-${card.id}`}>
-                    <card.icon size={19} />
-                  </span>
-                  <div>
-                    <strong>{card.title}</strong>
-                    <small>{card.description}</small>
-                  </div>
-                  <ArrowRight size={15} />
-                </button>
-              ))}
+        {!runs.length && histories.length > 0 && !restoring && (
+          <div className="resume-conversation">
+            <History size={17} />
+            <div>
+              <small>上次聊到</small>
+              <strong>{histories[0].title}</strong>
             </div>
-          </section>
-        )}
-        {runs.map((run) => (
-          <section className="conversation-turn" key={run.id}>
-            <div className="user-bubble">{run.question}</div>
-            <article className="assistant-answer">
-              <div className="answer-byline">
-                <span>
-                  <Sparkles size={17} />
-                </span>
-                <strong>看台助手</strong>
-                {run.model && <small>{run.model}</small>}
-              </div>
-              {run.answer ? (
-                <Markdown
-                  text={run.answer}
-                  evidence={run.evidence || []}
-                />
-              ) : activeRun(run) ? (
-                <div className="thinking-status">
-                  <span className="thinking-dots">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <div>
-                    {run.steps
-                      ?.filter((step) => step.status === "running")
-                      .slice(-1)[0]?.label || "正在查找资料、整理思路"}
-                    <small>需要一点时间，可以先继续浏览其他页面。</small>
-                  </div>
-                </div>
-              ) : null}
-              {!!run.steps?.length && (
-                <details className="answer-process">
-                  <summary>
-                    <ScanSearch size={13} />
-                    资料查阅过程 <span>{run.steps.length} 项进展</span>
-                    <ChevronDown size={13} />
-                  </summary>
-                  <ol>
-                    {run.steps.map((step, index) => (
-                      <li
-                        key={`${index}-${step.at}`}
-                        className={`step-${step.status}`}
-                      >
-                        <span className="process-dot" />
-                        <span>{step.label}</span>
-                        <small>
-                          {(
-                            {
-                              completed: "完成",
-                              success: "完成",
-                              failed: "未完成",
-                              error: "未完成",
-                              running: "进行中",
-                              skipped: "跳过",
-                            } as Record<string, string>
-                          )[step.status] || step.status}
-                        </small>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              )}
-              {run.status === "failed" && (
-                <div className="notice error">
-                  <span>{responseError(run.error)}</span>
-                  <button
-                    disabled={!!pending || busy}
-                    onClick={() => start(run)}
-                  >
-                    <RotateCcw size={14} />
-                    重试
-                  </button>
-                </div>
-              )}
-              {run.status === "cancelled" && (
-                <p className="muted">
-                  回答已停止。
-                  <button
-                    className="text-button"
-                    disabled={!!pending || busy}
-                    onClick={() => start(run)}
-                  >
-                    重新回答
-                  </button>
-                </p>
-              )}
-              {run.evidence?.length ? <Sources sources={run.evidence} /> : null}
-              {run.status === "completed" && (
-                <div className="answer-footer">
-                  <span>{dateTime(run.finished_at || run.created_at)}</span>
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      setQuestion(
-                        `关于刚才的回答，请进一步解释其中最值得关注的变化。`,
-                      );
-                      textarea.current?.focus();
-                    }}
-                  >
-                    <MessageCircle size={14} />
-                    继续聊聊
-                  </button>
-                </div>
-              )}
-            </article>
-          </section>
-        ))}
-        <div ref={bottom} />
-      </div>
-      <div className="composer-area">
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-            <button aria-label="关闭错误提示" onClick={() => setError("")}>
-              <X size={15} />
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => loadConversation(histories[0].id)}
+            >
+              继续对话 <ArrowRight size={14} />
             </button>
           </div>
         )}
-        <form
-          className="composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void start();
-          }}
-        >
-          {skill !== "auto" && (
-            <div className="composer-context">
-              <Sparkles size={13} />
-              <span>
-                {selectedCard?.title ||
-                  (skill === "team_maintenance" ? "球员画像" : "相关消息")}
+        {missingConversationModel && (
+          <div className="model-recovery" role="status">
+            <div>
+              <strong>这段对话使用的模型已移除</strong>
+              <p>历史记录仍然保留。你可以在模型配置中恢复原模型，或使用当前模型继续一个新对话。</p>
+            </div>
+            <button className="button primary" onClick={() => newConversation(true)}>保留问题，开启新对话</button>
+            <button className="text-button" onClick={openModel}>打开模型配置</button>
+          </div>
+        )}
+        {!modelReady && !missingConversationModel && (
+          <div className="model-connect">
+            <span>
+              <Sparkles size={18} />
+              连接你的模型，开启第一场足球对话。
+            </span>
+            <button onClick={openModel}>
+              配置模型
+              <ArrowRight size={15} />
+            </button>
+          </div>
+        )}
+        <div className="conversation">
+          {restoring && (
+            <div className="thinking-status">
+              <LoaderCircle size={18} className="spin" />
+              正在恢复完整对话记录
+            </div>
+          )}
+          {!runs.length && !restoring && (
+            <section className="assistant-welcome">
+              <span className="welcome-mark">
+                <Sparkles size={28} />
               </span>
-              <button
-                type="button"
-                aria-label="取消已选任务"
-                onClick={() => {
-                  setSkill("auto");
-                  setContext(null);
-                }}
-              >
-                <X size={13} />
+              <h2>今天，想聊点什么？</h2>
+              <p>
+                关于{team.name}，从一条消息到一场比赛，
+                <br className="desktop-only" />
+                我会带着资料，陪你一起看懂。
+              </p>
+              <div className="skill-grid">
+                {cards.map((card) => (
+                  <button
+                    className={skill === card.id ? "selected" : ""}
+                    key={card.id}
+                    onClick={() => {
+                      setSkill(card.id);
+                      setContext(null);
+                      setQuestion(card.prompt(team.name));
+                      textarea.current?.focus();
+                    }}
+                  >
+                    <span className={`skill-icon skill-${card.id}`}>
+                      <card.icon size={19} />
+                    </span>
+                    <div>
+                      <strong>{card.title}</strong>
+                      <small>{card.description}</small>
+                    </div>
+                    <ArrowRight size={15} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {runs.map((run, index) => (
+            <section
+              className="conversation-turn"
+              key={run.id}
+              ref={index === runs.length - 1 ? lastTurn : undefined}
+            >
+              <div className="user-bubble">{run.question}</div>
+              <article className="assistant-answer">
+                <div className="answer-byline">
+                  <span>
+                    <Sparkles size={17} />
+                  </span>
+                  <strong>看台助手</strong>
+                  {run.model && <small>{run.model}</small>}
+                </div>
+                {run.answer ? (
+                  <Markdown
+                    text={run.answer}
+                    evidence={run.evidence || []}
+                  />
+                ) : activeRun(run) ? (
+                  <div className="thinking-status">
+                    <span className="thinking-dots">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <div>
+                      {run.steps
+                        ?.filter((step) => step.status === "running")
+                        .slice(-1)[0]?.label || "正在查找资料、整理思路"}
+                      <small>需要一点时间，可以先继续浏览其他页面。</small>
+                    </div>
+                  </div>
+                ) : null}
+                {!!run.steps?.length && (
+                  <details className="answer-process">
+                    <summary>
+                      <ScanSearch size={13} />
+                      资料查阅过程 <span>{run.steps.length} 项进展</span>
+                      <ChevronDown size={13} />
+                    </summary>
+                    <ol>
+                      {run.steps.map((step, index) => (
+                        <li
+                          key={`${index}-${step.at}`}
+                          className={`step-${step.status}`}
+                        >
+                          <span className="process-dot" />
+                          <span>{step.label}</span>
+                          <small>
+                            {(
+                              {
+                                completed: "完成",
+                                success: "完成",
+                                failed: "未完成",
+                                error: "未完成",
+                                running: "进行中",
+                                skipped: "跳过",
+                              } as Record<string, string>
+                            )[step.status] || step.status}
+                          </small>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
+                {run.status === "failed" && (
+                  <div className="notice error">
+                    <span>{responseError(run.error)}</span>
+                    <button
+                      disabled={!!pending || busy}
+                      onClick={() => start(run)}
+                    >
+                      <RotateCcw size={14} />
+                      重试
+                    </button>
+                  </div>
+                )}
+                {run.status === "cancelled" && (
+                  <p className="muted">
+                    回答已停止。
+                    <button
+                      className="text-button"
+                      disabled={!!pending || busy}
+                      onClick={() => start(run)}
+                    >
+                      重新回答
+                    </button>
+                  </p>
+                )}
+                {run.evidence?.length ? <Sources sources={run.evidence} /> : null}
+                {run.status === "completed" && (
+                  <div className="answer-footer">
+                    <span>{dateTime(run.finished_at || run.created_at)}</span>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setQuestion(
+                          `关于刚才的回答，请进一步解释其中最值得关注的变化。`,
+                        );
+                        textarea.current?.focus();
+                      }}
+                    >
+                      <MessageCircle size={14} />
+                      继续聊聊
+                    </button>
+                  </div>
+                )}
+              </article>
+            </section>
+          ))}
+        </div>
+        <div className="composer-area">
+          {error && (
+            <div className="notice error" role="alert">
+              {error}
+              <button aria-label="关闭错误提示" onClick={() => setError("")}>
+                <X size={15} />
               </button>
             </div>
           )}
-          <textarea
-            ref={textarea}
-            aria-label="向足球助手提问"
-            placeholder={`关于${team.name}，你想知道什么？`}
-            value={question}
-            maxLength={12000}
-            rows={2}
-            onChange={(event) => {
-              currentDraft.current = event.target.value;
-              setQuestion(event.target.value);
+          <form
+            className="composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void start();
             }}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-                if (!pending) void start();
-              }
-            }}
-          />
-          <div className="composer-footer">
-            <div
-              className="chat-model-picker"
-              title={
-                conversationId
-                  ? "本次对话使用当前模型。新建对话后可选择其他模型。"
-                  : undefined
-              }
-            >
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => {
-                  if (conversationId) return;
-                  setModelMenu(!modelMenu);
-                }}
-                disabled={!!conversationId || !!pending}
-              >
-                <Sparkles size={14} />
+          >
+            {skill !== "auto" && (
+              <div className="composer-context">
+                <Sparkles size={13} />
                 <span>
-                  {selectedModel?.model ||
-                    data.settings.llm.model ||
-                    "选择模型"}
+                  {selectedCard?.title ||
+                    (skill === "team_maintenance" ? "球员画像" : "相关消息")}
                 </span>
-                {!conversationId && <ChevronDown size={13} />}
-              </button>
-              {modelMenu && (
-                <div className="chat-model-menu">
-                  {models.map((model) => (
+                <button
+                  type="button"
+                  aria-label="取消已选任务"
+                  onClick={() => {
+                    setSkill("auto");
+                    setContext(null);
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+            <textarea
+              ref={textarea}
+              aria-label="向足球助手提问"
+              placeholder={`关于${team.name}，你想知道什么？`}
+              value={question}
+              maxLength={12000}
+              rows={2}
+              onChange={(event) => {
+                currentDraft.current = event.target.value;
+                setQuestion(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  if (!pending) void start();
+                }
+              }}
+            />
+            <div className="composer-footer">
+              <div
+                className="chat-model-picker"
+                title={
+                  conversationId
+                    ? "本次对话使用当前模型。新建对话后可选择其他模型。"
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    if (conversationId) return;
+                    setModelMenu(!modelMenu);
+                  }}
+                  disabled={!!conversationId || !!pending}
+                >
+                  <Sparkles size={14} />
+                  <span>
+                    {selectedModel?.model ||
+                      data.settings.llm.model ||
+                      "选择模型"}
+                  </span>
+                  {!conversationId && <ChevronDown size={13} />}
+                </button>
+                {modelMenu && (
+                  <div className="chat-model-menu">
+                    {models.map((model) => (
+                      <button
+                        type="button"
+                        key={`${model.provider_id}/${model.id}`}
+                        onClick={() => {
+                          modelOverride.current = true;
+                          setSelectedModel({
+                            provider_id: model.provider_id,
+                            model: model.id,
+                          });
+                          setModelMenu(false);
+                        }}
+                      >
+                        <span>
+                          {model.name || model.id}
+                          <small>{model.provider_name}</small>
+                        </span>
+                        {selectedModel?.provider_id === model.provider_id &&
+                          selectedModel.model === model.id && <Check size={14} />}
+                      </button>
+                    ))}
                     <button
                       type="button"
-                      key={`${model.provider_id}/${model.id}`}
+                      className="manage-models"
                       onClick={() => {
-                        modelOverride.current = true;
-                        setSelectedModel({
-                          provider_id: model.provider_id,
-                          model: model.id,
-                        });
                         setModelMenu(false);
+                        openModel();
                       }}
                     >
-                      <span>
-                        {model.name || model.id}
-                        <small>{model.provider_name}</small>
-                      </span>
-                      {selectedModel?.provider_id === model.provider_id &&
-                        selectedModel.model === model.id && <Check size={14} />}
+                      管理模型
+                      <ChevronRight size={14} />
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="manage-models"
-                    onClick={() => {
-                      setModelMenu(false);
-                      openModel();
-                    }}
-                  >
-                    管理模型
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
+                  </div>
+                )}
+              </div>
+              {pending ? (
+                <button
+                  type="button"
+                  className="send-button stop"
+                  disabled={busy}
+                  onClick={cancel}
+                  aria-label="停止回答"
+                >
+                  <Square size={17} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  type="submit"
+                  disabled={busy || !question.trim() || !modelReady}
+                  aria-label="发送问题"
+                >
+                  {busy ? (
+                    <LoaderCircle size={18} className="spin" />
+                  ) : (
+                    <ArrowUp size={21} />
+                  )}
+                </button>
               )}
             </div>
-            {pending ? (
-              <button
-                type="button"
-                className="send-button stop"
-                disabled={busy}
-                onClick={cancel}
-                aria-label="停止回答"
-              >
-                <Square size={17} fill="currentColor" />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                type="submit"
-                disabled={busy || !question.trim() || !modelReady}
-                aria-label="发送问题"
-              >
-                {busy ? (
-                  <LoaderCircle size={18} className="spin" />
-                ) : (
-                  <ArrowUp size={21} />
-                )}
-              </button>
-            )}
-          </div>
-        </form>
-        <p className="composer-note">
-          {conversationId
-            ? "对话自动保存；本次对话继续使用当前模型。"
-            : "新对话不读取其他会话。助手会查阅来源再回答。"}
-          Enter 发送，Shift + Enter 换行。
-        </p>
+          </form>
+          <p className="composer-note">
+            {conversationId
+              ? "对话自动保存；本次对话继续使用当前模型。"
+              : "新对话不读取其他会话。助手会查阅来源再回答。"}
+            Enter 发送，Shift + Enter 换行。
+          </p>
+        </div>
       </div>
       {history && (
         <Modal

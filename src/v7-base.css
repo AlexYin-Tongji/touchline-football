@@ -40,6 +40,8 @@
 
   --radius: 3px;
   --radius-card: 4px;
+  /* 页头高度：外壳布局和对话页的视口高度都引用它，窄屏只改这一处 */
+  --header-h: 74px;
   /* 报纸感：几乎不用投影，靠线区分层次 */
   --rule: 1px solid var(--line);
 
@@ -591,8 +593,10 @@ time,
     transform: none;
   }
 }
+/* 阅读弹窗：940px 的无内边距正文行长超过 60 字，眼睛会丢行。
+   收到 760px 并给内容加左右内边距，标题栏本来就自带 24px。 */
 .modal-panel.wide {
-  width: 940px;
+  width: 760px;
 }
 .modal-heading {
   display: flex;
@@ -748,5 +752,12 @@ time,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* 窄屏页头更矮，引用 --header-h 的布局自动跟随 */
+@media (max-width: 760px) {
+  :root {
+    --header-h: 64px;
   }
 }

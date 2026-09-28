@@ -128,6 +128,58 @@ const results: Record<string, string> = { W: "胜", D: "平", L: "负" };
 const numberOrDash = (value?: number) =>
   value === undefined || value === null ? "—" : value;
 
+// 指针倾斜：直接写 style.transform，不走 state，所以鼠标划过不会触发渲染。
+// 用 rAF 合并同一帧内的多次 pointermove；只在细指针设备上启用，触屏保持静止。
+function useTilt<T extends HTMLElement>(max = 4.5) {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (typeof window.matchMedia !== "function") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    let frame = 0;
+    let x = 0;
+    let y = 0;
+    let px = 50;
+    let py = 0;
+    const apply = () => {
+      frame = 0;
+      node.style.transform = `rotateX(${y.toFixed(2)}deg) rotateY(${x.toFixed(2)}deg)`;
+      node.style.setProperty("--glare-x", `${px.toFixed(1)}%`);
+      node.style.setProperty("--glare-y", `${py.toFixed(1)}%`);
+    };
+    const move = (event: PointerEvent) => {
+      const box = node.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const fx = (event.clientX - box.left) / box.width;
+      const fy = (event.clientY - box.top) / box.height;
+      // 以中心为原点归一化到 [-1, 1]，再乘上限角度
+      x = (fx - 0.5) * 2 * max;
+      y = -(fy - 0.5) * 2 * max;
+      px = fx * 100;
+      py = fy * 100;
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    const leave = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      node.style.transform = "";
+      node.style.removeProperty("--glare-x");
+      node.style.removeProperty("--glare-y");
+    };
+    node.addEventListener("pointermove", move);
+    node.addEventListener("pointerleave", leave);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      node.removeEventListener("pointermove", move);
+      node.removeEventListener("pointerleave", leave);
+      node.style.transform = "";
+    };
+  }, [max]);
+  return ref;
+}
+
 export function TeamCenter({
   team,
   data,
@@ -147,6 +199,7 @@ export function TeamCenter({
   const [matchLimit, setMatchLimit] = useState(8);
   const [revealedTeam, setRevealedTeam] = useState<string | null>(null);
   const reveal = revealedTeam === team.id;
+  const heroRef = useTilt<HTMLElement>();
   const active = useRef(team.id);
   active.current = team.id;
   const request = useRef(0);
@@ -211,12 +264,13 @@ export function TeamCenter({
   );
   return (
     <div className="team-center">
-      <section className="club-hero">
+      <section className="club-hero" ref={heroRef}>
         <div className="club-hero-art" aria-hidden="true">
           <i />
           <b />
           <span />
         </div>
+        <div className="club-hero-glare" aria-hidden="true" />
         <div className="club-hero-content">
           <div className="club-hero-crest">
             <Crest team={profile} />

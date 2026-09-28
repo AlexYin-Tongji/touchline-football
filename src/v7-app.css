@@ -12,7 +12,7 @@
 
 /* ============================ 外壳 ============================ */
 .site-header {
-  height: 74px;
+  height: var(--header-h);
   padding: 0 max(28px, calc((100vw - 1480px) / 2));
   display: grid;
   grid-template-columns: 220px 1fr 220px;
@@ -95,7 +95,7 @@
 .workspace {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
-  min-height: calc(100dvh - 74px);
+  min-height: calc(100dvh - var(--header-h));
 }
 .team-rail {
   border-right: var(--rule);
@@ -104,8 +104,8 @@
   flex-direction: column;
   gap: 3px;
   position: sticky;
-  top: 74px;
-  height: calc(100dvh - 74px);
+  top: var(--header-h);
+  height: calc(100dvh - var(--header-h));
   overflow-y: auto;
 }
 .rail-title {
@@ -226,6 +226,7 @@
 .main-content {
   padding: 28px 40px 70px;
   min-width: 0;
+  min-height: 0;
 }
 
 /* 球队上下文条 */
@@ -406,15 +407,59 @@
 }
 
 /* 动态列表 */
+/* 列表用一条细分隔线，不加投影。这里刻意不做 translateZ 抬升：
+   卡片被提升后会盖住吸顶页头，嵌在下面滚动的内容会从页头下沿透出来。 */
 .feed-list {
   display: flex;
   flex-direction: column;
 }
 .feed-card {
+  position: relative;
   padding: 26px 0 22px;
   border-bottom: var(--rule);
   background: none;
   contain: layout paint;
+  /* 首屏依次浮现：只用不透明度与位移，避免逐帧重排。
+     用 backwards 而不是 both——动画结束后不要保留 transform，
+     否则残留的 transform 会压住后续状态。 */
+  animation: card-in 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* 最多前 8 条错开 45ms；再往后一次性出现，翻页时不会拖尾 */
+.feed-card:nth-child(2) { animation-delay: 45ms; }
+.feed-card:nth-child(3) { animation-delay: 90ms; }
+.feed-card:nth-child(4) { animation-delay: 135ms; }
+.feed-card:nth-child(5) { animation-delay: 180ms; }
+.feed-card:nth-child(6) { animation-delay: 225ms; }
+.feed-card:nth-child(7) { animation-delay: 270ms; }
+.feed-card:nth-child(n + 8) { animation-delay: 315ms; }
+/* 悬停反馈用左侧红条，不再动 transform，层叠关系保持干净 */
+.feed-card::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 26px;
+  bottom: 24px;
+  width: 2px;
+  background: var(--red);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.22s ease;
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .feed-card:hover::before {
+    transform: scaleY(1);
+  }
 }
 .feed-card:first-child {
   padding-top: 0;
@@ -1094,7 +1139,7 @@
 .club-hero {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 26px;
   align-items: center;
   padding: 32px 34px;
@@ -1102,12 +1147,33 @@
   background: var(--ink);
   color: #efece3;
   overflow: hidden;
+  /* 透视容器：子元素共用一个 1200px 的视距，3D 倾斜才不会各自为政 */
+  perspective: 1200px;
+  transform-style: preserve-3d;
+  /* 指针倾斜用 transition 收尾，离开时自动回正；只过渡 transform */
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .club-hero-art {
   position: absolute;
   inset: 0;
   opacity: 0.5;
   pointer-events: none;
+}
+/* 高光跟着指针走：靠 CSS 变量把位置传给背景，避免每帧重算渐变 */
+.club-hero-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    420px circle at var(--glare-x, 50%) var(--glare-y, 0%),
+    #ffffff26,
+    transparent 62%
+  );
+  transition: opacity 0.35s ease;
+}
+.club-hero:hover .club-hero-glare {
+  opacity: 1;
 }
 .club-hero-content {
   position: relative;
@@ -1116,6 +1182,8 @@
   gap: 24px;
   min-width: 0;
   grid-column: 1 / -1;
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 .club-hero-crest {
   width: 84px;
@@ -1127,9 +1195,27 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.club-hero-crest img {
+/* 圆环本身没有图片，真正的徽章是组件渲染的 .crest（默认 30px）。
+   重写尺寸必须落在 .crest 上，否则内层 logo 停在 30px、在 84px 圆环里偏左。 */
+.club-hero-crest {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #ffffff1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.club-hero-crest .crest {
   width: 62px;
   height: 62px;
+  background: transparent;
+  border-radius: 0;
+}
+.club-hero-crest .crest img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 .club-hero h1 {
@@ -1452,7 +1538,7 @@
 }
 .player-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(178px, 100%), 1fr));
   gap: 16px;
 }
 .player-card {
@@ -1583,10 +1669,12 @@
 }
 
 /* 数据与图表 */
+/* minmax(240px, …) 在窄屏会成为硬下限：容器不到 240px 时整行溢出。
+   用 min(240px, 100%) 让轨道可以缩到容器宽度以内。 */
 .data-component-grid,
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 22px;
 }
 .material-status {
@@ -1818,21 +1906,37 @@
 }
 
 /* ============================ 问助手 ============================ */
+/* 对话页不再自锁高度。上一版把页面钉在视口高度、让中间区域内部滚动，
+   实测在 932px 视口里对话区只剩 428px，中间被压成很窄的一截，读长回答
+   要不停翻。改为随文档自然增高：回答多长就有多长的可读高度。
+   不设 min-height——对话还短的时候不该把输入框顶到屏幕底部，
+   那会让它盖住下面的技能卡片。 */
 .assistant-page {
-  max-width: 880px;
-  margin: 0 auto;
-  min-height: calc(100dvh - 245px);
   display: flex;
   flex-direction: column;
 }
+/* 对话正文收窄到 880px 好读，但标题左沿必须和动态、球队两页对齐。
+   两页的标题都在 .main-content 左沿（284px），居中会平白错开 118px。 */
 .chat-page-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin: 0 auto 14px;
+  width: 100%;
+  max-width: 880px;
+  flex-shrink: 0;
 }
+.assistant-body {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+/* 输入框跟在内容之后，不做吸底。
+   之前用 sticky bottom:0，页面只比视口高一点时它会直接压在技能卡片上。 */
 .chat-top-actions {
   display: flex;
   gap: 9px;
@@ -1843,6 +1947,10 @@
 .chat-top-actions .button {
   width: auto;
   border-bottom: 1px solid var(--line-strong);
+}
+/* 窄屏只留图标时，「对话记录」仍需看清是历史入口 */
+.chat-top-actions .history-toggle {
+  gap: 7px;
 }
 .conversation-context {
   display: flex;
@@ -1875,7 +1983,10 @@
 }
 .conversation {
   flex: 1;
-  min-height: 220px;
+  min-height: 0;
+  /* 随文档自然增高，不再内部滚动 */
+  padding: 2px 2px 8px;
+  margin: 0 -2px;
 }
 .assistant-welcome {
   padding: 20px 0 40px;
@@ -2166,6 +2277,16 @@
 .chat-model-menu button:hover {
   background: var(--paper-sunk);
   color: var(--ink);
+}
+/* 「管理模型」是菜单底部的转场项，用分隔线与上面可勾选的模型列表区分开 */
+.chat-model-menu .manage-models {
+  justify-content: space-between;
+  margin-top: 5px;
+  padding-top: 11px;
+  border-top: var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font-weight: 600;
 }
 .model-recovery {
   display: flex;
@@ -2617,6 +2738,7 @@
   grid-column: 2;
   grid-row: 1;
 }
+/* 名称/协议要并排，但工具条上的 .search-input 之类仍是整行字段 */
 .provider-fields > label {
   display: block;
   font-size: 13px;
@@ -2624,11 +2746,14 @@
   color: var(--muted);
   margin: 0;
 }
+/* 名称栏带一条说明、协议栏没有，同一行里两个控件就会错开。
+   把控件钉在同一高度上，说明文字再让整行对齐。 */
 .provider-fields > label > input,
 .provider-fields > label > select {
   display: block;
   width: 100%;
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
   margin-top: 7px;
   padding: 8px 11px;
   border: var(--rule);
@@ -2638,10 +2763,18 @@
   font-weight: 400;
   color: var(--ink);
 }
+.provider-fields > .provider-name {
+  align-self: start;
+}
 .provider-fields > label > input:focus,
 .provider-fields > label > select:focus {
   border-color: var(--ink);
   background: var(--surface);
+}
+/* 地址与密钥是整行字段，规则与名称/协议同一套，显式列出便于日后核对 */
+.provider-fields > .provider-address,
+.provider-fields > .provider-key {
+  grid-column: 1 / -1;
 }
 .provider-fields label > small {
   display: block;
@@ -2879,7 +3012,7 @@
 }
 .picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(238px, 100%), 1fr));
   gap: 14px;
 }
 .picker-team {
@@ -3108,7 +3241,6 @@
 }
 @media (max-width: 760px) {
   .site-header {
-    height: 64px;
     grid-template-columns: auto 1fr auto;
   }
   /* 窄屏下"最新发布"这类排序说明没有信息量，让筛选标签独占整行 */
@@ -3169,7 +3301,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .player-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   }
   .skill-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -3223,6 +3355,16 @@
   .modal-heading {
     padding-left: 18px;
     padding-right: 18px;
+  }
+  .conversation-context {
+    margin-bottom: 18px;
+  }
+  /* 对话页改成随文档增高后，这里只需要放宽 880px 的收窄 */
+  .assistant-body {
+    max-width: 100%;
+  }
+  .chat-page-heading {
+    max-width: 100%;
   }
   .composer-area {
     padding-bottom: 10px;
