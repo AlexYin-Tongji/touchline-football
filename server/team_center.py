@@ -540,6 +540,49 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None):
         return result
 
 
+def team_view_claims(store, team_id, view, *, year=None):
+    """The centre view as claims, so the freshness planner can read it.
+
+    Each part is claimed with *its own* retrieval time, not the view's. The
+    whole page is assembled from several independent snapshots and they age
+    separately: a squad list read this morning next to standings read last week
+    must not make the standings look current.
+    """
+    from . import provenance
+    subjects = {}
+    for part in CORE_PARTS:
+        component = (view.get("components") or {}).get(part) or {}
+        stamp = component.get("updated_at") or (view.get("updated_at") if part == "standings" else None)
+        if part == "roster":
+            stamp = view.get("roster_updated_at") or stamp
+        records = view.get(part) if part != "standings" else view.get("standings")
+        present = bool(records)
+        subjects[part] = {"claims": {"roster" if part == "roster" else part: provenance.Claim(
+            field="roster" if part == "roster" else part,
+            value=len(records or []), source_id="espn", tier=provenance.SourceTier.DATASET,
+            fetched_at=stamp or "",
+            # The season clock and the fixture clock decide this field's budget;
+            # a squad list is the one that also tightens before kickoff.
+            ttl_seconds=provenance.ttl_for("roster" if part == "roster" else part,
+                                           kickoff=next_kickoff(store, team_id, view.get("season", {}).get("id") or ""),
+                                           now=stamp or None),
+            note="" if present else "还没有取得这部分资料。")}}
+    portraits = (view.get("components") or {}).get("portraits") or {}
+    portrait_stamp = portraits.get("updated_at") or portraits.get("last_attempt")
+    photo_count = len([player for player in view.get("roster", []) if player.get("photo_url")])
+    subjects["portraits"] = {"claims": {"photo_url": provenance.Claim(
+        field="photo_url", value=photo_count,
+        source_id="wikimedia", tier=provenance.SourceTier.DATASET,
+        # A pass that was never attempted is dated now, not left undated. An
+        # undated claim ranks first, and "we have not tried yet" is not more
+        # urgent than a table that is genuinely six weeks stale — it would let
+        # an untouched optional field outrank real staleness on every plan.
+        fetched_at=portrait_stamp or now(),
+        ttl_seconds=provenance.YEAR,
+        note="" if portrait_stamp else "尚未尝试获取球员照片。")}}
+    return subjects
+
+
 class TeamMaintenanceManager:
     """Deduplicated background maintenance, at most two clubs at a time."""
     def __init__(self, store):
@@ -595,6 +638,34 @@ class TeamMaintenanceManager:
                 self.store.set_meta(key, {**status, "status": "failed", "last_attempt": now(), "errors": ["更新暂未完成，上次资料仍可使用。"]})
         self.tasks[key] = asyncio.create_task(run())
         return {"started": True, "status": "running", "team_id": team_id}
+
+    async def review_team(self, team_id, *, budget=12, year=None, now=None):
+        """Refresh only the parts the freshness planner says are overdue.
+
+        ``start`` refreshes whatever the caller names. This asks what is
+        actually out of date and refreshes that, so the same call works for a
+        club whose squad changed an hour ago and one whose squad is three weeks
+        old — and so a limited request budget goes to the parts that need it
+        rather than to whichever part happens to be checked first.
+        """
+        view = center_view(self.store, team_id, year)
+        from . import collection
+        needs = collection.needs_from(team_view_claims(self.store, team_id, view, year=year), now=now)
+        plan = collection.plan(needs, budget=budget)
+        parts = []
+        for need in plan.needs:
+            if need.field in CORE_PARTS and need.field not in parts:
+                parts.append(need.field)
+        if not plan.needs:
+            return {"started": False, "reason": collection.summary(plan), "plan": plan.safe()}
+        # Portraits are only requested when a portrait need is what ranked, so a
+        # stale squad list does not also spend the slow photo pass.
+        with_portraits = any(need.capability == "image" for need in plan.needs)
+        selected = list(parts) + (["portraits"] if with_portraits else [])
+        if not selected:
+            return {"started": False, "reason": collection.summary(plan), "plan": plan.safe()}
+        result = self.start(team_id, year, parts=selected)
+        return {**result, "plan": plan.safe(), "reason": collection.summary(plan)}
 
     async def close(self):
         active = [task for task in [*self.tasks.values(), *self.portrait_tasks.values()] if not task.done()]

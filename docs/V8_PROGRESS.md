@@ -27,22 +27,24 @@
 
 ## 进行中
 
-- [ ] **5. collection/ 常驻调度**：采集与入库解耦（claim 直接入库，新闻稿是视图）；优先级队列 + 配额闸门 + 新鲜度驱动重查
+- [ ] **6. 拆 agent.py** → harness/loop.py + policy.py + delivery.py；修 agent_progress.py 交替循环判定
 
 ## 待办
 
-- [ ] **6. 工具层重构**：注册表 + 能力标签 + 统一信封；合并冗余工具（context.pack / news.search / doc.read / entity.view / search+locate+conflicts）；先扫 runs.steps 统计再砍（maintain_team_data / fetch_player_photos / conversation_history 是删除候选）
-- [ ] **7. 新来源接入**：football-data.org、API-Football（命名密钥表）
-- [ ] **8. 拆 agent.py** → harness/loop.py + policy.py + delivery.py；修 agent_progress.py 交替循环判定
-- [ ] **9. 决策日志**
+- [ ] **7. 决策日志**：记录"上次为什么这么判断、当时看到什么、后来变了没有"，支撑自我修正与人审
+- [ ] **8. 采集调度接入真实执行**：`collection.next_plan` 目前只决策不执行，需接到维护管理器
+- [ ] **9. API-Football**（第二批，需配额计数）
+- [ ] **10. 阵容赛季标注**：赛季目录不全时明确显示"当前为上一赛季名单"
 
 ## 完成记录
 
 - [x] **1. 溯源层** `server/provenance.py`（45 项）：tier / field-level Claim / TTL 按场次与转会窗推导 / Relation 解决租借歧义 / 登记表 5 条不变量
-- [x] **2. providers 层** `server/providers/`（65 项）：统一信封（失败是 gap 不是空成功）/ 能力注册表 / 缺凭据不对外提供 / ESPN(DATASET) + Wikimedia(DATASET) + TheSportsDB(COMMUNITY) + Reddit(COMMUNITY) + 球迷 RSS(COMMUNITY)
+- [x] **2. providers 层** `server/providers/`（65 项）：统一信封（失败是 gap 不是空成功）/ 能力注册表 / 缺凭据不对外提供 / ESPN(DATASET) + Wikimedia(DATASET) + TheSportsDB(COMMUNITY) + Reddit(COMMUNITY) + 球迷 RSS(COMMUNITY) + football-data.org(DATASET, 需 key)
 - [x] **3. 阵容时效性**（13 项）：`roster_ttl` 按转会窗/临近开球/赛季推导，锚定 fetched_at；`transfer_window_note` 向用户解释当前时钟
 - [x] **4. 核验放开**：删语义门/修订循环/恢复路径/覆盖率门；引用硬检查前移到 `submit_answer`（可重试）+ 交付兜底；`verification.annotations` 逐条标注；动态与问答都放开
 - [x] **4b. 来源标注**（7 项）：`source_tier` + 前端 `.tier-badge`，未登记域名回落"未分类来源"不默认提级
+- [x] **5. 采集调度**（19 项）：`collection.py` 按超期倍数排序（不是绝对时长）、无时间戳优先、预算闸门按最便宜可用来源计费、跳过的项要报告
+- [x] **5b. 工具层重构**（15 项）：`tool_registry.py` 能力声明；三个只读工具合并为 `context_pack`；两个后台工具降级不对外宣传；旧名保留可调用（按 206 次真实调用记录决定）
 
 ## 用户明确要求
 
