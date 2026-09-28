@@ -94,6 +94,64 @@ def _snapshot_id(team_id, season_id):
     return f"squad-{season_id}-{team_id}"
 
 
+def next_kickoff(store, team_id, season_id):
+    """The next match still to be played, used to date a squad list properly.
+
+    A squad list changes most in the hours before kickoff, so a flat daily cache
+    is at its least appropriate exactly when it matters most.
+    """
+    stamps = []
+    for record in store.list("league_matches"):
+        if record.get("season_id") != season_id:
+            continue
+        if team_id not in {record.get("home_team_id"), record.get("away_team_id")}:
+            continue
+        kickoff = published_time(record.get("kickoff"))
+        if kickoff and record.get("status") not in {"finished", "postponed", "cancelled"}:
+            stamps.append(kickoff)
+    upcoming = sorted(stamp for stamp in stamps if _is_future(stamp))
+    return upcoming[0] if upcoming else None
+
+
+def _is_future(stamp):
+    try:
+        parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return False
+    parsed = parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+    return parsed > datetime.now(timezone.utc)
+
+
+def roster_ttl(store, team_id, season_id, *, now=None):
+    """How long a stored squad list stays worth showing without a fresh look.
+
+    Three clocks compose: the transfer window, the twelve hours around kickoff,
+    and the season default. The window is the reason this exists — a list that
+    is accurate on a Tuesday in October can be three players out of date on
+    deadline day, and a single daily constant cannot express that.
+    """
+    from . import provenance
+    kickoff = next_kickoff(store, team_id, season_id)
+    return provenance.ttl_for("roster", kickoff=kickoff, now=now)
+
+
+def transfer_window_note(store, team_id, season_id, *, now=None):
+    """A short explanation of the current clock, for the reader.
+
+    Without this the interface can only say "updated 4 hours ago", which does
+    not tell a reader whether that is recent or overdue for this time of year.
+    """
+    from . import provenance
+    moment = now or datetime.now(timezone.utc)
+    kickoff = next_kickoff(store, team_id, season_id)
+    ttl = provenance.ttl_for("roster", kickoff=kickoff, now=moment)
+    if ttl <= provenance.MATCH_DAY_TTL:
+        return "比赛临近，阵容按两小时刷新。"
+    if moment.month in provenance.TRANSFER_WINDOW_MONTHS:
+        return "转会窗期间，阵容按半天刷新。"
+    return "赛季期间，阵容按天刷新。"
+
+
 def _status_key(team_id, season_id):
     return f"team_maintenance_{season_id}_{team_id}"
 
@@ -179,7 +237,10 @@ async def sync_roster(store, team_id, year=None, *, force=False):
     team, league, season, provider_id = team_season_context(store, team_id, year)
     snapshot_id = _snapshot_id(team_id, season["id"])
     existing = store.get("team_snapshots", snapshot_id)
-    if existing and not force and _elapsed(existing.get("fetched_at")) < ROSTER_CACHE_SECONDS:
+    # How long a squad list stays current depends on when it was read, not on
+    # when it is being checked, so the budget is derived from its own timestamp.
+    ttl = roster_ttl(store, team_id, season["id"], now=existing.get("fetched_at") if existing else None)
+    if existing and not force and _elapsed(existing.get("fetched_at")) < ttl:
         return {"cached": True, "updated_at": existing["fetched_at"], "players": len(existing.get("roster", []))}
     url = f"{league_data.API}/apis/site/v2/sports/soccer/{league['provider_code']}/teams/{provider_id}/roster?season={season['season_start_year']}"
     payload = await league_data.fetch_json(url)
@@ -338,7 +399,9 @@ def center_view(store, team_id, year=None, *, reveal=False):
         portraits_state = directory
     photo_times = [player.get("photo_updated_at") or snapshot.get("fetched_at") for player in roster if player.get("photo_url")]
     components = {
-        "roster": _component_status(snapshot.get("fetched_at"), ROSTER_CACHE_SECONDS, roster, part_states.get("roster")),
+        "roster": _component_status(snapshot.get("fetched_at"), roster_ttl(store, team_id, season["id"],
+                                                                           now=snapshot.get("fetched_at")),
+                                    roster, part_states.get("roster")),
         "schedule": _component_status(schedule_time, league_data.CACHE_SECONDS, matches, schedule_state,
                                       incomplete=not has_full_schedule or (incomplete_results and not protected)),
         "standings": _component_status(table.get("fetched_at"), league_data.CACHE_SECONDS, standing, standings_state),
