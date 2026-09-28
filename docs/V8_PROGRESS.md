@@ -1,11 +1,23 @@
 # V8 重构进度
 
+> **下一个模型请先读 `docs/HANDOVER.md`**，那一份含完整交接（现状、待办、硬约束、踩过的坑、用户原话）。本文件只记逐项完成状态。
+
 目标：按 `DESIGN_PRINCIPLES.md` 持续迭代，直到作为发布 demo 达到 95 分。用户最后统一验收，中途不汇报，只在需要用户改产品边界或提供资源（API key）时停下提问。
 
 边界：五大联赛 96 队（英20/西20/意20/德18/法17+摩纳哥）。claim 模型覆盖球员/球队/比赛；ESPN 归 DATASET；阵容、积分、比分不改 claim 制。
 
 回退标签：`v7.8.1-before-agent-backbone`（提交 6d1799e）。
-测试基线：fast 303 / full 735 → 当前 full 783。
+测试：重构起点 full 735 → 当前 **full 959 / fast 314 / UI 24**。
+
+## 待办（详见 HANDOVER.md 第 3 节）
+
+- [ ] **TODO-1** 查清 `spawn_agent` 失败原因（206 次运行里 2 次调用 2 次失败）
+- [ ] **TODO-2** 评估删除 `search_passages` / `compare_sources`（零调用）
+- [ ] **TODO-3** 阵容赛季标注：新赛季目录不全时显示"当前为上一赛季名单"
+- [ ] **TODO-4** 决策日志（设计原则第八节，事后补不回来）
+- [ ] **TODO-5** API-Football 接入（需配额计数）
+- [ ] **TODO-6** 常驻循环：collection 与 review_team 都无定时器驱动
+- [ ] **D-3** 评估删除 `verification.conservative_delivery`（已无交付路径调用）
 
 ## 已完成
 
@@ -27,14 +39,11 @@
 
 ## 进行中
 
-- [ ] **6. 拆 agent.py** → harness/loop.py + policy.py + delivery.py；修 agent_progress.py 交替循环判定
+（无。本次收尾时手上工作已全部完成并提交。）
 
 ## 待办
 
-- [ ] **7. 决策日志**：记录"上次为什么这么判断、当时看到什么、后来变了没有"，支撑自我修正与人审
-- [ ] **8. 采集调度接入真实执行**：`collection.next_plan` 目前只决策不执行，需接到维护管理器
-- [ ] **9. API-Football**（第二批，需配额计数）
-- [ ] **10. 阵容赛季标注**：赛季目录不全时明确显示"当前为上一赛季名单"
+见上方待办清单与 `HANDOVER.md` 第 3 节。
 
 ## 完成记录
 
@@ -45,6 +54,9 @@
 - [x] **4b. 来源标注**（7 项）：`source_tier` + 前端 `.tier-badge`，未登记域名回落"未分类来源"不默认提级
 - [x] **5. 采集调度**（19 项）：`collection.py` 按超期倍数排序（不是绝对时长）、无时间戳优先、预算闸门按最便宜可用来源计费、跳过的项要报告
 - [x] **5b. 工具层重构**（15 项）：`tool_registry.py` 能力声明；三个只读工具合并为 `context_pack`；两个后台工具降级不对外宣传；旧名保留可调用（按 206 次真实调用记录决定）
+- [x] **6. football-data.org 接入**（16 项）：第二个结构化来源；`fetch_document` 支持 headers（密钥不进 URL）；`Paced.disable()` 供测试使用
+- [x] **6b. 采集调度接入执行**（11 项）：`TeamMaintenanceManager.review_team()` 按规划结果定向刷新；`team_view_claims` 每部分带自己的采集时间
+- [x] **7. 提示词抽出**（18 项）：`server/prompts.py` + 漂移测试（提示词曾描述已删除的核验门）
 
 ## 用户明确要求
 
