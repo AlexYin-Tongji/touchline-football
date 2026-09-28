@@ -285,10 +285,27 @@ class DelegationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         delegation = Delegation(store, run, local, store.settings(), asyncio.Event(), time.monotonic() + 5)
         local.delegation = delegation
         try:
-            for name in ("get_team_data", "maintain_team_data", "read_article", "research_news"):
+            for name in ("get_team_data", "read_article", "research_news"):
                 with self.subTest(tool=name), self.assertRaisesRegex(ToolError, "read_evidence"):
                     await delegation.call("spawn_agent", {"task": "查阅资料", "tools": [name]})
             self.assertEqual(delegation.runtime.inspect(run["id"])["agents"], [])
+        finally:
+            await delegation.close("completed")
+
+    async def test_a_background_tool_is_not_offered_to_a_subtask(self):
+        # Photos and squad maintenance are the team page's work. Refusing them
+        # at creation is the same outcome as before — no child does background
+        # network work — but it is decided earlier, so the child never starts.
+        import time
+        store = FakeStore()
+        run = store.new_run()
+        local = LocalTools(store, run, store.settings())
+        delegation = Delegation(store, run, local, store.settings(), asyncio.Event(), time.monotonic() + 5)
+        local.delegation = delegation
+        try:
+            for name in ("maintain_team_data", "fetch_player_photos"):
+                with self.subTest(tool=name), self.assertRaisesRegex(ToolError, "可用工具"):
+                    await delegation.call("spawn_agent", {"task": "更新资料", "tools": [name]})
         finally:
             await delegation.close("completed")
 

@@ -36,7 +36,7 @@ def parse_time(value):
 
 
 TOOL_DEFINITIONS = [
-    {"name": "team_context", "description": "读取当前球队资料、可见事件索引及比赛基本信息。索引不是已读证据。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "context_pack", "description": "一次读取当前球队背景：球队资料、可见事件索引、比赛基本信息、已存知识线索、可用来源与你的阅读偏好。返回的都是索引与配置，不是已读证据；引用前须 read_evidence。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_evidence", "description": "检索当前球队和模式内的本地资料，支持中文和英文关键词；返回片段，引用前需 read_evidence。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 500}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_evidence", "description": "按字符位置分页阅读原文，默认前12000字符；next_offset可继续读长文。返回真实passages和正文完整性；只可引用本轮实际读到的片段。", "parameters": {"type": "object", "properties": {"evidence_id": {"type": "string", "maxLength": 120}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}, "length": {"type": "integer", "minimum": 500, "maximum": 12000}}, "required": ["evidence_id"], "additionalProperties": False}},
     {"name": "event_timeline", "description": "查看当前事件中有证据支持的进展，分清发布时间和记录时间，不自行判定事实已获验证。", "parameters": {"type": "object", "properties": {"event_id": {"type": "string", "maxLength": 120}}, "required": ["event_id"], "additionalProperties": False}},
@@ -66,7 +66,14 @@ TOOL_DEFINITIONS = [
             "unknowns": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 2000}}},
         "required": ["status", "answer", "facts", "analysis", "unknowns"], "additionalProperties": False}},
 ]
-TOOL_DEFINITIONS.insert(1, {"name": "source_overview", "description": "查看当前球队可用的官网、媒体与自选来源，及上次成功收集时间和失败情况；无需联网。可据此调整检索与交叉核对。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
+# ``fetch_player_photos`` and ``maintain_team_data`` are still dispatchable, so
+# a stored run or an existing test keeps working, but they are no longer
+# advertised to the model. Both are background maintenance: they were called
+# zero times across two hundred stored runs, and each call spends thirty to
+# ninety seconds of network work that the team page's own refresh does better,
+# with a progress display and a retry policy. A conversational task that
+# triggers one stalls with nothing to show for it.
+BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data")
 TOOL_DEFINITIONS.extend([
     {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
@@ -74,7 +81,6 @@ TOOL_DEFINITIONS.extend([
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "maintain_team_data", "description": "按需补全当前球队缺失或过期资料，可选阵容、赛程、积分或照片；失败保留旧快照并说明范围。先用get_team_data看缺项，避免重复刷新。", "parameters": {"type": "object", "properties": {"parts": {"type": "array", "items": {"type": "string", "enum": ["roster", "schedule", "standings", "portraits"]}, "minItems": 1, "maxItems": 4}}, "additionalProperties": False}},
     {"name": "research_news", "description": "围绕一个足球问题一次完成多来源搜索和原文阅读，返回本轮可以引用的材料、来源覆盖、读取失败与后续线索。优先用于最新新闻、伤病、转会等联网研究；不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 4}}, "required": ["query"], "additionalProperties": False}},
-    {"name": "reader_profile", "description": "读取用户主动设置的关注主题、阅读语言、足球熟悉度和简报时间窗口，及当前球队可见跟进主题。仅调整选题与解释，不能改变证据判断或避剧透权限。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_passages", "description": "在当前可见长文中定位关键词段落，返回上下文和字符offset。只是定位索引，不增加已读证据；随后read_evidence(offset)阅读该处。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 300}, "evidence_id": {"type": "string", "maxLength": 120}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "compare_sources", "description": "比较2至6篇本轮已读材料的时间、来源域名、正文覆盖和可引用片段；标出同一网址及可能转载，独立性仍须核对。不会自动判定哪个说法属实。", "parameters": {"type": "object", "properties": {"evidence_ids": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "string", "minLength": 1, "maxLength": 120}}, "query": {"type": "string", "maxLength": 300}}, "required": ["evidence_ids"], "additionalProperties": False}},
 ])
@@ -277,6 +283,16 @@ def team_data_text(payload, team_id):
     if payload.get("data_policy"):
         lines.append("来源字段说明：" + str(payload["data_policy"]))
     return "\n".join(lines)
+
+
+# Names a caller may still use, with the tool that now serves them. Kept so a
+# stored run, a saved sub-task allowlist or an existing test keeps working after
+# several read-only tools were folded into one.
+LEGACY_TOOL_NAMES = {
+    "team_context": "context_pack",
+    "source_overview": "context_pack",
+    "reader_profile": "context_pack",
+}
 
 
 class LocalTools:
@@ -497,6 +513,9 @@ class LocalTools:
 
     def validate(self, name, arguments):
         definitions = [*tool_definitions(self.skill), *(self.delegation.definitions if self.delegation else [])]
+        # A legacy name resolves to the tool that now serves it, so a stored run
+        # or a saved allowlist survives the consolidation.
+        name = LEGACY_TOOL_NAMES.get(name, name)
         definition = next((tool for tool in definitions if tool["name"] == name), None)
         if not definition:
             raise ToolError("工具不在允许列表中。")
@@ -538,6 +557,10 @@ class LocalTools:
     def available_tools(self):
         """Only advertise executable capabilities; guards still enforce scope."""
         excluded = set()
+        # Background maintenance stays callable but is not offered: it is the
+        # team page's job, not a conversation's, and it is the slowest thing in
+        # the tool set.
+        excluded.update(BACKGROUND_TOOL_NAMES)
         if self.skill != "news_report" or not isinstance(self.news_draft, dict):
             excluded.add("revise_news")
         if self.mode != "live" or self.match or self.run.get("report_id"):
@@ -555,8 +578,67 @@ class LocalTools:
         if self.delegation:
             tools.extend({"type": "function", "function": copy.deepcopy(tool)} for tool in self.delegation.definitions)
         allowed = set(self.run.get("tool_allowlist", [])) if self.run.get("internal_agent") else None
+        # Relevance is decided by what this task declared it needs; permission is
+        # still decided by the run's scope. Selecting by capability first keeps a
+        # tool that cannot work here out of the prompt entirely, instead of
+        # offering it and answering with an error — which is what every stored
+        # read_article call did.
+        from .tool_registry import select, declared
+        try:
+            capabilities = declared(self.skill)
+        except Exception:
+            capabilities = None
+        if capabilities is not None:
+            tools = select(tools, capabilities, allowed=allowed, excluded=excluded)
         return [tool for tool in tools if tool["function"]["name"] not in excluded
                 and (allowed is None or tool["function"]["name"] in allowed)]
+
+    def reader_profile(self):
+        """The reader's stated preferences, unchanged by how they are asked for."""
+        events = [self.event_view(event) for event in self.scoped_list("events")
+                  if event.get("watching") and self.event_visible(event)]
+        return {**copy.deepcopy(self.preferences), "team_id": self.team_id, "spoiler_free": self.spoiler_free,
+                "watching_topics": [{"id": event["id"], "title": event.get("title")} for event in events[:12]],
+                "notice": "这些是用户主动保存的偏好与本球队跟进主题。兴趣只调整优先级；熟悉度决定术语解释。简报按发布时间筛选，采集时间不能代替发布时间。"}
+
+    def context_pack(self):
+        """Everything a task needs to orient itself, in one call.
+
+        This replaces three no-argument tools that were always read together.
+        Keeping them separate cost a model round per task without giving a
+        caller any choice: there is no task that wants the club but not its
+        events, or sources but not the club they belong to.
+        """
+        from .research import source_status
+        from .team_profiles import knowledge_for_team
+        team = self.store.get("teams", self.team_id)
+        events = [self.event_view(event) for event in self.scoped_list("events") if self.event_visible(event)]
+        events.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
+        saved = knowledge_for_team(self.store, self.team_id, self.mode, spoiler_free=self.spoiler_free,
+                                   allowed_evidence_ids={item["id"] for item in self.visible_evidence()}, limit=6)
+        matches = [self.safe_match(item) for item in self.scoped_list("matches")[:8]]
+        return {
+            "team": {key: (team or {}).get(key) for key in
+                     ("id", "name", "english_name", "league", "league_name", "country", "city", "founded",
+                      "stadium", "nickname", "description", "official_url", "profile_sources", "crest_url",
+                      "crest_asset_url", "crest_source_url", "crest_attribution", "provider_ids", "aliases")},
+            "events": [{"id": event["id"], "title": event.get("title"), "updated_at": event.get("updated_at"),
+                        "evidence_ids": [eid for eid in event.get("evidence_ids", [])
+                                         if self.evidence_allowed(self.scoped_get("evidence", eid))]}
+                       for event in events[:12]],
+            "matches": matches,
+            "saved_knowledge": [{key: item.get(key) for key in ("id", "title", "detail", "evidence_ids", "support")}
+                                for item in saved],
+            "sources": source_status(self.store, self.team_id),
+            "reader": self.reader_profile(),
+            "mode": self.mode, "spoiler_free": self.spoiler_free,
+            "visible_evidence_count": len(self.visible_evidence()),
+            "notices": [
+                "球队与来源索引不是已读证据；引用前须 read_evidence 阅读原文。",
+                "已存中文知识只作查找线索，仍须重新读取所附证据核对时效。",
+                "来源覆盖是当前配置的公开站点，不代表全网检索；更新时间是采集记录，不是事实核实时间。",
+            ],
+        }
 
     def conversation_rows(self):
         """Conversation memory cannot cross roles or revive inaccessible sources."""
@@ -787,11 +869,7 @@ class LocalTools:
             return {"sources": source_status(self.store, self.team_id),
                     "notice": "来源覆盖是当前配置的公开站点，不代表全网检索；更新时间是采集记录，不是事实核实时间。"}
         if name == "reader_profile":
-            events = [self.event_view(event) for event in self.scoped_list("events")
-                      if event.get("watching") and self.event_visible(event)]
-            return {**copy.deepcopy(self.preferences), "team_id": self.team_id, "spoiler_free": self.spoiler_free,
-                    "watching_topics": [{"id": event["id"], "title": event.get("title")} for event in events[:12]],
-                    "notice": "这些是用户主动保存的偏好与本球队跟进主题。兴趣只调整优先级；熟悉度决定术语解释。简报按发布时间筛选，采集时间不能代替发布时间。"}
+            return self.reader_profile()
         if name == "search_passages":
             terms = search_terms(arguments["query"])
             eid = arguments.get("evidence_id")
@@ -867,22 +945,14 @@ class LocalTools:
                 self.skills_used.append(selected)
             return {"skill": WORKFLOWS[selected][0], "workflow": selected, "instructions": text, "scope_unchanged": True,
                     "notice": "这是系统维护的本地工作规程，仅补充流程；原有范围、权限和预算保持不变。"}
-        if name == "team_context":
-            from .team_profiles import knowledge_for_team
-            team = self.store.get("teams", self.team_id)
-            events = [self.event_view(event) for event in self.scoped_list("events") if self.event_visible(event)]
-            events.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
-            saved_knowledge = knowledge_for_team(self.store, self.team_id, self.mode, spoiler_free=self.spoiler_free,
-                                                allowed_evidence_ids={item["id"] for item in self.visible_evidence()}, limit=6)
-            return {"team": {key: (team or {}).get(key) for key in ("id", "name", "english_name", "league", "league_name", "country", "city", "founded", "stadium", "nickname", "description", "official_url", "profile_sources", "crest_url", "crest_asset_url", "crest_source_url", "crest_attribution", "provider_ids", "aliases")},
-                    "saved_knowledge": [{key: item.get(key) for key in ("id", "title", "detail", "evidence_ids", "support")} for item in saved_knowledge],
-                    "knowledge_notice": "已存知识仅作为查找线索；回答前仍须重新读取所附证据，核对时效和适用范围。source_supported 表示所引原文支持，citation_checked 仅表示引用有效，均不等于独立核实。",
-                    "mode": self.mode, "spoiler_free": self.spoiler_free,
-                    "events": [{"id": event["id"], "title": event.get("title"), "updated_at": event.get("updated_at"),
-                                "evidence_ids": [eid for eid in event.get("evidence_ids", []) if self.evidence_allowed(self.scoped_get("evidence", eid))]}
-                               for event in events[:12]],
-                    "matches": [self.safe_match(item) for item in self.scoped_list("matches")[:8]],
-                    "visible_evidence_count": len(self.visible_evidence())}
+        if name in {"team_context", "source_overview", "context_pack"}:
+            # One call instead of three. These were always read together — a
+            # task that needed the club, its events and its sources asked for
+            # all three in the same round, and splitting them cost a round trip
+            # each while adding nothing a caller could choose between. The two
+            # older names still work so a saved run or an existing test does
+            # not break, but only context_pack is offered to the model.
+            return self.context_pack()
         if name == "get_team_data":
             return self.team_data_result()
         if name == "search_evidence":
