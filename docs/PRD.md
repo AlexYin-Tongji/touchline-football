@@ -1,6 +1,6 @@
 # 看台 Touchline · 产品需求文档
 
-当前迭代为 V3，新增目标、功能与验收见 [V3.md](V3.md)。本文保留首版基础需求，更新以第三版文档及实际接口为准。
+当前已迭代至 V7.8。本文保留首版基础需求；具体功能与验收以 [README](../README.md) 和 [现行质量与运行契约](QUALITY_AND_RUNTIME_CONTRACTS.md) 为准。
 
 版本：MVP 1.0 · 2026-09-09  
 交付形式：本地运行、单用户的中文网页应用。后端使用 Python / FastAPI / SQLite，前端使用 React。

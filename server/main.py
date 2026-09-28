@@ -1269,6 +1269,7 @@ def create_app(db_path=None):
         from .agent import CAPABILITIES
         return CAPABILITIES
 
+    # 早期 HTML 原型已移除，这里保留挂载只是为了兼容旧签出仍带 prototype/ 的情况。
     prototype = ROOT / "prototype"
     if prototype.is_dir() and not runtime.server_mode:
         app.mount("/prototype", StaticFiles(directory=prototype, html=True), name="prototype")
@@ -1286,7 +1287,7 @@ def create_app(db_path=None):
         index = ROOT / "dist" / "index.html"
         if index.is_file():
             return FileResponse(index)
-        return JSONResponse({"detail": "前端尚未构建，请先启动开发前端或完成构建。原型位于 /prototype/。"}, status_code=503)
+        return JSONResponse({"detail": "前端尚未构建，请先运行 npm run build 或启动开发前端。"}, status_code=503)
 
     return app
 
