@@ -41,8 +41,44 @@ def source_links(store, event, evidence_ids=None):
         except ValueError:
             continue
         seen.add(url)
-        result.append({"id": identity, "url": url, "title": row.get("title", ""), "name": row.get("source_name", "来源"), "source_name": row.get("source_name", "来源"), "published_at": row.get("published_at")})
+        result.append({"id": identity, "url": url, "title": row.get("title", ""), "name": row.get("source_name", "来源"), "source_name": row.get("source_name", "来源"), "published_at": row.get("published_at"), **source_tier(url)})
     return result
+
+
+# How each registered tier is described to a reader. The wording is what tells
+# someone how much weight to give a line, so it is fixed here rather than
+# composed per surface.
+TIER_LABELS = {
+    "official": "官方",
+    "dataset": "数据源",
+    "press": "媒体",
+    "community": "球迷社区",
+    "derived": "本站计算",
+}
+
+# A host we did not review is not evidence of anything, so it is described as
+# unclassified rather than promoted to any tier by default.
+UNCLASSIFIED_LABEL = "未分类来源"
+
+
+def source_tier(url):
+    """The reviewed tier of a source, for display next to it.
+
+    An unregistered host returns None rather than a default. Defaulting to a
+    tier would let an unreviewed blog appear alongside the club's own site.
+    """
+    from . import providers, provenance
+    # Importing the providers is what grants their hosts a tier, so it is done
+    # here rather than trusted to whether some other module happened to load
+    # them. A missing import would show every source as unclassified.
+    providers.load()
+    try:
+        tier = provenance.tier_for_url(url)
+    except Exception:
+        tier = None
+    if tier is None:
+        return {"tier": None, "tier_label": UNCLASSIFIED_LABEL, "tier_known": False}
+    return {"tier": tier.value, "tier_label": TIER_LABELS.get(tier.value, UNCLASSIFIED_LABEL), "tier_known": True}
 
 
 def safe_images(rows):

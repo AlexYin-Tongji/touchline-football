@@ -549,6 +549,52 @@ time,
   color: var(--red);
   border-bottom-color: var(--red);
 }
+
+/* ---- 来源层级徽标 ----
+   After verification became a label rather than a gate, this badge is what
+   lets a reader tell the club's own site apart from a supporters' forum. It is
+   deliberately always visible: a tier shown only on hover is a tier most
+   readers never see, and then every source looks equally authoritative. */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  margin-right: 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.tier-official {
+  color: #1d4ed8;
+  background: #1d4ed814;
+  border-color: #1d4ed833;
+}
+.tier-dataset {
+  color: #0f766e;
+  background: #0f766e14;
+  border-color: #0f766e33;
+}
+.tier-press {
+  color: var(--muted);
+  background: #6b728014;
+  border-color: #6b728033;
+}
+/* Community and unclassified read as cautions rather than as another flavour,
+   because that is the distinction a reader most needs to notice. */
+.tier-community {
+  color: #b45309;
+  background: #b4530914;
+  border-color: #b4530933;
+}
+.tier-derived,
+.tier-unknown {
+  color: #7c3aed;
+  background: #7c3aed14;
+  border-color: #7c3aed33;
+}
 .source-link {
   display: inline-flex;
   align-items: center;

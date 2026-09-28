@@ -30,6 +30,12 @@ export interface SourceLink {
   title?: string;
   url?: string;
   published_at?: string | null;
+  // Which kind of source this is. A reader deciding how much weight a line
+  // deserves needs to see at a glance whether it came from the club, a
+  // publisher, or a supporters' forum — a bare domain does not say.
+  tier?: string | null;
+  tier_label?: string;
+  tier_known?: boolean;
 }
 export interface MediaImage {
   url: string;
@@ -125,6 +131,11 @@ export const Sources = memo(function Sources({
           rel="noopener noreferrer"
           title={source.title}
         >
+          {source.tier_label ? (
+            <span className={`tier-badge tier-${source.tier ?? "unknown"}`}>
+              {source.tier_label}
+            </span>
+          ) : null}
           {source.name || source.source_name || `参考 ${i + 1}`}
           <ArrowUpRight size={12} />
         </a>

@@ -322,6 +322,11 @@ def create_app(db_path=None):
     runtime = WebRuntime.from_env()
     access = PrivateAccess(runtime)
     store = Store(db_path or Path(os.environ.get("TOUCHLINE_DATA_DIR", str(ROOT / "data"))) / "touchline.sqlite3")
+    # Register the shipped providers before anything asks what a source is.
+    # Their tiers are granted by the reviewed declarations in that package, and
+    # an unimported provider would look like an unreviewed one.
+    from . import providers
+    providers.load()
     with store.atomic():
         seed(store)
     from .personal_app import install_personal_defaults, PersonalRefreshManager

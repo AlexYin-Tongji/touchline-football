@@ -164,6 +164,7 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
                             summary_origin="report", display_status="supported", source_run_id=editorial.get("run_id"),
                             reading_minutes=report.get("reading_minutes"), section_count=len(report.get("sections", [])))
         from .ingestion import image_identity, source_images
+        from .personal_app import source_tier
         image_records = records
         if editorial and editorial.get("status") == "completed" and editorial.get("report"):
             cited = {source.get("id") for source in editorial["report"].get("sources", [])}
@@ -177,6 +178,7 @@ def present_events(store, events, evidence, runs, *, spoiler_free=True):
                 if identity not in seen_images and len(images) < 4:
                     images.append(image)
                     seen_images.add(identity)
-        sources = [{key: record.get(key) for key in ("id", "title", "source_name", "url", "published_at")} for record in records]
+        sources = [{key: record.get(key) for key in ("id", "title", "source_name", "url", "published_at")}
+                   | source_tier(record.get("url") or "") for record in records]
         result.append({**copy.deepcopy(event), **card, "images": images, "sources": sources})
     return result
