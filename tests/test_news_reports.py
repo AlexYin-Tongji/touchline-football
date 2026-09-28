@@ -355,11 +355,17 @@ class NewsReportProtocolTests(unittest.IsolatedAsyncioTestCase):
         public, payload = verification.prepare_claims(self.local, self.local.submission["structured_answer"])
         self.assertEqual({claim["id"] for claim in public}, {"title", "summary", "analysis", "unknowns", *["fact_" + str(i) for i in range(1, 7)]})
         self.assertTrue(payload)
+        self.assertEqual(self.local.submission["status"], "complete")
+
+    def test_an_invented_passage_is_refused_at_submission(self):
+        # A citation pointing at a passage the reader never returned is caught
+        # where it is written, so an unread reference never reaches the store.
         invalid = manuscript()
         invalid["facts"][0]["quotes"] = [{"evidence_id": "ev_injury", "passage_id": "unread_and_invented_passage"}]
-        self.local.call("submit_answer", invalid)
-        public, _ = verification.prepare_claims(self.local, self.local.submission["structured_answer"])
-        self.assertEqual(public[0]["verdict"], "unsupported")
+        with self.assertRaises(ToolError) as caught:
+            self.local.call("submit_answer", invalid)
+        self.assertIn("引用", str(caught.exception))
+        self.assertIsNone(self.local.submission)
 
     async def test_real_harness_verifies_model_chosen_report_delivery_once(self):
         self.store.config["llm"]["max_output_tokens"] = 16000

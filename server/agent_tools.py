@@ -579,6 +579,24 @@ class LocalTools:
             rows.append(row)
         return sorted(rows, key=lambda row: row.get("created_at") or "")
 
+    def _require_matching_quotes(self, arguments):
+        """Refuse a submission whose citations do not match text read this round.
+
+        Split out from :meth:`submit_answer` so the same check backs both the
+        immediate tool error and the delivery gate, and so the message the model
+        receives can say which passage is wrong well enough to correct it.
+        """
+        from . import verification
+        claims, _ = verification.prepare_claims(self, arguments)
+        rejected = [claim for claim in claims if claim.get("validation_failed")]
+        if not rejected:
+            return
+        reason = (rejected[0].get("reason") or "").strip()
+        raise ToolError(
+            "提交的引用未能对应本轮实际读取的原文，未接受该答复。" + (reason and f"（{reason}）") +
+            " 请对每项事实改用 read_evidence 返回的 passage_id，或填写与原文完全一致的连续片段" +
+            "（保留原语言、日期、否定和限定词，不得省略或改写），然后重新提交。")
+
     def submit_answer(self, arguments):
         arguments = copy.deepcopy(arguments)
         # Repair redundant JSON escaping in reader-facing prose, never in
@@ -658,6 +676,13 @@ class LocalTools:
                 if eid not in cited:
                     cited.append(eid)
         source_keys = {self.read_cache[eid].get("url") or eid for eid in cited}
+        # Quote integrity is checked here rather than at delivery so the model
+        # gets a correctable tool error instead of an unrecoverable task
+        # failure. A citation that does not point at text read this round is a
+        # fabricated citation: the check does not judge whether a statement is
+        # true, only whether the passage it rests on exists.
+        if self.verification_enabled:
+            self._require_matching_quotes(arguments)
         # A news report has its own fixed shape: title, lead, and sections. A
         # question is answered in prose, so `answer` is the delivered text and
         # the fact entries exist only to carry the evidence each paragraph

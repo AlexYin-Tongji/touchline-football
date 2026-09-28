@@ -255,8 +255,6 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                       "selected_sources_read": 0, "selected_sources_failed": 0, "source_read_ms": 0}
     local = None
     delegation = None
-    supported_checkpoint = None
-    news_checkpoint = None
     deadline = min(time.monotonic() + TASK_TIMEOUT_SECONDS, execution.deadline) if execution else time.monotonic() + TASK_TIMEOUT_SECONDS
     dispatcher = runtime_harness(store)
 
@@ -329,70 +327,20 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
         step(TOOL_LABELS[name], f"找到 {count} 条相关资料" if count is not None else "已读取当前任务范围内的资料")
         return result
 
-    def deliver_submission():
+    def deliver_submission(annotated=None):
         run["evidence_versions"] = checked_versions(local, local.submission["evidence_ids"])
         run["answer"] = local.submission["answer"]
         run["evidence_ids"] = local.submission["evidence_ids"]
         run["answer_format"] = "structured"
         run["structured_answer"] = local.submission["structured_answer"]
         run["delivery"] = {key: local.submission[key] for key in ("status", "facts_count", "source_document_count")}
-        run["warnings"].append(verification.NOTICE if local.verification_enabled else "已检查结构与引用属于实际已读资料；结论是否充分仍需对照原文判断。")
-
-    def restore_supported_checkpoint(reason):
-        """Recovery reuses only independently supported facts, never model prose."""
-        if run.get("skill") == "news_report" or not supported_checkpoint or cancel_event.is_set():
-            return False
-        candidate, checked, snapshots = supported_checkpoint
-        if local.read_cache != snapshots:
-            # New or refreshed evidence may contradict the old check. Recovery
-            # must not silently ignore that information.
-            return False
-        safe = verification.conservative_delivery(candidate, checked)
-        if not safe["facts"]:
-            return False
-        for fact in safe["facts"]:
-            for eid in fact["evidence_ids"]:
-                current = local.evidence_view(local.scoped_get("evidence", eid))
-                previous = snapshots[eid]
-                if not current or any(current.get(key) != previous.get(key)
-                        for key in ("title", "url", "source_name", "published_at", "fetched_at", "origin")):
-                    return False
-                if not local.cache_is_current(eid):
-                    return False
-                if local.read_cache.get(eid) != previous:
-                    return False
-        if verification.prepare_claims(local, safe)[1] is None:
-            return False
-        local.submit_answer(safe)
-        run["verification"] = copy.deepcopy(checked)
-        run["verification"]["status"] = "partial"
-        run["verification"]["warnings"].append("后续修复未完成，只保留此前独立核对通过且原文未变的事实；摘要、分析与其他候选主张已移除。")
-        run["delivery_downgraded"] = True
-        run["recovery_reason"] = reason
-        run["warnings"].append("修复请求未完成，已保守保留原文支持的部分消息。" + reason)
-        deliver_submission()
-        return True
-
-    def restore_news_checkpoint():
-        """A failed editorial repair must not discard a readable sourced draft."""
-        if not news_checkpoint or cancel_event.is_set():
-            return False
-        candidate, checked, snapshots = news_checkpoint
-        if local.read_cache != snapshots:
-            return False
-        try:
-            checked_versions(local, {eid for fact in candidate["facts"] for eid in fact["evidence_ids"]})
-            claims, _ = verification.prepare_claims(local, candidate)
-            if any(claim.get("validation_failed") for claim in claims):
-                return False
-            local.submit_answer(candidate)
-            run["verification"] = copy.deepcopy(checked)
-            run["news_repair_incomplete"] = True
-            run["citation_integrity_checked"] = True
-            deliver_submission()
-            return True
-        except (ToolError, AgentFailure):
-            return False
+        if annotated is not None:
+            # What the checker found travels with the answer instead of deciding
+            # what the answer is allowed to say. A claim it could not support is
+            # still shown, labelled, with its citation and its reason.
+            run["annotations"] = annotated
+            run["delivery"]["support_counts"] = verification.counts(annotated)
+        run["warnings"].append("已检查结构与引用属于实际已读资料；每条说法的来源与核对标注一并展示，结论仍须自行判断。")
 
     try:
         guard()
@@ -540,7 +488,6 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
             read_reminder = False
             delivery_repairs = 0
             verification_attempts = 0
-            verification_repairs = 0
             run["verification"] = verification.report("not_requested", warnings=[
                 "核对已启用，尚未进入原文支持核对阶段。" if local.verification_enabled else "本次未启用独立原文支持核对。"])
             answered = False
@@ -626,11 +573,6 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                         save()
                         if result.get("submitted") and local.submission and local.verification_enabled:
                             candidate = local.submission["structured_answer"]
-                            if run["skill"] == "news_report" and candidate.get("status") == "complete":
-                                quote_checks, _ = verification.prepare_claims(local, candidate)
-                                if not any(claim.get("validation_failed") for claim in quote_checks):
-                                    news_checkpoint = (copy.deepcopy(candidate), verification.report("unavailable"), copy.deepcopy(local.read_cache))
-                                    run["citation_integrity_checked"] = True
                             verification_attempts += 1
                             checker_config = dict(checker_settings or config, _session_id=config.get("_session_id", run_id))
                             run["verification_model"] = {"provider_id": checker_config.get("_provider_id"), "model": checker_config.get("model")}
@@ -645,15 +587,9 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                                 verify_timeout = max(120, verify_timeout)
                             try:
                                 async def inspect_candidate():
-                                    support = verification.verify_submission(local, candidate, checker_config,
-                                        timeout=verify_timeout, requester=verify_request, key_facts_only=run["skill"] == "news_report")
-                                    if run["skill"] == "news_report" and sum(len(v.get("text", "")) for v in local.read_cache.values()) > 3000:
-                                        from .news_coverage import assess_news_coverage
-                                        checked, coverage = await asyncio.gather(support, assess_news_coverage(local, candidate,
-                                            checker_config, timeout=verify_timeout, requester=verify_request))
-                                        run["news_coverage"] = coverage
-                                        return checked
-                                    return await support
+                                    return await verification.verify_submission(
+                                        local, candidate, checker_config, timeout=verify_timeout,
+                                        requester=verify_request, key_facts_only=run["skill"] == "news_report")
                                 # Review is advisory for news. Reserve time to
                                 # durably deliver before the task-tree deadline
                                 # cancels the root, even if the checker stalls.
@@ -671,46 +607,25 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
                             run["verification"] = checked
                             run["verification_attempts"] = verification_attempts
                             is_news = run["skill"] == "news_report"
-                            invalid_quotes = any(claim.get("validation_failed") for claim in checked.get("claims", []))
-                            if is_news:
-                                # Quotes are still checked even if the semantic
-                                # checker times out before returning any verdict.
-                                quote_checks, _ = verification.prepare_claims(local, candidate)
-                                invalid_quotes = any(claim.get("validation_failed") for claim in quote_checks)
-                                run["citation_integrity_checked"] = not invalid_quotes
-                                if not invalid_quotes and candidate.get("status") == "complete":
-                                    news_checkpoint = (copy.deepcopy(candidate), copy.deepcopy(checked), copy.deepcopy(local.read_cache))
-                            if any(claim["id"].startswith("fact_") and claim["verdict"] == "supported"
-                                   for claim in checked.get("claims", [])):
-                                supported_checkpoint = (copy.deepcopy(candidate), copy.deepcopy(checked), copy.deepcopy(local.read_cache))
-                            run["steps"][-1].update(status="completed" if checked["status"] == "supported" else "failed",
-                                detail={"supported": "各项说法受到所引原文支持；不是独立事实认证。",
-                                        "partial": "部分说法未获原文支持，不能原样交付。",
-                                        "insufficient": "摘录或说法未通过核对，需补充证据。",
-                                        "unavailable": "核对服务未完成，未经核对的强断言不予交付。"}[checked["status"]])
-                            needs_repair = (invalid_quotes or any(c["verdict"] in {"unsupported", "conflicting"} for c in checked.get("claims", []))
-                                            or run.get("news_coverage", {}).get("status") == "incomplete") if is_news else checked["status"] not in {"supported", "unavailable"}
-                            if (needs_repair
-                                    and candidate["status"] != "insufficient" and verification_repairs == 0
-                                    and time.monotonic() < deadline):
-                                verification_repairs += 1
-                                if is_news:
-                                    local.news_draft = copy.deepcopy(candidate)
-                                local.submission = None
-                                result = {"error": ("请单独调用revise_news，只提交需要修改的title/summary、replacements或append_facts。replacements的index是原facts从0开始的下标；其余正文由程序逐字保留，不要重写全文或删去重要内容。修正重点信息冲突、补齐遗漏，所有引用仍须来自实际已读片段。" if is_news else "原文支持核对未通过。这是唯一一次补证据/修复机会。按逐项说明修正或删除不支持的主张；摘录必须是本轮原文连续片段，然后单独submit_answer。不得用普通文字绕过。"),
-                                          "verification": checked, "coverage": run.get("news_coverage") if is_news else None}
-                                run["steps"][-2].update(status="failed", detail="答复已暂扣，等待一次补证据或修复。")
-                            elif is_news:
-                                if invalid_quotes:
-                                    raise AgentFailure("稿件引用未能对应本轮实际读取的原文，已保留来源，请重新整理。")
-                                run["steps"][-1].update(status="completed", detail="重点核对已完成。" if checked["status"] == "supported" else "稿件保留，未完成或存疑的重点核对将在正文统一提示。")
-                            elif checked["status"] != "supported":
-                                if checked["status"] == "unavailable" and supported_checkpoint:
-                                    raise AgentFailure("修复后的原文核对服务未完成，未交付未经核对的修复稿。")
-                                safe = verification.conservative_delivery(candidate, checked)
-                                result = local.submit_answer(safe)
-                                run["verification"]["warnings"].append("最终答复已移除未通过核对的强断言；核对记录保留以便查阅。")
-                                run["delivery_downgraded"] = True
+                            # Quotes are checked locally and still gate delivery:
+                            # a citation that does not point at text actually read
+                            # this round is a fabrication, not a difference of
+                            # interpretation. Everything else is a label.
+                            quote_checks, _ = verification.prepare_claims(local, candidate)
+                            invalid_quotes = any(claim.get("validation_failed") for claim in quote_checks)
+                            run["citation_integrity_checked"] = not invalid_quotes
+                            run["annotations"] = verification.annotations(candidate, checked)
+                            detail = {"supported": "各项说法受到所引原文支持；不是独立事实认证。",
+                                      "partial": "部分说法未获原文支持，已标注后交付。",
+                                      "insufficient": "多数说法未获原文支持，已标注后交付。",
+                                      "unavailable": "本次未完成语义核对，仅标注引用检查结果。"}[checked["status"]]
+                            run["steps"][-1].update(status="completed", detail=detail)
+                            if invalid_quotes:
+                                # The only remaining hold-back: the answer cites
+                                # text that was not read, so the citation itself
+                                # is unsupported rather than its interpretation.
+                                raise AgentFailure(
+                                    "答复的引用未能对应本轮实际读取的原文，未展示该答案。请重新读取引用的来源后提交。")
                             save()
                         messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result, ensure_ascii=False)})
                         batch_results.append({"request": tool_call["function"],
@@ -810,15 +725,8 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
         run.update({"status": "cancelled", "error": "任务已由用户停止。", "finished_at": now()})
         step("任务已停止", "停止后不会继续请求模型", "cancelled")
     except (AgentFailure, ToolError) as exc:
-        if restore_news_checkpoint():
-            run.update({"status": "completed", "error": None, "finished_at": now()})
-            step("保留完整来源稿件", "补充核对未完成，稿件和统一提醒已保留。")
-        elif restore_supported_checkpoint(str(exc)):
-            run.update({"status": "completed", "error": None, "finished_at": now()})
-            step("保留已核对消息", "后续修复未完成，已移除未支持的内容，交付原文支持的事实。")
-        else:
-            run.update({"status": "failed", "error": str(exc), "finished_at": now()})
-            step("任务停止", str(exc), "failed")
+        run.update({"status": "failed", "error": str(exc), "finished_at": now()})
+        step("任务停止", str(exc), "failed")
     except Exception:
         # Never expose arbitrary exception strings (provider URLs can contain credentials).
         run.update({"status": "failed", "error": "任务运行异常，已安全停止。请检查资料和模型设置后重试。", "finished_at": now()})

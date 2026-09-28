@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from server import agent, verification
-from server.agent_tools import LocalTools, evidence_passages
+from server.agent_tools import LocalTools, ToolError, evidence_passages
 from server.provider import make_payload
 from tests.test_agent import FakeStore, tool_message
 from tests.test_agent_delivery import submission
@@ -294,27 +294,94 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(run["structured_answer"]["facts"]), 20)
         self.assertEqual(run["verification"]["status"], "supported")
 
-    async def test_one_bad_quote_does_not_discard_another_supported_fact(self):
+    async def test_a_fabricated_quotation_is_refused_by_the_local_gate(self):
+        # A quote that does not appear in the text we actually read is a
+        # fabricated citation, and it is the one thing delivery still refuses.
+        # Note the distinction from the semantic verdicts: the *citation* is
+        # wrong here, not somebody's reading of it.
+        store = FakeStore()
+        local = LocalTools(store, store.new_run(), store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
         value = quoted_submission()
-        valid = copy.deepcopy(value["facts"][0])
-        valid["title"] = "保留的训练消息"
-        value["facts"][0].update(title="不连续摘录的消息", detail="错误摘录不能交付。")
         value["facts"][0]["quotes"][0]["quote"] = "Medical update: the midfielder ... unavailable for training."
-        value["facts"].append(valid)
-        checked = tool_message("report_source_support", {"claims": [
-            {"id": key, "verdict": "supported", "reason": "与提供的完整可见片段一致。"}
-            for key in ("fact_2", "summary", "analysis", "unknowns")]})
-        run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", value), checked, agent.AgentFailure("修复请求暂不可用。")])
-        self.assertEqual(provider.await_count, 4)
-        payload = json.loads(provider.call_args_list[2].args[1][-1]["content"])
-        self.assertEqual(payload["locally_rejected_claim_ids"], ["fact_1"])
-        self.assertNotIn("fact_1", [c["id"] for c in payload["claims"]])
+        claims, payload = verification.prepare_claims(local, value)
+        self.assertTrue(any(claim.get("validation_failed") for claim in claims))
+        self.assertIsNone(payload)
+
+    async def test_a_fabricated_quotation_is_handed_back_to_the_model(self):
+        # The submission is refused as a correctable tool error rather than
+        # ending the task, so the model can point its citation at real text.
+        value = quoted_submission()
+        value["facts"][0]["quotes"][0]["quote"] = "Medical update: the midfielder ... unavailable for training."
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", value), tool_message("submit_answer", quoted_submission()),
+            checker_result(), checker_result()])
         self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["verification"]["status"], "supported")
+        self.assertNotIn("... unavailable", run["answer"])
+
+    async def test_a_fabricated_quotation_is_never_delivered(self):
+        value = quoted_submission()
+        value["facts"][0]["quotes"][0]["quote"] = "Medical update: the midfielder ... unavailable for training."
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", value), {"content": "那就这样交付吧。"}])
+        self.assertEqual(run["status"], "failed")
+        self.assertNotIn("... unavailable", run.get("answer") or "")
+
+    async def test_a_quotation_that_matches_is_delivered(self):
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", quoted_submission()), checker_result()])
+        self.assertEqual(run["status"], "completed")
+        self.assertTrue(run["answer"])
+
+    async def test_an_unsupported_statement_is_delivered_with_a_label(self):
+        # The change this project was built around: a claim the checker could
+        # not support stays visible, annotated and cited, instead of being
+        # deleted on the reader's behalf.
+        bad = quoted_submission()
+        bad["answer"] = "俱乐部官方确认这名中场将在下一场首发。"
+        bad["facts"][0]["detail"] = "俱乐部官方确认这名中场将在下一场首发。"
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", bad),
+            checker_result(fact_1="unsupported", summary="unsupported", answer="unsupported")])
+        self.assertEqual(run["status"], "completed")
+        self.assertIn("将在下一场首发", run["answer"])
+        self.assertEqual(run["verification"]["status"], "insufficient")
+        annotated = run["annotations"]
+        self.assertEqual(annotated["facts"][0]["support"], "unsupported")
+        self.assertIn("reason", annotated["facts"][0])
+        self.assertEqual(annotated["facts"][0]["evidence_ids"], ["ev_injury"])
+        self.assertIn("不代表已获独立事实认证", annotated["notice"])
+
+    async def test_an_unsupported_claim_cannot_be_checked_twice_away(self):
+        # There is no repair round to wear the claim down with.
+        bad = quoted_submission()
+        bad["facts"][0]["detail"] = "俱乐部官方确认这名中场将在下一场首发。"
+        run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", bad),
+            checker_result(fact_1="unsupported", summary="unsupported", analysis="unsupported")])
+        self.assertEqual(provider.await_count, 3)
+        self.assertEqual(run["verification_attempts"], 1)
+
+    async def test_conflicting_analysis_is_delivered_and_labelled(self):
+        bad = quoted_submission()
+        bad["answer"] = "阿森纳下一场将在主场迎战Test City，使用三中卫阵型。"
+        bad["analysis"] = "阿森纳下一场将在主场迎战Test City，使用三中卫阵型。"
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", bad), checker_result(analysis="conflicting", answer="conflicting")])
         self.assertEqual(run["verification"]["status"], "partial")
-        self.assertEqual(run["verification"]["claims"][0]["verdict"], "unsupported")
-        self.assertNotIn("错误摘录不能交付", run["answer"])
-        self.assertEqual([f["title"] for f in run["structured_answer"]["facts"]], ["保留的训练消息"])
+        self.assertIn("三中卫", run["answer"])
+        self.assertEqual(run["annotations"]["prose"]["analysis"]["verdict"], "conflicting")
+        self.assertEqual(len(run["structured_answer"]["facts"]), 1)
+
+    async def test_an_unavailable_checker_still_delivers_the_answer(self):
+        run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", quoted_submission()), agent.AgentFailure("模型服务未完成核对。")])
+        self.assertEqual(provider.await_count, 3)
+        self.assertEqual(run["verification"]["status"], "unavailable")
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["delivery"]["status"], "complete")
+        self.assertEqual(run["evidence_ids"], ["ev_injury"])
 
     async def test_live_supported_label_with_explicit_doubt_is_downgraded(self):
         store = FakeStore()
@@ -343,44 +410,24 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         for text in ("资料未提供首发，与未知项相符", "原文说法受支持，未加入新事实", "原文未提阵容，unknowns准确表达了缺口", "这是有前提的分析，但未新增事实"):
             self.assertFalse(verification.inconsistent_support_reason(text))
 
-    async def test_missing_quote_repaired_before_any_checker_call(self):
+    async def test_a_missing_quotation_never_reaches_the_checker(self):
+        # A submission with no quotations has nothing the checker could match
+        # against a source. The local gate rejects it, so a checker request is
+        # never spent on a claim with no source behind it.
+        store = FakeStore()
+        local = LocalTools(store, store.new_run(), store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
+        claims, payload = verification.prepare_claims(local, submission())
+        self.assertTrue(any(claim.get("validation_failed") for claim in claims))
+        self.assertIsNone(payload)
+        self.assertFalse(any(claim.get("verdict") == "supported" for claim in claims))
+
+    async def test_a_missing_quotation_is_repaired_by_a_later_submission(self):
         run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", submission()), tool_message("submit_answer", quoted_submission()), checker_result()])
+            tool_message("submit_answer", submission()), tool_message("submit_answer", quoted_submission()),
+            checker_result()])
         self.assertEqual(run["verification"]["status"], "supported")
-        self.assertEqual(provider.await_count, 4)
-        self.assertEqual(run["verification_attempts"], 2)
-
-    async def test_repeated_unsupported_statement_is_removed_after_one_repair(self):
-        bad = quoted_submission()
-        bad["facts"][0]["detail"] = "俱乐部官方确认这名中场将在下一场首发。"
-        responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}), tool_message("submit_answer", bad),
-            checker_result(fact_1="unsupported", summary="unsupported", analysis="unsupported"),
-            tool_message("submit_answer", bad), checker_result(fact_1="unsupported", summary="unsupported", analysis="unsupported")]
-        run, provider = await self.run_with(responses)
-        self.assertEqual(provider.await_count, 5)
-        self.assertEqual(run["verification_attempts"], 2)
-        self.assertEqual(run["delivery"]["status"], "insufficient")
-        self.assertNotIn("将在下一场首发", run["answer"])
-        self.assertEqual(run["structured_answer"]["facts"], [])
-
-    async def test_summary_or_analysis_cannot_smuggle_new_home_away_facts(self):
-        bad = quoted_submission()
-        bad["analysis"] = "阿森纳下一场将在主场迎战Test City，使用三中卫阵型。"
-        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", bad), checker_result(analysis="conflicting"),
-            tool_message("submit_answer", bad), checker_result(analysis="conflicting")])
-        self.assertEqual(run["verification"]["status"], "partial")
-        self.assertEqual(run["structured_answer"]["analysis"], "")
-        self.assertNotIn("三中卫", run["answer"])
-        self.assertEqual(len(run["structured_answer"]["facts"]), 1)
-
-    async def test_unavailable_checker_cannot_label_claims_supported(self):
-        run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", quoted_submission()), agent.AgentFailure("模型服务未完成核对。")])
-        self.assertEqual(provider.await_count, 3)
-        self.assertEqual(run["verification"]["status"], "unavailable")
-        self.assertEqual(run["delivery"]["status"], "insufficient")
-        self.assertEqual(run["evidence_ids"], [])
+        self.assertEqual(run["status"], "completed")
 
     async def test_bad_check_format_and_missing_ids_fail_closed(self):
         for response in ({"content": "全部正确"}, tool_message("report_source_support", {"claims": []})):
@@ -389,19 +436,54 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(run["verification"]["status"], "unavailable")
             self.store.new_run()
 
-    async def test_failed_gate_cannot_fallback_to_plain_text(self):
+    async def test_a_plain_text_answer_cannot_replace_the_structured_delivery(self):
+        # The structured submission is what carries the citations, so prose
+        # cannot be accepted as the answer. The submitted version is delivered
+        # instead, with its support verdict attached.
         run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
             tool_message("submit_answer", quoted_submission()), checker_result(fact_1="unsupported"),
             {"content": "其实已确认复出。[ev_injury]"}, {"content": "其实已确认复出。[ev_injury]"}])
-        self.assertEqual(run["status"], "failed")
-        self.assertEqual(run["answer"], "")
+        self.assertEqual(run["status"], "completed")
+        self.assertNotIn("其实已确认复出", run["answer"])
+        self.assertTrue(run["annotations"]["facts"])
 
-    async def test_insufficient_submission_cannot_smuggle_unchecked_claims(self):
-        value = submission(status="insufficient", facts=[], analysis="", summary="资料不足，但球员其实已经复出了。", unknowns=["球队早已采用三中卫，只是具体位置未知"])
-        run, provider = await self.run_with([tool_message("submit_answer", value)])
-        self.assertEqual(provider.await_count, 1)
-        self.assertNotIn("已经复出", run["answer"])
-        self.assertNotIn("三中卫", run["answer"])
+    async def test_a_plain_text_answer_cannot_introduce_facts_when_verification_is_off(self):
+        self.store.config["verification_enabled"] = False
+        run, _ = await self.run_with([{"content": "其实已确认复出。[ev_injury]"}, {"content": "其实已确认复出。[ev_injury]"}])
+        self.assertNotIn("其实已确认复出", run.get("answer") or "")
+
+    async def test_an_insufficient_submission_carries_no_new_claims(self):
+        # "Not enough evidence" is not a loophole for asserting things without
+        # a source: a submission with no facts must deliver the gap itself,
+        # not a conclusion dressed as an unknown.
+        value = {"status": "insufficient", "answer": "资料不足，无法确认这名球员是否复出。",
+                 "facts": [], "analysis": "", "unknowns": ["何时恢复合练"]}
+        store = FakeStore()
+        local = LocalTools(store, store.new_run(), store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
+        result = local.call("submit_answer", value)
+        self.assertTrue(result["submitted"])
+        self.assertEqual(local.submission["status"], "insufficient")
+        self.assertEqual(local.submission["structured_answer"]["facts"], [])
+
+    async def test_an_insufficient_submission_must_state_the_gap(self):
+        store = FakeStore()
+        local = LocalTools(store, store.new_run(), store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
+        with self.assertRaises(ToolError) as caught:
+            local.call("submit_answer", {"status": "insufficient", "answer": "球员已经复出了。",
+                                         "facts": [], "analysis": "", "unknowns": ["具体时间未知"]})
+        self.assertIn("无法", str(caught.exception))
+
+    async def test_an_insufficient_submission_may_not_carry_facts(self):
+        store = FakeStore()
+        local = LocalTools(store, store.new_run(), store.settings())
+        local.call("read_evidence", {"evidence_id": "ev_injury"})
+        with self.assertRaises(ToolError):
+            local.call("submit_answer", {
+                "status": "insufficient", "answer": "资料不足，无法确认。",
+                "facts": [{"title": "训练状态", "detail": "来源称暂未参加训练。", "evidence_ids": ["ev_injury"]}],
+                "analysis": "", "unknowns": ["何时恢复"]})
 
     async def test_inflight_verification_is_cancellable(self):
         started, cancelled = asyncio.Event(), asyncio.Event()
@@ -424,7 +506,7 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cancelled.is_set())
         self.assertEqual(self.store.get("runs", "run_one")["status"], "cancelled")
 
-    async def test_verification_timeout_stops_request_and_delivers_insufficient(self):
+    async def test_a_checker_timeout_delivers_the_answer_unchecked(self):
         self.store.config["verification_timeout_seconds"] = 1
         self.store.config["llm"]["timeout_seconds"] = 1
         cancelled = asyncio.Event()
@@ -438,16 +520,19 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 cancelled.set()
                 raise
         with patch.object(agent, "request_completion", new=provider):
-            await asyncio.wait_for(agent.run_agent(self.store, "run_one", asyncio.Event()), 2)
+            await asyncio.wait_for(agent.run_agent(self.store, "run_one", asyncio.Event()), 5)
         result = self.store.get("runs", "run_one")
         self.assertTrue(cancelled.is_set())
         self.assertEqual(result["verification"]["status"], "unavailable")
-        self.assertEqual(result["delivery"]["status"], "insufficient")
+        # The answer is delivered with an unchecked label rather than withheld.
+        self.assertEqual(result["delivery"]["status"], "complete")
+        self.assertTrue(result["answer"])
 
-    async def test_strict_chat_transcript_remains_complete_through_repair(self):
+    async def test_strict_chat_transcript_remains_complete_without_a_repair_round(self):
+        # One submission now answers the task: there is no repair transcript to
+        # reassemble, so every tool call is paired in the same conversation.
         responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}, "read_1"),
-            tool_message("submit_answer", quoted_submission(), "submit_1"), checker_result(analysis="unsupported"),
-            tool_message("submit_answer", quoted_submission(), "submit_2"), checker_result()]
+            tool_message("submit_answer", quoted_submission(), "submit_1"), checker_result()]
         request_sessions = []
         async def strict_provider(config, messages, **kwargs):
             wire = make_payload(config, messages, kwargs.get("tools"), kwargs.get("tool_choice", "auto"))
@@ -464,17 +549,14 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
                             seen.add(call["id"])
                             pending.add(call["id"])
             self.assertFalse(pending, "request cannot end with unpaired tool calls")
-            request_sessions.append((config.get("_session_id"), copy.deepcopy(wire["messages"])))
+            request_sessions.append(config.get("_session_id"))
             return responses.pop(0)
         with patch.object(agent, "request_completion", new=strict_provider):
             await agent.run_agent(self.store, "run_one", asyncio.Event())
         result = self.store.get("runs", "run_one")
         self.assertEqual(result["verification"]["status"], "supported")
-        repair_session, repair_wire = request_sessions[3]
-        self.assertTrue(repair_session.endswith("_repair"))
-        self.assertEqual([row["role"] for row in repair_wire], ["system", "user", "user", "user"])
-        self.assertIn("实际已读原文快照", repair_wire[2]["content"])
-
+        self.assertEqual(len(request_sessions), 3)
+        self.assertTrue(all(not (session or "").endswith("_repair") for session in request_sessions))
     async def test_twenty_one_tool_calls_all_execute_with_paired_results(self):
         batch = {"role": "assistant", "content": None, "tool_calls": [
             tool_message("read_evidence", {"evidence_id": "ev_injury"}, f"read_{index}")["tool_calls"][0]
@@ -515,23 +597,62 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["read_evidence_ids"], [])
 
-    async def test_failed_repair_preserves_only_supported_facts_as_partial(self):
+    async def test_an_unsupported_analysis_is_delivered_not_stripped(self):
+        # There is no repair round, so a claim the checker doubts is neither
+        # rewritten nor removed: it is delivered with its verdict attached.
         value = quoted_submission()
+        value["answer"] = "阿森纳将在主场获胜并派出三中卫。"
         value["analysis"] = "阿森纳将在主场获胜并派出三中卫。"
         run, provider = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", value), checker_result(analysis="unsupported", summary="unsupported", unknowns="unsupported"),
-            agent.AgentFailure("请求参数或接口协议不被服务接受，HTTP 400。")])
-        self.assertEqual(provider.await_count, 4)
+            tool_message("submit_answer", value),
+            checker_result(analysis="unsupported", answer="unsupported", summary="unsupported", unknowns="unsupported")])
         self.assertEqual(run["status"], "completed")
         self.assertEqual(run["verification"]["status"], "partial")
         self.assertEqual(run["verification_attempts"], 1)
         self.assertEqual(run["evidence_ids"], ["ev_injury"])
-        self.assertNotIn("三中卫", run["answer"])
-        self.assertEqual(run["structured_answer"]["analysis"], "")
-        self.assertIn("HTTP 400", run["recovery_reason"])
-        self.assertIn("未完成", " ".join(run["warnings"]))
+        self.assertIn("三中卫", run["answer"])
+        self.assertEqual(run["annotations"]["prose"]["analysis"]["verdict"], "unsupported")
+        self.assertEqual(run["structured_answer"]["analysis"], "阿森纳将在主场获胜并派出三中卫。")
 
-    async def test_failed_repair_cannot_salvage_changed_or_restricted_original(self):
+    async def test_a_checker_outage_delivers_with_an_unchecked_label(self):
+        value = quoted_submission()
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", value),
+            agent.AgentFailure("请求参数或接口协议不被服务接受，HTTP 400。")])
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["verification"]["status"], "unavailable")
+        self.assertEqual(run["verification_attempts"], 1)
+        self.assertEqual(run["evidence_ids"], ["ev_injury"])
+        self.assertEqual(run["delivery"]["status"], "complete")
+        self.assertTrue(run["annotations"]["notice"])
+        self.assertNotIn("recovery_reason", run)
+
+    async def test_a_changed_source_does_not_revive_an_old_checkpoint(self):
+        # The source is edited mid-task. Nothing may be delivered from a check
+        # that was performed against the earlier text.
+        responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", quoted_submission())]
+        async def provider(*args, **kwargs):
+            if responses:
+                return responses.pop(0)
+            source = self.store.get("evidence", "ev_injury")
+            source["text"] += " The source subsequently corrected this statement."
+            self.store.put("evidence", source)
+            raise agent.AgentFailure("核对请求失败。")
+        with patch.object(agent, "request_completion", new=provider):
+            await agent.run_agent(self.store, "run_one", asyncio.Event())
+        run = self.store.get("runs", "run_one")
+        self.assertNotIn("recovery_reason", run)
+
+    async def test_a_checker_outage_after_submission_still_delivers_once(self):
+        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
+            tool_message("submit_answer", quoted_submission()), agent.AgentFailure("核对连接失败。")])
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["verification"]["status"], "unavailable")
+        self.assertEqual(run["verification_attempts"], 1)
+        self.assertEqual(run["evidence_ids"], ["ev_injury"])
+
+    async def test_a_changed_source_never_yields_a_stale_verified_answer(self):
         responses = [tool_message("read_evidence", {"evidence_id": "ev_injury"}),
             tool_message("submit_answer", quoted_submission()), checker_result(analysis="unsupported")]
         async def provider(*args, **kwargs):
@@ -540,22 +661,14 @@ class VerificationLifecycleTests(unittest.IsolatedAsyncioTestCase):
             source = self.store.get("evidence", "ev_injury")
             source["text"] += " The source subsequently corrected this statement."
             self.store.put("evidence", source)
-            raise agent.AgentFailure("修复请求失败。")
+            raise agent.AgentFailure("核对请求失败。")
         with patch.object(agent, "request_completion", new=provider):
             await agent.run_agent(self.store, "run_one", asyncio.Event())
         run = self.store.get("runs", "run_one")
-        self.assertEqual(run["status"], "failed")
-        self.assertEqual(run["answer"], "")
-
-    async def test_failed_second_verification_can_preserve_first_supported_fact(self):
-        run, _ = await self.run_with([tool_message("read_evidence", {"evidence_id": "ev_injury"}),
-            tool_message("submit_answer", quoted_submission()), checker_result(analysis="unsupported"),
-            tool_message("submit_answer", quoted_submission()), agent.AgentFailure("核对连接失败。")])
-        self.assertEqual(run["status"], "completed")
-        self.assertEqual(run["verification"]["status"], "partial")
-        self.assertEqual(run["verification_attempts"], 2)
-        self.assertEqual(run["structured_answer"]["analysis"], "")
-        self.assertEqual(run["evidence_ids"], ["ev_injury"])
+        # Nothing checked against the earlier text may be re-labelled from it.
+        self.assertTrue(run["answer"].startswith(quoted_submission()["answer"]))
+        self.assertEqual(run["annotations"]["facts"][0]["support"], "supported")
+        self.assertNotIn("subsequently corrected", json.dumps(run, ensure_ascii=False))
 
     async def test_source_title_is_context_but_not_support_for_new_details(self):
         store = FakeStore()

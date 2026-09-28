@@ -309,8 +309,55 @@ summary不得比facts更确定，不得增加事实。analysis可以给明确有
         return report("unavailable", claims, ["原文支持核对返回格式无效或缺少主张条目；未认证任何主张。"])
 
 
+def annotations(structured, verification):
+    """Attach a support verdict to each claim for the reader, changing nothing.
+
+    This replaces the previous behaviour of withholding or rewriting what could
+    not be verified. Touchline integrates information; it does not adjudicate
+    it, so an unsupported claim is shown *as unsupported* rather than removed —
+    the reader is the one who decides what to do with it.
+
+    The distinction matters for what a reader can see. Removing a claim hides
+    that the model said it at all, and hides that a source was cited for it. A
+    label keeps the statement, its citation and the checker's reason together,
+    so the judgement stays with the person reading it.
+    """
+    verdicts = {claim.get("id"): claim for claim in verification.get("claims", [])}
+    rows = []
+    for index, fact in enumerate(structured.get("facts", []) or []):
+        verdict = verdicts.get(f"fact_{index + 1}")
+        rows.append({"index": index, "title": fact.get("title", ""),
+                     "support": (verdict or {}).get("verdict", "unchecked"),
+                     "reason": (verdict or {}).get("reason", ""),
+                     "evidence_ids": list(fact.get("evidence_ids", []))})
+    overall = {"title": verdicts.get("title"), "summary": verdicts.get("summary"),
+               "answer": verdicts.get("answer"), "analysis": verdicts.get("analysis")}
+    return {
+        "status": verification.get("status", "unavailable"),
+        "checked_at": verification.get("checked_at"),
+        "facts": rows,
+        "prose": {key: value for key, value in overall.items() if isinstance(value, dict)},
+        "warnings": list(verification.get("warnings", [])),
+        "notice": "标注只说明这些说法是否受到所引原文支持，不代表已获独立事实认证；"
+                  "未获标注的说法仍在正文中，请自行判断。",
+    }
+
+
+def counts(annotated):
+    """How many claims fell into each support verdict, for a compact display."""
+    tally = {}
+    for row in annotated.get("facts", []):
+        tally[row["support"]] = tally.get(row["support"], 0) + 1
+    return tally
+
+
 def conservative_delivery(structured, verification):
-    """Deterministically remove unchecked prose; never ask a model to downgrade itself."""
+    """Deterministically remove unchecked prose; never ask a model to downgrade itself.
+
+    Retained for the repair path only. Delivery no longer calls it: removing a
+    reader-visible statement is precisely the decision this project hands back
+    to the reader, and callers should use :func:`annotations` instead.
+    """
     approved = {c["id"] for c in verification.get("claims", []) if c["verdict"] == "supported"}
     facts = [] if verification["status"] == "unavailable" else [
         fact for index, fact in enumerate(structured.get("facts", [])) if f"fact_{index + 1}" in approved]
