@@ -295,13 +295,21 @@ def apply_cached_portraits(store, snapshot):
             player["photo_updated_at"] = community.get("fetched_at")
             continue
         verdict = cached if cached and cached.get("photo_reason") else community
-        if verdict:
+        if verdict and verdict.get("photo_reason"):
             # Carry the known non-photo verdict onto the rebuilt row too, so a
             # refreshed roster still explains why a player has no image instead
             # of showing an empty placeholder with no reason.
-            player["photo_reason"] = verdict.get("photo_reason") or "球员照片未通过身份与许可核验。"
+            player["photo_reason"] = verdict["photo_reason"]
             player["retryable"] = bool(verdict.get("retryable"))
             player["reason_code"] = verdict.get("reason_code") or "rejected"
+        elif not player.get("photo_reason"):
+            # Neither source holds a verdict: both caches expired, or neither has
+            # been asked yet. Say that rather than leaving a placeholder with no
+            # explanation, which reads as "this player has no photo" when the
+            # truth is "we have not finished checking".
+            player["photo_reason"] = "照片来源尚未给出结论，下次更新会重新核对。"
+            player["retryable"] = True
+            player["reason_code"] = "not_yet_resolved"
     return snapshot
 
 
@@ -386,7 +394,7 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
     """Advance one bounded squad batch, then fill the rest from the community
     database; official directory successes are retained throughout."""
-    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait, resolve_portrait
+    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait as cached_wikimedia, resolve_portrait
 
     roster = snapshot["roster"]
     team_id = snapshot["team_id"]
@@ -398,7 +406,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     for row in ordered:
         if force or row.get("photo_url") and row.get("photo_match") != "wikimedia_verified_club":
             continue
-        cached = cached_portrait(store, row, team_id)
+        cached = cached_wikimedia(store, row, team_id)
         if not cached:
             continue
         cached_count += 1
@@ -420,7 +428,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     candidates = [row for row in ordered if (not row.get("photo_url") or
                    row.get("photo_match") == "wikimedia_verified_club" and
                    (force or _elapsed(row.get("photo_updated_at")) >= CACHE_SECONDS))
-                  and (force or not cached_portrait(store, row, team_id))]
+                  and (force or not cached_wikimedia(store, row, team_id))]
     requested = candidates[:PLAYER_PAGE_LIMIT]
     responses = await asyncio.gather(*(resolve_portrait(store, row, team_id, force=True)
                                        if force else resolve_portrait(store, row, team_id) for row in requested))
@@ -451,9 +459,33 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     # agreeing identity facts (full name and nationality) before its unlicensed
     # portrait is shown. This is what actually fills a squad: a free-licensed
     # photo exists for only about a fifth of players.
+    #
+    # A *verdict* closes the question — this player has no photo Wikimedia will
+    # accept — so the community source is asked instead. An *unanswered* pass
+    # answers nothing, so the question stays open for the next one rather than
+    # being handed to the community source immediately. Both cases matter: the
+    # first is what left a player Wikimedia once filled with no fallback once its
+    # cache expired, and the second is what would spend a paced community lookup
+    # on every player in a squad during a Wikimedia outage.
     from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
+    def community_settled(row):
+        cached = cached_community(store, row, team_id)
+        return bool(cached) and cached.get("status") in {"missing", "ambiguous"}
+
+    def wikimedia_decided(row):
+        """Whether Wikimedia produced an answer about this player, or nothing yet.
+
+        A missing cache entry means unanswered, and an `unavailable` entry means
+        the lookup itself failed. Neither is a verdict about the player, so
+        neither hands them to the community source in this pass. Everything else
+        — a completed photo, or a refusal on identity or licence — is a verdict,
+        and a refusal is exactly what the community source exists to cover.
+        """
+        cached = cached_wikimedia(store, row, team_id)
+        return bool(cached) and cached.get("status") != "unavailable"
+
     community_rows = [row for row in ordered if not row.get("photo_url")
-                      and (force or not cached_community(store, row, team_id))]
+                      and (force or (wikimedia_decided(row) and not community_settled(row)))]
     attempted = 0
     for row in community_rows:
         if attempted >= COMMUNITY_PAGE_LIMIT and not explicit_selection:

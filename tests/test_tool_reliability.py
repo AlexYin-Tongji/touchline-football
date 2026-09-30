@@ -49,6 +49,39 @@ class ToolContractTests(unittest.TestCase):
         self.assertTrue({"research_news", "read_article"} <= names(self.local))
         self.assertEqual(len({item["name"] for item in TOOL_DEFINITIONS}), len(TOOL_DEFINITIONS))
 
+    def test_a_capture_timestamp_in_the_prose_is_refused(self):
+        # The answer once carried "阵容快照采集时间为 2026-09-28T09:23:07.761262+00:00"
+        # straight from the tool payload. A reader is owed "昨晚更新的", not an
+        # interface value, and the system should not be describing its own
+        # collection machinery in the reply.
+        self.local.call("read_evidence", {"evidence_id": "ev_injury"})
+        value = submission()
+        value["facts"][0]["detail"] = "阵容快照采集时间为 2026-09-28T09:23:07.761262+00:00，名单共 35 人。"
+        with self.assertRaisesRegex(ToolError, "内部采集时间戳"):
+            self.local.call("submit_answer", value)
+        # The same instant written for a person is accepted.
+        value["facts"][0]["detail"] = "这份名单是昨天更新的，名单共 35 人。"
+        self.local.call("submit_answer", value)
+        self.assertTrue(self.local.submission)
+
+    def test_an_internal_field_name_in_the_prose_is_refused(self):
+        self.local.call("read_evidence", {"evidence_id": "ev_injury"})
+        value = submission()
+        value["facts"][0]["detail"] = "该条记录的 evidence_id 已核对，内容与来源一致。"
+        with self.assertRaisesRegex(ToolError, "内部采集时间戳"):
+            self.local.call("submit_answer", value)
+
+    def test_a_source_quote_may_still_contain_a_timestamp(self):
+        # Only the reader-facing prose is checked. A quoted passage is the
+        # publisher's own words, and an article that prints a date must not
+        # become uncitable because of it.
+        self.local.call("read_evidence", {"evidence_id": "ev_injury"})
+        value = submission()
+        value["facts"][0]["detail"] = "媒体在报道中给出了具体时间。"
+        value["facts"][0]["evidence_ids"] = ["ev_injury"]
+        self.local.call("submit_answer", value)
+        self.assertTrue(self.local.submission)
+
     def test_history_isolated_by_conversation_role_match_and_current_source_visibility(self):
         base = dict(self.run, status="completed", answer="safe answer", evidence_ids=["ev_injury"])
         self.store.put("runs", dict(base, id="old", created_at="2026-09-01"))
@@ -65,7 +98,8 @@ class ToolContractTests(unittest.TestCase):
         local = LocalTools(self.store, self.run, settings)
         result = local.call("conversation_history", {})
         self.assertEqual([row["run_id"] for row in result["messages"]], ["old"])
-        self.assertEqual(len(agent.history_messages(self.store, self.run, local)), 2)
+        # One block label plus the single in-scope turn and its answer.
+        self.assertEqual(len(agent.history_messages(self.store, self.run, local)), 3)
         self.assertFalse(local.read_ids)
 
     def test_history_keeps_early_messages_and_full_answers_with_optional_pagination(self):
@@ -79,8 +113,11 @@ class ToolContractTests(unittest.TestCase):
         self.assertEqual(full["messages"][0]["answer"], base["answer"])
         self.assertEqual(full["messages"][0]["question"], base["question"])
         messages = agent.history_messages(self.store, self.run, self.local)
-        self.assertEqual(len(messages), 16)
-        self.assertIn(base["answer"], messages[1]["content"])
+        # Eight turns replayed in full, plus the single block label that marks
+        # them as background. The label is stated once for the block rather than
+        # repeated before every answer.
+        self.assertEqual(len(messages), 17)
+        self.assertIn(base["answer"], messages[2]["content"])
         first = self.local.call("conversation_history", {"limit": 3})
         second = self.local.call("conversation_history", {"offset": first["next_offset"], "limit": 3})
         final = self.local.call("conversation_history", {"offset": second["next_offset"], "limit": 3})
@@ -140,12 +177,15 @@ class ToolContractTests(unittest.TestCase):
         self.assertLessEqual(len(passage["text"]), 700)
         self.assertIn("ESPN 阵容", first_page["text"][:1000])
         self.assertNotIn("irrelevant long profile", first_page["text"])
-        candidate = submission(facts=[{"title": "保存名单中的首条门将记录", "detail": "保存的名单第一行是Gianluigi Donnarumma，球衣号码1号，阵容记录采集于2026-09-16T03:24:45+00:00。",
+        candidate = submission(facts=[{"title": "保存名单中的首条门将记录", "detail": "保存的名单第一行是Gianluigi Donnarumma，球衣号码1号，名单是几天前更新的。",
                                       "evidence_ids": [eid], "quotes": [{"evidence_id": eid, "passage_id": passage["id"]}]}])
         self.local.call("submit_answer", candidate)
         claims, support = verification.prepare_claims(self.local, self.local.submission["structured_answer"])
         self.assertIsNotNone(support)
         self.assertEqual(len(claims[0]["quotes"]), 1)
+        # The exact capture time still travels with the citation — the reader
+        # just does not have it pasted into the prose. The evidence text keeps
+        # both stamps precisely so a quote can carry them.
         self.assertIn(roster_time, claims[0]["quotes"][0]["quote"])
 
     def test_missing_snapshot_timestamps_and_stats_stay_unknown(self):

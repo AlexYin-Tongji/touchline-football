@@ -1243,7 +1243,9 @@
   font-size: 13px;
   color: #c8c5ba;
 }
-.club-facts li {
+/* 同样是选择器落在旧元素上：内容是 span，不是 li；
+   span 是块级而不是行内，所以"创立于/主场/联赛"这几项会各自换行而不是并排。 */
+.club-facts > span {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1317,11 +1319,12 @@
 .club-details > div:last-child {
   border-bottom: 0;
 }
-.club-details dt {
+/* 标签是 <span>、值是 <strong>：旧规则选 dt/dd，两个都匹配不到，
+   于是标签继承了正文色、值靠左贴着标签。 */
+.club-details span {
   color: var(--faint);
 }
-.club-details dd {
-  margin: 0;
+.club-details strong {
   color: var(--ink);
   font-weight: 500;
   text-align: right;
@@ -1358,17 +1361,21 @@
   padding-top: 16px;
   border-top: var(--rule);
 }
-.win-draw-loss > div {
+/* 胜/平/负：渲染的是 span 包 i，旧规则写的是 div 和 b，
+   结果圆点退回 inline（宽高失效、根本看不见），三项也挤在一起。 */
+.win-draw-loss > span {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--muted);
 }
-.win-draw-loss b {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--ink);
+.win-draw-loss i {
+  height: 6px;
+  width: 6px;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
 }
 .result-W {
   color: var(--green);
@@ -1467,7 +1474,9 @@
   font-size: 12.5px;
   color: var(--faint);
 }
-.match-date b {
+/* 日期渲染成 <strong>（旧规则选择的 b 匹配不到），
+   所以主行日期一直与右侧时间同为灰色小字。 */
+.match-date strong {
   color: var(--ink);
   font-size: 13.5px;
   font-weight: 600;
@@ -1594,21 +1603,62 @@
 .player-card-info {
   min-width: 0;
 }
-.player-card-info strong {
-  display: block;
-  font-size: 14.5px;
+/* 卡片标题渲染成 <h3>，旧规则选的是 strong 且从未生效，标题一直吃 h3 的
+   浏览器默认字号（17px）与默认外边距（约 17px），卡片下半部分因此被撑开。 */
+.player-card-info h3 {
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.7;
+  margin: 0 0 4px;
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
-.player-position {
+/* The source spelling sits under the reading, in full rather than truncated:
+   it is the name the player is searched and quoted by, so it has to stay
+   readable even when the card is narrow. */
+.player-name-source {
   display: block;
-  margin-top: 3px;
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
   color: var(--faint);
+  overflow-wrap: anywhere;
 }
+.player-card-info p {
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 0 0 12px;
+  min-height: 15px;
+}
+/* 底部"了解球员"行：渲染成 span，旧规则同样选的是 strong */
+.player-card-info > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-top: var(--rule);
+  padding-top: 10px;
+}
+/* 位置标签是照片上的角标，但改版把它降级成普通块级元素、却仍留在
+   .player-visual 里，于是它叠在照片下缘、又和左下角的号码徽标撞在一起。 */
+.player-position {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #ffffffd9;
+  color: var(--ink);
+  font-size: 11.5px;
+}
+/* 球员详情。edaec35 把旧的 v7.css 拆成两份时，只有容器规则搬了过来，
+   子元素规则整组丢了：dl 退回浏览器默认（dd 自带 40px 缩进、单列堆叠），
+   球衣号码失去绝对定位后占掉 hero 的一整列，pill 被 flex 拉伸成通栏。
+   下面的规则补回这组丢失的排版，并按新的排版基准（16px 正文、纸感配色）重写。 */
 .player-detail {
   display: flex;
   flex-direction: column;
@@ -1616,17 +1666,71 @@
 }
 .player-detail-hero {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 26px;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
 }
+/* 号码徽标的绝对定位原本挂在 .player-visual 上 */
+.player-detail-photo {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-sunk);
+}
+.player-detail-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 2px;
+}
+.player-detail-intro .pill {
+  align-self: flex-start;
+}
+/* 球场位置这类短标签，用印刷红区分于正文 */
+.player-detail .pill {
+  background: var(--red-wash);
+  color: var(--red);
+}
 .player-bio {
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.95;
   color: var(--ink-soft);
+  margin: 0;
+  max-width: 42em;
+}
+/* 事实表按栏目分两列，dt/dd 不再吃浏览器默认的 40px 缩进 */
+.player-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 14px 26px;
+  margin: 0;
+  padding-top: 18px;
+  border-top: var(--rule);
+}
+.player-detail dl > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.player-detail dt {
+  font-size: 11.5px;
+  letter-spacing: 1.1px;
+  color: var(--faint);
+}
+.player-detail dd {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.player-detail > .button {
+  align-self: stretch;
+  justify-content: center;
 }
 .player-photo-attribution {
-  margin: 10px 0 0;
+  margin: 0;
   font-size: 11.5px;
   color: var(--faint);
   line-height: 1.7;
@@ -1636,7 +1740,7 @@
   border-bottom: 1px solid #a8232f40;
 }
 .player-photo-reason {
-  margin: 9px 0 0;
+  margin: 0;
   padding: 9px 12px;
   border-left: 3px solid var(--amber);
   background: var(--amber-wash);
@@ -1656,7 +1760,8 @@
   flex-direction: column;
   gap: 3px;
 }
-.player-stat-row b {
+/* 数值渲染成 <strong>，不是 <b>：旧规则选的是 b，所以数据行的大号衬线数字一直没生效 */
+.player-stat-row strong {
   font-family: var(--font-serif);
   font-size: 23px;
   color: var(--ink);

@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 from . import league_data
 from .ingestion import IngestionError, now, published_time
+from .player_names import with_reading
 
 ROSTER_CACHE_SECONDS = 86400
 RETRY_SECONDS = 60
@@ -219,17 +220,21 @@ def parse_roster(payload, team, league, season, provider_team_id):
         # This short introduction contains only roster facts. Tactical opinions,
         # transfer claims and stale coach metadata are deliberately not invented.
         bio_parts = [part for part in (nationality, position_name if group != "OTHER" else "", f"{age}岁" if age is not None else "", f"{number}号" if number else "") if part]
-        roster.append({"id": "espn-player-" + provider_id, "provider_id": provider_id, "name": name,
-                       "team_id": team["id"], "season_id": season["id"], "number": number,
-                       "position": position_name, "position_group": group, "nationality": nationality,
-                       "birth_date": birth_date, "age": age, "age_as_of": today.isoformat(),
-                       "height_cm": round(height * 2.54) if height is not None else None,
-                       "weight_kg": round(weight * .45359237, 1) if weight is not None else None,
-                       # A squad row starts with no photo. Portraits are added
-                       # only by the checked official, Wikimedia and community
-                       # providers, so nothing here can show an unverified face.
-                       "photo_url": "", "photo_credit": "",
-                       "source_url": source_url, "bio": " · ".join(bio_parts), "stats": player_stats})
+        # The reading is a lookup, never a derivation: a name the table does not
+        # hold keeps its source spelling and carries no `name_zh`, so the reader
+        # is never shown a Chinese name we guessed.
+        row = {"id": "espn-player-" + provider_id, "provider_id": provider_id, "name": name,
+               "team_id": team["id"], "season_id": season["id"], "number": number,
+               "position": position_name, "position_group": group, "nationality": nationality,
+               "birth_date": birth_date, "age": age, "age_as_of": today.isoformat(),
+               "height_cm": round(height * 2.54) if height is not None else None,
+               "weight_kg": round(weight * .45359237, 1) if weight is not None else None,
+               # A squad row starts with no photo. Portraits are added
+               # only by the checked official, Wikimedia and community
+               # providers, so nothing here can show an unverified face.
+               "photo_url": "", "photo_credit": "",
+               "source_url": source_url, "bio": " · ".join(bio_parts), "stats": player_stats}
+        roster.append(with_reading(row))
     order = {"GK": 0, "DF": 1, "MF": 2, "FW": 3, "OTHER": 4}
     roster.sort(key=lambda p: (order[p["position_group"]], int(p["number"]) if p["number"] else 999, p["name"]))
     return {"id": _snapshot_id(team["id"], season["id"]), "team_id": team["id"], "season_id": season["id"],
@@ -350,7 +355,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     matches = _team_matches(store, team_id, season["id"], recent_status if "snapshot_match_ids" in recent_status else league_status)
     domestic_matches = [m for m in matches if m["competition_id"] == league["id"]]
     finished = [m for m in domestic_matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
-    roster = copy.deepcopy(snapshot.get("roster", []))
+    roster = [with_reading(row) for row in copy.deepcopy(snapshot.get("roster", []))]
     roster_season = ({"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]}
                      if roster else None)
     latest = max((s for s in store.list("seasons") if s.get("league_id") == league["id"]),

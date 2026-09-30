@@ -194,6 +194,37 @@ class ManualReportRecoveryTests(unittest.IsolatedAsyncioTestCase):
         news_reports.retry_report(store, row["id"])
         self.assertEqual((await news_reports.process_report_queue(store, runner=fail))["processed"], 1)
 
+    async def test_a_transient_failure_recovers_once_its_backoff_has_elapsed(self):
+        # A failed report used to be skipped by the automatic queue forever, so a
+        # rate limit or a restart mid-run removed that event from the feed until
+        # the user happened to retry it by hand. The retry is bounded and paced
+        # instead of forbidden — and this is the case that proves both halves.
+        store = FakeStore(); event(store)
+        row = news_reports.enqueue_reports(store)[0]
+        async def fail(store, rid, cancel):
+            store.put("runs", {**store.get("runs", rid), "status": "failed", "error": "temporary outage"})
+        await news_reports.process_report_queue(store, runner=fail)
+        failed = store.get("reports", row["id"])
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["attempts"], 1)
+        # Still inside the backoff window: not retried yet.
+        self.assertEqual((await news_reports.process_report_queue(store, runner=fail))["processed"], 0)
+        # The window has passed: the automatic queue picks it up again.
+        store.put("reports", {**failed, "updated_at": "2000-01-01T00:00:00Z"})
+        self.assertEqual((await news_reports.process_report_queue(store, runner=fail))["processed"], 1)
+
+    async def test_a_report_that_keeps_failing_is_eventually_left_alone(self):
+        store = FakeStore(); event(store)
+        row = news_reports.enqueue_reports(store)[0]
+        async def fail(store, rid, cancel):
+            store.put("runs", {**store.get("runs", rid), "status": "failed", "error": "permanent fault"})
+        for _ in range(news_reports.FAILED_REPORT_ATTEMPT_LIMIT + 2):
+            store.put("reports", {**store.get("reports", row["id"]), "updated_at": "2000-01-01T00:00:00Z"})
+            await news_reports.process_report_queue(store, runner=fail)
+        self.assertEqual(store.get("reports", row["id"])["status"], "failed")
+        store.put("reports", {**store.get("reports", row["id"]), "updated_at": "2000-01-01T00:00:00Z"})
+        self.assertEqual((await news_reports.process_report_queue(store, runner=fail))["processed"], 0)
+
 
 class PlayerPhotoToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_photo_tool_delivers_identity_checked_results_for_current_team(self):

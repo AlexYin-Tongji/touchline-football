@@ -105,7 +105,14 @@ def tool_definitions(skill="ask"):
         # A question is delivered as prose: `answer` carries it. `summary` is
         # kept as an accepted alias so a model that still fills it is not
         # rejected for a naming habit, but it is not requested.
-        submit["parameters"]["required"] = ["status", "answer", "facts", "analysis", "unknowns"]
+        # A question is delivered as prose: `answer` carries it, and the fact
+        # entries exist only as the evidence ledger behind it. `analysis` and
+        # `unknowns` remain accepted — a model that fills them is not refused —
+        # but they are no longer demanded. Requiring them made every question
+        # arrive as five fields whatever was asked, and a model writing into a
+        # mandatory "still unconfirmed" slot fills it, which is where much of the
+        # hedging in ordinary answers came from.
+        submit["parameters"]["required"] = ["status", "answer", "facts"]
         return definitions
     submit["parameters"]["required"].remove("answer")
     fields["title"] = {"type": "string", "minLength": 4, "maxLength": 80,
@@ -157,6 +164,14 @@ CONCEPTS = [
 STOP_EN = {"what", "the", "is", "are", "a", "an", "how", "about", "with", "for", "and", "to", "of", "my", "team", "please", "this", "any", "has", "on", "in", "can", "you", "tell", "me"}
 PROCESS_TEXT = re.compile(r"我(?:已经|已)?(?:读完|调用|将)|(?:现在|下面|以下)给出(?:最终|正式)?(?:答案|答复)|最终答复|(?:联网|工具|token|令牌)预算|(?:思维链|内部推理|思考过程)|\b(?:read_evidence|submit_answer|tool_calls?|function_call|max_rounds|chain.of.thought)\b", re.I)
 SUMMARY_CERTAINTY = re.compile(r"官方确认|已(?:经)?证实|实锤|已(?:经)?确认|得到确认|获得确认|证据确凿|确定无疑|\bofficially confirmed\b|\bverified\b", re.I)
+# Machine-shaped text that has no place in prose for a reader. An answer that
+# quoted a capture timestamp verbatim ("阵容快照采集时间为 2026-09-28T09:23:07.761262+00:00")
+# reads as an API response, not as someone telling you about your team. The
+# prompt asks for plain wording; this catches the case where it did not take.
+MACHINE_STAMP = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?")
+INTERNAL_FIELD = re.compile(r"\b(?:fetched_at|observed_at|evidence_id|evidence_ids|passage_id|"
+                            r"read_evidence|submit_answer|content_status|content_note|next_offset|"
+                            r"end_offset|spoiler_redacted|structured_answer|source_version_hash)\b", re.I)
 
 
 def answer_fact_limit(question):
@@ -702,6 +717,11 @@ class LocalTools:
 
     def submit_answer(self, arguments):
         arguments = copy.deepcopy(arguments)
+        # `analysis` and `unknowns` are optional for a question, so a submission
+        # that omits them is normal rather than malformed. Normalise before any
+        # reader below assumes the keys exist.
+        arguments.setdefault("analysis", "")
+        arguments.setdefault("unknowns", [])
         # Repair redundant JSON escaping in reader-facing prose, never in
         # source quotations or identifiers. Football text has no code strings.
         def prose(value):
@@ -751,6 +771,14 @@ class LocalTools:
             strings.extend([fact["title"], fact["detail"]])
         if any(not clean_delivery_text(value) or re.search(r"\[[A-Za-z0-9_-]+\]", value) for value in strings):
             raise ToolError("最终答复只能包含用户正文，不可包含过程叙述、工具预算或引用括号；引用请放入 evidence_ids。请重新提交。")
+        # Reader-facing prose, not a payload dump. A capture timestamp or an
+        # internal field name in the answer is the system describing itself to
+        # the reader, which is both unreadable and a leak of the collection
+        # machinery. Checked here rather than only asked for in the prompt,
+        # because the prompt is advisory and this is a correctness boundary.
+        if any(MACHINE_STAMP.search(value) or INTERNAL_FIELD.search(value) for value in strings):
+            raise ToolError("正文里出现了内部采集时间戳或字段名。请改用人话说明资料新旧（例如“昨晚更新的”“三天前的名单”），"
+                            "不要粘贴接口时间戳、采集字段或内部字段名，然后重新提交。")
         if sum(len(value) for value in strings) > 60000:
             raise ToolError("单次交付内容超过存储安全大小，请将不同问题拆成后续回答。")
         if is_report and arguments["status"] == "complete":
@@ -764,10 +792,14 @@ class LocalTools:
         if arguments["status"] == "complete" and not arguments["facts"]:
             raise ToolError("完成回答至少需要一项实际已读原文支持的事实；没有证据请提交 insufficient。")
         if arguments["status"] == "insufficient":
-            if arguments["facts"] or arguments["analysis"].strip() or not arguments["unknowns"]:
-                raise ToolError("资料不足时 facts 必须为空、analysis 留空，并在 unknowns 说明缺少哪些证据。")
+            if arguments["facts"] or arguments["analysis"].strip():
+                raise ToolError("资料不足时 facts 必须为空、analysis 留空，只说明缺少哪些证据。")
             # The reader-facing sentence differs by task: a report lead states
-            # the gap, a Q&A answer states what could not be confirmed.
+            # the gap, a Q&A answer states what could not be confirmed. `unknowns`
+            # is no longer demanded here either — a question answered in prose
+            # that already names the gap in `answer` has said everything the
+            # reader needs, and requiring a separate list only taught the model
+            # to restate itself in a second register.
             if not re.search(r"不足|无法|未能|尚不能|暂不能|未找到|没有找到|缺乏", lead):
                 raise ToolError("资料不足时应当直接说明目前无法确认什么、缺少哪些证据，不能提交带引用的结论。" +
                                 ("请先补充 summary。" if is_report else "请在 answer 中说明。"))
@@ -804,8 +836,15 @@ class LocalTools:
             text = "\n\n".join(lines)
         else:
             text = lead
-        if cited and len(source_keys) == 1 and not is_report:
-            text += "\n\n来源范围：以上依据同一篇来源原文，尚未形成独立交叉核实。"
+        # What used to follow the answer here was a fixed sentence appended
+        # whenever every citation resolved to one URL: "来源范围：以上依据同一篇
+        # 来源原文，尚未形成独立交叉核实。" It fired on most answers, so the same
+        # template line appeared under question after question regardless of what
+        # was asked. The reader already sees the source list beneath the answer;
+        # a repeated disclaimer adds no information the second time and is the
+        # single most mechanical thing in the reply. The rule still applies —
+        # the model is told above never to present one article as independent
+        # corroboration — but it is now the model's wording, not a postscript.
         self.submission = {"answer": text, "evidence_ids": cited, "status": arguments["status"],
                            "structured_answer": copy.deepcopy(arguments),
                            "facts_count": len(arguments["facts"]), "source_document_count": len(source_keys)}

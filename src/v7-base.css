@@ -187,6 +187,32 @@ time,
   font-variant-numeric: tabular-nums;
 }
 
+/* edaec35 重建前端时整站把 <b> 改成了 <strong>，但样式表仍按 b 选择。
+   下面这组规则原来写在旧表里、选择器是 b 的，现在按实际渲染的 strong 重写。
+   职责只为把"本该有的排版"补回来，配色与字号沿用新的排版基准。 */
+.season-numbers strong,
+.goals-total strong {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 400;
+  color: var(--ink);
+}
+.goals-total strong {
+  font-size: 27px;
+}
+.performance-row strong,
+.win-draw-loss strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.goal-chart-column > i {
+  display: block;
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  background: var(--ink);
+}
+
 /* ---- 通用文字与提示 ---- */
 .muted {
   color: var(--muted);

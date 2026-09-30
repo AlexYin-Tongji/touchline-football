@@ -173,26 +173,34 @@ class ClaimTests(FootballDataCase):
 
 
 class CoexistenceTests(unittest.TestCase):
-    """Two providers answering one question is the point, and neither wins."""
+    """Two providers answering one question is the point, and neither wins.
+
+    ``now`` is pinned for these two cases. A kickoff claim lives 24 hours, so a
+    literal ``fetched_at`` becomes stale the day after it is written and
+    ``conflicts`` — which drops stale claims before comparing — would report no
+    disagreement. Reading the clock here made the test expire on its own.
+    """
+
+    NOW = "2026-09-28T06:00:00+00:00"
 
     def test_a_kickoff_from_each_source_is_kept_side_by_side(self):
         one = provenance.Claim(field="kickoff", value="2026-10-03T14:00:00Z", source_id="espn",
                                tier=SourceTier.DATASET, fetched_at="2026-09-28T00:00:00+00:00")
         two = provenance.Claim(field="kickoff", value="2026-10-03T14:05:00Z", source_id="football_data",
                                tier=SourceTier.DATASET, fetched_at="2026-09-28T00:00:00+00:00")
-        merged = provenance.merge_claims([one, two])
+        merged = provenance.merge_claims([one, two], now=self.NOW)
         self.assertEqual(len(merged), 2)
-        self.assertEqual(len(provenance.conflicts([one, two])), 1)
+        self.assertEqual(len(provenance.conflicts([one, two], now=self.NOW)), 1)
 
     def test_agreement_between_two_sources_is_recorded_as_such(self):
         one = provenance.Claim(field="kickoff", value="2026-10-03T14:00:00Z", source_id="espn",
                                tier=SourceTier.DATASET, fetched_at="2026-09-28T00:00:00+00:00")
         two = provenance.Claim(field="kickoff", value="2026-10-03T14:00:00Z", source_id="football_data",
                                tier=SourceTier.DATASET, fetched_at="2026-09-28T00:00:00+00:00")
-        merged = provenance.merge_claims([one, two])
+        merged = provenance.merge_claims([one, two], now=self.NOW)
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0].derivation["merged_from"], ["espn", "football_data"])
-        self.assertEqual(provenance.conflicts([one, two]), [])
+        self.assertEqual(provenance.conflicts([one, two], now=self.NOW), [])
 
 
 if __name__ == "__main__":

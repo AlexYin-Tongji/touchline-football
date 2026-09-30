@@ -22,6 +22,12 @@ WIKIDATA = "www.wikidata.org"
 COMMONS = "commons.wikimedia.org"
 HOSTS = frozenset({WIKIPEDIA, WIKIDATA, COMMONS})
 SUCCESS_SECONDS = 86400
+# A completed result is a licensed photo of a real person, not a perishable
+# reading. While it was held to the same 24h as a verdict, every roster rebuild
+# that landed more than a day after the fetch threw the photo away — and because
+# the community fallback only sees rows Wikimedia never filled, those players
+# got no second chance. Verdicts keep the short window; completions get a long one.
+COMPLETED_SECONDS = 30 * 86400
 # A verified identity, a missing page and a licence refusal are durable answers.
 # A throttle or transport fault is not, so it expires quickly and is rechecked.
 RETRY_SECONDS = 300
@@ -307,20 +313,45 @@ async def _commons_license(store, file_name, *, force=False):
     return photo
 
 
-def _portrait_key(player, team_id):
+def _portrait_key(player, team_id, generation=2):
     identity = f"{team_id}|{_name(player.get('name'))}|{player.get('birth_date') or ''}"
-    # v2 invalidates results cached by the earlier logic, which stored a throttle
-    # as a one-hour "no photo for this player" verdict.
-    return "wikimedia_portrait_v2_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
+    return f"wikimedia_portrait_v{generation}_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
 
 
 def cached_portrait(store, player, team_id):
+    """Read the current cache, then the previous generation.
+
+    ``_portrait_key`` changed from v1 to v2 when the old logic stored a throttle
+    as a one-hour "no photo" verdict. Bumping the namespace fixed that, but it
+    also orphaned every entry the earlier generation had already verified — a
+    completed, licence-checked photo became permanently unreadable because the
+    key that addressed it was no longer computed. Read the previous generation
+    as a fallback so a version bump can no longer delete a real result.
+    """
     cached = store.get_meta(_portrait_key(player, team_id), {})
-    if (cached.get("status") in {"completed", "rejected", "missing"}
-            and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS
-            or cached.get("status") == "unavailable" and _age_seconds(cached.get("last_attempt")) < RETRY_SECONDS):
+    if not cached:
+        cached = store.get_meta(_portrait_key(player, team_id, generation=1), {})
+    if _fresh_enough(cached):
         return cached
     return None
+
+
+def _fresh_enough(cached):
+    """Whether a stored verdict still answers this question today.
+
+    A verified free-licence portrait is a stable fact about a player, and the
+    community source already trusts its own completion for a week. Holding the
+    stronger, licence-checked source to a shorter life than the weaker one only
+    threw away good photos. Verdicts stay durable; faults still expire fast.
+    """
+    status = cached.get("status")
+    if status == "completed":
+        return _age_seconds(cached.get("fetched_at")) < COMPLETED_SECONDS
+    if status in {"rejected", "missing"}:
+        return _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS
+    if status == "unavailable":
+        return _age_seconds(cached.get("last_attempt")) < RETRY_SECONDS
+    return False
 
 
 RETRYABLE_REASON = "维基媒体查询过于频繁或暂时不可达，稍后自动重试。"

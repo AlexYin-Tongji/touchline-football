@@ -205,7 +205,10 @@ class LocalToolTests(unittest.TestCase):
             row.update(patches)
             self.store.put("runs", row)
         result = agent.history_messages(self.store, self.run, self.local)
-        self.assertEqual(len(result), 2)
+        # One block label plus the single in-scope turn: the filtering is what
+        # this test is about, and the label is now stated once for the block
+        # rather than once per replayed answer.
+        self.assertEqual(len(result), 3)
         self.assertIn("valid", result[-1]["content"])
 
     def test_all_skills_are_real_runtime_files(self):

@@ -26,6 +26,24 @@ from .research import article_url
 from .team_profiles import _evidence_hash
 
 REPORT_CONCURRENCY = 4
+# A failed report is retried, but not forever and not immediately. Five attempts
+# covers the transient causes (throttling, an unconfigured model, a restart
+# mid-run); the backoff keeps a source that is genuinely down from being retried
+# on every cycle.
+FAILED_REPORT_ATTEMPT_LIMIT = 5
+
+
+def FAILED_REPORT_BACKOFF_SECONDS(attempts):
+    """Wait before retrying a failed report: 15m, 1h, 4h, 12h."""
+    return (900, 3600, 14400, 43200)[min(int(attempts or 0), 3)]
+
+
+def _elapsed(value):
+    """Seconds since an ISO timestamp; None or unparseable counts as long ago."""
+    try:
+        return max(0.0, (datetime.now(timezone.utc) - parse_time(value)).total_seconds())
+    except Exception:
+        return float("inf")
 
 
 def _worker_lock(store, team_id=None):
@@ -706,7 +724,19 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                 if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
                     continue
                 if row.get("status") == "failed":
-                    continue
+                    # A failure used to end this row's life: the automatic queue
+                    # skipped it forever and only a manual retry could revive it,
+                    # so any transient cause — a rate limit, an unconfigured
+                    # model, a crash mid-run — silently removed that event from
+                    # the feed for good. Attempts are now bounded rather than
+                    # forbidden. The cap keeps a genuinely broken event from
+                    # looping, and the backoff keeps a source outage from being
+                    # hammered; past the cap the row is left alone as before.
+                    attempts = int(row.get("attempts") or 0)
+                    if attempts >= FAILED_REPORT_ATTEMPT_LIMIT:
+                        continue
+                    if _elapsed(row.get("updated_at")) < FAILED_REPORT_BACKOFF_SECONDS(attempts):
+                        continue
                 if not _current(store, row, settings):
                     row.update(status="stale", report=None, updated_at=_stamp(), manual_once=False)
                     store.put("reports", row)

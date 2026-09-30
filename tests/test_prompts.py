@@ -98,9 +98,14 @@ class HistoryTests(PromptCase):
         self.store.put("runs", {**self.run, "id": "older", "status": "completed",
                                 "question": "上一问", "answer": "上一答"})
         messages = prompts.history_messages(self.local)
+        # The label is stated once for the block rather than repeated before
+        # every prior answer, so the transcript carries no fixed caveat sentence
+        # for the model to imitate.
         self.assertEqual(messages[0]["role"], "user")
-        self.assertEqual(messages[1]["role"], "assistant")
-        self.assertIn("不作为本次证据", messages[1]["content"])
+        self.assertIn("不作为本次证据", messages[0]["content"])
+        self.assertEqual(messages[1]["role"], "user")
+        self.assertEqual(messages[2]["role"], "assistant")
+        self.assertEqual(messages[2]["content"], "上一答")
 
     def test_history_is_empty_without_a_conversation(self):
         self.run.pop("conversation_id")

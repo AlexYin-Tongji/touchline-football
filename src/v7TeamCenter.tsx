@@ -23,6 +23,9 @@ import type { AssistantPrompt } from "./v7Assistant";
 interface Player {
   id: string;
   name: string;
+  /** Chinese reading of the name, present only when it is a known reading.
+   *  The interface shows it beside `name`, never instead of it. */
+  name_zh?: string;
   number?: string | number;
   position: string;
   position_group: string;
@@ -779,7 +782,10 @@ export function TeamCenter({
                   <span className="player-position">{item.position}</span>
                 </div>
                 <div className="player-card-info">
-                  <h3>{item.name}</h3>
+                  <h3>
+                    {item.name_zh || item.name}
+                    {item.name_zh && <small className="player-name-source">{item.name}</small>}
+                  </h3>
                   <p>
                     {[item.nationality, item.age ? `${item.age} 岁` : ""]
                       .filter(Boolean)
@@ -940,8 +946,18 @@ export function TeamCenter({
         <Modal title={player.name} onClose={() => setPlayer(null)}>
           <div className="player-detail">
             <div className="player-detail-hero">
-              <span>{player.number}</span>
-              <PlayerPhoto player={player} />
+              <div className="player-detail-photo">
+                {player.number ? (
+                  <span className="player-number">{player.number}</span>
+                ) : null}
+                <PlayerPhoto player={player} />
+              </div>
+              <div className="player-detail-intro">
+                <span className="pill">
+                  {player.position} · {team.name}
+                </span>
+                {player.bio && <p className="player-bio">{player.bio}</p>}
+              </div>
             </div>
             {playerPhotoUrl(player) && (
               <p className="player-photo-attribution">
@@ -959,12 +975,9 @@ export function TeamCenter({
             {!playerPhotoUrl(player) && player.photo_reason && (
               <p className="player-photo-reason">暂无可核验照片：{player.photo_reason}</p>
             )}
-            <span className="pill">
-              {player.position} · {team.name}
-            </span>
-            {player.bio && <p className="player-bio">{player.bio}</p>}
             <dl>
               {[
+                ["中文名", player.name_zh],
                 ["国籍", player.nationality],
                 ["年龄", player.age ? `${player.age} 岁` : undefined],
                 [

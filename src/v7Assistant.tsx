@@ -75,54 +75,54 @@ const conversationStatus: Record<string, string> = {
   failed: "可重试",
   cancelled: "已停止",
 };
+// Each card writes a one-line question into the composer. They used to spell out
+// three or four enumeration clauses ("发生了什么，对球队有什么影响，接下来关注什么"),
+// which pre-loaded every turn with a four-part brief and was a large part of why
+// ordinary answers arrived as a filled-in form: the model answered the shape of
+// the question rather than the question. One clause each, phrased the way a
+// supporter would actually ask it.
 const cards = [
   {
     id: "team_brief",
     title: "今日球队速览",
     description: "重要消息、阵容变化与下一场比赛",
     icon: Sparkles,
-    prompt: (team: string) =>
-      `帮我整理${team}今天值得关注的消息：发生了什么，对球队有什么影响，接下来关注什么？`,
+    prompt: (team: string) => `${team}今天有什么值得关注的消息？`,
   },
   {
     id: "match_preview",
     title: "比赛前瞻",
     description: "看点、对位与可能左右比赛的细节",
     icon: Trophy,
-    prompt: (team: string) =>
-      `请为${team}下一场比赛做一份前瞻，介绍双方近况、关键对位和比赛看点。`,
+    prompt: (team: string) => `${team}下一场有什么值得留意的？`,
   },
   {
     id: "match_review",
     title: "赛后复盘",
     description: "关键转折与比赛背后的原因",
     icon: ChartNoAxesCombined,
-    prompt: (team: string) =>
-      `请复盘${team}最近一场比赛，分析关键转折、战术调整和球员表现。`,
+    prompt: (team: string) => `${team}最近这场比赛是怎么输赢的？`,
   },
   {
     id: "transfer_check",
     title: "转会追踪",
     description: "厘清传闻、已知进展与实际影响",
     icon: ScanSearch,
-    prompt: (team: string) =>
-      `帮我梳理${team}近期转会消息，区分官方确认和媒体传闻，分析可能对阵容产生的影响。`,
+    prompt: (team: string) => `${team}最近的转会消息有哪些是靠得住的？`,
   },
   {
     id: "tactics_explainer",
     title: "战术讲解",
     description: "把阵型、跑位与配合理解透彻",
     icon: Shield,
-    prompt: (team: string) =>
-      `用容易理解的方式讲解${team}目前的战术风格、攻防套路与关键球员的作用。`,
+    prompt: (team: string) => `${team}现在踢的是什么路子？`,
   },
   {
     id: "team_maintenance",
     title: "球队与球员画像",
     description: "球队风格、球员特点与数据表现",
     icon: Users,
-    prompt: (team: string) =>
-      `为${team}做一份球队画像：球队背景、核心阵容、关键球员特点和本赛季数据表现。`,
+    prompt: (team: string) => `给我讲讲${team}现在这套阵容。`,
   },
 ];
 const activeRun = (run: Run) => ["queued", "running"].includes(run.status);
@@ -813,9 +813,11 @@ export function Assistant({
                     <button
                       className="text-button"
                       onClick={() => {
-                        setQuestion(
-                          `关于刚才的回答，请进一步解释其中最值得关注的变化。`,
-                        );
+                        // Asked the way a person would ask it. The previous fixed
+                        // text ("请进一步解释其中最值得关注的变化") was abstract enough
+                        // that no source could answer it directly, so every
+                        // follow-up produced the same generalising paragraph.
+                        setQuestion("这里面哪一条最要紧？");
                         textarea.current?.focus();
                       }}
                     >

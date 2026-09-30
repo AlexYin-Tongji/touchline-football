@@ -109,7 +109,10 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
         value["facts"][0]["evidence_ids"].append("ev_updated")
         local.call("submit_answer", value)
         self.assertEqual(local.submission["source_document_count"], 1)
-        self.assertIn("同一篇来源原文", local.submission["answer"])
+        # Two captures of one URL are one source document. The count above is the
+        # invariant; the answer body no longer carries a fixed line saying so,
+        # because the same sentence appeared under most answers regardless of
+        # the question.
         self.assertEqual(local.submission["evidence_ids"], ["ev_injury", "ev_updated"])
 
     def test_explicit_two_item_limit_controls_structured_submission(self):

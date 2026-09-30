@@ -71,7 +71,16 @@ def source_tier(url):
     # Importing the providers is what grants their hosts a tier, so it is done
     # here rather than trusted to whether some other module happened to load
     # them. A missing import would show every source as unclassified.
-    providers.load()
+    #
+    # This runs once per source per item, and it is the only V8 addition that
+    # touches every feed entry. A failure to import the registry therefore used
+    # to take down the whole feed with a 500; an unlabelled source is the right
+    # degradation, because the tier badge is display-only and never gates
+    # eligibility.
+    try:
+        providers.load()
+    except Exception:
+        return {"tier": None, "tier_label": UNCLASSIFIED_LABEL, "tier_known": False}
     try:
         tier = provenance.tier_for_url(url)
     except Exception:
