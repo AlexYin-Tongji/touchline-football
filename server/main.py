@@ -101,6 +101,10 @@ class TeamMaintenanceInput(Model):
     parts: list[Literal["roster", "schedule", "standings", "portraits"]] | None = Field(None, min_length=1, max_length=4)
 
 
+class ClubPreparationInput(Model):
+    kind: Literal["team", "news"] = "team"
+
+
 class SettingsPatch(Model):
     mode: Mode | None = None
     followed_teams: list[Identifier] | None = Field(None, max_length=100)
@@ -334,10 +338,12 @@ def create_app(db_path=None, *, collection_enabled=None):
     from .team_center import TeamMaintenanceManager
     install_personal_defaults(store)
     team_maintenance = TeamMaintenanceManager(store)
+    from .club_preparation import ClubPreparationManager
+    preparation = ClubPreparationManager(store, team_maintenance)
     from .collection_scheduler import CollectionScheduler
     if collection_enabled is None:
         collection_enabled = os.environ.get("TOUCHLINE_COLLECTION_ENABLED", "1") != "0"
-    collection_scheduler = CollectionScheduler(store, team_maintenance, enabled=collection_enabled)
+    collection_scheduler = CollectionScheduler(store, team_maintenance, enabled=collection_enabled, data_preparation=preparation)
     personal = PersonalRefreshManager(store, team_maintenance)
     from .workflows import WorkflowManager
     workflows = WorkflowManager(store)
@@ -379,6 +385,7 @@ def create_app(db_path=None, *, collection_enabled=None):
         collection_scheduler.start()
         yield
         await collection_scheduler.close()
+        await preparation.close()
         await workflows.close()
         await automation.close()
         await league_sync.close()
@@ -403,6 +410,7 @@ def create_app(db_path=None, *, collection_enabled=None):
     app.state.personal = personal
     app.state.workflows = workflows
     app.state.team_maintenance = team_maintenance
+    app.state.preparation = preparation
     app.state.collection_scheduler = collection_scheduler
     app.state.runtime = runtime
     app.state.access = access
@@ -759,19 +767,25 @@ def create_app(db_path=None, *, collection_enabled=None):
         from .personal_app import feed_view
         if team_id:
             team_exists(team_id)
-        return feed_view(store, team_id, cursor, limit, topic=topic)
+        view = feed_view(store, team_id, cursor, limit, topic=topic)
+        if team_id:
+            view["preparation"] = preparation.status("news", team_id)
+        return view
 
     @app.post("/api/feed/refresh", status_code=202)
     async def refresh_feed(payload: PersonalRefreshInput):
         if payload.team_id:
             team_exists(payload.team_id)
         targets = [payload.team_id] if payload.team_id else store.settings().get("followed_teams", [])
+        for target in targets:
+            await preparation.stop("news", target)
         states = [workflows.start("news", target) for target in targets]
         return {"started": any(item.get("started") for item in states), "workflows": states}
 
     @app.post("/api/feed/organize")
     async def organize_feed(payload: ManualOrganizeInput):
         team_exists(payload.team_id)
+        await preparation.stop("news", payload.team_id)
         result = workflows.start("news", payload.team_id)
         if result["status"] == "blocked":
             raise HTTPException(400, result["message"])
@@ -785,18 +799,30 @@ def create_app(db_path=None, *, collection_enabled=None):
     @app.post("/api/workflows/{kind}/{team_id}/start", status_code=202)
     async def start_workflow(kind: Literal["news", "team"], team_id: Identifier):
         team_exists(team_id)
+        await preparation.stop(kind, team_id)
         return workflows.start(kind, team_id)
 
     @app.post("/api/workflows/{kind}/{team_id}/stop")
     async def stop_workflow(kind: Literal["news", "team"], team_id: Identifier):
         team_exists(team_id)
+        await preparation.stop(kind, team_id)
         return await workflows.stop(kind, team_id)
 
     @app.get("/api/teams/{team_id}/center")
     async def get_team_center(team_id: Identifier, reveal: bool = False):
         from .team_center import center_view
         team_exists(team_id)
-        return center_view(store, team_id, reveal=reveal)
+        return {**center_view(store, team_id, reveal=reveal), "preparation": preparation.status("team", team_id)}
+
+    @app.post("/api/teams/{team_id}/prepare", status_code=202)
+    async def prepare_club(team_id: Identifier, payload: ClubPreparationInput = ClubPreparationInput()):
+        team_exists(team_id)
+        return preparation.start(payload.kind, team_id)
+
+    @app.get("/api/teams/{team_id}/preparation")
+    async def club_preparation_status(team_id: Identifier, kind: Literal["team", "news"] = "team"):
+        team_exists(team_id)
+        return preparation.status(kind, team_id)
 
     @app.get("/api/teams/{team_id}/decisions")
     async def team_decisions(team_id: Identifier, limit: int = Query(20, ge=1, le=50), reveal: bool = False):
@@ -844,10 +870,13 @@ def create_app(db_path=None, *, collection_enabled=None):
 
     @app.post("/api/reports/{identifier}/retry")
     async def retry_report(identifier: Identifier):
-        report = news_reports.retry_report(store, identifier)
+        report = news_reports.retry_report(store, identifier, explicit=True)
         if not report:
             raise HTTPException(404, "报告不存在或当前不可见。")
-        state = workflows.start("news", report["team_id"])
+        if report.get("status") not in {"queued", "needs_configuration"}:
+            return report
+        await preparation.stop("news", report["team_id"])
+        state = workflows.start("news", report["team_id"], report_ids=[report["id"]])
         if state["status"] == "blocked":
             raise HTTPException(400, state["message"])
         return report

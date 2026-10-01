@@ -1,4 +1,4 @@
-"""Resident, data-only upkeep of followed clubs using the freshness planner."""
+"""Resident data-only upkeep of followed and recently visited clubs."""
 from __future__ import annotations
 
 import asyncio
@@ -13,9 +13,10 @@ class CollectionScheduler:
     TEAM_TIMEOUT_SECONDS = 180
     BATCH_SIZE = 2
 
-    def __init__(self, store, team_maintenance, *, enabled=True):
+    def __init__(self, store, team_maintenance, *, enabled=True, data_preparation=None):
         self.store, self.maintenance = store, team_maintenance
         self.enabled = enabled
+        self.data_preparation = data_preparation
         self.task = None
         self.lock = asyncio.Lock()
 
@@ -51,6 +52,8 @@ class CollectionScheduler:
             states = status.setdefault("teams", {})
             followed = list(dict.fromkeys(team for team in self.store.settings().get("followed_teams", [])
                                           if self.store.get("teams", team)))
+            from .club_preparation import recent_teams
+            followed = list(dict.fromkeys([*followed, *recent_teams(self.store, moment=moment)]))
             cursor = int(status.get("cursor", 0)) % max(1, len(followed))
             ordered = followed[cursor:] + followed[:cursor]
             processed = []
@@ -66,6 +69,10 @@ class CollectionScheduler:
                 if manual.get("status") in {"running", "waiting", "stopping"}:
                     continue
                 processed.append(team_id)
+                if self.data_preparation:
+                    news = self.data_preparation.status("news", team_id)
+                    if news["status"] not in {"idle", "interrupted"}:
+                        self.data_preparation.start("news", team_id, remember=False)
                 status["cursor"] = (followed.index(team_id) + 1) % max(1, len(followed))
                 try:
                     async with asyncio.timeout(self.TEAM_TIMEOUT_SECONDS):
@@ -73,12 +80,18 @@ class CollectionScheduler:
                         if result.get("started"):
                             result = await self.maintenance.wait_for_team(team_id)
                     failed = result.get("status") in {"failed", "partial", "interrupted", "unavailable"}
+                    photo = (result.get("components") or {}).get("portraits") or {}
+                    continuing_photos = result.get("status") == "partial" and photo.get("continuation_ready") is True
+                    if continuing_photos:
+                        failed = False
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    failed, result = True, {"status": "failed"}
+                    failed, continuing_photos, result = True, False, {"status": "failed"}
                 failures = min(10, int(previous.get("failures", 0)) + 1) if failed else 0
                 wait = min(3600, 300 * 2 ** (failures - 1)) if failed else self.REVIEW_SECONDS
+                if continuing_photos:
+                    wait = self.INTERVAL_SECONDS
                 if result.get("status") == "running":
                     wait = self.INTERVAL_SECONDS
                 states[team_id] = {"last_check": moment.isoformat(), "next_check": (moment + timedelta(seconds=wait)).isoformat(),

@@ -129,6 +129,7 @@ interface CenterData {
     total_count?: number;
   }>>;
   coverage?: { matches: number; expected_matches: number | null; has_full_schedule: boolean; results_complete: boolean | null; basis: string };
+  preparation?: { status: string; message: string; counts?: { players?: number; photos?: number } };
 }
 const componentNames = { roster: "球员阵容", schedule: "比赛赛程", standings: "积分榜", portraits: "球员照片" };
 const componentStatuses: Record<string, string> = {
@@ -251,10 +252,23 @@ export function TeamCenter({
     };
   }, [load]);
   useEffect(() => {
+    let disposed = false;
+    void api(`/teams/${encodeURIComponent(team.id)}/prepare`, {
+      method: "POST", body: JSON.stringify({ kind: "team" }),
+    }).then(() => { if (!disposed) void load(); }).catch((err) => {
+      if (!disposed) setError(errorText(err));
+    });
+    return () => { disposed = true; };
+    // Preparation is tied to opening a club, independent of tabs or reveal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team.id]);
+  useEffect(() => {
     const refreshVisible = () => {
       if (document.visibilityState === "visible" && !reading.current) void load();
     };
-    const timer = window.setInterval(refreshVisible, 60000);
+    const preparing = center?.preparation?.status === "running" ||
+      Object.values(center?.components || {}).some((item) => item?.status === "running");
+    const timer = window.setInterval(refreshVisible, preparing ? 5000 : 60000);
     document.addEventListener("visibilitychange", refreshVisible);
     window.addEventListener("online", refreshVisible);
     return () => {
@@ -262,7 +276,7 @@ export function TeamCenter({
       document.removeEventListener("visibilitychange", refreshVisible);
       window.removeEventListener("online", refreshVisible);
     };
-  }, [load]);
+  }, [load, center?.preparation?.status, center?.components]);
   const workflowChanged = useCallback(() => {
     void load();
   }, [load]);
@@ -339,6 +353,9 @@ export function TeamCenter({
         </div>
       </section>
       <WorkflowControls kind="team" teamId={team.id} onChange={workflowChanged} />
+      {center?.preparation?.status === "running" && (
+        <div className="material-status" role="status"><Spinner /> 正在准备这支球队的名单、照片和比赛资料。</div>
+      )}
       <div className="center-toolbar">
         <div className="filter-tabs">
           {[

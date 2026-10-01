@@ -1,5 +1,6 @@
 """A free image is usable only after person, current club and file checks."""
 import asyncio
+import copy
 import tempfile
 import threading
 import unittest
@@ -54,6 +55,109 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             title = params.get("titles")
             return next((a for a in articles if a["query"]["pages"]["1"]["title"] == title), {})
         return answer
+
+    def identity_replies(self, *, label="马丁·厄德高", image="", entity_flags=None, license_result=None):
+        article = page(image=image)
+        article["query"]["pages"]["1"]["extract"] = "Martin Ødegaard (born 17 December 1998) is a Norwegian professional footballer."
+        entity = {"id": "Q16902219", "claims": {
+            "P106": [{"mainsnak": {"datavalue": {"value": {"id": "Q937857"}}}}],
+            "P569": [{"mainsnak": {"datavalue": {"value": {"time": "+1998-12-17T00:00:00Z"}}}}],
+            "P54": [{"mainsnak": {"datavalue": {"value": {"id": "Q9617"}}},
+                     "qualifiers": {"P580": [{"datavalue": {"value": {"time": "+2020-01-01T00:00:00Z"}}}]}}]},
+            "labels": {"zh-hans": {"language": "zh-hans", "value": label}}}
+        entity.update(entity_flags or {})
+        async def answer(store, host, params):
+            if host == "www.wikidata.org":
+                if params.get("ids") == "Q16902219":
+                    self.assertEqual(params["props"], "claims|labels")
+                    self.assertEqual(params["languages"], "zh-hans|zh")
+                    return {"entities": {"Q16902219": entity}}
+                return {"entities": {"Q9617": {"labels": {"en": {"value": "Arsenal F.C."}}}}}
+            if params.get("list") == "search":
+                return {"query": {"search": [{"title": "Martin Ødegaard"}]}}
+            if host == "commons.wikimedia.org":
+                return license_result if license_result is not None else commons()
+            return article
+        return answer
+
+    async def test_existing_identity_request_can_supply_chinese_name_without_a_photo(self):
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies()) as fetch:
+            result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(fetch.call_count, 4, "search, article, existing person identity and existing club label requests")
+        self.assertEqual(result["status"], "missing")
+        self.assertFalse(result.get("photo_url"))
+        self.assertEqual(result["name_status"], "verified")
+        self.assertEqual(result["name_zh"], "马丁·厄德高")
+        self.assertEqual(result["name_zh_source_url"], "https://www.wikidata.org/wiki/Q16902219")
+        snapshot = {"team_id": "arsenal", "roster": [dict(player, photo_url="")]}
+        shown = team_portraits.apply_cached_portraits(self.store, snapshot)["roster"][0]
+        self.assertEqual(shown["name_zh"], "马丁·厄德高")
+        self.assertEqual(shown["name"], player["name"])
+        self.assertTrue(shown["name_zh_identity"]["identity_checked"])
+        self.assertFalse(shown["photo_url"])
+        changed_person = {**player, "provider_id": "102"}
+        self.assertIsNone(wikimedia_portraits.cached_reading(self.store, changed_person, "arsenal"))
+
+    async def test_name_identity_and_photo_license_have_independent_outcomes(self):
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies(
+                image="Martin.jpg", license_result=commons("CC BY-NC 4.0"))) as fetch:
+            result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(fetch.call_count, 5)
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(wikimedia_portraits.cached_reading(self.store, player, "arsenal")["name_zh"], "马丁·厄德高")
+        self.assertFalse(result.get("photo_url"))
+
+    async def test_photo_license_network_failure_cannot_erase_a_checked_name(self):
+        from server.ingestion import IngestionError
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies(image="Martin.jpg")), \
+             patch.object(wikimedia_portraits, "_commons_license", new=AsyncMock(side_effect=IngestionError("许可来源暂时不可达"))):
+            result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(result["status"], "unavailable")
+        self.assertFalse(result.get("photo_url"))
+        self.assertEqual(wikimedia_portraits.cached_reading(self.store, player, "arsenal")["name_zh"], "马丁·厄德高")
+
+    async def test_missing_private_or_non_chinese_entity_cannot_publish_a_name(self):
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        for flags, label in (({}, "Martin Odegaard"), ({"missing": ""}, "马丁·厄德高"),
+                             ({"private": True}, "马丁·厄德高"), ({"deleted": True}, "马丁·厄德高"),
+                             ({"id": "Q123"}, "马丁·厄德高"), ({}, "马丁<script>")):
+            with self.subTest(flags=flags, label=label), patch.object(wikimedia_portraits, "request_json",
+                    side_effect=self.identity_replies(label=label, entity_flags=flags)):
+                result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal", force=True)
+            self.assertNotIn("name_zh", result)
+            self.assertIsNone(wikimedia_portraits.cached_reading(self.store, player, "arsenal"))
+
+    async def test_latest_unknown_name_proof_cannot_restore_previous_name_fields(self):
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies()):
+            verified = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        shown = team_portraits.apply_cached_portraits(self.store, {"team_id": "arsenal", "roster": [dict(player)]})
+        self.assertEqual(shown["roster"][0]["name_zh"], "马丁·厄德高")
+        self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal"),
+                            {"status": "unavailable", "name_status": "unknown", "last_success": verified})
+        revoked = team_portraits.apply_cached_portraits(self.store, shown)
+        self.assertNotIn("name_zh", revoked["roster"][0])
+        self.assertNotIn("name_zh_identity", revoked["roster"][0])
+
+    async def test_ambiguous_person_pages_cannot_publish_either_chinese_label(self):
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        base = self.identity_replies()
+        async def ambiguous(store, host, params):
+            if params.get("list") == "search":
+                return {"query": {"search": [{"title": "Martin Ødegaard"}, {"title": "Martin Ødegaard (footballer)"}]}}
+            response = await base(store, host, params)
+            if params.get("titles") == "Martin Ødegaard (footballer)":
+                response["query"]["pages"]["1"]["title"] = params["titles"]
+            return response
+        with patch.object(wikimedia_portraits, "request_json", side_effect=ambiguous):
+            result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(result["name_status"], "unknown")
+        self.assertNotIn("name_zh", result)
+        self.assertIsNone(wikimedia_portraits.cached_reading(self.store, player, "arsenal"))
 
     async def test_exact_current_club_and_free_license_keep_author_and_personality_notice(self):
         with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()) as fetch:
@@ -209,6 +313,8 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(primary.await_count, 2)
         self.assertEqual(one["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
         self.assertEqual(two["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
+        self.assertTrue(one["continuation_ready"], "an independent Wikimedia outage must not stall the healthy source's next batch")
+        self.assertTrue(two["continuation_ready"])
         self.assertEqual([call.args[1]["provider_id"] for call in fallback.call_args_list],
                          [str(i) for i in range(1, size)])
 
@@ -240,6 +346,19 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("维基媒体照片来源", player["photo_reason"])
             self.assertIn("TheSportsDB 社区照片来源", player["photo_reason"])
             self.assertIn(community_gap["photo_reason"], player["photo_reason"])
+
+    async def test_an_attempted_but_unavailable_source_does_not_mark_a_batch_ready(self):
+        squad = {"team_id": "arsenal", "roster": [
+            {"provider_id": str(index), "name": f"Player {index}", "nationality": "德国", "photo_url": ""}
+            for index in range(1, 15)]}
+        gap = {"status": "unavailable", "photo_reason": "暂时不可达", "retryable": True}
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)), \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)):
+            _, summary = await team_portraits.enrich_player_photos(self.store, squad)
+        self.assertEqual(summary["community_attempted_count"], 1)
+        self.assertGreater(summary["community_remaining_count"], 0)
+        self.assertTrue(summary["community_unavailable"])
+        self.assertFalse(summary["continuation_ready"])
 
     async def test_old_roster_community_photo_cannot_bypass_new_identity_check(self):
         old_photo = {"status": "completed", "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/old.png",
@@ -327,6 +446,102 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["roster"][0].get("photo_file_page"))
         self.assertIn("俱乐部", result["roster"][0]["photo_reason"])
         self.assertEqual(summary["status"], "missing")
+
+    async def test_public_roster_reads_obey_current_verdicts_before_old_photos(self):
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            photo = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        player = {"provider_id": "1", **self.player, **photo}
+        current_key = wikimedia_portraits._portrait_key(player, "arsenal")
+        self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal", generation=1), photo)
+        verdicts = [{"status": status, "fetched_at": now()} for status in ("rejected", "missing")]
+        verdicts += [{**photo, flag: value} for flag, value in
+                     (("private", True), ("deleted", True), ("restricted", True), ("missing", ""), ("suppressed", ""))]
+        verdicts.append({"status": "rejected", "fetched_at": "2020-01-01T00:00:00Z"})
+        for verdict in verdicts:
+            with self.subTest(verdict=verdict):
+                self.store.set_meta(current_key, verdict)
+                shown = team_portraits.apply_cached_portraits(self.store,
+                    {"team_id": "arsenal", "roster": [copy.deepcopy(player)]})["roster"][0]
+                self.assertFalse(shown["photo_url"])
+                self.assertFalse(any(shown.get(field) for field in
+                    ("photo_source_url", "photo_file_page", "photo_credit", "photo_license", "photo_restrictions")))
+        self.assertTrue(player["photo_url"], "stored facts and the caller snapshot remain unchanged")
+
+    async def test_public_network_fallback_requires_a_fresh_complete_public_last_success(self):
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            photo = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        player = {"provider_id": "1", **self.player, **photo}
+        key = wikimedia_portraits._portrait_key(player, "arsenal")
+        self.store.set_meta(key, {"status": "unavailable", "last_attempt": now(), "last_success": photo})
+        shown = team_portraits.apply_cached_portraits(self.store,
+            {"team_id": "arsenal", "roster": [copy.deepcopy(player)]})["roster"][0]
+        self.assertEqual(shown["photo_url"], photo["photo_url"])
+        self.assertEqual(shown["photo_updated_at"], photo["fetched_at"], "a fault must not renew original proof")
+        for invalid in ({**photo, "private": True}, {**photo, "suppressed": ""},
+                        {**photo, "photo_credit": ""}, {**photo, "photo_match": "unverified"},
+                        {**photo, "fetched_at": "2020-01-01T00:00:00Z"}):
+            with self.subTest(last_success=invalid):
+                self.store.set_meta(key, {"status": "unavailable", "last_attempt": now(), "last_success": invalid})
+                shown = team_portraits.apply_cached_portraits(self.store,
+                    {"team_id": "arsenal", "roster": [copy.deepcopy(player)]})["roster"][0]
+                self.assertFalse(shown["photo_url"])
+                self.assertNotIn("photo_file_page", shown)
+
+    async def test_current_commons_denial_overrides_portrait_and_network_last_success(self):
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            photo = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        player = {"provider_id": "1", **self.player, **photo}
+        self.store.set_meta(wikimedia_portraits._commons_key("Martin.jpg"),
+                            {"status": "rejected", "fetched_at": now(), "photo": None})
+        for current in (photo, {"status": "unavailable", "last_attempt": now(), "last_success": photo}):
+            with self.subTest(current=current):
+                self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal"), current)
+                for row in (copy.deepcopy(player), {"provider_id": "1", **self.player, "photo_url": ""}):
+                    shown = team_portraits.apply_cached_portraits(self.store,
+                        {"team_id": "arsenal", "roster": [row]})["roster"][0]
+                    self.assertFalse(shown["photo_url"])
+                    self.assertNotIn("photo_source_url", shown)
+                    self.assertNotIn("photo_file_page", shown)
+
+    async def test_selected_player_enrichment_cannot_return_another_players_revoked_photo(self):
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            photo = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        revoked = {"provider_id": "1", **self.player, **photo}
+        self.store.set_meta(wikimedia_portraits._portrait_key(revoked, "arsenal"),
+                            {"status": "rejected", "fetched_at": now(), "photo_reason": "来源已撤回。"})
+        current = {"provider_id": "2", "name": "Example Player", **team_portraits.espn_headshot({
+            "id": "2", "headshot": {"href": "https://a.espncdn.com/i/headshots/soccer/players/full/2.png"}}, fetched_at=now())}
+        result, summary = await team_portraits.enrich_player_photos(self.store,
+            {"team_id": "arsenal", "roster": [revoked, current]}, player_ids=["2"])
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(summary["available_count"], 1)
+        self.assertFalse(result["roster"][0]["photo_url"])
+        self.assertNotIn("photo_file_page", result["roster"][0])
+        self.assertTrue(result["roster"][1]["photo_url"])
+        self.assertTrue(revoked["photo_url"], "the input snapshot remains untouched")
+
+    def test_commons_withdrawal_flags_reject_preserved_page_and_imageinfo_metadata(self):
+        for layer in ("page", "imageinfo"):
+            for flag, value in (("private", True), ("deleted", True), ("restricted", True),
+                                ("missing", ""), ("suppressed", ""), ("filehidden", "")):
+                with self.subTest(layer=layer, flag=flag):
+                    payload = commons()
+                    record = payload["query"]["pages"]["2"]
+                    (record if layer == "page" else record["imageinfo"][0])[flag] = value
+                    self.assertIsNone(wikimedia_portraits._license_metadata(payload, "Martin.jpg"))
+        self.assertIsNotNone(wikimedia_portraits._license_metadata(commons(), "Martin.jpg"))
+
+    async def test_cancelled_forced_revalidation_preserves_the_prior_source_verdict(self):
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            photo = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        key = wikimedia_portraits._portrait_key(self.player, "arsenal")
+        for prior in (photo, {"status": "rejected", "fetched_at": now(), "photo_reason": "来源已撤回。"}):
+            with self.subTest(prior=prior):
+                self.store.set_meta(key, prior)
+                with patch.object(wikimedia_portraits, "request_json", new=AsyncMock(side_effect=asyncio.CancelledError)):
+                    with self.assertRaises(asyncio.CancelledError):
+                        await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal", force=True)
+                self.assertEqual(self.store.get_meta(key), prior)
 
     def test_current_club_ignores_parent_club_after_on_loan_from(self):
         self.assertEqual(wikimedia_portraits._current_club(

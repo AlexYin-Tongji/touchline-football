@@ -1,5 +1,6 @@
 """The name table only ever looks up; it never derives a reading."""
 import unittest
+from server.ingestion import now
 
 from server import player_names
 
@@ -25,8 +26,28 @@ class NormalizationTests(unittest.TestCase):
 
 class LookupTests(unittest.TestCase):
     def test_a_known_name_returns_its_reading(self):
-        self.assertEqual(player_names.reading_for("Thibaut Courtois"), "库尔图瓦")
-        self.assertEqual(player_names.reading_for("Jude Bellingham"), "贝林厄姆")
+        self.assertEqual(player_names.reading_for("Erling Haaland"), "哈兰德")
+        self.assertEqual(player_names.reading_for("Rúben Dias"), "鲁本·迪亚斯")
+
+    def test_a_legacy_spelling_without_source_is_not_presented_as_checked(self):
+        for name in ("Thibaut Courtois", "Jude Bellingham"):
+            self.assertEqual(player_names.reading_for(name), "")
+            row = player_names.with_reading({"name": name, "name_zh": "旧译名"})
+            self.assertNotIn("name_zh", row)
+            self.assertEqual(row["name"], name)
+
+    def test_attested_reading_stays_preferred_over_an_identity_checked_label(self):
+        row = {"name": "Erling Haaland", "team_id": "manchester-city", "provider_id": "1"}
+        candidate = {"name_zh": "埃尔林·哈兰", "name_zh_source": "Wikidata 中文标签",
+                     "name_zh_source_url": "https://www.wikidata.org/wiki/Q28967995", "name_zh_checked_at": now(),
+                     "name_zh_identity": {"qid": "Q28967995", "method": "wikidata_existing_identity_check",
+                         "name": row["name"], "team_id": row["team_id"], "provider_id": "1", "roster_birth_date": "",
+                         "label": "埃尔林·哈兰", "language": "zh-hans", "identity_checked": True,
+                         "unique_article": True, "public": True}}
+        result = player_names.with_reading(row, source_reading=candidate)
+        self.assertEqual(result["name_zh"], "哈兰德")
+        self.assertNotEqual(result["name_zh_source"], "Wikidata 中文标签")
+        self.assertNotIn("name_zh_identity", result)
 
     def test_an_unknown_name_returns_nothing_rather_than_a_guess(self):
         # Absence is a real answer: the reader keeps the source spelling. A
@@ -36,9 +57,10 @@ class LookupTests(unittest.TestCase):
             self.assertEqual(player_names.reading_for(name), "")
 
     def test_with_reading_adds_the_field_and_keeps_the_source_spelling(self):
-        row = player_names.with_reading({"name": "Thibaut Courtois"})
-        self.assertEqual(row["name"], "Thibaut Courtois")
-        self.assertEqual(row["name_zh"], "库尔图瓦")
+        row = player_names.with_reading({"name": "Erling Haaland"})
+        self.assertEqual(row["name"], "Erling Haaland")
+        self.assertEqual(row["name_zh"], "哈兰德")
+        self.assertTrue(row["name_zh_source_url"])
 
     def test_with_reading_removes_a_stale_reading(self):
         # A row that was written when the table held the name must not keep a

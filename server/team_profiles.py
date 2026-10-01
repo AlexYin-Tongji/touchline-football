@@ -49,6 +49,10 @@ def _evidence_hash(evidence, *, legacy=False):
     if legacy:
         value.update(text=evidence.get("text"), fetched_at=evidence.get("fetched_at"))
     else:
+        # Existing source proofs retain their old hash until the publisher
+        # actually provides new date information; no blanket report migration.
+        value.update({key: evidence[key] for key in ("published_date", "publication_precision")
+                      if evidence.get(key) is not None and (not evidence.get("published_at") or evidence.get("publication_precision") != "instant")})
         value["body_hash"] = evidence.get("body_hash") or hashlib.sha256(str(evidence.get("text") or "").encode()).hexdigest()
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
@@ -93,7 +97,7 @@ independent support report exists, only its supported fact text may be saved.
                 visible = safe_evidence_view(source)
             if not visible or snapshot.get("text") != visible.get("text", "")[:12000] or any(
                     snapshot.get(key) != visible.get(key) for key in
-                    ("title", "url", "source_name", "published_at", "fetched_at", "origin")):
+                    ("title", "url", "source_name", "published_at", "published_date", "publication_precision", "fetched_at", "origin")):
                 snapshots_match = False
                 break
         if not snapshots_match:
@@ -103,7 +107,7 @@ independent support report exists, only its supported fact text may be saved.
         with store.atomic() if hasattr(store, "atomic") else nullcontext():
             existing = store.get("knowledge", identifier) or {}
             source_rows = [{key: source.get(key) for key in
-                            ("id", "title", "url", "source_name", "published_at", "fetched_at", "origin")}
+                            ("id", "title", "url", "source_name", "published_at", "published_date", "publication_precision", "fetched_at", "origin")}
                            | {"content_hash": _evidence_hash(source)} for source in sources]
             # A citation-only rerun cannot promote its wording to independently
             # supported merely because an old source version passed a check.

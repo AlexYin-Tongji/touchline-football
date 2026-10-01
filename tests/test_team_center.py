@@ -1,5 +1,6 @@
 """Squad identity, provenance, statistics and background maintenance regressions."""
 import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
@@ -45,9 +46,7 @@ class RosterParserTests(unittest.TestCase):
         self.assertNotEqual(player["age"], 99)
         self.assertEqual(player["stats"]["goals"], 1)
         self.assertIsNone(player["stats"]["assists"])
-        # A roster row carries facts only. A portrait is added later, by a
-        # provider that has checked the player's identity and licence, so the
-        # squad payload itself must never supply one.
+        # No image is guessed when the source does not supply a player photo.
         self.assertEqual(player["photo_url"], "")
         self.assertEqual(player["photo_credit"], "")
         self.assertIn("/id/101", player["source_url"])
@@ -60,6 +59,43 @@ class RosterParserTests(unittest.TestCase):
         self.assertEqual(player["photo_credit"], "")
         self.assertIsNone(player["age"])
         self.assertEqual(player["bio"], "门将 · 1号")
+
+    def test_same_source_id_photos_work_for_unfollowed_teams_across_five_leagues(self):
+        for team_id, league_id, code in (("fulham", "PL", "eng.1"), ("getafe", "PD", "esp.1"),
+                                       ("lecce", "SA", "ita.1"), ("mainz", "BL1", "ger.1"),
+                                       ("angers", "FL1", "fra.1")):
+            with self.subTest(team_id=team_id):
+                payload = roster_payload()
+                image = "https://a.espncdn.com/i/headshots/soccer/players/full/101.png?w=350&h=254"
+                payload["athletes"][0]["headshot"] = {"href": image}
+                league = {**LEAGUE, "id": league_id, "provider_code": code}
+                season = {**SEASON, "id": league_id + "-2026", "league_id": league_id}
+                snapshot = team_center.parse_roster(payload, {**TEAM, "id": team_id}, league, season, "359")
+                player = next(row for row in snapshot["roster"] if row["provider_id"] == "101")
+                self.assertEqual(player["photo_url"], image)
+                self.assertEqual(player["photo_match"], "espn_provider_id")
+                self.assertEqual(player["photo_source_url"], player["source_url"])
+                self.assertEqual(player["photo_updated_at"], snapshot["fetched_at"])
+                self.assertEqual(player["photo_license"], "未声明开放许可")
+
+    def test_source_images_need_allowed_url_and_exact_player_id(self):
+        good = "https://a.espncdn.com/i/headshots/soccer/players/full/101.png"
+        for image in (good.replace("101.png", "102.png"), good.replace("https:", "http:"),
+                      good.replace("a.espncdn.com", "a.espncdn.com.evil.test"),
+                      good.replace("a.espncdn.com", "private@a.espncdn.com"),
+                      good.replace("soccer", "nba"), good.replace("101.png", "default.png"),
+                      good + "?token=secret", good + "#private", good + "?w=-1", good + "\n",
+                      "https://127.0.0.1/101.png", "data:image/png;base64,a", None):
+            with self.subTest(image=image):
+                payload = roster_payload()
+                payload["athletes"][0]["headshot"] = {"href": image}
+                player = next(row for row in self.parse(payload)["roster"] if row["provider_id"] == "101")
+                self.assertEqual(player["photo_url"], "")
+                self.assertNotIn("photo_source_url", player)
+        for flag in ("private", "deleted", "restricted"):
+            payload = roster_payload()
+            payload["athletes"][0]["headshot"] = {"href": good, flag: True}
+            self.assertFalse(next(row for row in self.parse(payload)["roster"] if row["provider_id"] == "101")["photo_url"])
 
     def test_missing_wrong_season_or_wrong_team_cannot_be_used(self):
         cases = []
@@ -300,6 +336,21 @@ class TeamCenterTests(unittest.TestCase):
         self.assertTrue(result["cached"])
         fetch.assert_not_called()
 
+    def test_roster_refresh_cannot_restore_a_withdrawn_source_photo(self):
+        payload = roster_payload()
+        payload["athletes"][0]["headshot"] = {"href": "https://a.espncdn.com/i/headshots/soccer/players/full/101.png"}
+        with patch.object(team_center.league_data, "fetch_json", AsyncMock(return_value=payload)):
+            asyncio.run(team_center.sync_roster(self.store, "arsenal", force=True))
+        first = team_center.center_view(self.store, "arsenal")
+        self.assertTrue(next(row for row in first["roster"] if row["provider_id"] == "101")["photo_url"])
+        payload["athletes"][0].pop("headshot")
+        with patch.object(team_center.league_data, "fetch_json", AsyncMock(return_value=payload)):
+            asyncio.run(team_center.sync_roster(self.store, "arsenal", force=True))
+        second = team_center.center_view(self.store, "arsenal")
+        player = next(row for row in second["roster"] if row["provider_id"] == "101")
+        self.assertFalse(player["photo_url"])
+        self.assertNotIn("photo_source_url", player)
+
     def test_dedicated_player_photo_tool_keeps_roster_facts_and_timestamp(self):
         snapshot = self.save_squad()
         updated = __import__("copy").deepcopy(snapshot)
@@ -327,6 +378,30 @@ class TeamCenterTests(unittest.TestCase):
                 self.assertTrue(manager._start_portraits("arsenal"))
                 await asyncio.gather(*manager.portrait_tasks.values())
                 sync.assert_awaited_once()
+        asyncio.run(run())
+
+    def test_pending_photo_batch_resumes_after_a_minute_while_source_failure_backs_off(self):
+        self.save_squad()
+        key = "team_maintenance_PL-2026_arsenal"
+        attempted = (datetime.now(timezone.utc) - timedelta(seconds=65)).isoformat()
+        async def run():
+            manager = team_center.TeamMaintenanceManager(self.store)
+            with patch.object(team_center, "sync_portraits", AsyncMock(return_value={"status": "partial"})) as sync:
+                self.store.set_meta(key, {"components": {"portraits": {"status": "partial", "last_attempt": attempted,
+                    "community_remaining_count": 16, "continuation_ready": True, "errors": []}}})
+                self.assertTrue(manager._start_portraits("arsenal"))
+                await asyncio.gather(*manager.portrait_tasks.values())
+                self.store.set_meta(key, {"components": {"portraits": {"status": "partial", "last_attempt": attempted,
+                    "community_remaining_count": 4, "community_attempted_count": 12, "community_unavailable": False,
+                    "continuation_ready": True, "errors": ["独立维基来源不可达"]}}})
+                self.assertTrue(manager._start_portraits("arsenal"))
+                await asyncio.gather(*manager.portrait_tasks.values())
+                self.store.set_meta(key, {"components": {"portraits": {"status": "failed", "last_attempt": attempted,
+                    "community_remaining_count": 16, "community_unavailable": True, "continuation_ready": False,
+                    "errors": ["社区来源不可达"]}}})
+                self.assertFalse(manager._start_portraits("arsenal"))
+                self.assertEqual(sync.await_count, 2)
+            await manager.close()
         asyncio.run(run())
 
     def test_dedicated_photos_cannot_overwrite_a_newer_roster(self):

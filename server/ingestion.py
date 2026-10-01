@@ -27,6 +27,7 @@ MAX_ARTICLE_TEXT = 30000
 MAX_FEED_FOLLOWUPS = 6
 
 CONTENT_FIELDS = ("content_status", "content_method", "content_note", "text_truncated")
+PUBLICATION_FIELDS = ("published_at", "published_date", "publication_precision")
 
 
 def content_details(item):
@@ -280,6 +281,55 @@ def published_time(value):
     return timestamp.astimezone(timezone.utc).isoformat()
 
 
+def publication_metadata(value, *, language=""):
+    """Preserve the precision declared by the publisher; never invent a zone."""
+    instant = published_time(value)
+    if instant:
+        return {"published_at": instant, "published_date": instant[:10], "publication_precision": "instant"}
+    result = {"published_at": None, "published_date": None, "publication_precision": None}
+    if not isinstance(value, str) or len(value) > 160:
+        return result
+    value = value.strip()
+    year = month = day = None
+    iso = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?", value)
+    if iso:
+        year, month, day = map(int, iso.groups())
+    else:
+        numeric = re.search(r"(?<!\d)(\d{1,2})([./])(\d{1,2})\2(\d{4})(?!\d)", value)
+        if numeric:
+            first, _, second, declared_year = numeric.groups()
+            if int(first) > 12 or language.lower().split("-")[0] in {"de", "fr", "es", "it", "pt"} or language.lower() == "en-gb":
+                day, month, year = int(first), int(second), int(declared_year)
+        if year is None:
+            months = (
+                ("january", "jan", "janvier", "janv", "januar", "enero", "gennaio", "janeiro"),
+                ("february", "feb", "février", "fevrier", "févr", "februar", "febrero", "febbraio", "fevereiro"),
+                ("march", "mar", "mars", "märz", "maerz", "marzo", "março"),
+                ("april", "apr", "avril", "avr", "abril", "aprile"),
+                ("may", "mai", "mayo", "maggio", "maio"),
+                ("june", "jun", "juin", "juni", "junio", "giugno", "junho"),
+                ("july", "jul", "juillet", "juil", "juli", "julio", "luglio", "julho"),
+                ("august", "aug", "août", "aout", "agosto"),
+                ("september", "sept", "sep", "septembre", "septiembre", "settembre", "setembro"),
+                ("october", "oct", "octobre", "oktober", "okt", "octubre", "ottobre", "outubro"),
+                ("november", "nov", "novembre", "noviembre", "novembro"),
+                ("december", "dec", "décembre", "decembre", "dezember", "dez", "diciembre", "dicembre", "dezembro"),
+            )
+            for number, aliases in enumerate(months, 1):
+                names = "|".join(re.escape(alias) for alias in aliases)
+                found = re.search(r"(?<!\d)(\d{1,2})\.?\s+(?:de\s+)?(?:" + names + r")\.?\s+(?:de\s+)?(\d{4})(?!\d)", value, re.I)
+                if found:
+                    day, year = map(int, found.groups())
+                    month = number
+                    break
+    if year is not None:
+        try:
+            result.update(published_date=datetime(year, month, day).date().isoformat(), publication_precision="date")
+        except (TypeError, ValueError):
+            pass
+    return result
+
+
 def clean_text(value):
     return "\n".join(line for line in (re.sub(r"[ \t]+", " ", line).strip() for line in value.splitlines()) if line)
 
@@ -332,11 +382,11 @@ def _json_articles(value, depth=0):
         if isinstance(types, list) and any(kind in {"Article", "NewsArticle", "BlogPosting", "ReportageNewsArticle", "SportsNewsArticle"} for kind in types):
             yield value
         # Known server-rendered article roots; do not harvest related cards.
-        if isinstance(value.get("articleBody"), (str, list)) and (value.get("title") or value.get("headline")):
+        if (isinstance(value.get("articleBody"), (str, list)) or isinstance(value.get("contentBlocks"), list)) and (value.get("title") or value.get("headline")):
             yield value
         if isinstance(value.get("newsArticle"), dict):
             yield value["newsArticle"]
-        for key in ("props", "pageProps", "data", "article", "@graph"):
+        for key in ("props", "pageProps", "data", "article", "news", "newsArticle", "content", "attributes", "entry", "mainEntity", "@graph"):
             if key in value:
                 yield from _json_articles(value[key], depth + 1)
 
@@ -368,7 +418,10 @@ def _article_matches(node, url):
     from .research import article_url
     value = _article_location(node)
     try:
-        return isinstance(value, str) and article_url(urljoin(url, value)) == article_url(url)
+        if isinstance(value, str):
+            return article_url(urljoin(url, value)) == article_url(url)
+        slug = node.get("slug")
+        return isinstance(slug, str) and bool(slug) and unquote(urlsplit(url).path).rstrip("/").rsplit("/", 1)[-1] == slug
     except ValueError:
         return False
 
@@ -386,7 +439,9 @@ def _primary_article_node(soup, url):
     if matched:
         # Multiple representations of this same page may differ in completeness.
         return max(matched, key=lambda node: len(_body_blocks(node.get("articleBody") or node.get("blocks"))))
-    unbound = [node for node in nodes if not _article_location(node)]
+    # A declared slug is an identity even without an absolute canonical URL.
+    # A mismatching identity must never become the sole "unbound" fallback.
+    unbound = [node for node in nodes if not _article_location(node) and not node.get("slug")]
     if len(unbound) == 1:
         return unbound[0]
     titles = [tag.get_text(" ", strip=True) for tag in (soup.title, soup.find("h1")) if tag]
@@ -644,6 +699,70 @@ def extract_images(soup, url, source_name):
     return results
 
 
+def _auxiliary_publication_node(tag, scope=None, heading=None):
+    for parent in (tag, *tag.parents):
+        if parent is scope:
+            break
+        if (parent.name in {"nav", "aside", "footer"}
+                or parent.get("role") in {"navigation", "contentinfo"}
+                or re.search(r"related|live[-_]?news|(?:^|[-_ ])(?:card|teaser)(?:$|[-_ ])",
+                             " ".join(parent.get("class", [])), re.I)):
+            return True
+        if (heading is not None and parent.name in {"article", "section"}
+                and not any(ancestor is parent for ancestor in heading.parents)):
+            # Semantic recommendation cards need no CSS class to identify them
+            # as a different article from the page's primary headline.
+            return True
+        if parent.name == "header" and not parent.find_parent("article"):
+            return True
+    return False
+
+
+def _header_publication(soup, *, language=""):
+    """Read only explicit publication labels around this page's headline."""
+    heading = next((tag for tag in soup.find_all("h1") if not _auxiliary_publication_node(tag)), None)
+    if not heading:
+        articles = [tag for tag in soup.find_all("article") if not _auxiliary_publication_node(tag)]
+        if len(articles) == 1:
+            for tag in articles[0].find_all("time", datetime=True):
+                if _auxiliary_publication_node(tag, articles[0]):
+                    continue
+                metadata = publication_metadata(tag.get("datetime"), language=language)
+                if metadata["published_date"]:
+                    return metadata
+        return publication_metadata(None)
+    for scope in list(heading.parents)[:4]:
+        if scope.name in {"body", "html"}:
+            break
+        prefix_parts = []
+        for node in scope.descendants:
+            if node is heading:
+                break
+            if isinstance(node, str) and node.parent and not _auxiliary_publication_node(node.parent, scope, heading):
+                prefix_parts.append(str(node).strip())
+        prefix = " ".join(filter(None, prefix_parts)).strip()
+        if prefix and len(prefix) <= 160:
+            metadata = publication_metadata(prefix, language=language)
+            if metadata["published_date"]:
+                return metadata
+        for tag in scope.find_all(["time", "span", "p", "small", "div"]):
+            classes = " ".join(tag.get("class", []))
+            if not (tag.name == "time" or re.search(r"published|publication|(?:^|[-_])date|title[-_]overline", classes, re.I)):
+                continue
+            if _auxiliary_publication_node(tag, scope, heading):
+                continue
+            value = tag.get("datetime") or tag.get("content") or " ".join(
+                str(part).strip() for part in tag.descendants
+                if isinstance(part, str) and part.parent
+                and not _auxiliary_publication_node(part.parent, scope, heading))
+            metadata = publication_metadata(value, language=language)
+            if metadata["published_date"]:
+                return metadata
+        if scope.name in {"article", "main"}:
+            break
+    return publication_metadata(None)
+
+
 def extract_html(body, url, source_name):
     soup = BeautifulSoup(body, "html.parser")
     _remove_hidden_nodes(soup)
@@ -660,32 +779,43 @@ def extract_html(body, url, source_name):
     title = soup.find("meta", property="og:title")
     title = title.get("content") if title else None
     title = title or (soup.title.get_text(" ", strip=True) if soup.title else None) or source_name
-    date = None
+    language = soup.html.get("lang", "") if soup.html else ""
+    publication = publication_metadata(None)
     for attrs in ({"property": "article:published_time"}, {"name": "date"}, {"name": "pubdate"}):
         meta = soup.find("meta", attrs=attrs)
         if meta:
-            date = published_time(meta.get("content"))
-            if date:
+            publication = publication_metadata(meta.get("content"), language=language)
+            if publication["published_date"]:
                 break
-    if not date:
-        tag = soup.find("time", datetime=True)
-        date = published_time(tag.get("datetime")) if tag else None
     structured_text = ""
+    source_scope = ""
+    section = soup.find("meta", property="article:section")
+    if section:
+        source_scope = clean_text(str(section.get("content") or ""))[:160]
     node = _primary_article_node(soup, url)
     subscriber_only = bool(node and str(node.get("isAccessibleForFree", "")).lower() == "false")
     if node:
+        category = node.get("mainCategory") or node.get("articleSection") or node.get("category")
+        if isinstance(category, dict):
+            category = category.get("name") or category.get("title") or category.get("label")
+        if isinstance(category, str):
+            source_scope = clean_text(category)[:160]
         # A paid article's inert metadata must not reveal content beyond the
         # public page preview. Only use the visible HTML in this case.
         structured_text = "" if subscriber_only else _body_blocks(node.get("articleBody") or node.get("blocks"))
         if structured_text and isinstance(node.get("byline"), str):
             structured_text = html_text(node["byline"]) + "\n" + structured_text
         title = node.get("headline") or node.get("title") or title
-        date = published_time(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt")) or date
+        declared = publication_metadata(node.get("datePublished") or node.get("publicationDate") or node.get("publishedAt"), language=language)
+        if declared["published_date"]:
+            publication = declared
+    if not publication["published_date"]:
+        publication = _header_publication(soup, language=language)
     if not structured_text and not subscriber_only:
         structured_text = _inter_article_text(soup, url)
     # Prefer publisher article bodies, then semantic containers. Generic page
     # fallbacks remain partial: a long menu is not evidence of a complete story.
-    container = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article-body-viewer-selector, .article__body, .article-body, .article-content, .story-body, .entry-content')
+    container = soup.select_one('[itemprop="articleBody"], #article-body-blocks, .article-body-viewer-selector, .article__body, .article-body, .article-content, .story-body, .entry-content, .articolo .text, .article .text')
     method = "html_article" if container else "html_fallback"
     container = container or soup.find("article") or soup.find("main") or soup.body or soup
     if container.name == "article":
@@ -702,6 +832,25 @@ def extract_html(body, url, source_name):
     if structured_text:
         method = "structured_article"
     text = raw_text[:MAX_ARTICLE_TEXT]
+    description = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+    scope_intro = str(description.get("content") or "")[:800] if description else ""
+    if method != "html_fallback":
+        scope_intro += " " + "\n".join(text.splitlines()[:3])[:800]
+    else:
+        heading = soup.find("h1")
+        if heading:
+            following_ids = {id(paragraph) for paragraph in heading.find_all_next("p", limit=6)}
+            for parent in list(heading.parents)[:6]:
+                if parent.name in {"body", "html"}:
+                    break
+                paragraphs = [paragraph for paragraph in parent.find_all("p")
+                              if not paragraph.find_parent(["nav", "aside", "footer"])]
+                following = [paragraph.get_text(" ", strip=True) for paragraph in paragraphs
+                             if id(paragraph) in following_ids]
+                following = [paragraph for paragraph in following if len(paragraph) >= 40]
+                if following:
+                    scope_intro += " " + " ".join(following[:2])[:800]
+                    break
     if len(text) < 30:
         raise IngestionError("未提取到足够正文；页面可能需要登录或 JavaScript，可改为手动导入")
     gated = subscriber_only or bool(re.search(r"subscribe to (?:continue|read)|sign in to (?:continue|read)|already a subscriber|unlock (?:this|the) article|suscr[ií]bete para (?:seguir leyendo|leer)|assine para (?:continuar|ler)|订阅后阅读|登录后阅读", text, re.I))
@@ -710,7 +859,8 @@ def extract_html(body, url, source_name):
             "正文超过保存上限，当前保留前 30000 字符。" if len(raw_text) > MAX_ARTICLE_TEXT else
             "已提取页面可读正文；不代表已经独立核实，原站可能另有更新。" if full else
             "仅提取到较短正文或通用页面文本，完整性尚不能确认。")
-    return [{"title": clean_text(str(title))[:200], "text": text, "url": url, "published_at": date,
+    return [{"title": clean_text(str(title))[:200], "text": text, "url": url, "source_scope": source_scope,
+             "_scope_intro": scope_intro.strip()[:1600], "_article_owned": bool(node or soup.find("h1") or method != "html_fallback"), **publication,
              "content_status": "full_text" if full else "partial", "content_method": method,
              "content_note": note, "text_truncated": len(raw_text) > MAX_ARTICLE_TEXT, "images": images}]
 
@@ -849,8 +999,9 @@ def safe_evidence_view(item):
 
 
 def ingest(store, *, team_id, title, text, url="", source_name="手动导入", published_at=None,
+           published_date=None, publication_precision=None,
            kind="team", stage=None, spoiler=False, event_id=None, source_id=None, origin="manual",
-           content_status=None, content_method=None, content_note=None, text_truncated=False, images=None):
+           content_status=None, content_method=None, content_note=None, text_truncated=False, images=None, source_scope="", _scope_intro="", _article_owned=False):
     text = clean_text(text)
     digest = fingerprint(text)
     with store.atomic():
@@ -871,6 +1022,10 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
             if content_status and url and url == duplicate.get("url") and source_id == duplicate.get("source_id"):
                 duplicate.update({"content_status": content_status, "content_method": content_method,
                                   "content_note": content_note, "text_truncated": bool(text_truncated)})
+                if published_date:
+                    duplicate.update(published_date=published_date, publication_precision=publication_precision)
+                if _article_owned:
+                    duplicate["article_body_bound"] = True
                 duplicate.update({key: value for key, value in content_details(duplicate).items() if key != "paragraphs"})
                 store.put("evidence", duplicate)
             if spoiler and not duplicate.get("spoiler"):
@@ -891,6 +1046,12 @@ def ingest(store, *, team_id, title, text, url="", source_name="手动导入", p
                     "title": title, "text": text, "url": url or "", "source_name": source_name,
                     "published_at": published_at, "fetched_at": timestamp, "source_id": source_id,
                     "origin": origin, "spoiler": spoiler, "fingerprint": digest, "images": images or []}
+        if published_date:
+            evidence.update(published_date=published_date, publication_precision=publication_precision)
+        if source_scope:
+            evidence["source_scope"] = clean_text(str(source_scope))[:160]
+        if _article_owned:
+            evidence["article_body_bound"] = True
         evidence.update({"content_status": content_status or ("imported" if origin == "manual" else "partial"),
                          "content_method": content_method or origin, "content_note": content_note,
                          "text_truncated": bool(text_truncated)})

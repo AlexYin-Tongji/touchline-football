@@ -10,6 +10,7 @@ import asyncio
 import json
 import re
 from urllib.parse import parse_qs, urlsplit
+from urllib.request import getproxies
 
 import httpx
 
@@ -226,9 +227,7 @@ def _standings(content, spec):
     return {"season": {"year": spec["year"]}, "uid": content["leagueUid"], "children": [{"standings": {"entries": entries}}]}
 
 
-def parse_page(body, spec):
-    if not spec:
-        _fail("不支持这个请求范围")
+def _page_payload(body):
     if isinstance(body, bytes):
         if len(body) > MAX_BODY:
             _fail("超过读取上限")
@@ -245,6 +244,13 @@ def parse_page(body, spec):
         payload, _ = json.JSONDecoder().raw_decode(body[markers[0].end():])
     except (ValueError, RecursionError):
         _fail("结构化资料无法读取")
+    return _object(payload)
+
+
+def parse_page(body, spec):
+    if not spec:
+        _fail("不支持这个请求范围")
+    payload = _page_payload(body)
     params = _object(_object(_object(payload).get("routing")).get("params"))
     page = _object(payload.get("page"))
     kind = spec["kind"]
@@ -260,15 +266,58 @@ def parse_page(body, spec):
     return result
 
 
-async def fetch_public_payload(spec):
-    # The URL comes only from fallback_spec, never from page content or a model.
-    url = spec["url"]
+def parse_player_portrait_records(body, provider_id):
+    """Only the player's own header and source-authored player selector.
+
+    News images, video thumbnails, logos and arbitrary embedded objects are
+    outside this route. Selector records still require three agreeing IDs.
+    """
+    identity = str(provider_id or "")
+    if not re.fullmatch(r"[0-9]{1,10}", identity):
+        _fail("的球员编号无效")
+    payload = _page_payload(body)
+    params = _object(_object(payload.get("routing")).get("params"))
+    page = _object(payload.get("page"))
+    player = _object(_object(page.get("content")).get("player"))
+    if (params.get("sport") != "soccer" or params.get("pageType") != "player"
+            or str(params.get("id")) != identity or page.get("type") != "player"
+            or str(player.get("playerId")) != identity or player.get("sport") != "soccer"):
+        _fail("的球员页面身份不一致")
+    selector = _object(player.get("plyrSwtch"))
+    rows = [_object(selector.get("cur")), *_array(selector.get("lst"), 120, allow_empty=True)]
+    records = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        record_id = str(row.get("id") or "")
+        try:
+            link = urlsplit(str(row.get("href") or ""))
+            port = link.port
+        except ValueError:
+            continue
+        if (not re.fullmatch(r"[0-9]{1,10}", record_id) or row.get("uid") != "s:600~a:" + record_id
+                or link.scheme not in {"", "https"} or link.netloc and link.hostname != "www.espn.com"
+                or link.username or link.password or port not in {None, 443} or link.query or link.fragment
+                or not re.fullmatch(r"/soccer/player/_/id/" + record_id + r"(?:/[a-zA-Z0-9_-]+)?", link.path)):
+            continue
+        record = {"id": record_id, "name": row.get("name"), "uid": row["uid"],
+                  "headshot": {"href": row.get("headshot")},
+                  **{flag: row[flag] for flag in ("private", "deleted", "restricted") if flag in row}}
+        if record_id in records and any(records[record_id].get(flag) is True for flag in ("private", "deleted", "restricted")):
+            continue
+        if record_id not in records or record["headshot"]["href"] or any(record.get(flag) is True for flag in ("private", "deleted", "restricted")):
+            records[record_id] = record
+    return list(records.values())
+
+
+async def _fetch_public_document(url, *, timeout=15):
     parsed = urlsplit(url)
     if parsed.scheme != "https" or parsed.hostname != "www.espn.com" or parsed.username or parsed.password or parsed.port not in {None, 443}:
         _fail("地址不在允许范围")
     try:
-        async with asyncio.timeout(15):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(13, connect=8), follow_redirects=False,
+        async with asyncio.timeout(timeout):
+            async with httpx.AsyncClient(timeout=httpx.Timeout(min(13, timeout), connect=min(8, timeout)), follow_redirects=False,
+                    proxy=getproxies().get("https"), trust_env=False,
                     headers={"User-Agent": "Touchline/7.1 (personal football reader)", "Accept": "text/html"}) as client:
                 async with client.stream("GET", url) as response:
                     if response.status_code != 200:
@@ -281,8 +330,21 @@ async def fetch_public_payload(spec):
                         if size > MAX_BODY:
                             _fail("超过读取上限")
                         pieces.append(piece)
-        return parse_page(b"".join(pieces), spec)
+        return b"".join(pieces)
     except IngestionError:
         raise
     except (httpx.HTTPError, TimeoutError):
         _fail("暂不可访问")
+
+
+async def fetch_public_payload(spec):
+    # The URL comes only from fallback_spec, never from page content or a model.
+    return parse_page(await _fetch_public_document(spec["url"]), spec)
+
+
+async def fetch_player_portrait_records(provider_id):
+    identity = str(provider_id or "")
+    if not re.fullmatch(r"[0-9]{1,10}", identity):
+        _fail("的球员编号无效")
+    url = "https://www.espn.com/soccer/player/_/id/" + identity
+    return parse_player_portrait_records(await _fetch_public_document(url, timeout=7), identity)

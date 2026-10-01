@@ -29,6 +29,9 @@ def schedule_payload(*, future=False):
 
 class IndependentRefreshTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        offline = patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[]))
+        offline.start()
+        self.addCleanup(offline.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "team.sqlite3")
         self.store.put("leagues", LEAGUE)

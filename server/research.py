@@ -50,9 +50,15 @@ DISCOVERY_NOTICE = ("检索范围为球队官网、媒体订阅和公开新闻�
                     "人名未命中不代表综合新闻正文没有该球员的信息；必要时可改用球队加赛事、对手或赛前主题查找官方综合发布会，再阅读核对。"
                     "不得把其他球员的消息当作目标球员的进展。")
 ARTICLE_CONCURRENCY = 3
+DATE_VERIFY_PER_SOURCE = 3
+DATE_VERIFY_TOTAL = 6
 ACCESS_REVIEW_SECONDS = 7 * 24 * 60 * 60
 SOURCE_BACKOFF_SECONDS = (60, 5 * 60, 30 * 60, 2 * 60 * 60, 12 * 60 * 60)
 ESPN_FAILURE_CACHE_SECONDS = 10 * 60
+
+
+class ArticleScopeError(ingestion.IngestionError):
+    """A reachable public page belongs to another squad or content format."""
 
 
 def _check_team(store, team_id):
@@ -231,7 +237,19 @@ def within_days(entry, days, *, now=None):
     published = _stamp(entry.get("published_at"))
     current = now or datetime.now(timezone.utc)
     # Discovery time and sitemap modification dates cannot establish freshness.
+    if published is None and entry.get("publication_precision") == "date":
+        declared = ingestion.publication_metadata(entry.get("published_date"))["published_date"]
+        if declared:
+            day = datetime.fromisoformat(declared).date()
+            # Whole calendar days only; an unspecified zone never becomes a
+            # made-up midnight timestamp or an announcement from tomorrow.
+            return (current - timedelta(days=days - 1)).date() <= day <= current.date()
     return bool(published and current - timedelta(days=days) <= published <= current + timedelta(minutes=5))
+
+
+def _dated(entry):
+    return bool(entry.get("published_at") or (entry.get("publication_precision") == "date"
+                and ingestion.publication_metadata(entry.get("published_date"))["published_date"]))
 
 
 def article_categories(entry):
@@ -243,10 +261,22 @@ def article_categories(entry):
 def _first_team_entry(entry):
     # Club news landing pages also contain youth and women's fixtures. Do not
     # silently mix those squads into this men's first-team workspace.
-    value = " ".join(str(entry.get(key) or "") for key in ("title", "description"))
+    value = " ".join(str(entry.get(key) or "") for key in ("title", "description", "source_scope"))
     value += " " + unquote(urlsplit(entry.get("url", "")).path).replace("-", " ")
+    if re.search(r"\b(?:youth|academy|formation|junioren|primavera)\b", str(entry.get("source_scope") or ""), re.I):
+        return False
+    intro = str(entry.get("_scope_intro") or "")
+    if re.search(r"\b(?:women[’']?s?\s+(?:first\s+)?(?:team|side|squad|league|super league|players?[’']?\s+cup|cup)|"
+                 r"(?:équipe|equipo|squadra)\s+(?:féminin(?:e|es)?|femenin[oa]|femminile)|frauenmannschaft)\b", intro, re.I):
+        return False
+    if re.search(r"\b(?:(?:under[ -]?\d{1,2}s?|u[ -]?\d{1,2}s?|sub[ -]?\d{1,2}s?)\s+(?:teams?|sides?|squads?)|"
+                 r"premier league 2|youth[ -]+(?:teams?|squads?|league|sector|cup)(?![ -]+(?:graduates?|products?|alumni)\b))\b|"
+                 r"青年队|青年联赛", intro, re.I):
+        return False
     return (readable_publisher_entry(entry) and not re.search(
-        r"\b(?:women|womens|wsl|femeni|femení|femenin[oa]s?|feminin[oa]s?|féminin(?:e|es|s)?|sub[ -]?\d{1,2}|u[ -]?\d{1,2}|under[ -]?\d{1,2}|premier league 2|"
+        r"\b(?:women|womens|wsl|frauen|damen|junioren|primavera|femminile|femminili|femeni|femení|femenin[oa]s?|feminin[oa]s?|f[eé]minin(?:e|es|s)?|"
+        r"basketball|baloncesto|handball|futsal|hockey|giovanili|nachwuchs|"
+        r"escuela de f[uú]tbol|centre de formation|sub[ -]?\d{1,2}s?|u[ -]?\d{1,2}s?|under[ -]?\d{1,2}s?|premier league 2|"
         r"youth[ -]+(?:teams?|squads?|league|sector|cup)(?![ -]+(?:graduates?|products?|alumni)\b))\b|女足|青年队|青年联赛",
         value, re.I))
 
@@ -257,17 +287,19 @@ async def _fetch(url, source):
     # Arbitrary user sources retain the pinned-IP transport. Known public
     # publishers may use the user's OS proxy: necessary on networks whose local
     # DNS cannot reach those publishers. Every redirect remains allowlisted.
-    if not source.get("builtin") or not getproxies() or source["id"] in {"official_arsenal", "official_liverpool", "official_inter"}:
+    proxy = getproxies().get(urlsplit(current).scheme)
+    if not source.get("builtin") or not proxy:
         from .research_transport import blocking_request
-        body, final_url, content_type = await blocking_request(ingestion.fetch_document, current, allowed_hosts=hosts, timeout=25)
+        body, final_url, content_type = await blocking_request(ingestion.fetch_document, current, allowed_hosts=hosts, timeout=25,
+            **({"content_types": ("text/", "xml", "xhtml", "json")} if source.get("builtin") and source.get("_index_json") else {}))
         _checked_url(final_url, hosts)
         return body, final_url, content_type
     if not hosts <= TRUSTED_HOSTS:
         raise ingestion.IngestionError("内置来源域名配置不正确")
     try:
         async with asyncio.timeout(22):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=8), follow_redirects=False, trust_env=True,
-                                         headers={"User-Agent": "Touchline/2.0 (personal football reader)", "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml"}) as client:
+            async with httpx.AsyncClient(proxy=proxy, timeout=httpx.Timeout(15, connect=8), follow_redirects=False, trust_env=False,
+                                         headers={"User-Agent": "Touchline/2.0 (personal football reader)", "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json"}) as client:
                 for redirect in range(5):
                     # The OS proxy resolves these fixed publisher names. Local
                     # DNS can be intercepted on this network; it is not used to
@@ -284,7 +316,7 @@ async def _fetch(url, source):
                         if response.headers.get("cf-mitigated", "").lower() == "challenge":
                             raise ingestion.IngestionError("来源返回了访问验证页面，暂时无法读取正文")
                         content_type = response.headers.get("content-type", "").lower()
-                        if content_type and not any(value in content_type for value in ("text/", "xml", "xhtml")):
+                        if content_type and not any(value in content_type for value in ("text/", "xml", "xhtml", *(('json',) if source.get("_index_json") else ()))):
                             raise ingestion.IngestionError("来源未返回网页或订阅源文本")
                         length = response.headers.get("content-length", "")
                         if length.isdigit() and int(length) > ingestion.MAX_BODY:
@@ -309,7 +341,7 @@ async def _fetch_shared(store, url, source, *, force=False, on_start=None):
     from .research_transport import shared_request
     hosts = _source_hosts(source)
     checked = _checked_url(url, hosts)
-    key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)))
+    key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)), bool(source.get("_index_json")))
     async def fetch_once():
         if on_start:
             on_start(datetime.now(timezone.utc))
@@ -331,17 +363,21 @@ def _feed_candidates(body, url):
     local = lambda name: name.rsplit("}", 1)[-1]
     result = []
     for entry in (node for node in root.iter() if local(node.tag) in {"item", "entry"}):
-        values, link = {}, None
+        values, link, scopes = {}, None, []
         for child in entry:
             key = local(child.tag)
             values[key] = "".join(child.itertext()).strip()
+            if key == "category":
+                scopes.append(child.get("term") or values[key])
             if key == "link" and child.get("rel", "alternate") == "alternate":
                 link = child.get("href") or values[key]
         if link and values.get("title"):
+            declared = values.get("pubDate") or values.get("published")
             result.append({"url": urljoin(url, link), "title": ingestion.html_text(values["title"]),
                            "description": ingestion.html_text(values.get("description") or values.get("summary") or "")[:1200],
+                           "source_scope": " | ".join(scopes)[:160],
                            "publisher": values.get("Source") or values.get("source"),
-                           "published_at": feed_published_time(values.get("pubDate") or values.get("published"), url)})
+                           **ingestion.publication_metadata(feed_published_time(declared, url) or declared)})
         if len(result) >= 100:
             break
     return result
@@ -365,6 +401,9 @@ def _walk(value, depth=0):
     if depth > 24:
         return
     if isinstance(value, dict):
+        if (value.get("private") or value.get("deleted")
+                or value.get("visibility") in {"hidden", "private", "deleted"}):
+            return
         yield value
         for key, child in value.items():
             if key not in {"relatedArticles", "nowTrending", "initialMegaNavMenus", "footer", "menu"}:
@@ -374,8 +413,28 @@ def _walk(value, depth=0):
             yield from _walk(child, depth + 1)
 
 
-def _article_path(url, source):
-    path = urlsplit(url).path.rstrip("/")
+def _article_path(url, source, *, structured=False):
+    """Recognise publisher articles, not a particular club's URL convention.
+
+    Article objects and semantic news cards establish stronger intent than a
+    bare navigation link. They may use arbitrary local-language slugs, but
+    never widen the source's hosts or admit known non-article destinations.
+    """
+    parts = urlsplit(url)
+    path = unquote(parts.path).rstrip("/")
+    if not path or re.fullmatch(r"/(?:[a-z]{2}(?:-[a-z]{2})?)", path, re.I):
+        return False
+    if path.rsplit("/", 1)[-1].lower() in {"news", "noticias", "notizie", "actualites", "actualités", "nachrichten", "aktuelles"}:
+        return False
+    if not readable_publisher_entry({"url": url}):
+        return False
+    if re.search(r"/(?:login|signup|register|account|search|tag|tags|category|categories|"
+                 r"shop|store|tickets?|billets?|entradas|kontakt|contact|privacy|cookies?|"
+                 r"players?|joueurs?|spieler|giocatori|jugadores|squad|roster|fixtures?|"
+                 r"standings|results?|videos?|watch|live|gallery|galleries)(?:/|$)", path, re.I):
+        return False
+    if structured:
+        return True
     if urlsplit(url).hostname in TYC_HOSTS:
         return bool(re.fullmatch(r"/(?:[a-z0-9-]+/)+[a-z0-9-]+-id\d+\.html", path))
     if source["id"] == "official_arsenal":
@@ -386,42 +445,250 @@ def _article_path(url, source):
         return bool(re.match(r"/en/news/[^/]+$", path))
     if source["id"] == "official_barcelona":
         return bool(re.match(r"/en/(?:football/first-team/)?news/\d+/[^/]+$", path))
-    return bool(re.search(r"/(news|article|stories|sport|football)/.+", path))
+    return bool(re.search(r"/(?:news|articles?|stories|story|sports?|football|noticias?|"
+                          r"notizie|notizia|actualit[eé]s?|nouvelles|nachrichten|"
+                          r"aktuelles|aktuell|neuigkeiten|meldungen?)/.+", path, re.I))
+
+
+def _node_location(node):
+    for key in ("url", "path", "mainEntityOfPage", "@id"):
+        value = node.get(key)
+        if isinstance(value, dict):
+            value = value.get("@id") or value.get("url")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _node_is_article(node):
+    types = node.get("@type", [])
+    types = [types] if isinstance(types, str) else types
+    return (isinstance(types, list) and any(str(kind).rsplit("/", 1)[-1] in {
+        "Article", "NewsArticle", "SportsNewsArticle", "ReportageNewsArticle", "BlogPosting"
+    } for kind in types)) or bool(node.get("articleBody") or node.get("newsArticle"))
+
+
+def _scope_label(value):
+    if isinstance(value, str):
+        return value[:120]
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("title") or value.get("label") or "")[:120]
+    if isinstance(value, list):
+        return " | ".join(filter(None, (_scope_label(item) for item in value[:8])))[:160]
+    return ""
+
+
+def _card_context(anchor):
+    # Do not borrow a sibling card's date from the whole main/list container.
+    # The nearest explicit article/list item/news card is the only wider scope.
+    for parent in list(anchor.parents)[:3]:
+        if parent.name in {"article", "li"} or re.search(
+                r"(?:^|[-_ ])(?:(?:news|article|story|content)?[-_ ]?card|(?:post|article|story|teaser)(?:[-_ ]item)?)(?:$|[-_ ])",
+                " ".join(parent.get("class", [])), re.I):
+            return parent
+        if parent.name in {"main", "body", "html", "nav", "header", "footer"}:
+            break
+    return anchor
+
+
+def _card_date(card):
+    stamp = card.find("time", datetime=True)
+    if stamp:
+        return stamp.get("datetime")
+    stamp = card.select_one('[itemprop="datePublished"][content]')
+    if stamp:
+        return stamp.get("content")
+    for tag in card.find_all(["time", "span", "small", "p"]):
+        if tag.name == "time" or re.search("published|date", " ".join(tag.get("class", [])), re.I):
+            value = tag.get_text(" ", strip=True)
+            if len(value) <= 120:
+                return value
+    return None
 
 
 def _html_candidates(body, url, source):
     soup = BeautifulSoup(body, "html.parser")
+    ingestion._remove_hidden_nodes(soup)
     result = []
+    hosts = _source_hosts(source)
+    language = soup.html.get("lang", "") if soup.html else ""
+    slug_locations = {}
+    for anchor in soup.find_all("a", href=True):
+        location = urljoin(url, anchor["href"])
+        slug = unquote(urlsplit(location).path).rstrip("/").rsplit("/", 1)[-1]
+        if slug:
+            slug_locations.setdefault(slug, set()).add(location)
+    def append(href, title, description="", published_at=None, *, structured=False):
+        try:
+            link = article_url(_checked_url(urljoin(url, href), hosts))
+        except (ValueError, ingestion.IngestionError):
+            return
+        if not _article_path(link, source, structured=structured):
+            return
+        result.append({"url": link, "title": ingestion.clean_text(title),
+                       "description": ingestion.html_text(str(description or ""))[:1200],
+                       **ingestion.publication_metadata(published_at, language=language)})
     for data in ingestion.embedded_json(soup):
         for node in _walk(data):
             title = node.get("title") or node.get("headline")
-            href = node.get("url") or node.get("path")
+            href = _node_location(node)
+            if not href and isinstance(node.get("slug"), str) and len(slug_locations.get(node["slug"], ())) == 1:
+                href = next(iter(slug_locations[node["slug"]]))
             if not href and node.get("slug") and source["id"] in {"official_inter", "official_liverpool"}:
                 href = ("/en/news/" if source["id"] == "official_inter" else "/news/") + node["slug"]
             if not isinstance(title, str) or not isinstance(href, str):
                 continue
-            link = urljoin(url, href)
-            if _article_path(link, source):
-                result.append({"url": link, "title": ingestion.clean_text(title),
-                               "description": ingestion.html_text(str(node.get("seoDescription") or node.get("description") or node.get("summary") or ""))[:1200],
-                               "published_at": ingestion.published_time(node.get("publishedAt") or node.get("datePublished") or node.get("publicationDate") or node.get("date"))})
+            description = str(node.get("seoDescription") or node.get("description") or node.get("summary") or "")
+            scope = _scope_label(node.get("mainCategory") or node.get("category"))
+            append(href, title, " ".join(part for part in (scope, description) if part),
+                   node.get("publishedAt") or node.get("datePublished") or node.get("publicationDate") or node.get("date"),
+                   structured=_node_is_article(node))
+    if soup.select_one('meta[property="og:type"][content="article"]'):
+        canonical = soup.find("link", rel="canonical")
+        headline = soup.find("h1") or soup.title
+        if canonical and canonical.get("href") and headline:
+            stamp = soup.select_one('meta[property="article:published_time"][content]')
+            append(canonical["href"], headline.get_text(" ", strip=True),
+                   published_at=stamp.get("content") if stamp else None, structured=True)
     container = soup.find("main") or soup
-    for junk in container.select("nav, footer, header, aside"):
+    # A semantic article/card header carries headlines, dates and links. Only
+    # site navigation/banner headers are excluded from discovery.
+    for junk in container.select("nav, footer, aside, header[role='banner']"):
         junk.decompose()
     for anchor in container.find_all("a", href=True):
-        href = urljoin(url, anchor["href"])
-        if not _article_path(href, source):
-            continue
+        card = _card_context(anchor)
         title_tag = (anchor.find(re.compile("^h[1-6]$")) or anchor.select_one(".news-hero__title, .thumbnail__title, .content-card__title, [class*='__title']"))
-        title = (title_tag or anchor).get_text(" ", strip=True)
+        thumbnail = anchor.find("img", alt=True)
+        title = ((title_tag or anchor).get_text(" ", strip=True) or anchor.get("aria-label") or anchor.get("title")
+                 or (thumbnail.get("alt") if thumbnail else "") or "")
         if len(title) >= 12:
-            stamp = anchor.find("time", datetime=True)
-            result.append({"url": href, "title": title, "description": "", "published_at": ingestion.published_time(stamp.get("datetime")) if stamp else None})
+            category = card.select_one('[class*="category"], [class*="Category"]')
+            append(anchor["href"], title, description=category.get_text(" ", strip=True)[:120] if category else "", published_at=_card_date(card),
+                   structured=bool(title_tag) or (card is not anchor and bool(card.find(re.compile("^h[1-6]$")) or card.find("time"))))
     if not result and not source.get("builtin") and soup.find("article"):
         entry = ingestion.extract_html(body, url, source["name"])[0]
         excerpt = entry.pop("text")[:280]
+        entry.pop("_scope_intro", None)
         result.append({**entry, "description": excerpt})
-    return result
+    unique = {}
+    for entry in result:
+        previous = unique.get(entry["url"])
+        if not previous or (not _dated(previous) and _dated(entry)):
+            unique[entry["url"]] = entry
+    return list(unique.values())[:120]
+
+
+def _advertised_indexes(body, url, source, *, include_landing=False):
+    """Follow a publisher's own feed/list declarations within the same scope."""
+    soup = BeautifulSoup(body, "html.parser")
+    # Feed/API declarations are public configuration, including a responsive
+    # search component that starts hidden. They grant no article text: every
+    # lead still needs an anonymous, allowlisted public-page read.
+    hosts, found = _source_hosts(source), []
+    seen = {article_url(url)}
+    def add(href, kind):
+        try:
+            location = urljoin(url, href)
+            if href.endswith(";") and not location.endswith(";"):
+                location += ";"
+            location = article_url(_checked_url(location, hosts))
+        except (ValueError, ingestion.IngestionError):
+            return
+        if location not in seen:
+            seen.add(location)
+            found.append((location, kind))
+    for link in soup.select('link[rel~="alternate"][href]'):
+        if link.get("type", "").lower() in {"application/rss+xml", "application/atom+xml"}:
+            add(link["href"], "rss")
+            if found:
+                break
+    if include_landing:
+        for descriptor in _declared_news_api(body, url, source):
+            add(descriptor["url"], "json")
+            break
+        for node in soup.select('[data-url], [data-feed-url]'):
+            href = node.get("data-feed-url") or node.get("data-url") or ""
+            path = urlsplit(urljoin(url, href)).path
+            if path.endswith(".json") and re.search(r"/(?:news|noticias|notizie|actualit[eé]s|nachrichten|aktuelles)/", path, re.I):
+                add(href, "json")
+                break
+    if include_landing:
+        for anchor in soup.find_all("a", href=True):
+            path = unquote(urlsplit(urljoin(url, anchor["href"])).path).rstrip("/")
+            if re.search(r"/(?:news|noticias|notizie|actualit[eé]s|nachrichten|aktuelles|all-latest-news)(?:[-_]overview)?(?:\.html)?$", path, re.I):
+                add(anchor["href"], "html")
+                break
+    return found[:2]
+
+
+def _declared_news_api(body, url, source):
+    """A publisher's anonymous persisted-query news component, not JS execution."""
+    soup = BeautifulSoup(body, "html.parser")
+    hosts, result = _source_hosts(source), []
+    language = (soup.html.get("lang", "en") if soup.html else "en").lower().split("-")[0]
+    if not re.fullmatch(r"[a-z]{2}", language):
+        return []
+    for component in soup.select('[news-api-url][news-detail-url][language-parameter]'):
+        try:
+            endpoint = _checked_url(urljoin(url, component["news-api-url"]), hosts)
+            if component["news-api-url"].endswith(";") and not endpoint.endswith(";"):
+                endpoint += ";"
+            prefix = _checked_url(urljoin(url, component["news-detail-url"]), hosts)
+        except ingestion.IngestionError:
+            continue
+        origin = urlsplit(url)
+        if any((part.scheme, part.hostname, part.port) != (origin.scheme, origin.hostname, origin.port)
+               for part in (urlsplit(endpoint), urlsplit(prefix))):
+            continue
+        # Only the source-declared read-only persisted GraphQL query protocol.
+        # No arbitrary GraphQL text, cookies, credentials or user parameters.
+        path = urlsplit(endpoint).path
+        language_path = component.get("language-parameter", "")
+        if (not path.startswith("/graphql/execute.json/") or not path.endswith(";")
+                or not re.fullmatch(r"/[a-zA-Z0-9_/-]{1,160}/", language_path)
+                or component.get("news-detail-suffix", "") not in {"", ".html"}):
+            continue
+        parameters = {"offset": "0", "limit": "21", "mainCategory": "", "subCategory": "",
+                      **{"subCategory" + str(i): "" for i in range(1, 7)},
+                      "language": language_path.rstrip("/") + "/" + language + "/news"}
+        location = endpoint + ";".join(key + "=" + value for key, value in parameters.items()) + ";"
+        result.append({"url": location, "_index_article_prefix": prefix,
+                       "_index_article_suffix": component.get("news-detail-suffix", "")})
+    return result[:1]
+
+
+def _json_index_candidates(body, url, source):
+    """Parse an explicitly advertised inert public JSON list, never execute JS."""
+    try:
+        data = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        raise ingestion.IngestionError("来源公开新闻索引不是有效 JSON") from None
+    hosts, entries, seen = _source_hosts(source), [], set()
+    for node in _walk(data):
+        if (node.get("private") or node.get("deleted") or node.get("visibility") in {"hidden", "private", "deleted"}
+                or str(node.get("isAccessibleForFree", "")).lower() == "false"):
+            continue
+        title, href = node.get("title") or node.get("headline"), _node_location(node)
+        if source.get("_index_article_prefix"):
+            suffix_path = node.get("url") or node.get("_path")
+            if isinstance(suffix_path, str) and suffix_path and not urlsplit(suffix_path).scheme and not urlsplit(suffix_path).netloc:
+                href = source["_index_article_prefix"] + "/" + suffix_path.lstrip("/") + source.get("_index_article_suffix", "")
+        if not isinstance(title, str) or not isinstance(href, str):
+            continue
+        try:
+            location = article_url(_checked_url(urljoin(url, href), hosts))
+        except (ValueError, ingestion.IngestionError):
+            continue
+        if location in seen or not _article_path(location, source, structured=_node_is_article(node)):
+            continue
+        seen.add(location)
+        entries.append({"url": location, "title": ingestion.clean_text(title),
+                        "description": ingestion.html_text(str(node.get("description") or node.get("summary") or ""))[:280],
+                        "source_scope": " | ".join(filter(None, (_scope_label(node.get("mainCategory") or node.get("category")),
+                                                                 _scope_label(node.get("subCategory") or node.get("subCategories")))))[:160],
+                        **ingestion.publication_metadata(node.get("datePublished") or node.get("publishedAt") or node.get("publicationDate")
+                                                         or node.get("publishDate") or node.get("showDate") or node.get("displayDate"))})
+    return entries[:120]
 
 
 def _query_parts(team_id, query):
@@ -506,7 +773,8 @@ async def _source_index(store, team_id, source, *, force=False):
     fetched = _stamp(cached.get("fetched_at"))
     age = (datetime.now(timezone.utc) - fetched).total_seconds() if fetched else float("inf")
     if not force and 0 <= age < INDEX_CACHE_SECONDS and not cached.get("last_error"):
-        return copy.deepcopy(cached.get("entries", [])), [], {"state": "cached", "checked_at": cached["fetched_at"]}
+        return copy.deepcopy(cached.get("entries", [])), list(cached.get("discovery_errors", [])), {
+            "state": "cached", "checked_at": cached["fetched_at"], "discovery_method": cached.get("discovery_method", source["kind"])}
     last_attempt = _stamp(cached.get("last_checked"))
     if not force and (source.get("access_review_active") or _source_in_cooldown(store, source)):
         health = source_health(store, source)
@@ -535,15 +803,40 @@ async def _source_index(store, team_id, source, *, force=False):
                                           on_start=lambda started: attempt_started.__setitem__(0, started))
         entries = (_sitemap_candidates(body) if source.get("index_url") else
                    _feed_candidates(body, url) if source["kind"] == "rss" else _html_candidates(body, url, source))
+        discovery_errors, methods = [], ["sitemap" if source.get("index_url") else source["kind"]]
+        if source.get("builtin") and source["kind"] == "html" and not source.get("index_url"):
+            declared_apis = {descriptor["url"]: descriptor for descriptor in _declared_news_api(body, url, source)}
+            for advertised_url, kind in _advertised_indexes(body, url, source, include_landing=not entries):
+                try:
+                    descriptor = {**source, "_index_json": True, **declared_apis.get(advertised_url, {})} if kind == "json" else source
+                    document, location, _ = await _fetch_shared(store, advertised_url, descriptor, force=force)
+                    extra = (_feed_candidates(document, location) if kind == "rss" else
+                             _json_index_candidates(document, location, descriptor) if kind == "json" else _html_candidates(document, location, source))
+                    entries.extend(extra)
+                    if extra:
+                        methods.append("advertised_" + kind)
+                        if kind == "json":
+                            break
+                except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
+                    discovery_errors.append(source["name"] + "：" + ingestion.source_error_details(exc)["message"])
+            unique = {}
+            for entry in entries:
+                previous = unique.get(entry["url"])
+                if not previous or (not _dated(previous) and _dated(entry)):
+                    unique[entry["url"]] = entry
+            entries = list(unique.values())[:120]
         for entry in entries:
             entry.pop("text", None)
+            entry.pop("_scope_intro", None)
             entry["description"] = str(entry.get("description") or "")[:280]
         if not entries:
             raise ingestion.IngestionError("没有发现可读取的文章，页面结构可能已变化。")
-        cached = {"entries": entries, "fetched_at": checked_at, "last_checked": checked_at, "last_error": None}
+        method = "+".join(methods)
+        cached = {"entries": entries, "fetched_at": checked_at, "last_checked": checked_at, "last_error": None,
+                  "discovery_method": method, "discovery_errors": discovery_errors}
         store.set_meta(key, cached)
         _record_source_health(store, source)
-        return entries, [], {"state": "fresh", "checked_at": checked_at}
+        return entries, discovery_errors, {"state": "fresh", "checked_at": checked_at, "discovery_method": method}
     except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
         details = ingestion.source_error_details(exc)
         message = details["message"]
@@ -561,37 +854,81 @@ async def _source_index(store, team_id, source, *, force=False):
     return [], errors, {"state": "unavailable", "checked_at": checked_at, "error": source_failure(source, ingestion.IngestionError(message))}
 
 
-async def _verify_article_dates(store, team_id, source, entries, *, force=False):
-    """Verify only a few matching undated links; retain metadata, never bodies."""
-    pending = list({entry["url"]: entry for entry in entries if not entry.get("published_at")}.values())[:3]
+async def _verify_article_dates(store, team_id, source, entries, *, force=False,
+                                budget=None, metrics=None, article_cache=None):
+    """Read a bounded sample before excluding otherwise useful undated leads.
+
+    A date comes from the article/feed, never a sitemap modification or fetch
+    time. Only verification metadata reaches the index; optional prefetched
+    articles live in the enclosing collect call and expire when it returns.
+    """
+    current = datetime.now(timezone.utc)
+    undated = list({entry["url"]: entry for entry in entries if not _dated(entry)}.values())
+    def order(entry):
+        modified = _stamp(entry.get("source_modified_at"))
+        return (bool(entry.get("date_checked_at")), entry.get("date_checked_at") or "",
+                -modified.timestamp() if modified else 0)
+    undated.sort(key=order)
+    pending = []
+    for entry in undated:
+        checked = _stamp(entry.get("date_checked_at"))
+        if not force and checked and 0 <= (current - checked).total_seconds() < INDEX_CACHE_SECONDS:
+            continue
+        if len(pending) >= DATE_VERIFY_PER_SOURCE:
+            break
+        if budget is not None:
+            official = str(source.get("id", "")).startswith("official_")
+            available = budget["remaining"] - (0 if official else budget.get("official_reserved", 0))
+            if available <= 0:
+                break
+            budget["remaining"] -= 1
+            if official:
+                budget["official_reserved"] = max(0, budget.get("official_reserved", 0) - 1)
+        pending.append(entry)
+    if metrics is not None:
+        metrics["date_verify_attempted"] = len(pending)
     async def verify(entry):
         try:
             body, url, _ = await _fetch_shared(store, entry["url"], source, force=force)
             if article_url(url) != entry["url"]:
                 raise ingestion.IngestionError("核实日期时来源跳转到了其他文章，未作为近期消息。")
             article = ingestion.extract_html(body, url, source["name"])[0]
-            return entry["url"], article.get("published_at"), None
+            if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
+                raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
+            if not _first_team_entry(article):
+                return entry["url"], {}, None, "out_of_scope", None
+            if article_cache is not None:
+                article_cache[(entry["url"], source["id"])] = article
+            return entry["url"], {key: article.get(key) for key in ingestion.PUBLICATION_FIELDS}, article.get("title"), "dated" if _dated(article) else "unknown", None
         except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
-            return entry["url"], None, source["name"] + "：" + (str(exc) or "文章日期核实超时")
+            return entry["url"], {}, None, "unavailable", source["name"] + "：" + ingestion.source_error_details(exc)["message"]
         except Exception:
-            return entry["url"], None, source["name"] + "：文章日期解析未完成，已保留其他可读资料。"
+            return entry["url"], {}, None, "unavailable", source["name"] + "：文章日期解析未完成，已保留其他可读资料。"
     results = await asyncio.gather(*(verify(entry) for entry in pending))
-    verified = {url: stamp for url, stamp, _ in results if stamp}
-    if verified:
+    if metrics is not None:
+        metrics["date_verified_count"] = sum(_dated(publication) for _, publication, _, _, _ in results)
+        metrics["date_scope_rejected_count"] = sum(status == "out_of_scope" for _, _, _, status, _ in results)
+        metrics["date_errors"] = [{**source_failure(source, ingestion.IngestionError(error)), "stage": "article_date"}
+                                  for _, _, _, _, error in results if error]
+    updates = {url: {"date_checked_at": ingestion.now(), "date_verification_status": status,
+                     **(publication if _dated(publication) else {}),
+                     **({"title": title, "title_from_url": False} if title else {})}
+               for url, publication, title, status, _ in results}
+    if updates:
         for entry in entries:
-            if entry["url"] in verified:
-                entry["published_at"] = verified[entry["url"]]
+            if entry["url"] in updates:
+                entry.update(updates[entry["url"]])
         key = _index_key(team_id, source)
         cached = store.get_meta(key, {})
         for entry in cached.get("entries", []):
             try:
-                stamp = verified.get(article_url(entry["url"]))
+                update = updates.get(article_url(entry["url"]))
             except (KeyError, ingestion.IngestionError):
                 continue
-            if stamp:
-                entry["published_at"] = stamp
+            if update:
+                entry.update(update)
         store.set_meta(key, cached)
-    return [error for _, _, error in results if error]
+    return [error for _, _, _, _, error in results if error]
 
 
 def _search_query(store, team_id, query):
@@ -685,7 +1022,8 @@ async def _espn_news_index(store, team_id, *, force=False):
 
 
 @manual_refresh_scope
-async def discover_news(store, team_id, query="", limit=6, *, category="all", max_age_days=None, offset=0, force=False):
+async def discover_news(store, team_id, query="", limit=6, *, category="all", max_age_days=None, offset=0, force=False,
+                        _article_cache=None):
     _check_team(store, team_id)
     limit = max(1, min(40, int(limit)))
     offset = max(0, min(500, int(offset)))
@@ -696,10 +1034,17 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
         raise ingestion.IngestionError("新闻时间范围须为 1 至 365 天")
     sources = source_catalog(store, team_id)
     semaphore = asyncio.Semaphore(3)
+    date_budget = {"remaining": DATE_VERIFY_TOTAL,
+                   "official_reserved": DATE_VERIFY_PER_SOURCE if any(
+                       source.get("builtin") and source["id"].startswith("official_") for source in sources) else 0}
 
     async def discover(source):
         async with semaphore:
             entries, failures, status = await _source_index(store, team_id, source, force=force)
+            metrics = {"indexed_count": len(entries), "relevant_count": 0,
+                       "dated_count": 0, "undated_count": 0,
+                       "date_verify_attempted": 0, "date_verified_count": 0, "window_count": 0,
+                       "read_attempted": 0, "readable_count": 0, "date_errors": []}
             clean = []
             for raw in entries:
                 entry = copy.deepcopy(raw)
@@ -708,27 +1053,47 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
                 except ingestion.IngestionError:
                     continue
                 entry.update({"source_name": source["name"], "source_id": source["id"], "builtin": source.get("builtin", False),
+                              "discovery_source_id": source["id"],
+                              "publisher_id": source.get("publisher_id") or source["id"],
                               "title": entry["title"][:200], "team_id": team_id, "mode": "live",
                               "index_state": status["state"], "index_checked_at": status["checked_at"],
                               "categories": article_categories(entry)})
                 if (_first_team_entry(entry) and (not source.get("global_feed") or global_feed_mentions_team(team_id, entry))
                         and (category == "all" or category in entry["categories"]) and relevance(team_id, query, entry)):
                     clean.append(entry)
-            if max_age_days is not None and source.get("builtin") and source.get("verify_article_dates"):
-                failures = [*failures, *await _verify_article_dates(store, team_id, source, clean, force=force)]
-            clean = [entry for entry in clean if within_days(entry, max_age_days)]
-            return clean, failures, {"id": source["id"], "name": source["name"], **status, "matched_count": len(clean)}
+            metrics["relevant_count"] = len(clean)
+            if (max_age_days is not None and source.get("builtin")
+                    and (source.get("verify_article_dates") or source.get("kind") == "html" or source.get("index_url"))):
+                failures = [*failures, *await _verify_article_dates(store, team_id, source, clean, force=force,
+                                  budget=date_budget, metrics=metrics, article_cache=_article_cache)]
+            if source.get("builtin") and source["id"].startswith("official_"):
+                date_budget["official_reserved"] = 0
+            metrics["dated_count"] = sum(_dated(entry) for entry in clean)
+            metrics["undated_count"] = len(clean) - metrics["dated_count"]
+            metrics["date_pending_count"] = sum(not _dated(entry) and not entry.get("date_checked_at") for entry in clean)
+            metrics["date_unknown_count"] = metrics["undated_count"] - metrics["date_pending_count"]
+            clean = [entry for entry in clean if entry.get("date_verification_status") != "out_of_scope"
+                     and _first_team_entry(entry) and relevance(team_id, query, entry)
+                     and (category == "all" or category in article_categories(entry)) and within_days(entry, max_age_days)]
+            for entry in clean:
+                entry["categories"] = article_categories(entry)
+            metrics["window_count"] = len(clean)
+            return clean, failures, {"id": source["id"], "name": source["name"], **status, **metrics, "matched_count": len(clean)}
 
     # Let publisher indexes enter their bounded transport queues first. While
     # they are in flight, overlap optional searches within this invocation only;
     # the original coverage rule still decides whether their results are used.
-    publisher_tasks = [asyncio.create_task(discover(source)) for source in sources]
+    publisher_tasks = [asyncio.create_task(discover(source)) for source in sorted(
+        sources, key=lambda item: not (item.get("builtin") and item["id"].startswith("official_")))]
     extra_tasks = []
     def start_extras():
         extra_tasks.extend([asyncio.create_task(_web_news_index(store, team_id, query, force=force)),
                             asyncio.create_task(_espn_news_index(store, team_id, force=force))])
     def needs_extras(batches):
-        return bool(query.strip()) or sum(len(entries) for entries, _, _ in batches) < limit + offset
+        # Several subscriptions may advertise the same canonical article.
+        # Only distinct leads can fill the requested result page.
+        unique_urls = {article_url(entry["url"]) for entries, _, _ in batches for entry in entries}
+        return bool(query.strip()) or len(unique_urls) < limit + offset
     try:
         await asyncio.sleep(0)
         batches = [task.result() for task in publisher_tasks] if all(task.done() for task in publisher_tasks) else None
@@ -745,22 +1110,30 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
         await asyncio.gather(*publisher_tasks, *extra_tasks, return_exceptions=True)
     if extras:
         for web_entries, errors, web_status in extras:
+            indexed_count = len(web_entries)
+            dated_count = sum(_dated(entry) for entry in web_entries)
             web_entries = [{**entry, "team_id": team_id, "mode": "live", "builtin": True,
+                            "discovery_source_id": web_status["id"],
                             "index_state": web_status["state"], "index_checked_at": web_status["checked_at"],
                             "categories": article_categories(entry)} for entry in web_entries
                            if _first_team_entry(entry) and within_days(entry, max_age_days)
                            and (category == "all" or category in article_categories(entry)) and relevance(team_id, query, entry)]
-            batches.append((web_entries, errors, {**web_status, "matched_count": len(web_entries)}))
+            batches.append((web_entries, errors, {**web_status, "indexed_count": indexed_count,
+                            "dated_count": dated_count, "undated_count": indexed_count - dated_count,
+                            "window_count": len(web_entries), "relevant_count": len(web_entries),
+                            "date_verify_attempted": 0, "date_verified_count": 0,
+                            "date_pending_count": indexed_count - dated_count, "date_unknown_count": 0,
+                            "read_attempted": 0, "readable_count": 0, "date_errors": [], "matched_count": len(web_entries)}))
     unique, errors = {}, []
     for entries, failures, status in batches:
         errors.extend(failures)
         for entry in entries:
             # Structured metadata takes priority over a second anchor rendering.
             previous = unique.get(entry["url"])
-            if not previous or (not previous.get("published_at") and entry.get("published_at")):
+            if not previous or (not _dated(previous) and _dated(entry)):
                 unique[entry["url"]] = entry
     def rank(item):
-        stamp = _stamp(item.get("published_at")) or _stamp(item.get("source_modified_at"))
+        stamp = _stamp(item.get("published_at")) or (_stamp(item.get("published_date")) if item.get("publication_precision") == "date" else None) or _stamp(item.get("source_modified_at"))
         age = (datetime.now(timezone.utc) - stamp).total_seconds() / 86400 if stamp else None
         freshness = 3 if age is not None and 0 <= age <= 3 else 2 if age is not None and 0 <= age <= 14 else 1 if age is None else 0
         # Ordering is by how much this candidate answers the current question,
@@ -777,7 +1150,7 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
     # publisher feeds the owner just added with one result between them.
     by_source = {}
     for item in ranked:
-        by_source.setdefault(item["source_id"], []).append(item)
+        by_source.setdefault(item.get("publisher_id") or item["source_id"], []).append(item)
     queues = {source_id: list(items) for source_id, items in by_source.items()}
     order = sorted(queues, key=lambda sid: (len(queues[sid]), sid))
     ordered = []
@@ -803,13 +1176,15 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
                     entry[key] = prior[key]
             if prior.get("last_read"):
                 entry["title"] = prior["title"]
-                entry["published_at"] = prior.get("published_at") or entry.get("published_at")
+                if _dated(prior):
+                    entry.update({key: prior.get(key) for key in ingestion.PUBLICATION_FIELDS})
                 entry["spoiler"] = entry["spoiler"] or prior.get("spoiler", False)
                 entry["title_from_url"] = False
         store.put("candidates", entry)
         candidates.append(entry)
     return {"candidates": candidates, "errors": errors, "notice": DISCOVERY_NOTICE,
-            "source_errors": unique_source_failures([status["error"] for _, _, status in batches if status.get("error")]),
+            "source_errors": unique_source_failures([error for _, _, status in batches
+                             for error in ([status["error"]] if status.get("error") else []) + status.get("date_errors", [])]),
             "sources": [status for _, _, status in batches], "category": category, "max_age_days": max_age_days,
             "matched_count": len(ranked), "offset": offset, "next_offset": offset + limit if offset + limit < len(ranked) else None,
             "coverage": "unavailable" if all(status["state"] == "unavailable" for _, _, status in batches) else "partial" if errors else "available"}
@@ -888,7 +1263,8 @@ def _candidate_context(store, team_id, candidate_id, event_id, match_id):
     return candidate, match, _read_source(store, candidate)
 
 
-async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=None, *, force=False):
+async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=None, *, force=False,
+                         _article_cache=None):
     candidate, match, source = _candidate_context(store, team_id, candidate_id, event_id, match_id)
     try:
         cached = store.get("evidence", candidate.get("evidence_id")) if candidate.get("evidence_id") else None
@@ -898,19 +1274,30 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
                         and cached.get("source_id") == source["id"] and cached.get("url")
                         and article_url(cached["url"]) == article_url(candidate["url"])
                         and 0 <= cache_age < ARTICLE_CACHE_SECONDS)
-        if reusable:
-            article = {key: cached.get(key) for key in ("title", "text", "url", "published_at", "images", *ingestion.CONTENT_FIELDS)}
+        prefetched = (_article_cache or {}).get((candidate["url"], source["id"]))
+        if prefetched is not None:
+            article = copy.deepcopy(prefetched)
+        elif reusable:
+            article = {key: cached.get(key) for key in ("title", "text", "url", "images", "source_scope", *ingestion.PUBLICATION_FIELDS, *ingestion.CONTENT_FIELDS)}
+            article["_article_owned"] = bool(cached.get("article_body_bound"))
         else:
             body, url, _ = await _fetch_shared(store, candidate["url"], source, force=force)
             article = ingestion.extract_html(body, article_url(url), source["name"])[0]
+        if not article.get("source_scope") and candidate.get("source_scope"):
+            article["source_scope"] = candidate["source_scope"]
+        if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
+            raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
+        if not _first_team_entry(article):
+            raise ArticleScopeError("文章属于女足、青年队或其他项目，未纳入男足一线队消息。")
+        article.pop("_scope_intro", None)
         current, match, current_source = _candidate_context(store, team_id, candidate_id, event_id, match_id)
         if current.get("url") != candidate.get("url") or current.get("source_id") != candidate.get("source_id"):
             raise ingestion.IngestionError("读取期间来源链接已变化，请重新查找文章。")
         _checked_url(article["url"], _source_hosts(current_source))
         candidate, source = current, current_source
-        if not article.get("published_at"):
+        if not _dated(article):
             # A feed's publication date is valid provenance; sitemap lastmod is not.
-            article["published_at"] = candidate.get("published_at")
+            article.update({key: candidate.get(key) for key in ingestion.PUBLICATION_FIELDS})
         if match:
             _validate_match_article(match, article)
         result = ingestion.ingest(store, team_id=team_id, **article, source_name=source["name"], source_id=source["id"],
@@ -922,7 +1309,7 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
                     current["evidence_ids"] = list(dict.fromkeys([*current.get("evidence_ids", []), result["evidence"]["id"]]))
                     store.put("matches", current)
         candidate.update({"evidence_id": result["evidence"]["id"], "last_read": ingestion.now(), "last_error": None,
-                          "published_at": article.get("published_at"), "title": article["title"], "spoiler": result["evidence"]["spoiler"]})
+                          **{key: article.get(key) for key in ingestion.PUBLICATION_FIELDS}, "title": article["title"], "spoiler": result["evidence"]["spoiler"]})
         store.put("candidates", candidate)
         result["cached"] = reusable
         return result
@@ -931,22 +1318,39 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
         current = store.get("candidates", candidate_id)
         if current and current.get("team_id") == team_id:
             store.put("candidates", {**current, "last_error": message})
+        if isinstance(exc, ArticleScopeError):
+            raise
         raise ingestion.IngestionError(message) from None
 
 
 @manual_refresh_scope
 async def collect_team(store, team_id, query="", limit=4, event_id=None, match_id=None, *, category="all", max_age_days=None, max_attempts=None, force=False):
     limit = max(1, min(40, int(limit)))
-    found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(40, limit + 6), category=category, max_age_days=max_age_days, force=force)
-    result = {"added": 0, "unchanged": 0, "cached": 0, "evidence_ids": [], "event_ids": [], "candidates": found["candidates"], "errors": list(found["errors"]), "source_errors": list(found.get("source_errors", [])), "notice": found.get("notice", DISCOVERY_NOTICE), "sources": found.get("sources", [])}
+    article_cache = {}
+    found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(40, limit + 6), category=category, max_age_days=max_age_days, force=force,
+                                _article_cache=article_cache)
+    result = {"added": 0, "unchanged": 0, "cached": 0, "scope_rejected_count": 0, "evidence_ids": [], "event_ids": [], "candidates": found["candidates"], "errors": list(found["errors"]), "source_errors": list(found.get("source_errors", [])), "notice": found.get("notice", DISCOVERY_NOTICE), "sources": found.get("sources", [])}
     # Only fetches overlap. ingest remains synchronous and atomic; no database
     # transaction spans an await. Existing candidates remain a fallback.
     candidates = sorted(found["candidates"], key=lambda item: (bool(item.get("last_read")), item.get("last_read") or ""))
     ceiling = min(len(candidates), limit + 3, max_attempts if max_attempts is not None else limit + 3)
     attempts, completed, pending = 0, {}, {}
+    metrics = {source["id"]: source for source in result["sources"]}
     async def read(candidate):
+        metric = metrics.get(candidate.get("discovery_source_id") or candidate.get("source_id"))
+        if metric is not None:
+            metric["read_attempted"] = metric.get("read_attempted", 0) + 1
         try:
-            return await read_candidate(store, team_id, candidate["id"], event_id, match_id, **({"force": True} if force else {}))
+            imported = await read_candidate(store, team_id, candidate["id"], event_id, match_id,
+                                            **({"force": True} if force else {}),
+                                            **({"_article_cache": article_cache} if article_cache else {}))
+            if metric is not None:
+                metric["readable_count"] = metric.get("readable_count", 0) + 1
+            return imported
+        except ArticleScopeError:
+            if metric is not None:
+                metric["scope_rejected_count"] = metric.get("scope_rejected_count", 0) + 1
+            return {"scope_rejected": True}
         except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
             return {"error": candidate["source_name"] + "：" + ingestion.source_error_details(exc)["message"],
                     "source_error": source_failure({"id": candidate.get("source_id"), "name": candidate["source_name"], "url": candidate.get("url")}, exc)}
@@ -955,7 +1359,7 @@ async def collect_team(store, team_id, query="", limit=4, event_id=None, match_i
                     "source_error": source_failure({"id": candidate.get("source_id"), "name": candidate["source_name"], "url": candidate.get("url")}, ingestion.IngestionError("来源正文解析未完成"))}
     try:
         while True:
-            successes = sum("error" not in value for value in completed.values())
+            successes = sum("error" not in value and not value.get("scope_rejected") for value in completed.values())
             while attempts < ceiling and len(pending) < ARTICLE_CONCURRENCY and successes + len(pending) < limit:
                 task = asyncio.create_task(read(candidates[attempts]))
                 pending[task] = attempts
@@ -969,8 +1373,11 @@ async def collect_team(store, team_id, query="", limit=4, event_id=None, match_i
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
+        article_cache.clear()
     for _, imported in sorted(completed.items()):
-        if "error" in imported:
+        if imported.get("scope_rejected"):
+            result["scope_rejected_count"] += 1
+        elif "error" in imported:
             result["errors"].append(imported["error"])
             result["source_errors"].append(imported["source_error"])
         else:
@@ -999,6 +1406,12 @@ async def read_evidence_source(store, evidence_id, *, force=False):
         return item
     body, url, _ = await _fetch_shared(store, item["url"], source, force=force)
     article = ingestion.extract_html(body, article_url(url), source["name"])[0]
+    if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
+        raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
+    if not _first_team_entry(article):
+        raise ArticleScopeError("文章属于女足、青年队或其他项目，未纳入男足一线队消息。")
+    article.pop("_scope_intro", None)
+    owned = article.pop("_article_owned", False)
     current = store.get("evidence", evidence_id)
     if not _readable_record(current) or any(current.get(key) != item.get(key) for key in ("team_id", "mode", "source_id", "url")):
         raise ingestion.IngestionError("读取期间来源范围或权限已变化，本次原文未保存。")
@@ -1006,9 +1419,11 @@ async def read_evidence_source(store, evidence_id, *, force=False):
     item = current
     # Updating the same provenance record invalidates derived reports only
     # when its actual body/metadata changes. Retrieval time is not a version.
-    published_at = article.get("published_at") or item.get("published_at")
+    publication = {key: (article if _dated(article) else item).get(key) for key in ingestion.PUBLICATION_FIELDS}
     item.update(article)
-    item["published_at"] = published_at
+    if owned:
+        item["article_body_bound"] = True
+    item.update(publication)
     item["last_checked_at"] = ingestion.now()
     item["fingerprint"] = ingestion.fingerprint(article["text"])
     item["spoiler"] = ingestion.potential_spoiler(article["title"], article["text"]) or item.get("manual_spoiler", False)

@@ -15,7 +15,7 @@ import json
 import re
 import unicodedata
 from datetime import datetime, timezone
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Comment
 
@@ -74,6 +74,64 @@ REFRESHABLE_PHOTO_MATCHES = frozenset({"exact_name_and_number", "wikimedia_verif
                                        "community_name_and_nationality"})
 
 
+def espn_headshot(athlete, *, fetched_at):
+    """Use an image published in the same checked athlete record, by its ID.
+
+    This is independent of club popularity, spelling and shirt number. Never
+    manufacture a CDN URL: the roster must supply it, and the soccer image's
+    ID must agree with the athlete that supplied it.
+    """
+    if not isinstance(athlete, dict):
+        return {}
+    headshot = athlete.get("headshot")
+    identity = str(athlete.get("id") or "")
+    if not isinstance(headshot, dict) or not re.fullmatch(r"[0-9]{1,10}", identity):
+        return {}
+    if any(record.get(flag) is True for record in (athlete, headshot)
+           for flag in ("private", "deleted", "restricted")):
+        return {}
+    image = headshot.get("href")
+    if (not isinstance(image, str) or not image or len(image) > 2048
+            or any(ord(char) <= 32 or char == "\\" for char in image)):
+        return {}
+    try:
+        parts = urlsplit(image)
+        match = re.fullmatch(r"/i/headshots/soccer/players/(?:full|thumb)/([0-9]{1,10})\.(?:png|jpe?g|webp)", parts.path)
+        if (parts.scheme != "https" or parts.hostname != "a.espncdn.com" or parts.port not in {None, 443}
+                or parts.username or parts.password or parts.fragment or not match or match[1] != identity):
+            return {}
+        # Public image sizing is supported; credentials, arbitrary transforms
+        # and unknown query parameters cannot enter a browser image request.
+        if any(key not in {"w", "h", "scale"} or not value.isdigit() or not 1 <= int(value) <= 2000
+               for key, value in parse_qsl(parts.query, keep_blank_values=True)):
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    return {"photo_url": image, "photo_credit": "ESPN 球员资料",
+            "photo_source_url": f"https://www.espn.com/soccer/player/_/id/{identity}",
+            "photo_updated_at": fetched_at, "photo_match": "espn_provider_id",
+            "photo_license": "未声明开放许可",
+            "photo_restrictions": "ESPN 公开球员照片；图片权利归原作者或发布方。"}
+
+
+def _recheck_espn_photos(players, *, revoked_ids=()):
+    """A cached image still has to belong to the row's current provider ID."""
+    for player in players:
+        if player.get("photo_match") not in {"espn_provider_id", "espn_directory_provider_id"}:
+            continue
+        photo = espn_headshot({"id": player.get("provider_id"), "headshot": {"href": player.get("photo_url")}},
+                              fetched_at=player.get("photo_updated_at"))
+        withdrawn = (str(player.get("provider_id") or "") in revoked_ids
+                     or "espn" in (player.get("photo_blocked_sources") or []))
+        if not photo or player.get("photo_source_url") != photo["photo_source_url"] or withdrawn:
+            for field in PLAYER_PHOTO_FIELDS:
+                player.pop(field, None)
+            player.update(photo_url="", photo_credit="",
+                          photo_reason="ESPN 当前记录已撤回这张照片，等待来源重新公开核验。" if withdrawn else
+                                       "来源照片与球员编号不一致，需要重新核对。",
+                          retryable=True, reason_code="source_withdrawn" if withdrawn else "identity_revalidation")
+
+
 class PortraitDirectoryError(IngestionError):
     def __init__(self, message, code):
         super().__init__(message)
@@ -85,7 +143,7 @@ def _apply_photo(player, photo):
     for field in PLAYER_PHOTO_FIELDS:
         player.pop(field, None)
     player.update({field: photo[field] for field in PLAYER_PHOTO_FIELDS if field in photo})
-    player["photo_updated_at"] = photo.get("fetched_at") or now()
+    player["photo_updated_at"] = photo.get("fetched_at") or photo.get("photo_updated_at") or now()
 
 
 def _community_failure(player, photo, preferred=None):
@@ -115,6 +173,24 @@ def _recheck_community_photos(store, players, team_id):
             player.update(photo_url="", photo_credit="",
                           photo_reason="照片身份校验已更新，需要重新核对社区照片。",
                           retryable=True, reason_code="identity_revalidation")
+
+
+def _recheck_wikimedia_photos(store, players, team_id):
+    """Current source verdicts govern saved roster images and their links too."""
+    from .wikimedia_portraits import cached_portrait
+    for player in players:
+        if player.get("photo_match") != "wikimedia_verified_club":
+            continue
+        cached = cached_portrait(store, player, team_id)
+        if cached and cached.get("status") == "completed":
+            _apply_photo(player, cached)
+            continue
+        for field in PLAYER_PHOTO_FIELDS:
+            player.pop(field, None)
+        player.update(photo_url="", photo_credit="",
+                      photo_reason=(cached or {}).get("photo_reason") or "照片来源与许可需要重新核对。",
+                      retryable=bool(cached.get("retryable", cached.get("status") == "unavailable")) if cached else True,
+                      reason_code=(cached or {}).get("reason_code") or "identity_revalidation")
 
 
 async def _portrait_document(store, url, *, allowed_hosts, max_body, content_types=("text/html", "xhtml")):
@@ -337,9 +413,15 @@ def apply_cached_portraits(store, snapshot):
     from .community_portraits import cached_portrait as cached_community
     from .wikimedia_portraits import cached_portrait
 
+    _recheck_espn_photos(snapshot.get("roster", []))
     _recheck_community_photos(store, snapshot.get("roster", []), snapshot.get("team_id"))
+    _recheck_wikimedia_photos(store, snapshot.get("roster", []), snapshot.get("team_id"))
+    snapshot = _apply_espn_directory(snapshot, _espn_directory_with_revocations(store,
+        store.get_meta("espn_portraits_v1_" + snapshot.get("team_id", ""), {}),
+        player_ids={str(row.get("provider_id") or "") for row in snapshot.get("roster", [])}))
     snapshot = _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
     for player in snapshot.get("roster", []):
+        _apply_cached_reading(store, player, snapshot.get("team_id"))
         if player.get("photo_url"):
             continue
         cached = cached_portrait(store, player, snapshot.get("team_id"))
@@ -371,6 +453,143 @@ def apply_cached_portraits(store, snapshot):
             player["retryable"] = True
             player["reason_code"] = "not_yet_resolved"
     return snapshot
+
+
+def _apply_cached_reading(store, player, team_id):
+    from .wikimedia_portraits import cached_reading
+    from .player_names import with_reading
+    with_reading(player, source_reading=cached_reading(store, player, team_id), team_id=team_id)
+
+
+def _espn_directory_with_revocations(store, directory, *, player_ids):
+    """Athlete IDs are global: a transfer cannot restore another team's old image."""
+    revoked = set(directory.get("revoked_ids") or [])
+    records = store.get_meta("espn_portrait_visibility_v1", {}).get("records") or {}
+    for identity in player_ids:
+        state = records.get(identity, {})
+        if state.get("status") == "withdrawn":
+            revoked.add(identity)
+        elif state.get("status") == "public":
+            revoked.discard(identity)
+    return {**directory, "revoked_ids": sorted(revoked)}
+
+
+def _apply_espn_directory(snapshot, directory, *, selected=None):
+    """Same-provider numeric IDs link photos; the directory never supplies facts."""
+    photos = directory.get("photos") or {}
+    covered = set(directory.get("covered_ids") or [])
+    revoked = set(directory.get("revoked_ids") or [])
+    # Revocation is a privacy boundary for the entire snapshot, even when the
+    # caller selected only one player for enrichment. Other public sources keep
+    # their independently checked images.
+    _recheck_espn_photos(snapshot.get("roster", []), revoked_ids=revoked)
+    for row in snapshot.get("roster", []) if selected is None else selected:
+        identity = str(row.get("provider_id") or "")
+        if identity in revoked or "espn" in (row.get("photo_blocked_sources") or []):
+            continue
+        if row.get("photo_url") and row.get("photo_match") not in {"espn_directory_provider_id"}:
+            continue
+        photo = photos.get(identity)
+        if photo:
+            verified = espn_headshot({"id": identity, "headshot": {"href": photo.get("photo_url")}},
+                                      fetched_at=photo.get("photo_updated_at"))
+            if verified and photo.get("photo_source_url") == verified["photo_source_url"]:
+                _apply_photo(row, photo)
+                continue
+        if identity in covered and row.get("photo_match") == "espn_directory_provider_id":
+            for field in PLAYER_PHOTO_FIELDS:
+                row.pop(field, None)
+            row.update(photo_url="", photo_credit="")
+    return snapshot
+
+
+async def _enrich_espn_directory(store, snapshot, selected, *, force=False):
+    """Read at most one source-authored selector per position, for any club."""
+    if snapshot.get("provider") != "ESPN":
+        return {"attempted_count": 0, "errors": []}
+    key = "espn_portraits_v1_" + snapshot["team_id"]
+    allowed = {row["provider_id"] for row in snapshot.get("roster", [])}
+    previous = _espn_directory_with_revocations(store, store.get_meta(key, {}), player_ids=allowed)
+    _apply_espn_directory(snapshot, previous, selected=selected)
+    if not selected or not force and (_elapsed(previous.get("fetched_at")) < CACHE_SECONDS
+                                      or _elapsed(previous.get("last_attempt")) < 300):
+        return {"attempted_count": 0, "errors": []}
+    wanted = [row for row in selected if "espn" not in (row.get("photo_blocked_sources") or [])
+              and (not row.get("photo_url") or row.get("photo_match") == "espn_directory_provider_id")]
+    representatives, groups = [], set()
+    for row in wanted:
+        group = row.get("position_group") or row.get("provider_id")
+        if group not in groups:
+            representatives.append(row)
+            groups.add(group)
+        if len(representatives) >= 4:
+            break
+    if not representatives:
+        return {"attempted_count": 0, "errors": []}
+    from .espn_pages import fetch_player_portrait_records
+    attempted = now()
+    semaphore = asyncio.Semaphore(2)
+    async def read(row):
+        async with semaphore:
+            try:
+                return row["provider_id"], await fetch_player_portrait_records(row["provider_id"]), None
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return row["provider_id"], [], "ESPN 球员照片目录暂时不可读，独立图片来源会继续补充。"
+    results = await asyncio.gather(*(read(row) for row in representatives))
+    photos = copy.deepcopy(previous.get("photos") or {})
+    covered = set(previous.get("covered_ids") or [])
+    revoked = set(previous.get("revoked_ids") or [])
+    withdrawn, replacements = set(), {}
+    successes, errors = 0, []
+    for page_id, records, error in results:
+        if error:
+            errors.append(error)
+            continue
+        successes += 1
+        for record in records:
+            identity = record["id"]
+            if identity not in allowed:
+                continue
+            covered.add(identity)
+            photo = espn_headshot(record, fetched_at=attempted)
+            if photo:
+                replacements[identity] = {**photo, "photo_match": "espn_directory_provider_id",
+                                         "photo_file_page": "https://www.espn.com/soccer/player/_/id/" + page_id}
+            else:
+                withdrawn.add(identity)
+    # An explicit refusal wins over duplicate positive rows in this pass. A
+    # later checked public selector may release the tombstone; roster reuse and
+    # an unrelated selector failure cannot do so.
+    revoked.update(withdrawn)
+    for identity, photo in replacements.items():
+        if identity not in withdrawn:
+            revoked.discard(identity)
+            photos[identity] = photo
+    if withdrawn or replacements:
+        # Read after the awaited source work so concurrent clubs cannot discard
+        # each other's records. Updating this evidence never scans saved squads.
+        visibility = store.get_meta("espn_portrait_visibility_v1", {})
+        records = copy.deepcopy(visibility.get("records") or {})
+        for identity in withdrawn:
+            if (records.get(identity, {}).get("checked_at") or "") <= attempted:
+                records[identity] = {"status": "withdrawn", "checked_at": attempted}
+        for identity in replacements.keys() - withdrawn:
+            latest = records.get(identity, {})
+            if ((latest.get("checked_at") or "") < attempted
+                    or latest.get("checked_at") == attempted and latest.get("status") != "withdrawn"):
+                records[identity] = {"status": "public", "checked_at": attempted}
+        store.set_meta("espn_portrait_visibility_v1", {"records": records,
+            "updated_at": max(visibility.get("updated_at") or "", attempted)})
+    directory = {"photos": {identity: value for identity, value in photos.items()
+                           if identity in allowed and identity not in revoked},
+                 "covered_ids": sorted(covered & allowed), "revoked_ids": sorted(revoked), "last_attempt": attempted,
+                 "fetched_at": attempted if successes else previous.get("fetched_at"),
+                 "status": "partial" if successes and errors else "completed" if successes else "unavailable"}
+    store.set_meta(key, directory)
+    _apply_espn_directory(snapshot, _espn_directory_with_revocations(store, directory, player_ids=allowed), selected=selected)
+    return {"attempted_count": len(representatives), "errors": list(dict.fromkeys(errors))}
 
 
 def _apply_directory(snapshot, directory):
@@ -436,7 +655,10 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
     before = {row["provider_id"]: tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) for row in selected}
     # A whole-team manual retry resumes missing work. Only an explicit player
     # selection asks to revalidate a still-current checked photo.
+    _recheck_espn_photos(selected)
     _recheck_community_photos(store, selected, result.get("team_id"))
+    _recheck_wikimedia_photos(store, roster, result.get("team_id"))
+    espn = await _enrich_espn_directory(store, result, selected, force=force)
     # Match against the entire roster so selecting one of two same-named players
     # cannot bypass the directory's ambiguity guard. Publish only selected photos.
     if selected and result.get("team_id") in DIRECTORIES:
@@ -449,8 +671,20 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
                     row[field] = source[field]
                 else:
                     row.pop(field, None)
-    return await _enrich_wikimedia_photos(store, result, selected, before, force=force,
-                                          explicit_selection=player_ids is not None)
+    snapshot, summary = await _enrich_wikimedia_photos(store, result, selected, before, force=force,
+                                                      explicit_selection=player_ids is not None)
+    # A selected lookup can discover a Commons withdrawal shared by an
+    # unselected old portrait. Clear it before returning the full snapshot.
+    _recheck_wikimedia_photos(store, snapshot["roster"], snapshot.get("team_id"))
+    summary["available_count"] = sum(bool(row.get("photo_url")) for row in snapshot["roster"])
+    summary["selected_available_count"] = sum(bool(row.get("photo_url")) for row in selected)
+    summary["missing_count"] = len(selected) - summary["selected_available_count"]
+    summary["updated_count"] = sum(tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) != before[row["provider_id"]]
+                                   for row in selected)
+    if summary["status"] == "completed" and summary["missing_count"]:
+        summary["status"] = "partial" if summary["selected_available_count"] else "missing"
+    summary.update(espn_attempted_count=espn["attempted_count"], espn_errors=espn["errors"])
+    return snapshot, summary
 
 
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
@@ -477,6 +711,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         return force and (explicit_selection or not (row.get("photo_url") and checked_wikimedia(row)))
 
     for row in ordered:
+        _apply_cached_reading(store, row, team_id)
         if force and explicit_selection or row.get("photo_url") and row.get("photo_match") != "wikimedia_verified_club":
             continue
         cached = cached_wikimedia(store, row, team_id)
@@ -518,6 +753,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
                  else await resolve_portrait(store, row, team_id))
         requested.append(row)
         responses.append(photo)
+        _apply_cached_reading(store, row, team_id)
         if photo.get("status") == "completed" and all(photo.get(k) for k in
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
             _apply_photo(row, photo)
@@ -560,6 +796,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
                       and (force or not community_settled(row))]
     attempted = 0
     processed = []
+    community_unavailable = False
     for row in community_rows[:COMMUNITY_PAGE_LIMIT]:
         processed.append(row)
         cached = None if force else cached_community(store, row, team_id)
@@ -586,6 +823,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row["retryable"] = bool(photo.get("retryable"))
             row["reason_code"] = photo.get("reason_code") or "rejected"
         if photo.get("status") == "unavailable":
+            community_unavailable = True
             reason = _community_failure(row, photo, wikimedia_failures.get(row["provider_id"]))
             errors[row["provider_id"]] = f"球员 {row['provider_id']}：{reason}"
             if row.get("photo_url"):
@@ -603,8 +841,14 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
                        retryable=True, reason_code="not_yet_resolved")
     available = sum(bool(row.get("photo_url")) for row in roster)
     selected_available = sum(bool(row.get("photo_url")) for row in selected)
+    wikimedia_remaining = sum(not row.get("photo_url") for row in candidates[len(requested):])
+    community_remaining = sum(not row.get("photo_url") for row in community_rows[len(processed):])
+    continuation_ready = bool(
+        community_remaining and processed and not community_unavailable
+        or wikimedia_remaining and any(photo.get("status") in {"completed", "missing", "rejected"} for photo in responses)
+        and not any(photo.get("status") == "unavailable" for photo in responses))
     status = ("completed" if selected_available == len(selected) and not errors else
-              "partial" if selected_available else "failed" if errors else "missing")
+              "partial" if selected_available or continuation_ready else "failed" if errors else "missing")
     return snapshot, {"status": status,
         "updated_count": sum(tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) != before[row["provider_id"]]
                              for row in selected),
@@ -613,7 +857,9 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         "attempted_count": len(responses), "cached_count": cached_count,
         # A fallback success finishes this player's photo work too: do not
         # report them as still queued in the preferred source's old batch.
-        "remaining_count": sum(not row.get("photo_url") for row in candidates[len(requested):]),
+        "remaining_count": wikimedia_remaining,
         "community_attempted_count": attempted,
-        "community_remaining_count": sum(not row.get("photo_url") for row in community_rows[len(processed):]),
+        "community_unavailable": community_unavailable,
+        "community_remaining_count": community_remaining,
+        "continuation_ready": continuation_ready,
         "errors": errors, "updated_at": now()}

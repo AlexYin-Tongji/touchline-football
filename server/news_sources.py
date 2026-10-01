@@ -19,7 +19,9 @@ MARCA_HOSTS = frozenset({"e00-marca.uecdn.es", "www.marca.com", "marca.com"})
 GAZZETTA_HOSTS = frozenset({"www.gazzetta.it", "gazzetta.it"})
 KICKER_HOSTS = frozenset({"newsfeed.kicker.de", "www.kicker.de", "kicker.de"})
 ESPN_HOSTS = frozenset({"www.espn.com", "espn.com", "www.espn.co.uk", "espn.co.uk"})
-REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS | RMC_HOSTS | MARCA_HOSTS | GAZZETTA_HOSTS | KICKER_HOSTS
+TMW_HOSTS = frozenset({"www.tuttomercatoweb.com", "tuttomercatoweb.com"})
+FOOTMERCATO_HOSTS = frozenset({"www.footmercato.net", "footmercato.net"})
+REGIONAL_PUBLISHER_HOSTS = AS_HOSTS | TYC_HOSTS | RMC_HOSTS | MARCA_HOSTS | GAZZETTA_HOSTS | KICKER_HOSTS | TMW_HOSTS | FOOTMERCATO_HOSTS
 
 # Hosts that serve more than one reviewed subscription. A transport fault there
 # says nothing about one feed path, so the failure is recorded against the host
@@ -47,10 +49,10 @@ OTHER_CLUB_IDENTITIES = {
 
 
 def additional_sources(team_id):
-    """Reviewed media feeds, plus one club-specific subscription per big club.
+    """Reviewed shared publisher feeds, with dense national football channels.
 
-    Every entry here is an independent publisher; each is discovered in
-    parallel and none outranks another after discovery.
+    Channels remain separate operational sources; publisher_id prevents two
+    subscriptions from pretending to be independent editorial voices.
     """
     if team_id not in TEAM_ALIASES:
         return []
@@ -93,6 +95,21 @@ def additional_sources(team_id):
          "url": "https://newsfeed.kicker.de/news/aktuell", "allowed_hosts": sorted(KICKER_HOSTS),
          "global_feed": True, "shared_index": True, "reviewed_at": "2026-09-24",
          "description": "德国踢球者公开订阅；仅阅读公开正文，按球队筛选。"},
+        {"id": "tmw_football", "name": "TuttoMercatoWeb · 足球", "kind": "rss",
+         "url": "https://www.tuttomercatoweb.com/rss/", "allowed_hosts": sorted(TMW_HOSTS),
+         "global_feed": True, "shared_index": True, "publisher_id": "tmw", "reviewed_at": "2026-10-01",
+         "declaration_url": "https://www.tuttomercatoweb.com/rss-lista/",
+         "description": "意大利足球媒体主站明确发布的综合订阅；按球队与一线队范围筛选，正文须另行阅读。"},
+        {"id": "tmw_serie_a", "name": "TuttoMercatoWeb · 意甲", "kind": "rss",
+         "url": "https://www.tuttomercatoweb.com/rss/?s=1", "allowed_hosts": sorted(TMW_HOSTS),
+         "global_feed": True, "shared_index": True, "publisher_id": "tmw", "reviewed_at": "2026-10-01",
+         "declaration_url": "https://www.tuttomercatoweb.com/rss-lista/",
+         "description": "主站订阅目录明确发布的意甲频道，补充本国联赛报道密度；仍按相同球队身份与文章范围筛选。"},
+        {"id": "footmercato_football", "name": "Foot Mercato · 足球", "kind": "rss",
+         "url": "https://www.footmercato.net/flux-rss", "allowed_hosts": sorted(FOOTMERCATO_HOSTS),
+         "global_feed": True, "shared_index": True, "publisher_id": "footmercato", "reviewed_at": "2026-10-01",
+         "declaration_url": "https://www.footmercato.net/contact-mentions-legales-flux-rss",
+         "description": "法国足球媒体官方说明页发布的综合订阅；保留媒体来源归属，不将转会报道写成已确认球队事实。"},
     ])
     return sources
 
@@ -108,6 +125,8 @@ def feed_published_time(value, url):
 def readable_publisher_entry(entry):
     parts = urlsplit(entry.get("url", ""))
     path = unquote(parts.path).lower()
+    if re.search(r"/(?:media[-_]videos?|videos?|watch|live(?:-blog)?)(?:/|$)", path):
+        return False
     if parts.hostname in BBC_HOSTS:
         return not re.search(r"/(?:sounds|av|videos?|live)(?:/|$)", path)
     if parts.hostname in SKY_HOSTS:

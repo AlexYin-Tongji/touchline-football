@@ -3,6 +3,47 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as realReact from "react";
+import * as realJsx from "react/jsx-runtime";
+
+function recoveryModule(browser) {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/RecoverableView.tsx", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    exports, window: browser,
+    require: name => name === "react" ? realReact : realJsx,
+  });
+  return exports;
+}
+
+test("late failed view imports never refresh another view or clear saved drafts", async () => {
+  let refreshed = 0, reject;
+  const saved = new Map([["touchline-draft-getafe", "尚未发送的验收问题"]]);
+  const module = recoveryModule({ location: { reload() { refreshed++; } }, localStorage: saved });
+  const pending = module.loadView(() => new Promise((resolve, fail) => { reject = fail; }));
+  // The loading view has been left before its import settles.
+  reject(new Error("Failed to fetch dynamically imported module: old-view.js"));
+  await assert.rejects(pending);
+  assert.equal(refreshed, 0);
+  assert.equal(saved.get("touchline-draft-getafe"), "尚未发送的验收问题");
+});
+
+test("a real React recovery boundary shows a local refresh without exposing the exception", () => {
+  let refreshed = 0;
+  const module = recoveryModule({ location: { reload() { refreshed++; } } });
+  const boundary = new module.RecoverableView({ label: "足球助手", children: "正常内容" });
+  assert.equal(boundary.render(), "正常内容");
+  boundary.state = module.RecoverableView.getDerivedStateFromError(new Error("private diagnostic"));
+  const tree = boundary.render();
+  assert.ok(realReact.isValidElement(tree));
+  assert.equal(tree.props.role, "alert");
+  assert.match(text(tree), /足球助手暂时没能打开/);
+  assert.doesNotMatch(text(tree), /private diagnostic/);
+  assert.equal(refreshed, 0);
+  nodes(tree, node => node.type === "button")[0].props.onClick();
+  assert.equal(refreshed, 1);
+});
 
 // Execute the actual components with a small hook host. No server, browser, or
 // provider is contacted; event handlers and lifecycle cleanup remain production code.
@@ -52,7 +93,7 @@ function component(file, name, props, api, saved = {}) {
     require(module) {
       if (module === "react") return react;
       if (module === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
-      if (module === "./api") return { api: path => api(path, "GET"), post: (path, body) => api(path, "POST", body), errorText: e => e.message };
+      if (module === "./api") return { api: (path, options) => api(path, options?.method || "GET", options?.body ? JSON.parse(options.body) : undefined), post: (path, body) => api(path, "POST", body), errorText: e => e.message };
       if (module === "./v7Shared") return { uniqueImages: images => images || [], friendlyTime: () => "", Markdown: "Markdown", Photo: "Photo", Sources: "Sources" };
       if (module === "./components") return { dateTime: () => "", safeUrl: value => value || null, Crest: "Crest", Modal: "Modal", SourceGapNotice: "SourceGapNotice", Spinner: "Spinner" };
       if (module === "./clubCatalog") return { findClub: () => null };
@@ -126,6 +167,80 @@ test("feed uses workflow updates without losing loaded pages or showing old retr
   await host.flush();
   assert.equal(nodes(host.tree, node => node.type === "article").length, 40);
   assert.equal(new URL(paths.at(-1), "http://local").searchParams.get("limit"), "40");
+  host.unmount();
+});
+
+test("unfollowed feed prepares only public sources once and polls visible preparation until ready", async () => {
+  const calls = [];
+  let ready = false;
+  const preparation = () => ({ kind: "news", team_id: team.id, status: ready ? "ready" : "running",
+    message: ready ? "已取得可读消息来源。" : "正在准备公开消息来源。", counts: { candidates: 3, readable: ready ? 2 : 0 } });
+  const host = component("v7Feed.tsx", "FeedView", { team, data, ask() {}, openModel() {} }, (path, method, body) => {
+    calls.push([path, method, body]);
+    return Promise.resolve(method === "POST" ? preparation() : { items: [], next_cursor: null, preparation: preparation() });
+  });
+  await host.flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.filter(([, method]) => method === "POST"))), [["/teams/arsenal/prepare", "POST", { kind: "news" }]]);
+  assert.match(text(host.tree), /正在准备球队消息/);
+  button(host, "伤停").props.onClick();
+  await host.flush();
+  assert.equal(calls.filter(([, method]) => method === "POST").length, 1);
+  host.setVisibility("hidden");
+  const hiddenCalls = calls.length;
+  host.tickIntervals(5000);
+  await host.flush();
+  assert.equal(calls.length, hiddenCalls);
+  host.setVisibility("visible");
+  ready = true;
+  host.tickIntervals(5000);
+  await host.flush();
+  assert.match(text(host.tree), /已取得可读消息来源/);
+  button(host, "全部动态").props.onClick();
+  await host.flush();
+  assert.match(text(host.tree), /消息来源已就绪/);
+  assert.match(text(host.tree), /2 条可读来源/);
+  const finishedCalls = calls.length;
+  host.tickIntervals(5000);
+  await host.flush();
+  assert.equal(calls.length, finishedCalls);
+  assert.ok(calls.filter(([, method]) => method === "POST").every(([path]) => path.endsWith("/prepare")));
+  host.unmount();
+});
+
+test("a delayed preparation acknowledgement cannot replace newer collected sources or another team", async () => {
+  for (const switchTeam of [false, true]) {
+    const late = deferred();
+    const host = component("v7Feed.tsx", "FeedView", { team, data, ask() {}, openModel() {} }, (path, method) => {
+      const identity = path.includes("liverpool") ? "liverpool" : team.id;
+      const preparation = { kind: "news", team_id: identity, status: "ready", message: `${identity} 已取得来源`,
+        updated_at: "2026-10-01T12:00:02Z", counts: { readable: 2 } };
+      return method === "POST" && identity === team.id ? late.promise : Promise.resolve(method === "POST" ? preparation :
+        { items: [], next_cursor: null, preparation });
+    });
+    await host.flush();
+    if (switchTeam) {
+      host.rerender({ team: { id: "liverpool", name: "利物浦" } });
+      await host.flush();
+    }
+    late.resolve({ kind: "news", team_id: team.id, status: "running", message: "过期准备响应",
+      updated_at: "2026-10-01T12:00:01Z", counts: { readable: 0 } });
+    await host.flush();
+    assert.doesNotMatch(text(host.tree), /过期准备响应/);
+    assert.match(text(host.tree), switchTeam ? /liverpool 已取得来源/ : /arsenal 已取得来源/);
+    host.unmount();
+  }
+});
+
+test("workflow separates a source outage from reports that were never generated", async () => {
+  const current = workflowState({ status: "failed", message: "本轮未能读取消息来源，尚未进入中文整理。",
+    collection: { status: "failed", reason: "sources_unavailable", indexed_count: 0, relevant_count: 0,
+      dated_count: 0, window_count: 0, read_attempted: 0, readable_count: 0, source_count: 4,
+      available_sources: 0, failed_sources: 4 } });
+  const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: team.id }, () => Promise.resolve(current));
+  await host.flush();
+  assert.match(text(host.tree), /尚未进入中文整理/);
+  assert.match(text(host.tree), /0 \/ 4 个索引可用/);
+  assert.doesNotMatch(text(host.tree), /中文整理：已完成 0/);
   host.unmount();
 });
 
@@ -348,13 +463,14 @@ test("workflow commands completing after unmount cannot publish status changes",
   assert.deepEqual(changes, []);
 });
 
-test("team center reads only and preserves existing players while workflow changes refresh its snapshot", async () => {
-  const next = deferred(), calls = [];
+test("team center prepares public data once and preserves players while workflow changes refresh its snapshot", async () => {
+  const next = deferred(), prepared = deferred(), calls = [];
   const center = { team, roster: [{ id: "player", name: "已有球员", position: "中场", position_group: "midfielder" }],
     matches: [], stats: {}, sources: [] };
   const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, (path, method) => {
     calls.push([path, method]);
-    return calls.length === 1 ? Promise.resolve(center) : next.promise;
+    if (method === "POST") return prepared.promise;
+    return calls.filter(([, method]) => method === "GET").length === 1 ? Promise.resolve(center) : next.promise;
   });
   await host.flush();
   assert.equal(nodes(host.tree, node => node.type === "DecisionHistory")[0].props.teamId, team.id);
@@ -367,9 +483,11 @@ test("team center reads only and preserves existing players while workflow chang
   await host.flush();
   assert.match(text(host.tree), /已有球员/, "pending reads do not clear an existing snapshot");
   next.resolve(center);
+  prepared.resolve({ kind: "team", team_id: team.id, status: "ready" });
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
-  assert.ok(calls.every(([path, method]) => path === "/teams/arsenal/center" && method === "GET"));
+  assert.deepEqual(calls.filter(([, method]) => method === "POST"), [["/teams/arsenal/prepare", "POST"]]);
+  assert.ok(calls.filter(([, method]) => method === "GET").every(([path]) => path === "/teams/arsenal/center"));
   host.unmount();
 });
 
@@ -555,6 +673,7 @@ test("visible team refresh preserves filters and updates or removes an open play
     return Promise.resolve({ team, roster, matches: [], stats: {}, sources: [] });
   });
   await host.flush();
+  const initialCalls = calls;
   button(host, "球员阵容").props.onClick();
   await host.flush();
   const search = () => nodes(host.tree, node => node.type === "input" && node.props.type === "search")[0];
@@ -565,12 +684,12 @@ test("visible team refresh preserves filters and updates or removes an open play
   host.setVisibility("hidden");
   host.tickIntervals(60000);
   await host.flush();
-  assert.equal(calls, 1);
+  assert.equal(calls, initialCalls);
   roster = [{ ...player, photo_reason: "照片来源已撤回" }];
   host.setVisibility("visible");
   host.tickIntervals(60000);
   await host.flush();
-  assert.equal(calls, 2);
+  assert.equal(calls, initialCalls + 1);
   assert.equal(search().props.value, "中文名");
   assert.match(text(nodes(host.tree, node => node.props?.className === "player-detail")[0]), /照片来源已撤回/);
   roster = [];
@@ -584,12 +703,15 @@ test("news source dates use Beijing time and distinguish an unknown publication 
   const host = component("v7Shared.tsx", "Sources", { showDates: true, sources: [
     { name: "球队官网", url: "https://example.com/news", published_at: "2026-09-30T20:00:00Z" },
     { name: "另一媒体", url: "https://example.com/other" },
+    { name: "来源只声明日期", url: "https://example.com/day", published_at: null, published_date: "2026-09-30", publication_precision: "date" },
   ] }, () => Promise.resolve(null));
   await host.flush();
   const dates = nodes(host.tree, node => node.type === "time");
-  assert.equal(dates.length, 1);
+  assert.equal(dates.length, 2);
   assert.equal(text(dates[0]), "2026/10/1");
   assert.equal(dates[0].props.dateTime, "2026-09-30T20:00:00Z");
+  assert.equal(text(dates[1]), "2026-09-30（仅日期）");
+  assert.equal(dates[1].props.dateTime, "2026-09-30");
   assert.match(text(host.tree), /发布时间未知/);
   host.unmount();
 });

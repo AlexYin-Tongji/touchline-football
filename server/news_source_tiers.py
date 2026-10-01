@@ -21,6 +21,8 @@ PRESS_SOURCES = (
     ("news_marca", "马卡报", ("marca.com", "e00-marca.uecdn.es")),
     ("news_gazzetta", "米兰体育报", ("gazzetta.it",)),
     ("news_kicker", "踢球者", ("kicker.de", "newsfeed.kicker.de")),
+    ("news_tmw", "TuttoMercatoWeb", ("tuttomercatoweb.com",)),
+    ("news_footmercato", "Foot Mercato", ("footmercato.net",)),
 )
 
 

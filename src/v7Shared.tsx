@@ -30,6 +30,8 @@ export interface SourceLink {
   title?: string;
   url?: string;
   published_at?: string | null;
+  published_date?: string | null;
+  publication_precision?: "date" | "instant" | null;
   // Which kind of source this is. A reader deciding how much weight a line
   // deserves needs to see at a glance whether it came from the club, a
   // publisher, or a supporters' forum — a bare domain does not say.
@@ -139,10 +141,12 @@ export const Sources = memo(function Sources({
             </span>
           ) : null}
           {source.name || source.source_name || `参考 ${i + 1}`}
-          {showDates && <span className="source-published" title="来源发布时间（北京时间）">
+          {showDates && <span className="source-published" title={source.published_at ? "来源发布时间（北京时间）" : "来源声明的刊文日期，未声明具体时刻"}>
             {source.published_at && Number.isFinite(Date.parse(source.published_at))
               ? <time dateTime={source.published_at}>{new Date(source.published_at).toLocaleDateString("zh-CN", { year: "numeric", month: "numeric", day: "numeric", timeZone: "Asia/Shanghai" })}</time>
-              : "发布时间未知"}
+              : source.published_date && /^\d{4}-\d{2}-\d{2}$/.test(source.published_date)
+                ? <time dateTime={source.published_date}>{source.published_date}（仅日期）</time>
+                : "发布时间未知"}
           </span>}
           <ArrowUpRight size={12} />
         </a>

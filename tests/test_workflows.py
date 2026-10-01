@@ -131,7 +131,7 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(1):
                 while manager.status("news", "arsenal")["status"] != "completed":
                     await asyncio.sleep(.001)
-        with patch("server.agent.run_agent", new=runner), patch("server.research.collect_team", new=AsyncMock(return_value={"errors": [], "evidence_ids": []})):
+        with patch("server.agent.run_agent", new=runner), patch("server.research.collect_team", new=AsyncMock(return_value={"errors": [], "evidence_ids": ["ev_injury"], "event_ids": ["event_one"]})):
             try:
                 manager.start("news", "arsenal")
                 await completed()
@@ -187,7 +187,7 @@ class WorkflowAPITests(unittest.IsolatedAsyncioTestCase):
         from server.main import create_app
         from server.task_memory import state_key
         with tempfile.TemporaryDirectory() as directory:
-            app = create_app(Path(directory) / "manual.db")
+            app = create_app(Path(directory) / "manual.db", collection_enabled=False)
             store = app.state.store
             store.save_settings({"auto_refresh": True, "automation": {"enabled": True},
                                  "reports": {"auto_generate": True}})

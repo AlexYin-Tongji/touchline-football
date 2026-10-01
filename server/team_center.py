@@ -183,7 +183,9 @@ def parse_roster(payload, team, league, season, provider_team_id):
     athletes = payload.get("athletes")
     if not isinstance(athletes, list) or not 1 <= len(athletes) <= 120:
         raise IngestionError("来源没有返回完整可读的阵容，已保留上次阵容。")
+    from .team_portraits import espn_headshot
     roster, seen = [], set()
+    fetched_at = now()
     today = datetime.now(timezone.utc).date()
     for athlete in athletes:
         if not isinstance(athlete, dict):
@@ -229,17 +231,20 @@ def parse_roster(payload, team, league, season, provider_team_id):
                "birth_date": birth_date, "age": age, "age_as_of": today.isoformat(),
                "height_cm": round(height * 2.54) if height is not None else None,
                "weight_kg": round(weight * .45359237, 1) if weight is not None else None,
-               # A squad row starts with no photo. Portraits are added
-               # only by the checked official, Wikimedia and community
-               # providers, so nothing here can show an unverified face.
+               # A source-supplied photo must match this athlete's provider ID;
+               # absent or unverified images remain empty for later enrichment.
                "photo_url": "", "photo_credit": "",
                "source_url": source_url, "bio": " · ".join(bio_parts), "stats": player_stats}
+        row.update(espn_headshot(athlete, fetched_at=fetched_at))
+        if any(record.get(flag) is True for record in (athlete, athlete.get("headshot") or {}) if isinstance(record, dict)
+               for flag in ("private", "deleted", "restricted")):
+            row["photo_blocked_sources"] = ["espn"]
         roster.append(with_reading(row))
     order = {"GK": 0, "DF": 1, "MF": 2, "FW": 3, "OTHER": 4}
     roster.sort(key=lambda p: (order[p["position_group"]], int(p["number"]) if p["number"] else 999, p["name"]))
     return {"id": _snapshot_id(team["id"], season["id"]), "team_id": team["id"], "season_id": season["id"],
             "league_id": league["id"], "season_start_year": season["season_start_year"], "roster": roster,
-            "fetched_at": now(), "source_updated_at": published_time(payload.get("timestamp")),
+            "fetched_at": fetched_at, "source_updated_at": published_time(payload.get("timestamp")),
             "source_url": f"https://www.espn.com/soccer/team/squad/_/id/{provider_team_id}/league/{league['provider_code']}/season/{season['season_start_year']}",
             "provider": "ESPN", "source_method": (payload.get("_touchline_source") or {}).get("method", "api")}
 
@@ -320,6 +325,13 @@ def _component_status(updated_at, ttl, available, state=None, *, incomplete=Fals
         status = "stale" if stale else "fresh"
     return {"status": status, "updated_at": updated_at, "last_attempt": state.get("last_attempt"),
             "stale": stale, "available": bool(available), "errors": state.get("errors", [])}
+
+
+def _portrait_retry_seconds(state):
+    from .team_portraits import RETRY_SECONDS as PHOTO_RETRY_SECONDS
+    # A successfully completed bounded batch has more work to do. That is a
+    # continuation, whereas an unavailable source still follows its backoff.
+    return 60 if state.get("continuation_ready") is True else PHOTO_RETRY_SECONDS
 
 
 def _validated_parts(parts):
@@ -440,6 +452,12 @@ def center_view(store, team_id, year=None, *, reveal=False):
                                       PHOTO_CACHE_SECONDS, photo_count, portraits_state, incomplete=photo_count < len(roster)),
     }
     components["portraits"].update(available_count=photo_count, total_count=len(roster))
+    components["portraits"].update(
+        remaining_count=portraits_state.get("remaining_count", 0),
+        community_remaining_count=portraits_state.get("community_remaining_count", 0),
+        community_unavailable=portraits_state.get("community_unavailable", False),
+        continuation_ready=portraits_state.get("continuation_ready") is True,
+        retry_seconds=_portrait_retry_seconds(portraits_state))
     timestamps = [x for x in (snapshot.get("fetched_at"), schedule_time, table.get("fetched_at")) if x]
     errors = list(dict.fromkeys(error for part in CORE_PARTS for error in components[part]["errors"]))
     return {"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
@@ -635,17 +653,18 @@ def team_view_claims(store, team_id, view, *, year=None):
                                            now=stamp or None),
             note="" if present else "还没有取得这部分资料。")}}
     portraits = (view.get("components") or {}).get("portraits") or {}
-    portrait_stamp = portraits.get("updated_at") or portraits.get("last_attempt")
+    portrait_stamp = portraits.get("last_attempt") or portraits.get("updated_at")
     photo_count = len([player for player in view.get("roster", []) if player.get("photo_url")])
     subjects["portraits"] = {"claims": {"photo_url": provenance.Claim(
         field="photo_url", value=photo_count,
-        source_id="wikimedia", tier=provenance.SourceTier.DATASET,
+        source_id="portrait_coverage", tier=provenance.SourceTier.DERIVED,
         # A pass that was never attempted is dated now, not left undated. An
         # undated claim ranks first, and "we have not tried yet" is not more
         # urgent than a table that is genuinely six weeks stale — it would let
         # an untouched optional field outrank real staleness on every plan.
-        fetched_at=portrait_stamp or now(),
-        ttl_seconds=provenance.YEAR,
+        fetched_at=portrait_stamp or view.get("roster_updated_at") or now(),
+        ttl_seconds=(int(portraits.get("retry_seconds") or 3600) if photo_count < len(view.get("roster", []))
+                     else provenance.YEAR),
         note="" if portrait_stamp else "尚未尝试获取球员照片。")}}
     return subjects
 
@@ -702,7 +721,6 @@ class TeamMaintenanceManager:
         self.finalizers[key] = asyncio.create_task(finish())
 
     def _start_portraits(self, team_id, year=None):
-        from .team_portraits import RETRY_SECONDS as PHOTO_RETRY_SECONDS
         _, _, season, _ = team_season_context(self.store, team_id, year)
         key = _status_key(team_id, season["id"])
         existing = self.portrait_tasks.get(key)
@@ -711,7 +729,7 @@ class TeamMaintenanceManager:
         view = center_view(self.store, team_id, year)
         portrait_state = self.store.get_meta(key, {}).get("components", {}).get("portraits", {})
         if (not view["roster"] or view["components"]["portraits"]["status"] == "fresh"
-                or _elapsed(portrait_state.get("last_attempt")) < PHOTO_RETRY_SECONDS):
+                or _elapsed(portrait_state.get("last_attempt")) < _portrait_retry_seconds(portrait_state)):
             return False
         _record_component(self.store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
         self.portrait_tasks[key] = asyncio.create_task(sync_portraits(self.store, team_id, year))

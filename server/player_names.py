@@ -23,6 +23,8 @@ football coverage, and the original spelling is always shown beside it.
 from __future__ import annotations
 
 import unicodedata
+import re
+from datetime import datetime, timezone
 
 
 # Letters that survive NFKD as themselves, because they are distinct letters in
@@ -409,18 +411,62 @@ def reading_for(name):
     Absence is a real answer here, not a failure: the caller shows the source
     spelling and nothing else.
     """
-    return NAME_READINGS.get(normalize_name(name), "")
+    evidence = VERIFIED_READINGS.get(normalize_name(name))
+    return evidence["reading"] if evidence else ""
 
 
-def with_reading(row):
+NAME_FIELDS = ("name_zh", "name_zh_source", "name_zh_source_url", "name_zh_checked_at", "name_zh_identity")
+_SOURCE_UNSET = object()
+
+
+def cjk_label(value):
+    """A published Chinese label, never a description or an inferred reading."""
+    return (isinstance(value, str) and 1 <= len(value) <= 80 and value == value.strip()
+            and any("㐀" <= char <= "鿿" for char in value)
+            and not any(ord(char) < 32 or char in "<>{}[]=/\\" for char in value))
+
+
+def checked_wikidata_reading(candidate, row, *, team_id=None):
+    if not isinstance(candidate, dict) or candidate.get("name_status", "verified") != "verified":
+        return None
+    proof = candidate.get("name_zh_identity")
+    reading = candidate.get("name_zh")
+    if not isinstance(proof, dict) or not cjk_label(reading):
+        return None
+    qid = proof.get("qid")
+    if (not re.fullmatch(r"Q[1-9][0-9]{0,11}", str(qid or ""))
+            or candidate.get("name_zh_source_url") != "https://www.wikidata.org/wiki/" + qid
+            or candidate.get("name_zh_source") != "Wikidata 中文标签"
+            or proof.get("method") != "wikidata_existing_identity_check"
+            or proof.get("identity_checked") is not True or proof.get("unique_article") is not True
+            or proof.get("public") is not True or proof.get("language") not in {"zh", "zh-hans"}
+            or proof.get("label") != reading
+            or normalize_name(proof.get("name")) != normalize_name(row.get("name"))
+            or proof.get("team_id") != (team_id or row.get("team_id"))
+            or proof.get("roster_birth_date", "") != (row.get("birth_date") or "")
+            or str(proof.get("provider_id") or "") != str(row.get("provider_id") or "")
+            or any(candidate.get(flag) is True for flag in ("private", "deleted", "restricted"))):
+        return None
+    try:
+        checked = datetime.fromisoformat(str(candidate.get("name_zh_checked_at") or "").replace("Z", "+00:00"))
+        if checked.tzinfo is None or not -300 <= (datetime.now(timezone.utc) - checked).total_seconds() < 30 * 86400:
+            return None
+    except (ValueError, TypeError):
+        return None
+    return {field: candidate[field] for field in NAME_FIELDS}
+
+
+def with_reading(row, *, source_reading=_SOURCE_UNSET, team_id=None):
     """Add ``name_zh`` to a roster row without touching the source spelling.
 
     ``name`` stays exactly as the source wrote it — it is the identity used for
-    photo matching and for quoting — and ``name_zh`` is present only when the
-    table has a reading.
+    photo matching and for quoting. Attested readings take priority; otherwise
+    an identity-checked publisher label may supply the separate Chinese name.
     """
     reading = reading_for(row.get("name"))
-    for field in ("name_zh_source", "name_zh_source_url", "name_zh_checked_at"):
+    dynamic = (checked_wikidata_reading(row if source_reading is _SOURCE_UNSET else source_reading, row, team_id=team_id)
+               if not reading else None)
+    for field in NAME_FIELDS:
         row.pop(field, None)
     if reading:
         row["name_zh"] = reading
@@ -428,6 +474,6 @@ def with_reading(row):
         if evidence:
             row.update(name_zh_source=evidence["source"], name_zh_source_url=evidence["source_url"],
                        name_zh_checked_at=evidence["checked_at"])
-    else:
-        row.pop("name_zh", None)
+    elif dynamic:
+        row.update(dynamic)
     return row

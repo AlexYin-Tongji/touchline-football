@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from server import community_portraits, team_portraits, wikimedia_portraits
+from server.ingestion import now
 from server.storage import Store
 
 
@@ -65,6 +66,196 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await team_portraits.enrich_portraits(self.store, other), other)
             self.assertEqual(await team_portraits.enrich_portraits(self.store, existing), existing)
         fetch.assert_not_called()
+
+    async def test_same_source_portrait_is_retained_without_cross_source_lookup(self):
+        for team_id in ("barcelona", "manchester-united", "mainz"):
+            with self.subTest(team_id=team_id):
+                snapshot = squad(name="Unknown Source Player")
+                snapshot["team_id"] = team_id
+                player = snapshot["roster"][0]
+                player.update(team_portraits.espn_headshot({"id": "123", "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at="2026-10-01T00:00:00Z"))
+                with self.fetch(card()) as directory, \
+                     patch.object(wikimedia_portraits, "resolve_portrait", AsyncMock()) as wiki, \
+                     patch.object(community_portraits, "resolve_portrait", AsyncMock()) as community:
+                    result, summary = await team_portraits.enrich_player_photos(self.store, snapshot, player_ids=["123"], force=True)
+                self.assertEqual(result["roster"][0], player)
+                self.assertEqual(summary["status"], "completed")
+                self.assertEqual(summary["updated_count"], 0)
+                directory.assert_not_called()
+                wiki.assert_not_called()
+                community.assert_not_called()
+
+    async def test_cached_source_photo_cannot_follow_a_different_player_id(self):
+        snapshot = squad()
+        snapshot["team_id"] = "mainz"
+        player = snapshot["roster"][0]
+        player.update(team_portraits.espn_headshot({"id": "123", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at="2026-10-01T00:00:00Z"))
+        player["provider_id"] = "456"
+        result = team_portraits.apply_cached_portraits(self.store, snapshot)
+        self.assertFalse(result["roster"][0]["photo_url"])
+        self.assertNotIn("photo_source_url", result["roster"][0])
+
+    async def test_any_team_uses_four_identity_bound_source_pages_before_search(self):
+        snapshot = {"team_id": "unlisted-local-club", "provider": "ESPN", "roster": [
+            {"provider_id": str(index), "name": "Same Name", "position_group": group, "photo_url": ""}
+            for index, group in enumerate(("GK", "DF", "MF", "FW"), start=1)]}
+        def records(identity):
+            return [{"id": identity, "name": "Same Name", "headshot": {
+                "href": f"https://a.espncdn.com/i/headshots/soccer/players/full/{identity}.png"}}]
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(side_effect=records)) as source, \
+             patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock()) as wiki, \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock()) as community:
+            result, summary = await team_portraits.enrich_player_photos(self.store, snapshot)
+        self.assertEqual(source.await_count, 4)
+        self.assertEqual(summary["available_count"], 4)
+        self.assertEqual(summary["espn_attempted_count"], 4)
+        for player in result["roster"]:
+            self.assertIn("/" + player["provider_id"] + ".png", player["photo_url"])
+            self.assertEqual(player["name"], "Same Name")
+            self.assertEqual(player["photo_match"], "espn_directory_provider_id")
+            self.assertTrue(player["photo_file_page"])
+        wiki.assert_not_called()
+        community.assert_not_called()
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock()) as cached_source:
+            repeated, _ = await team_portraits.enrich_player_photos(self.store, snapshot)
+        cached_source.assert_not_called()
+        self.assertEqual(repeated["roster"], result["roster"])
+
+    async def test_removed_directory_headshot_cannot_survive_from_cache(self):
+        snapshot = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", "photo_url": ""}]}
+        record = {"id": "123", "headshot": {"href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[record])):
+            first, _ = await team_portraits.enrich_player_photos(self.store, snapshot)
+        self.assertTrue(first["roster"][0]["photo_url"])
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[{"id": "123", "headshot": {}}])):
+            withdrawn, _ = await team_portraits.enrich_player_photos(self.store, first, force=True)
+        self.assertFalse(withdrawn["roster"][0]["photo_url"])
+        self.assertNotIn("photo_file_page", withdrawn["roster"][0])
+
+    def test_current_private_source_marker_blocks_its_previous_directory_photo(self):
+        snapshot = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", "photo_url": "", "photo_blocked_sources": ["espn"]}]}
+        photo = team_portraits.espn_headshot({"id": "123", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at="2026-10-01T00:00:00Z")
+        self.store.set_meta("espn_portraits_v1_mainz", {"photos": {"123": {
+            **photo, "photo_match": "espn_directory_provider_id"}}, "covered_ids": ["123"]})
+        result = team_portraits.apply_cached_portraits(self.store, snapshot)
+        self.assertFalse(result["roster"][0]["photo_url"])
+        self.assertNotIn("photo_source_url", result["roster"][0])
+
+    async def test_selector_revocation_blocks_main_photo_public_reads_and_rebuilt_rosters(self):
+        photo = team_portraits.espn_headshot({"id": "123", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at=now())
+        other = {"id": "456", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/456.png"}}
+        for flag in ("private", "deleted", "restricted"):
+            with self.subTest(flag=flag):
+                self.store.set_meta("espn_portraits_v1_mainz", {})
+                original = {"provider_id": "123", "name": "Example One", "position_group": "GK", **photo}
+                snapshot = {"team_id": "mainz", "provider": "ESPN", "roster": [original,
+                    {"provider_id": "456", "name": "Example Two", "position_group": "DF", "photo_url": ""}]}
+                revoked = {"id": "123", flag: True, "headshot": {"href": photo["photo_url"]}}
+                with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[revoked, other])), \
+                     patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
+                     patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})):
+                    result, _ = await team_portraits.enrich_player_photos(self.store, snapshot, player_ids=["456"], force=True)
+                directory = self.store.get_meta("espn_portraits_v1_mainz")
+                self.assertEqual(directory["revoked_ids"], ["123"])
+                self.assertNotIn("123", directory["photos"])
+                self.assertTrue(result["roster"][1]["photo_url"], "covered positive IDs are not revoked")
+                for replay in (result, {"team_id": "mainz", "roster": [copy.deepcopy(original)]}):
+                    shown = team_portraits.apply_cached_portraits(self.store, replay)["roster"][0]
+                    self.assertFalse(shown["photo_url"])
+                    self.assertFalse(any(shown.get(key) for key in
+                        ("photo_source_url", "photo_file_page", "photo_license", "photo_restrictions")))
+                self.assertTrue(original["photo_url"], "input facts remain unchanged")
+
+    async def test_selector_tombstone_survives_failures_until_checked_public_replacement(self):
+        photo = team_portraits.espn_headshot({"id": "123", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at=now())
+        self.store.set_meta("espn_portraits_v1_mainz", {"revoked_ids": ["123"], "covered_ids": ["123"],
+            "photos": {"123": {**photo, "photo_match": "espn_directory_provider_id"}}})
+        squad = {"team_id": "mainz", "provider": "ESPN", "roster": [{"provider_id": "123", "name": "Example", **photo}]}
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(side_effect=ConnectionError("offline"))):
+            await team_portraits._enrich_espn_directory(self.store, squad, squad["roster"], force=True)
+        self.assertFalse(squad["roster"][0]["photo_url"])
+        self.assertEqual(self.store.get_meta("espn_portraits_v1_mainz")["revoked_ids"], ["123"])
+        record = {"id": "123", "headshot": {"href": photo["photo_url"]}}
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[record])):
+            await team_portraits._enrich_espn_directory(self.store, squad, squad["roster"], force=True)
+        self.assertEqual(self.store.get_meta("espn_portraits_v1_mainz")["revoked_ids"], [])
+        self.assertEqual(squad["roster"][0]["photo_url"], photo["photo_url"])
+
+    async def test_selector_refusal_wins_over_another_pages_duplicate_public_record(self):
+        snapshot = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example One", "position_group": "GK", "photo_url": ""},
+            {"provider_id": "456", "name": "Example Two", "position_group": "DF", "photo_url": ""}]}
+        valid = {"id": "123", "headshot": {"href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(side_effect=[
+                [{"id": "123", "private": True, "headshot": {}}], [valid]])):
+            await team_portraits._enrich_espn_directory(self.store, snapshot, snapshot["roster"], force=True)
+        self.assertFalse(snapshot["roster"][0]["photo_url"])
+        self.assertEqual(self.store.get_meta("espn_portraits_v1_mainz")["revoked_ids"], ["123"])
+
+    async def test_global_athlete_revocation_blocks_other_clubs_until_source_republishes(self):
+        photo = team_portraits.espn_headshot({"id": "123", "headshot": {
+            "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}, fetched_at=now())
+        first = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", "photo_url": ""}]}
+        second = {"team_id": "bologna", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", **photo}]}
+        directory = {"photos": {"123": {**photo, "photo_match": "espn_directory_provider_id"}}, "covered_ids": ["123"]}
+        self.store.set_meta("espn_portraits_v1_bologna", directory)
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[
+                {"id": "123", "deleted": True, "headshot": {}}])):
+            await team_portraits._enrich_espn_directory(self.store, first, first["roster"], force=True)
+        global_before = self.store.get_meta("espn_portrait_visibility_v1")
+        for match in ("espn_provider_id", "espn_directory_provider_id"):
+            roster = copy.deepcopy(second)
+            roster["roster"][0]["photo_match"] = match
+            shown = team_portraits.apply_cached_portraits(self.store, roster)["roster"][0]
+            self.assertFalse(shown["photo_url"])
+            self.assertNotIn("photo_source_url", shown)
+        self.assertEqual(self.store.get_meta("espn_portraits_v1_bologna"), directory, "public reads do not write caches")
+        self.assertEqual(self.store.get_meta("espn_portrait_visibility_v1"), global_before)
+        self.assertTrue(second["roster"][0]["photo_url"], "stored squad remains untouched")
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(side_effect=ConnectionError("offline"))):
+            await team_portraits._enrich_espn_directory(self.store, second, second["roster"], force=True)
+        self.assertEqual(self.store.get_meta("espn_portrait_visibility_v1")["records"]["123"]["status"], "withdrawn")
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[
+                {"id": "123", "headshot": {"href": photo["photo_url"]}}])):
+            await team_portraits._enrich_espn_directory(self.store, second, second["roster"], force=True)
+        self.assertEqual(self.store.get_meta("espn_portrait_visibility_v1")["records"]["123"]["status"], "public")
+        rebuilt = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", **photo}]}
+        shown = team_portraits.apply_cached_portraits(self.store, rebuilt)["roster"][0]
+        self.assertEqual(shown["photo_url"], photo["photo_url"], "a new checked public record releases old team tombstones")
+
+    async def test_older_concurrent_selector_success_cannot_undo_newer_global_revocation(self):
+        started, release = asyncio.Event(), asyncio.Event()
+        first = {"team_id": "mainz", "provider": "ESPN", "roster": [
+            {"provider_id": "123", "name": "Example", "photo_url": ""}]}
+        second = {"team_id": "bologna", "provider": "ESPN", "roster": copy.deepcopy(first["roster"])}
+        async def older_success(identity):
+            started.set()
+            await release.wait()
+            return [{"id": identity, "headshot": {
+                "href": "https://a.espncdn.com/i/headshots/soccer/players/full/123.png"}}]
+        with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(side_effect=older_success)):
+            older = asyncio.create_task(team_portraits._enrich_espn_directory(self.store, first, first["roster"], force=True))
+            await started.wait()
+            try:
+                with patch("server.espn_pages.fetch_player_portrait_records", new=AsyncMock(return_value=[
+                        {"id": "123", "private": True, "headshot": {}}])):
+                    await team_portraits._enrich_espn_directory(self.store, second, second["roster"], force=True)
+            finally:
+                release.set()
+                await older
+        self.assertEqual(self.store.get_meta("espn_portrait_visibility_v1")["records"]["123"]["status"], "withdrawn")
+        self.assertFalse(first["roster"][0]["photo_url"])
 
     async def test_concurrent_refreshes_share_one_bounded_directory_fetch(self):
         with self.fetch(card()) as fetch:

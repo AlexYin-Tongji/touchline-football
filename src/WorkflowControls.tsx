@@ -13,6 +13,19 @@ export interface WorkflowState {
   message: string;
   last_error: string | null;
   source_errors?: SourceGap[];
+  collection?: {
+    status: "ready" | "partial" | "failed" | "empty";
+    reason: string;
+    indexed_count: number;
+    relevant_count: number;
+    dated_count: number;
+    window_count: number;
+    read_attempted: number;
+    readable_count: number;
+    source_count: number;
+    available_sources: number;
+    failed_sources: number;
+  } | null;
   started_at: string | null;
   finished_at: string | null;
   next_run_at: string | null;
@@ -63,7 +76,7 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const accept = useCallback((next: WorkflowState) => {
     if (next.kind !== kind || next.team_id !== teamId) return;
     const nextSignature = JSON.stringify([next.enabled, next.status, next.phase, next.progress,
-      next.finished_at, next.memory.completed_count]);
+      next.finished_at, next.memory.completed_count, next.collection]);
     const changed = signature.current !== null && signature.current !== nextSignature;
     signature.current = nextSignature;
     latest.current = next;
@@ -148,6 +161,7 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const ready = !!current || !!requestError;
   const progress = current?.progress;
   const showProgress = progress && (progress.completed + progress.failed + progress.remaining > 0);
+  const collection = current && current.status !== "idle" && current.status !== "stopped" ? current.collection : null;
   // Source collection can fail before a report is counted. The backend clears
   // this error at each new cycle; idle/stopped records may retain older errors.
   const failure = current && current.status !== "idle" && current.status !== "stopped"
@@ -159,7 +173,8 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
       <div className="workflow-status" role="status" aria-live="polite">
         <strong>{action === "start" ? "正在启动…" : action === "stop" ? "正在结束…" :
           current?.message || (current ? messages[current.status] : requestError ? "暂时无法读取跟进状态。" : "正在读取跟进状态…")}</strong>
-        {showProgress && <p>本轮：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
+        {collection && <p>本轮来源：{collection.available_sources} / {collection.source_count} 个索引可用，发现 {collection.relevant_count} 条本队消息，{collection.window_count} 条在近期范围；尝试读取 {collection.read_attempted} 条正文，取得 {collection.readable_count} 条。</p>}
+        {showProgress && <p>{kind === "news" ? "中文整理" : "本轮资料"}：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
         {(requestError || failure) && <p className="workflow-error" role="alert">
           {requestError || failure}
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&

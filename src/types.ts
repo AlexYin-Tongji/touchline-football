@@ -41,6 +41,8 @@ export interface Evidence {
   url?: string;
   source_name?: string;
   published_at?: string | null;
+  published_date?: string | null;
+  publication_precision?: "date" | "instant" | null;
   fetched_at?: string;
   source_id?: string | null;
   origin?: string;

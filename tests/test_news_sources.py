@@ -242,7 +242,7 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         def client_with_challenge(**kwargs):
             transport = httpx.MockTransport(lambda request: httpx.Response(200, headers={
                 "content-type": "text/html", "cf-mitigated": "challenge"}, text="Checking your browser"))
-            return original_client(transport=transport, **kwargs)
+            return original_client(transport=transport, **{key: value for key, value in kwargs.items() if key != "proxy"})
         with patch.object(research, "getproxies", return_value={"https": "http://proxy.invalid:8080"}), \
              patch.object(research.httpx, "AsyncClient", side_effect=client_with_challenge):
             with self.assertRaises(ingestion.IngestionError) as caught:
@@ -255,7 +255,7 @@ class NewsSourceTests(unittest.IsolatedAsyncioTestCase):
         def client_with_failure(**kwargs):
             def fail(request):
                 raise httpx.ConnectError("private proxy diagnostic: token=secret", request=request)
-            return original_client(transport=httpx.MockTransport(fail), **kwargs)
+            return original_client(transport=httpx.MockTransport(fail), **{key: value for key, value in kwargs.items() if key != "proxy"})
         with patch.object(research, "getproxies", return_value={"https": "http://proxy.invalid:8080"}), \
              patch.object(research.httpx, "AsyncClient", side_effect=client_with_failure):
             with self.assertRaises(ingestion.SourceConnectionError) as caught:

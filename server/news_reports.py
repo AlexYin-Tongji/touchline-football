@@ -26,16 +26,38 @@ from .research import article_url
 from .team_profiles import _evidence_hash
 
 REPORT_CONCURRENCY = 4
-# A failed report is retried, but not forever and not immediately. Five attempts
-# covers the transient causes (throttling, an unconfigured model, a restart
-# mid-run); the backoff keeps a source that is genuinely down from being retried
-# on every cycle.
+# Only identified transient failures are eligible for a later owned batch.
+# Manual attempts remain single-pass; citation or content failures never loop.
 FAILED_REPORT_ATTEMPT_LIMIT = 5
 
 
 def FAILED_REPORT_BACKOFF_SECONDS(attempts):
     """Wait before retrying a failed report: 15m, 1h, 4h, 12h."""
     return (900, 3600, 14400, 43200)[min(int(attempts or 0), 3)]
+
+
+def failure_kind(row):
+    """Conservative retry classification; unknown failures need user action."""
+    error = str(row.get("error") or "").lower()
+    if any(term in error for term in ("配额", "余额", "额度不足", "insufficient_quota", "quota exhausted", "billing", "credit balance")):
+        return "source_or_configuration"
+    if (any(term in error for term in ("引用不完整", "报告结构", "原文不足", "确定性", "permanent fault"))
+            or "未通过" in error and any(term in error for term in ("核对", "核验"))):
+        return "content_review"
+    if any(term in error for term in ("配置", "协议", "接口", "http 400", "http 401", "http 403", "http 404",
+                                      "权限", "身份", "范围", "私有", "删除", "停用", "证书", "citation")):
+        return "source_or_configuration"
+    if any(term in error for term in ("已停止", "被停止", "运行中断", "服务重启", "时间限制", "预算", "过多工具", "cancelled")):
+        return "execution_boundary"
+    gaps = row.get("source_errors") or []
+    if any(gap.get("code") in {"timeout", "dns_failed", "connection_error", "connection_reset", "http_rate_limited", "http_server_error"}
+           or gap.get("http_status") in {429, 500, 502, 503, 504} for gap in gaps if isinstance(gap, dict)):
+        return "transient"
+    if any(term in error for term in ("temporary outage", "请求超时", "响应超时", "连接模型服务", "连接中断",
+                                      "模型暂不可用", "模型服务暂不可用", "服务过载", "限流", "速率限制", "http 429",
+                                      "http 500", "http 502", "http 503", "http 504", "connection reset")):
+        return "transient"
+    return "unknown"
 
 
 def _elapsed(value):
@@ -216,7 +238,7 @@ def _snapshot(store, event, settings, *, legacy=False, legacy_boundary=False):
         previous = latest.get(key)
         if not previous or str(view.get("fetched_at") or "") >= str(previous.get("fetched_at") or ""):
             latest[key] = view
-    sources = sorted(latest.values(), key=lambda row: (row.get("published_at") or "", row.get("fetched_at") or ""), reverse=True)
+    sources = sorted(latest.values(), key=lambda row: (row.get("published_at") or row.get("published_date") or "", row.get("fetched_at") or ""), reverse=True)
     boundary = _legacy_boundary(settings) if legacy or legacy_boundary else _boundary(settings)
     # Preserve the existing fingerprint format so removing the old retrieval
     # cap does not invalidate verified Chinese reports. All source versions and
@@ -393,7 +415,7 @@ def _public(store, row, settings, budget):
         from .personal_app import source_tier
         current_sources = {source["id"]: source for source in snapshot["sources"]}
         output["report"]["sources"] = [
-            {**source, "published_at": current_sources[source["id"]].get("published_at"),
+            {**source, **{key: current_sources[source["id"]].get(key) for key in ("published_at", "published_date", "publication_precision")},
              **source_tier(current_sources[source["id"]].get("url") or source.get("url") or "")}
             for source in output["report"].get("sources", []) if source.get("id") in current_sources]
         from .ingestion import image_identity, source_images
@@ -426,12 +448,17 @@ def _public(store, row, settings, budget):
     output["retry_at"] = None  # Legacy timers no longer schedule another attempt.
     status = output.get("status")
     output["manual_organize"] = _manual_active(output)
+    if status == "failed":
+        output["failure_kind"] = failure_kind(output)
+        output["automatic_retry_eligible"] = (output["failure_kind"] == "transient"
+            and not output.get("manual_stop_after_attempt")
+            and int(output.get("attempts") or 0) < FAILED_REPORT_ATTEMPT_LIMIT)
     output["can_refresh_retry"] = status == "failed" and not output.get("manual_stop_after_attempt")
     output["queue_note"] = ("已加入本次手动整理，后台将优先处理。" if status == "queued" and output["manual_organize"]
                             else "已加入整理队列，后台正在依次处理。" if status == "queued"
                             else "正在阅读来源并整理中文消息。" if status == "generating"
                             else "本次手动整理未完成，可点击手动整理重试。" if status == "failed" and output.get("manual_stop_after_attempt")
-                            else "多次整理未完成，可点击手动整理重试。" if status == "failed"
+                            else "本次整理未完成，可查看失败原因后手动重试。" if status == "failed"
                             else "请在设置中为球队动态选择可用模型。" if status == "needs_configuration" else None)
     # Internal version maps need not be sent to a browser.
     for key in ("source_hashes", "fingerprint", "boundary_hash", "attempt_history", "manual_requested", "manual_once", "manual_report", "manual_stop_after_attempt", "schema_version", "boundary_migration", "config_revision"):
@@ -558,21 +585,25 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=N
     return [*result, *existing_rows][:limit]
 
 
-def retry_report(store, report_id):
+def retry_report(store, report_id, *, explicit=False):
     row = store.get("reports", report_id)
     if not row:
         return None
     if not _current(store, row, store.settings()):
         replacements = enqueue_reports(store, team_id=row["team_id"], mode=row["mode"], event_ids=[row["event_id"]], force=True)
+        if replacements and explicit:
+            return retry_report(store, replacements[0]["id"], explicit=True)
         return get_report(store, replacements[0]["id"]) if replacements else get_report(store, report_id)
-    if row["status"] in {"completed", "generating", "queued"}:
+    if row["status"] in {"completed", "generating"} or row["status"] == "queued" and not explicit:
         return get_report(store, report_id)
-    if row.get("manual_stop_after_attempt"):
+    if row.get("manual_stop_after_attempt") and not explicit:
         return get_report(store, report_id)
     settings = _report_settings(store)
     row.update(status="queued" if _configured(settings) else "needs_configuration", attempts=0,
                retry_at=None, error=None, updated_at=_stamp(), manual_requested=True,
                config_revision=_configuration_revision(settings))
+    if explicit:
+        row.update(manual_once=True, manual_report=True, manual_stop_after_attempt=True)
     store.put("reports", row)
     return get_report(store, report_id)
 
@@ -594,20 +625,25 @@ def retry_pending_reports(store, team_id=None, limit=None):
     return {"queued": len(ids), "report_ids": ids}
 
 
-def organize_reports(store, team_id):
+def organize_reports(store, team_id, *, event_ids=None, retry_failed=True):
     """Authorize the current pending-source snapshot, with no item quota."""
     settings = _report_settings(store)
     if not _configured(settings):
         raise ValueError("请先在设置中为“球队动态”选择可用模型，再手动整理。")
     from .presentation import readable_chinese
+    selected_events = set(event_ids) if event_ids is not None else None
     with _atomic(store):
-        active = [row for row in store.list("reports", "live", team_id) if _manual_active(row)]
+        active = [row for row in store.list("reports", "live", team_id) if _manual_active(row)
+                  and (selected_events is None or row.get("event_id") in selected_events)]
         if active:
             return {"started": False, "status": "busy", "queued": len(active),
+                    "report_ids": [row["id"] for row in active if selected_events is None or row.get("event_id") in selected_events],
                     "note": "本队已有手动整理任务，请等待这一批完成。"}
         events = sorted(store.list("events", "live", team_id),
                         key=lambda row: row.get("updated_at") or row.get("created_at") or "", reverse=True)
-        selected = []
+        if selected_events is not None:
+            events = [event for event in events if event["id"] in selected_events]
+        selected, unchanged_failed = [], 0
         for event in events:
             snapshot = _snapshot(store, event, settings)
             if not snapshot["sources"]:
@@ -619,6 +655,10 @@ def organize_reports(store, team_id):
             existing = next((row for row in store.list("reports", "live", team_id)
                              if row.get("event_id") == event["id"] and row.get("fingerprint") == snapshot["fingerprint"]), None)
             if existing and existing.get("status") in {"completed", "generating"}:
+                continue
+            if (existing and existing.get("status") == "failed" and not retry_failed
+                    and existing.get("config_revision") == _configuration_revision(settings)):
+                unchanged_failed += 1
                 continue
             rows = enqueue_reports(store, team_id=team_id, event_ids=[event["id"]], limit=1, force=True)
             if not rows:
@@ -632,6 +672,7 @@ def organize_reports(store, team_id):
             store.put("reports", row)
             selected.append(row["id"])
         return {"started": bool(selected), "status": "queued" if selected else "idle", "queued": len(selected),
+                "report_ids": selected, "unchanged_failed": unchanged_failed,
                 "note": f"已安排手动整理 {len(selected)} 条消息，完成后会加入动态。" if selected
                         else "暂无可手动整理的消息。可以先刷新来源，再手动整理。"}
 
@@ -651,7 +692,7 @@ def _finish(store, row, run, settings):
         valid = bool(content.get("title") and facts and cited and cited.issubset(read & set(row["evidence_ids"])))
         if not valid:
             return _fail(store, row, "报告结构或阅读引用不完整，未发布。")
-        sources = [{key: item.get(key) for key in ("id", "title", "source_name", "url", "published_at")}
+        sources = [{key: item.get(key) for key in ("id", "title", "source_name", "url", "published_at", "published_date", "publication_precision")}
                    for item in snapshot["sources"] if item["id"] in cited]
         length = len(content.get("summary", "")) + sum(len(fact["detail"]) for fact in facts) + len(content.get("analysis", ""))
         from .ingestion import image_identity, source_images
@@ -720,7 +761,7 @@ def recover_reports(store):
 
 
 async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=None,
-                               owner_id=None, cancel_event=None, on_progress=None):
+                               owner_id=None, cancel_event=None, on_progress=None, report_ids=None):
     """Drain one owned batch; all scopes share the same per-store execution slots.
 
     A global batch and team batches may coexist. Their short synchronous claims
@@ -728,6 +769,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
     the workers created by this invocation and waits for their cleanup.
     """
     limit = max(0, int(max_jobs)) if max_jobs is not None else None
+    selected_reports = set(report_ids) if report_ids is not None else None
     stop = cancel_event if cancel_event is not None else asyncio.Event()
     stats = {"processed": 0, "completed": 0, "failed": 0, "busy": False}
     examined, active = set(), {}
@@ -753,7 +795,8 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
 
     def queue_rows():
         return sorted((row for row in store.list("reports", mode="live", team_id=team_id)
-                       if row["id"] not in examined and row.get("status") in {"queued", "needs_configuration", "failed"}),
+                       if row["id"] not in examined and (selected_reports is None or row["id"] in selected_reports)
+                       and row.get("status") in {"queued", "needs_configuration", "failed"}),
                       key=lambda row: (not row.get("manual_once", False), not row.get("manual_requested", False),
                                        row.get("status") == "failed", row.get("created_at", "")))
 
@@ -770,14 +813,8 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                 if not settings.get("reports", {}).get("auto_generate", True) and not (manual or row.get("manual_requested")):
                     continue
                 if row.get("status") == "failed":
-                    # A failure used to end this row's life: the automatic queue
-                    # skipped it forever and only a manual retry could revive it,
-                    # so any transient cause — a rate limit, an unconfigured
-                    # model, a crash mid-run — silently removed that event from
-                    # the feed for good. Attempts are now bounded rather than
-                    # forbidden. The cap keeps a genuinely broken event from
-                    # looping, and the backoff keeps a source outage from being
-                    # hammered; past the cap the row is left alone as before.
+                    if failure_kind(row) != "transient":
+                        continue
                     attempts = int(row.get("attempts") or 0)
                     if attempts >= FAILED_REPORT_ATTEMPT_LIMIT:
                         continue

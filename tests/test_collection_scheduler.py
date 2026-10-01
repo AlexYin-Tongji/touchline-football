@@ -74,6 +74,25 @@ class CollectionSchedulerTests(unittest.IsolatedAsyncioTestCase):
         await first
         self.assertEqual(self.reviewer.seen, ["a", "b"])
 
+    async def test_unprocessed_photo_batch_continues_without_outage_backoff(self):
+        from unittest.mock import AsyncMock
+        self.reviewer.review_team = AsyncMock(return_value={"started": True})
+        self.reviewer.wait_for_team = AsyncMock(return_value={"status": "partial", "errors": [],
+            "components": {"portraits": {"status": "partial", "remaining_count": 16, "errors": [], "continuation_ready": True}}})
+        await self.manager.run_once(now=self.moment)
+        row = self.manager.status()["teams"]["a"]
+        self.assertEqual(row["failures"], 0)
+        self.assertEqual(datetime.fromisoformat(row["next_check"]), self.moment + timedelta(seconds=60))
+
+    async def test_independent_source_fault_does_not_stall_healthy_photo_source(self):
+        from unittest.mock import AsyncMock
+        self.reviewer.review_team = AsyncMock(return_value={"started": True})
+        self.reviewer.wait_for_team = AsyncMock(return_value={"status": "partial", "errors": ["Wikimedia timeout"],
+            "components": {"portraits": {"status": "partial", "community_remaining_count": 6,
+                "errors": ["Wikimedia timeout"], "continuation_ready": True}}})
+        await self.manager.run_once(now=self.moment)
+        self.assertEqual(self.manager.status()["teams"]["a"]["next_check"], (self.moment + timedelta(seconds=60)).isoformat())
+
     async def test_invalid_or_unfollowed_teams_never_run(self):
         self.store.save_settings({"followed_teams": ["unknown", "c", "c"]})
         await self.manager.run_once(now=self.moment)

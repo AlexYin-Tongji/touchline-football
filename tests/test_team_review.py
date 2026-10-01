@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from server import collection, team_center
 from server.storage import Store
+from server.ingestion import IngestionError
 
 TEAM = {"id": "arsenal", "name": "阿森纳", "english_name": "Arsenal"}
 LEAGUE = {"id": "PL", "name": "英超", "provider_code": "eng.1", "expected_team_count": 20}
@@ -21,6 +23,9 @@ class ReviewTeamTests(unittest.IsolatedAsyncioTestCase):
     """The planner decides, and this is what makes it act."""
 
     def setUp(self):
+        offline = patch("server.league_data.fetch_json", new=AsyncMock(side_effect=IngestionError("本地测试不读取真实网络。")))
+        offline.start()
+        self.addCleanup(offline.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.store = Store(Path(self.directory.name) / "team.sqlite3")
@@ -120,6 +125,17 @@ class ViewClaimTests(unittest.TestCase):
     def test_a_missing_part_says_so_in_its_own_note(self):
         claims = self.claims({"components": {}, "roster": [], "standings": [], "matches": []})
         self.assertIn("还没有", claims["roster"]["claims"]["roster"].note)
+
+    def test_pending_photos_are_scheduled_as_coverage_work_instead_of_year_fresh_facts(self):
+        view = {"components": {"portraits": {"status": "partial", "last_attempt": stamp(minutes=2),
+                                             "retry_seconds": 60, "community_remaining_count": 16}},
+                "roster": [{"id": "p1", "photo_url": "https://a.espncdn.com/i/headshots/soccer/players/full/1.png"},
+                           {"id": "p2", "photo_url": ""}], "standings": [], "matches": []}
+        claims = self.claims(view)
+        claim = claims["portraits"]["claims"]["photo_url"]
+        self.assertEqual(claim.tier.value, "derived")
+        self.assertEqual(claim.value, 1)
+        self.assertTrue(any(need.field == "photo_url" for need in collection.needs_from(claims)))
 
     def test_an_untouched_optional_part_does_not_outrank_real_staleness(self):
         # "We have not tried the photo pass yet" is not more urgent than a

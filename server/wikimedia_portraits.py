@@ -8,7 +8,7 @@ import time
 import unicodedata
 from datetime import date, datetime, timezone
 from hashlib import sha256
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, unquote, urlencode, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -16,6 +16,7 @@ from .club_library import TEAM_ALIASES
 from .ingestion import IngestionError, now, published_time, source_error_details
 from .news_sources import AMBIGUOUS_GLOBAL_ALIASES, OTHER_CLUB_IDENTITIES, global_feed_mentions_team
 from .research_transport import blocking_request, shared_request, fetch_reviewed_portrait_document as fetch_document
+from .player_names import checked_wikidata_reading, cjk_label
 
 WIKIPEDIA = "en.wikipedia.org"
 WIKIDATA = "www.wikidata.org"
@@ -154,6 +155,14 @@ def _page(payload):
     return next(iter(pages.values()), {}) if isinstance(pages, dict) else {}
 
 
+def _source_withdrawn(record):
+    """Explicit privacy/deletion evidence overrides preserved image metadata."""
+    return isinstance(record, dict) and (
+        any(record.get(flag) is True for flag in ("private", "deleted", "restricted"))
+        or any(flag in record for flag in
+               ("missing", "invalid", "suppressed", "filehidden", "texthidden", "contenthidden")))
+
+
 def _birth_date(text):
     match = re.search(r"\bborn\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b", text, re.I)
     if not match:
@@ -246,12 +255,17 @@ async def _club_qid_matches(store, ids, team_id):
     return len(matched) == 1
 
 
-async def _wikidata_club(store, qid, team_id, birth_date):
+async def _wikidata_club(store, qid, team_id, birth_date, *, identity=None):
     if not re.fullmatch(r"Q[1-9]\d{0,11}", str(qid)):
         return False
     response = await request_json(store, WIKIDATA, {"action": "wbgetentities", "format": "json",
-                                                 "ids": qid, "props": "claims"})
-    claims = response.get("entities", {}).get(qid, {}).get("claims", {})
+                                                 "ids": qid, "props": "claims|labels", "languages": "zh-hans|zh"})
+    entity = response.get("entities", {}).get(qid, {})
+    if (not isinstance(entity, dict) or entity.get("id", qid) != qid
+            or any(flag in entity for flag in ("missing", "invalid", "suppressed"))
+            or any(entity.get(flag) is True for flag in ("private", "deleted", "restricted"))):
+        return False
+    claims = entity.get("claims", {})
     occupations = [row.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id")
                    for row in claims.get("P106", [])]
     if occupations and "Q937857" not in occupations:
@@ -267,18 +281,28 @@ async def _wikidata_club(store, qid, team_id, birth_date):
     # A dated current membership is the strongest evidence, but a career with
     # only undated claims still proves the club -- as long as exactly one of
     # those candidates is this club and no other dated team contradicts it.
-    if await _club_qid_matches(store, active, team_id):
-        return True
-    if not active and undated:
-        return await _club_qid_matches(store, undated, team_id)
-    return False
+    matched = await _club_qid_matches(store, active, team_id)
+    if not matched and not active and undated:
+        matched = await _club_qid_matches(store, undated, team_id)
+    if matched and identity is not None:
+        labels = entity.get("labels") if isinstance(entity.get("labels"), dict) else {}
+        for language in ("zh-hans", "zh"):
+            label = labels.get(language, {})
+            if isinstance(label, dict) and label.get("language") == language and cjk_label(label.get("value")):
+                identity.update(qid=qid, label=label["value"], language=language,
+                                club_qids=sorted(active or undated))
+                break
+    return matched
 
 
 def _license_metadata(payload, file_name):
     record = _page(payload)
-    if _file_title(record.get("title")) != _file_title("File:" + file_name):
+    if (not isinstance(record, dict) or _source_withdrawn(record)
+            or _file_title(record.get("title")) != _file_title("File:" + file_name)):
         return None
     image = next(iter(record.get("imageinfo") or []), {})
+    if not isinstance(image, dict) or _source_withdrawn(image):
+        return None
     metadata = image.get("extmetadata") or {}
     def plain(key):
         value = metadata.get(key, {}).get("value", "")
@@ -300,9 +324,11 @@ def _license_metadata(payload, file_name):
 
 
 async def _commons_license(store, file_name, *, force=False):
-    key = "commons_license_v1_" + sha256(file_name.encode("utf-8")).hexdigest()[:24]
+    key = _commons_key(file_name)
     cached = store.get_meta(key, {})
-    if not force and cached.get("status") == "completed" and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS:
+    if (not force and cached.get("status") == "completed" and not _source_withdrawn(cached)
+            and not _source_withdrawn(cached.get("photo"))
+            and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS):
         return cached.get("photo")
     if not force and cached.get("status") == "rejected" and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS:
         return None
@@ -311,6 +337,41 @@ async def _commons_license(store, file_name, *, force=False):
     photo = _license_metadata(payload, file_name)
     store.set_meta(key, {"status": "completed" if photo else "rejected", "fetched_at": now(), "photo": photo})
     return photo
+
+
+def _commons_key(file_name):
+    return "commons_license_v1_" + sha256(file_name.encode("utf-8")).hexdigest()[:24]
+
+
+def _commons_denial(store, photo):
+    """A newer file verdict also governs portraits checked before that verdict."""
+    page = _safe_url(photo.get("photo_file_page"), COMMONS, "/wiki/File:")
+    if not page:
+        return None
+    file_name = unquote(urlsplit(page).path[len("/wiki/File:"):])
+    # Commons links use underscores; pageimage normally supplies spaces.
+    names = {file_name, file_name.replace("_", " ")}
+    records = [store.get_meta(_commons_key(name), {}) for name in names]
+    current = min((record for record in records if record),
+                  key=lambda record: _age_seconds(record.get("fetched_at")), default={})
+    if (current.get("status") in {"rejected", "missing"} or _source_withdrawn(current)
+            or _source_withdrawn(current.get("photo"))):
+        return current
+    return None
+
+
+def _rejected_photo(record, reason):
+    return {"status": "rejected", "photo_reason": reason, "retryable": False,
+            "reason_code": "source_withdrawn", "fetched_at": record.get("fetched_at")}
+
+
+def _completed_portrait(store, cached):
+    return (isinstance(cached, dict) and not _source_withdrawn(cached)
+            and cached.get("status") == "completed" and _fresh_enough(cached)
+            and cached.get("photo_match") == "wikimedia_verified_club"
+            and all(cached.get(field) for field in
+                    ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license"))
+            and not _commons_denial(store, cached))
 
 
 def _portrait_key(player, team_id, generation=2):
@@ -331,16 +392,33 @@ def cached_portrait(store, player, team_id):
     cached = store.get_meta(_portrait_key(player, team_id), {})
     if not cached:
         cached = store.get_meta(_portrait_key(player, team_id, generation=1), {})
+    if _source_withdrawn(cached):
+        verdict = _rejected_photo(cached, "维基媒体照片来源当前不可公开核对。")
+        return verdict if _fresh_enough(verdict) else None
+    if cached.get("status") == "completed":
+        if _completed_portrait(store, cached):
+            return cached
+        denial = _commons_denial(store, cached)
+        verdict = _rejected_photo(denial, "Commons 当前记录已拒绝这张图片，等待重新核验。") if denial else None
+        return verdict if verdict and _fresh_enough(verdict) else None
     previous = cached.get("last_success")
-    if (cached.get("status") == "unavailable" and isinstance(previous, dict)
-            and previous.get("status") == "completed" and _fresh_enough(previous)
-            and previous.get("photo_match") == "wikimedia_verified_club"
-            and all(previous.get(field) for field in
-                    ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license"))):
+    if cached.get("status") == "unavailable" and _completed_portrait(store, previous):
         return previous
     if _fresh_enough(cached):
         return cached
     return None
+
+
+def cached_reading(store, player, team_id):
+    """Only an explicitly verified name proof in the current cache is eligible.
+
+    Photo completion, a previous cache generation or a last-success photo is
+    insufficient to revive a Chinese name after an unknown or removed source.
+    """
+    cached = store.get_meta(_portrait_key(player, team_id), {})
+    if _source_withdrawn(cached) or cached.get("name_status") != "verified":
+        return None
+    return checked_wikidata_reading(cached, player, team_id=team_id)
 
 
 def _fresh_enough(cached):
@@ -409,6 +487,7 @@ async def resolve_portrait(store, player, team_id, *, force=False):
     if cached:
         return cached
     attempted = now()
+    name_reading = {}
     try:
         search = await request_json(store, WIKIPEDIA, {"action": "query", "format": "json", "list": "search",
                                                       "srsearch": f'"{name}" footballer', "srlimit": MAX_SEARCH_RESULTS})
@@ -427,6 +506,9 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                 article = _page(await request_json(store, WIKIPEDIA, {"action": "query", "format": "json",
                     "titles": title, "prop": "pageprops|pageimages|extracts", "piprop": "thumbnail|name",
                     "pithumbsize": 300, "exintro": 1, "explaintext": 1}))
+                if _source_withdrawn(article):
+                    reasons.append("百科页面当前不可公开核对。")
+                    continue
                 if _candidate_name(article.get("title"), birth_date) != _name(name):
                     reasons.append("百科页面身份与球员完整姓名不一致。")
                     continue
@@ -445,15 +527,26 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                 if club == "other_club":
                     reasons.append("页面记载的当前俱乐部与阵容不一致。")
                     continue
-                if club != "confirmed" and not await _wikidata_club(store, props.get("wikibase_item"), team_id, birth_date):
+                identity = {}
+                if club != "confirmed" and not await _wikidata_club(store, props.get("wikibase_item"), team_id, birth_date, identity=identity):
                     reasons.append("无法独立核对当前俱乐部身份。")
                     continue
-                matched.append(article)
+                matched.append((article, identity))
             if len(matched) != 1:
                 result = {"status": "rejected", "photo_reason": "存在多个同名现役球员，身份无法消歧。" if matched else
                           next(iter(reasons), "无法独立核对球员身份。")}
             else:
-                article = matched[0]
+                article, identity = matched[0]
+                if identity:
+                    name_reading = {"name_status": "verified", "name_zh": identity["label"],
+                        "name_zh_source": "Wikidata 中文标签", "name_zh_source_url": "https://www.wikidata.org/wiki/" + identity["qid"],
+                        "name_zh_checked_at": now(), "name_zh_identity": {
+                            **identity, "method": "wikidata_existing_identity_check", "name": name,
+                            "team_id": team_id, "roster_birth_date": birth_date or "",
+                            "provider_id": str(player.get("provider_id") or ""),
+                            "article_title": article["title"],
+                            "article_url": "https://en.wikipedia.org/wiki/" + quote(article["title"].replace(" ", "_")),
+                            "unique_article": True, "identity_checked": True, "public": True}}
                 file_name = article.get("pageimage")
                 if not isinstance(file_name, str) or not file_name or not article.get("thumbnail", {}).get("source"):
                     result = {"status": "missing", "photo_reason": "球员页面没有可核对的自由图片。"}
@@ -479,7 +572,8 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         else:
             result = {"status": "rejected", "photo_reason": "维基媒体资料无法核对，未采用未经核验图片。",
                       "retryable": False, "reason_code": code}
-    result.update(fetched_at=now(), last_attempt=attempted)
+    result.update(name_status="unknown", fetched_at=now(), last_attempt=attempted)
+    result.update(name_reading)
     if (result.get("status") == "unavailable" and previous and previous.get("status") == "completed"
             and previous.get("photo_match") == "wikimedia_verified_club"
             and all(previous.get(field) for field in

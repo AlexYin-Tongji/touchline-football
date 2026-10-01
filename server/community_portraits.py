@@ -36,7 +36,9 @@ SUCCESS_SECONDS = 7 * 86400
 # entry; a throttle or transport fault is not, so it expires quickly.
 RETRY_SECONDS = 900
 # The free tier throttles bursts. Space requests out and retry a 429 once.
-MIN_INTERVAL_SECONDS = 1.1
+# The publisher documents 30 requests/minute for the public tier. All teams in
+# one Store share this pace, so broad coverage does not become a burst of 429s.
+MIN_INTERVAL_SECONDS = 2.1
 RETRY_BACKOFF_SECONDS = (6.0, 0.0)
 PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_file_page",
                 "photo_license", "photo_restrictions", "photo_match", "photo_reason",

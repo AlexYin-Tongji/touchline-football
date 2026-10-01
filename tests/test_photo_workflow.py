@@ -18,6 +18,9 @@ from tests.test_community_portraits import record, search
 
 class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.espn = patch('server.espn_pages.fetch_player_portrait_records', new=AsyncMock(return_value=[]))
+        self.espn.start()
+        self.addCleanup(self.espn.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.app = create_app(Path(self.temp.name) / 'photos.sqlite3')
         self.store = self.app.state.store

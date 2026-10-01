@@ -74,7 +74,9 @@ def source_version(item):
     if not item:
         return None
     return {"fingerprint": item.get("body_hash") or hashlib.sha256(str(item.get("text") or "").encode()).hexdigest(),
-            **{key: item.get(key) for key in ("team_id", "mode", "title", "url", "source_name", "published_at", "fetched_at", "origin")}}
+            **{key: item.get(key) for key in ("team_id", "mode", "title", "url", "source_name", "published_at", "fetched_at", "origin")},
+            **{key: item[key] for key in ("published_date", "publication_precision")
+               if item.get(key) is not None and (not item.get("published_at") or item.get("publication_precision") != "instant")}}
 
 
 def checked_versions(local, evidence_ids):

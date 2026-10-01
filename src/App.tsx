@@ -18,13 +18,14 @@ import { api, errorText, put } from "./api";
 import { Crest, Modal, Spinner } from "./components";
 import { clubCatalog } from "./clubCatalog";
 import { FeedView } from "./v7Feed";
+import { loadView, RecoverableView } from "./RecoverableView";
 import type { AssistantPrompt } from "./v7Assistant";
 import type { AppState, Team } from "./types";
 
 type Page = "feed" | "team" | "assistant";
-const TeamCenter = lazy(() => import("./v7TeamCenter").then((module) => ({ default: module.TeamCenter })));
-const Assistant = lazy(() => import("./v7Assistant").then((module) => ({ default: module.Assistant })));
-const ModelSettings = lazy(() => import("./v7ModelSettings").then((module) => ({ default: module.ModelSettings })));
+const TeamCenter = lazy(() => loadView(() => import("./v7TeamCenter").then((module) => ({ default: module.TeamCenter }))));
+const Assistant = lazy(() => loadView(() => import("./v7Assistant").then((module) => ({ default: module.Assistant }))));
+const ModelSettings = lazy(() => loadView(() => import("./v7ModelSettings").then((module) => ({ default: module.ModelSettings }))));
 const navigation = [
   { id: "feed" as const, label: "动态", icon: Newspaper },
   { id: "team" as const, label: "球队", icon: Shield },
@@ -327,11 +328,14 @@ export default function App() {
                 />
               )}
               {page === "team" && (
-                <Suspense fallback={<Spinner text="正在打开球队资料" />}>
-                  <TeamCenter key={team.id} team={team} data={data} ask={ask} />
-                </Suspense>
+                <RecoverableView key={`team:${team.id}`} label="球队资料">
+                  <Suspense fallback={<Spinner text="正在打开球队资料" />}>
+                    <TeamCenter key={team.id} team={team} data={data} ask={ask} />
+                  </Suspense>
+                </RecoverableView>
               )}
               {(page === "assistant" || assistantTeam === team.id) && <div hidden={page !== "assistant"}>
+                <RecoverableView key={`assistant:${team.id}`} label="足球助手">
                 <Suspense fallback={<Spinner text="正在打开足球助手" />}>
                 <Assistant
                   key={team.id}
@@ -344,6 +348,7 @@ export default function App() {
                   modelRevision={modelRevision}
                 />
                 </Suspense>
+                </RecoverableView>
               </div>}
             </>
           ) : (
@@ -378,12 +383,14 @@ export default function App() {
       )}
       {settings && (
         <Modal title="模型配置" onClose={() => setSettings(false)} wide>
+          <RecoverableView label="模型配置">
           <Suspense fallback={<Spinner text="正在打开模型配置" />}>
             <ModelSettings onChanged={async () => {
               setModelRevision((value) => value + 1);
               await load();
             }} />
           </Suspense>
+          </RecoverableView>
         </Modal>
       )}
       {notice && (

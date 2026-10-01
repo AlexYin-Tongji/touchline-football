@@ -1,8 +1,9 @@
 """Public ESPN page fallback keeps team, season and displayed-number validation."""
+import asyncio
 import copy
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
@@ -57,7 +58,32 @@ def html(payload):
     return "<html><script>window['__espnfitt__']=" + json.dumps(payload) + ";</script></html>"
 
 
+def portrait_document(identity="123"):
+    row = {"id": identity, "uid": "s:600~a:" + identity, "name": "Example Player",
+           "href": "/soccer/player/_/id/" + identity + "/example-player",
+           "headshot": "https://a.espncdn.com/i/headshots/soccer/players/full/" + identity + ".png"}
+    return {"routing": {"params": {"sport": "soccer", "pageType": "player", "id": identity}},
+            "page": {"type": "player", "content": {"player": {"playerId": identity, "sport": "soccer",
+                "plyrSwtch": {"cur": row, "lst": [row]},
+                "nws": {"items": [{"image": {"url": "https://a.espncdn.com/photo/wrong-news-image.jpg"}}]}}}}}
+
+
 class PublicPageParserTests(unittest.TestCase):
+    def test_player_photos_only_use_identity_bound_selector_records(self):
+        records = espn_pages.parse_player_portrait_records(html(portrait_document()), "123")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["id"], "123")
+        self.assertIn("/players/full/123.png", records[0]["headshot"]["href"])
+        for field, wrong in (("uid", "s:600~a:456"), ("href", "/soccer/player/_/id/456/other"),
+                             ("href", "https://evil.test/soccer/player/_/id/123/example")):
+            payload = portrait_document()
+            payload["page"]["content"]["player"]["plyrSwtch"]["cur"][field] = wrong
+            self.assertEqual(espn_pages.parse_player_portrait_records(html(payload), "123"), [])
+        payload = portrait_document()
+        payload["routing"]["params"]["id"] = "456"
+        with self.assertRaises(IngestionError):
+            espn_pages.parse_player_portrait_records(html(payload), "123")
+
     def parse(self, payload, endpoint="roster?season=2026"):
         return espn_pages.parse_page(html(payload), espn_pages.fallback_spec(API + endpoint))
 
@@ -141,6 +167,54 @@ class PublicPageParserTests(unittest.TestCase):
 
 
 class PublicPageFallbackTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        for module in (league_data, espn_pages):
+            offline = patch.object(module, "getproxies", return_value={})
+            offline.start()
+            self.addCleanup(offline.stop)
+
+    async def test_known_api_transport_failure_reaches_independent_public_page(self):
+        for failure in (httpx.ConnectTimeout, httpx.ConnectError):
+            calls = []
+            def respond(request):
+                calls.append(str(request.url))
+                if request.url.host == "site.api.espn.com":
+                    raise failure("safe mock transport failure", request=request)
+                return httpx.Response(200, text=html(document()), headers={"content-type": "text/html"})
+            real_client = httpx.AsyncClient
+            with self.subTest(failure=failure), patch.object(httpx, "AsyncClient", side_effect=lambda **kwargs:
+                    real_client(transport=httpx.MockTransport(respond), **kwargs)):
+                result = await league_data.fetch_json(API + "roster?season=2026")
+            self.assertEqual(result["team"]["id"], "83")
+            self.assertEqual(len(calls), 3)
+            self.assertEqual(calls[-1], espn_pages.fallback_spec(API + "roster?season=2026")["url"])
+
+    async def test_platform_proxy_is_applied_without_environment_bypass(self):
+        real_client = httpx.AsyncClient
+        def client(**kwargs):
+            self.assertEqual(kwargs.pop("proxy"), "http://127.0.0.1:7897")
+            self.assertFalse(kwargs["trust_env"])
+            return real_client(transport=httpx.MockTransport(lambda request:
+                httpx.Response(200, json={"athletes": []}) if request.url.host == "site.api.espn.com" else
+                httpx.Response(200, text=html(document()), headers={"content-type": "text/html"})), **kwargs)
+        with patch.object(league_data, "getproxies", return_value={"https": "http://127.0.0.1:7897"}), \
+             patch.object(espn_pages, "getproxies", return_value={"https": "http://127.0.0.1:7897"}), \
+             patch.object(httpx, "AsyncClient", side_effect=client) as constructed:
+            await league_data.fetch_json(API + "roster?season=2026")
+            await espn_pages.fetch_public_payload(espn_pages.fallback_spec(API + "roster?season=2026"))
+        self.assertEqual(constructed.call_count, 2)
+
+    async def test_cancelled_api_does_not_start_a_public_page(self):
+        def respond(request):
+            raise asyncio.CancelledError()
+        real_client = httpx.AsyncClient
+        with patch.object(httpx, "AsyncClient", side_effect=lambda **kwargs:
+                real_client(transport=httpx.MockTransport(respond), **kwargs)), \
+             patch.object(espn_pages, "fetch_public_payload", new=AsyncMock()) as fallback:
+            with self.assertRaises(asyncio.CancelledError):
+                await league_data.fetch_json(API + "roster?season=2026")
+        fallback.assert_not_called()
+
     async def test_known_api_403_uses_one_fixed_public_page_and_validates_it(self):
         calls = []
         def respond(request):

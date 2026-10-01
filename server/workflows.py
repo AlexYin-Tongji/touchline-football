@@ -16,6 +16,53 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def collection_summary(result):
+    """Describe discovery separately from the paid editorial work."""
+    values = result.get("counts") or result
+    sources = result.get("sources") or []
+    def count(key, fallback=0):
+        fallback = max(0, fallback) if type(fallback) is int else 0
+        value = values.get(key)
+        if value is None:
+            observed = [source[key] for source in sources if type(source.get(key)) is int]
+            value = sum(observed) if observed else fallback
+        return max(0, value) if type(value) is int else fallback
+    available = sum(source.get("state") not in {"unavailable", "failed"} for source in sources)
+    readable = count("readable_count", len(result.get("evidence_ids") or []))
+    attempted = count("read_attempted", result.get("attempted_reads", 0))
+    candidates = result.get("candidates") or []
+    relevant = count("relevant_count", len(candidates))
+    indexed = count("indexed_count", relevant)
+    dated = count("dated_count", sum(bool(row.get("published_at")) for row in candidates))
+    window = count("window_count", len(candidates))
+    date_pending = count("date_pending_count")
+    date_unknown = count("date_unknown_count")
+    rejected = count("scope_rejected_count")
+    date_rejected = count("date_scope_rejected_count")
+    errors = bool(result.get("errors"))
+    if readable:
+        status, reason = ("partial" if errors else "ready"), "readable"
+    elif (attempted and rejected >= attempted) or (relevant and date_rejected >= relevant):
+        status, reason = "empty", "out_of_scope"
+    elif attempted:
+        status, reason = "failed", "unreadable"
+    elif (sources and not available) or (not sources and errors):
+        status, reason = "failed", "sources_unavailable"
+    elif date_pending and not window:
+        status, reason = "partial", "date_pending"
+    elif (relevant and not dated) or (date_unknown and not window):
+        status, reason = "partial", "date_unknown"
+    else:
+        status, reason = "empty", "outside_window" if relevant else "no_matches"
+    return {"status": status, "reason": reason, "indexed_count": indexed,
+            "relevant_count": relevant, "dated_count": dated, "window_count": window,
+            "date_pending_count": date_pending, "date_unknown_count": date_unknown,
+            "scope_rejected_count": rejected, "date_scope_rejected_count": date_rejected,
+            "read_attempted": attempted, "readable_count": readable,
+            "source_count": len(sources), "available_sources": available,
+            "failed_sources": sum(source.get("state") in {"unavailable", "failed"} for source in sources)}
+
+
 @dataclass
 class Work:
     kind: str
@@ -26,6 +73,7 @@ class Work:
     cycle_cancel: asyncio.Event | None = None
     root_id: str | None = None
     parts: list[str] | None = None
+    report_ids: tuple[str, ...] | None = None
 
 
 class WorkflowManager:
@@ -44,6 +92,7 @@ class WorkflowManager:
         default = {"kind": kind, "team_id": team_id, "enabled": False, "status": "idle", "phase": "idle",
                    "message": "点击启动，更新一次资料。", "last_error": None, "started_at": None,
                    "source_errors": [],
+                   "collection": None,
                    "finished_at": None, "updated_at": None, "next_run_at": None, "revision": 0,
                    "progress": {"completed": 0, "failed": 0, "remaining": 0},
                    "memory": {"summary": "尚未启动。", "next_steps": [], "completed_count": 0}}
@@ -70,13 +119,22 @@ class WorkflowManager:
                                  message="上次运行已中断，已有成果保留；点击启动继续。", updated_at=now())
                     self.store.set_meta(state_key(kind, team["id"]), state)
 
-    def start(self, kind, team_id, *, parts=None):
+    def start(self, kind, team_id, *, parts=None, report_ids=None):
         state = self.status(kind, team_id)
         if parts is not None:
             from .team_center import _validated_parts
             if kind != "team":
                 raise ValueError("只有球队资料任务接受更新范围。")
             parts = list(_validated_parts(parts))
+        if report_ids is not None:
+            if (kind != "news" or not isinstance(report_ids, (list, tuple))
+                    or any(not isinstance(identity, str) for identity in report_ids)):
+                raise ValueError("只有新闻整理接受本队报告范围。")
+            report_ids = tuple(dict.fromkeys(report_ids))
+            for identity in report_ids:
+                report = self.store.get("reports", identity)
+                if not report or report.get("team_id") != team_id or report.get("mode") != "live":
+                    raise ValueError("报告不存在，或不属于本队的真实资料。")
         key = (kind, team_id)
         existing = self.tasks.get(key)
         if key in self.stops and not self.stops[key].done():
@@ -90,10 +148,11 @@ class WorkflowManager:
                              last_error="球队动态模型尚未配置。", updated_at=now())
                 self.store.set_meta(state_key(kind, team_id), state)
                 return {**state, "started": False}
-        entry = Work(kind, team_id, state["revision"] + 1, asyncio.Event(), parts=parts)
+        entry = Work(kind, team_id, state["revision"] + 1, asyncio.Event(), parts=parts, report_ids=report_ids)
         state.update(revision=entry.revision, enabled=True, status="running", phase="starting",
                      message="正在接续已保存的工作。", started_at=now(), finished_at=None,
                      next_run_at=None, last_error=None, source_errors=[], updated_at=now(),
+                     collection=None,
                      progress={"completed": 0, "failed": 0, "remaining": 0})
         self.store.set_meta(state_key(kind, team_id), state)
         self.tasks[key] = entry
@@ -154,11 +213,25 @@ class WorkflowManager:
                 self.update(entry, last_error="本次部分工作未完成，已有内容已保留；点击启动可重试。")
             state = self.status(entry.kind, entry.team_id)
             progress = state["progress"]
-            incomplete = bool(state["last_error"] or progress["failed"] or progress["remaining"])
-            outcome = ("partial" if progress["completed"] else "failed") if incomplete else "completed"
+            collected = state.get("collection") if entry.kind == "news" else None
+            incomplete = bool(state["last_error"] or progress["failed"] or progress["remaining"]
+                              or collected and collected["status"] in {"failed", "partial"})
+            useful = progress["completed"] or collected and (collected["readable_count"] or collected["available_sources"])
+            outcome = ("partial" if useful else "failed") if incomplete else "completed"
+            if collected and collected["status"] == "failed" and not progress["completed"]:
+                outcome = "failed"
             note = (f"本次完成 {progress['completed']} 项，部分工作未完成，可手动重试。" if outcome == "partial"
                     else "本次未能完成，点击启动可重试。" if outcome == "failed"
                     else f"本次更新已完成，共完成 {progress['completed']} 项。")
+            if collected and not progress["completed"] and not progress["failed"] and not progress["remaining"]:
+                note = ({"no_matches": "已检查消息来源，暂未发现本队可整理的新消息。",
+                         "outside_window": "已检查消息来源，暂未发现近 7 天可整理的新消息。",
+                         "date_unknown": "已找到本队消息，但发布时间尚未核实，未作为近期动态整理。",
+                         "date_pending": "已找到本队消息，本批仍有发布时间待核对，尚未作为近期动态整理。",
+                         "out_of_scope": "找到的文章属于女足、青年队或其他范围，本轮未纳入男足一线队动态。",
+                         "unreadable": "已找到消息链接，但本轮未能读取正文；查看来源说明后可重试。",
+                         "sources_unavailable": "本轮未能读取消息来源，尚未进入中文整理。",
+                         "readable": "已取得可读来源，暂无新增中文稿；已有动态保留。"}[collected["reason"]])
             memory = {**state["memory"], "summary": note,
                       "next_steps": ["点击启动，接续未完成工作。"] if incomplete else []}
             self.update(entry, enabled=False, status=outcome, phase="idle", message=note, memory=memory,
@@ -198,9 +271,12 @@ class WorkflowManager:
     async def _news_cycle(self, entry, first):
         from . import news_reports, research
         from .agent import run_agent
+        authorized = set(entry.report_ids or ())
         def progress(value):
+            rows = [row for row in news_reports.list_reports(self.store, team_id=entry.team_id) if row["id"] in authorized]
+            queue = news_reports.queue_summary(self.store, team_id=entry.team_id, reports=rows)
             current = {"completed": base["completed"] + value["completed"], "failed": base["failed"] + value["failed"],
-                       "remaining": news_reports.queue_summary(self.store, team_id=entry.team_id)["total_pending"]}
+                       "remaining": queue["queued"] + queue["generating"]}
             self.update(entry, phase="organizing", message="正在阅读来源、整理并核对新闻。", progress=current)
             if value.get("stage") == "finish" and value.get("run_id"):
                 run = self.store.get("runs", value["run_id"]) or {}
@@ -220,27 +296,29 @@ class WorkflowManager:
                 await run_agent(store, run_id, context.cancel_event, execution=context)
                 return {"run_id": run_id}
             await self._unit(entry, execute, {"run_id": run_id})
-        if first:
-            news_reports.organize_reports(self.store, entry.team_id)
+        if entry.report_ids is None:
+            self.update(entry, phase="discovering", message="正在查找并读取新的消息来源。")
+            async def collect(context):
+                return await asyncio.wait_for(research.collect_team(self.store, entry.team_id, query="", limit=10, max_age_days=7, force=first), 180)
+            found = await self._unit(entry, collect, {"team_id": entry.team_id})
+            collected = collection_summary(found)
+            self.update(entry, collection=collected)
+            prepared = news_reports.organize_reports(self.store, entry.team_id,
+                event_ids=found.get("event_ids", []), retry_failed=False)
+            authorized.update(prepared.get("report_ids", []))
+            if prepared.get("unchanged_failed"):
+                self.update(entry, last_error=f"{prepared['unchanged_failed']} 条消息此前未整理成功，来源和模型未变化，本轮未重复尝试。可检查模型配置或等待新的来源。")
+            if found.get("errors"):
+                state = self.status("news", entry.team_id)
+                self.update(entry, source_errors=research.unique_source_failures([*state.get("source_errors", []), *found.get("source_errors", [])]))
+        else:
+            # A single-report retry authorizes its own sources only. The normal
+            # agent pre-read validates those links before any drafting request.
+            self.update(entry, phase="organizing", message="正在重读并整理所选消息来源。")
         base = self.status("news", entry.team_id)["progress"]
         await news_reports.process_report_queue(self.store, team_id=entry.team_id, owner_id=entry.root_id,
-                                               cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress)
-        self.update(entry, phase="discovering", message="正在查找并读取新的消息来源。")
-        async def collect(context):
-            return await asyncio.wait_for(research.collect_team(self.store, entry.team_id, query="", limit=10, max_age_days=7, force=first), 180)
-        found = await self._unit(entry, collect, {"team_id": entry.team_id})
-        before = {row["id"] for row in self.store.list("reports", "live", entry.team_id)}
-        queued = news_reports.enqueue_reports(self.store, team_id=entry.team_id)
-        for row in queued:
-            if row["id"] not in before:
-                self.store.put("reports", {**row, "manual_once": True, "manual_stop_after_attempt": True})
-        if found.get("errors"):
-            state = self.status("news", entry.team_id)
-            self.update(entry, last_error="部分来源暂不可读，已保留成功获取的资料。",
-                        source_errors=research.unique_source_failures([*state.get("source_errors", []), *found.get("source_errors", [])]))
-        base = self.status("news", entry.team_id)["progress"]
-        await news_reports.process_report_queue(self.store, team_id=entry.team_id, owner_id=entry.root_id,
-                                               cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress)
+                                               cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress,
+                                               report_ids=authorized)
 
     async def _team_cycle(self, entry, first):
         from .team_center import maintain_team, center_view, sync_portraits
@@ -253,7 +331,7 @@ class WorkflowManager:
         selected = entry.parts or ("roster", "schedule", "standings")
         good = sum(components.get(p, {}).get("status") in {"completed", "fresh", "partial"} for p in selected)
         bad = sum(components.get(p, {}).get("status") in {"failed", "unavailable", "interrupted"} for p in selected)
-        self.update(entry, progress={"completed": good, "failed": bad, "remaining": max(0, len(selected)-good)},
+        self.update(entry, progress={"completed": good, "failed": bad, "remaining": max(0, len(selected)-good-bad)},
                     last_error="部分球队资料暂未更新，仍可查看上次有效资料。" if outcome.get("errors") else None)
         view = center_view(self.store, entry.team_id)
         # This is the active UI start route. The legacy maintenance manager is

@@ -88,7 +88,7 @@ def _prepare(local, structured):
                 raise _CoverageInputError("invalid_passages")
             passages[eid, pid] = value
         source = {key: copy.deepcopy(cached.get(key)) for key in (
-            "title", "source_name", "url", "published_at", "fetched_at", "origin", "text", "passages",
+            "title", "source_name", "url", "published_at", "published_date", "publication_precision", "fetched_at", "origin", "text", "passages",
             "read_ranges", "total_characters", "truncated", "content_status", "content_note",
             "spoiler_redacted", "redaction_note")}
         source["id"] = eid

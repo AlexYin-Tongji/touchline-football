@@ -7,7 +7,7 @@ import {
   Newspaper,
   Sparkles,
 } from "lucide-react";
-import { api, errorText } from "./api";
+import { api, errorText, post } from "./api";
 import { WorkflowControls } from "./WorkflowControls";
 import { Crest, dateTime, Modal, SourceGapNotice, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
@@ -21,7 +21,7 @@ import {
   type MediaImage,
   type SourceLink,
 } from "./v7Shared";
-import type { AppState, AutoReport, Team } from "./types";
+import type { AppState, AutoReport, SourceGap, Team } from "./types";
 import type { AssistantPrompt } from "./v7Assistant";
 
 interface FeedItem {
@@ -31,6 +31,7 @@ interface FeedItem {
   topic?: string;
   updated_at?: string;
   published_at?: string | null;
+  published_date?: string | null;
   organized_at?: string | null;
   images?: MediaImage[];
   sources?: SourceLink[];
@@ -39,9 +40,19 @@ interface FeedItem {
   source_gap_count?: number;
   team_id: string;
 }
+interface Preparation {
+  kind: "news";
+  team_id: string;
+  status: "idle" | "running" | "ready" | "partial" | "failed" | "empty" | "interrupted";
+  message: string;
+  updated_at?: string;
+  counts?: { candidates?: number; attempted_reads?: number; readable?: number; added?: number };
+  source_errors?: SourceGap[];
+}
 interface FeedResponse {
   items: FeedItem[];
   next_cursor: string | null;
+  preparation?: Preparation;
   refresh?: {
     status?: string;
     last_updated?: string;
@@ -82,6 +93,12 @@ const topics = [
 ];
 const topicName = (value?: string) =>
   topics.find((item) => item.id === value)?.name || "球队动态";
+const latestPreparation = (current: Preparation | null, next: Preparation) => {
+  if (current?.team_id !== next.team_id) return next;
+  if (next.status === "idle" && current.status !== "idle") return current;
+  if (current.updated_at && next.updated_at && Date.parse(current.updated_at) > Date.parse(next.updated_at)) return current;
+  return next;
+};
 
 export function FeedView({
   team,
@@ -98,6 +115,8 @@ export function FeedView({
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [preparation, setPreparation] = useState<Preparation | null>(null);
+  const [preparationError, setPreparationError] = useState("");
   const [selected, setSelected] = useState<FeedItem | null>(null);
   const [report, setReport] = useState<IllustratedReport | null>(null);
   const [reading, setReading] = useState(false);
@@ -110,6 +129,7 @@ export function FeedView({
   const activeTeam = useRef(team.id);
   const mounted = useRef(true);
   const loadingRequest = useRef(false);
+  const prepareSerial = useRef(0);
   activeTeam.current = team.id;
   useEffect(() => {
     mounted.current = true;
@@ -153,6 +173,9 @@ export function FeedView({
             : result,
         );
         setError("");
+        const nextPreparation = result.preparation;
+        if (nextPreparation?.team_id === requestedTeam)
+          setPreparation((current) => latestPreparation(current, nextPreparation));
       } catch (err) {
         if (request === serial.current) setError(errorText(err));
       } finally {
@@ -173,11 +196,28 @@ export function FeedView({
     };
   }, [load]);
   useEffect(() => {
+    const requestedTeam = team.id;
+    const request = ++prepareSerial.current;
+    setPreparation(null);
+    setPreparationError("");
+    void post<Preparation>(`/teams/${encodeURIComponent(requestedTeam)}/prepare`, { kind: "news" })
+      .then((next) => {
+        if (!mounted.current || activeTeam.current !== requestedTeam || request !== prepareSerial.current) return;
+        if (next.kind === "news" && next.team_id === requestedTeam)
+          setPreparation((current) => latestPreparation(current, next));
+      })
+      .catch((err) => {
+        if (mounted.current && activeTeam.current === requestedTeam && request === prepareSerial.current)
+          setPreparationError(errorText(err));
+      });
+    return () => { prepareSerial.current++; };
+  }, [team.id]);
+  useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load(undefined, true);
-    }, 60000);
+    }, preparation?.status === "running" ? 5000 : 60000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, preparation?.status]);
   const workflowChanged = useCallback(() => {
     void load(undefined, true);
   }, [load]);
@@ -302,6 +342,18 @@ export function FeedView({
           </div>
         </div>
         <WorkflowControls kind="news" teamId={team.id} onChange={workflowChanged} onConfigure={openModel} />
+        {preparation?.team_id === team.id && preparation.status !== "idle" && (
+          <div className="notice" role="status" aria-live="polite">
+            <div>
+              <p>{preparation.message}</p>
+              {!!preparation.source_errors?.length && <details>
+                <summary>查看 {preparation.source_errors.length} 个来源说明</summary>
+                <SourceGapNotice gaps={preparation.source_errors} />
+              </details>}
+            </div>
+          </div>
+        )}
+        {preparationError && <div className="notice error" role="alert">消息来源准备未完成：{preparationError}</div>}
         <div className="feed-toolbar">
           <div className="filter-tabs">
             {topics.map((item) => (
@@ -343,7 +395,8 @@ export function FeedView({
                   <div>
                     <strong>{team.name}</strong>
                     <span>{item.organized_at ? `整理于${friendlyTime(item.organized_at) || "时间未知"}`
-                      : item.published_at ? `来源发布于${friendlyTime(item.published_at)}` : "发布时间未知"}</span>
+                      : item.published_at ? `来源发布于${friendlyTime(item.published_at)}`
+                        : item.published_date ? `来源发布于 ${item.published_date}（仅日期）` : "发布时间未知"}</span>
                   </div>
                   <span className={`topic-tag topic-${item.topic}`}>
                     {topicName(item.topic)}
@@ -396,8 +449,15 @@ export function FeedView({
         {feed && !items.length && (
           <div className="empty-state feed-empty">
             <Newspaper size={35} />
-            <h2>{topic ? "这个分类还没有新消息" : "中文动态会陆续出现在这里"}</h2>
-            <p>{topic ? "看看其他分类，或手动更新球队消息。" : "点击上方“启动”更新一次球队消息。处理完成后会结束；也可随时点击“结束”，保留已完成的动态。"}</p>
+            <h2>{topic ? "这个分类还没有新消息" : preparation?.status === "running" ? "正在准备球队消息"
+              : preparation?.counts?.readable ? "消息来源已就绪"
+              : preparation?.status === "failed" ? "消息来源暂时未能读取"
+              : preparation?.status === "empty" ? "暂未找到可整理的新消息" : "这里还没有中文动态"}</h2>
+            <p>{topic ? "看看其他分类，或手动更新球队消息。"
+              : preparation?.status === "running" ? "正在查找公开消息并读取正文，完成后会更新来源状态。"
+              : preparation?.counts?.readable ? `已取得 ${preparation.counts.readable} 条可读来源。点击上方“启动”，整理成中文动态。`
+              : preparation?.status === "empty" ? "已检查当前可用来源。暂无新消息时会保留已有资料，稍后可再次更新。"
+              : "点击上方“启动”重新检查来源并整理中文动态。来源或整理失败的原因会显示在上方。"}</p>
           </div>
         )}
         {feed?.next_cursor && (

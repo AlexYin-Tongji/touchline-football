@@ -41,7 +41,8 @@ def source_links(store, event, evidence_ids=None):
         except ValueError:
             continue
         seen.add(url)
-        result.append({"id": identity, "url": url, "title": row.get("title", ""), "name": row.get("source_name", "来源"), "source_name": row.get("source_name", "来源"), "published_at": row.get("published_at"), **source_tier(url)})
+        result.append({"id": identity, "url": url, "title": row.get("title", ""), "name": row.get("source_name", "来源"), "source_name": row.get("source_name", "来源"),
+                       **{key: row.get(key) for key in ("published_at", "published_date", "publication_precision")}, **source_tier(url)})
     return result
 
 
@@ -174,9 +175,13 @@ def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
             continue
         images = [image for source in visible if source["id"] in visible_ids
                   for image in ingestion.source_images(source)]
-        published = max((source.get("published_at") or "" for source in sources), default="") or None
+        latest_publication = max(sources, key=lambda source: source.get("published_at") or source.get("published_date") or "", default={})
+        published = latest_publication.get("published_at")
+        published_date = latest_publication.get("published_date")
         items.append({"id": event["id"], "team_id": event["team_id"], "title": title, "summary": summary,
-                      "topic": message_topic(title), "published_at": published, "updated_at": published or event.get("updated_at") or (report or {}).get("updated_at"),
+                      "topic": message_topic(title), "published_at": published, "published_date": published_date,
+                      "publication_precision": "instant" if published else "date" if published_date else None,
+                      "updated_at": published or published_date or event.get("updated_at") or (report or {}).get("updated_at"),
                       "organized_at": report.get("updated_at") if ready else None,
                       "images": safe_images(images), "sources": sources,
                       "source_gap_count": len(content.get("source_gaps") or []),

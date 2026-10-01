@@ -12,6 +12,7 @@ import json
 import hashlib
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlsplit
+from urllib.request import getproxies
 
 import httpx
 
@@ -28,7 +29,11 @@ async def fetch_json(url):
         raise IngestionError("比赛数据仅可访问固定的公开数据来源。")
     try:
         async with asyncio.timeout(32):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5), follow_redirects=False,
+            # httpx does not read Windows' registry proxy. Use the same
+            # explicitly configured system HTTPS proxy as the news transport;
+            # loopback and arbitrary hosts never enter this fixed-source path.
+            async with httpx.AsyncClient(timeout=httpx.Timeout(8, connect=5), follow_redirects=False,
+                                         proxy=getproxies().get("https"), trust_env=False,
                                          headers={"User-Agent": "Touchline/6.0 (personal football reader)", "Accept": "application/json"}) as client:
                 for attempt in range(2):
                     if attempt:
@@ -58,6 +63,10 @@ async def fetch_json(url):
                             return json.loads(b"".join(chunks))
                     except httpx.TransportError:
                         if attempt:
+                            from .espn_pages import fallback_spec, fetch_public_payload
+                            spec = fallback_spec(url)
+                            if spec:
+                                return await fetch_public_payload(spec)
                             raise
     except (httpx.TimeoutException, TimeoutError):
         raise IngestionError("比赛来源响应超时，已保留上次数据。") from None
