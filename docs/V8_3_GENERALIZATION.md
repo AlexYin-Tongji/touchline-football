@@ -55,13 +55,15 @@ flowchart LR
 7. 自动回归全部使用临时数据库和替身模型。公开联网与真实模型验收独立、限量；密钥不回显，原文不落盘。
 8. 完整测试、界面测试、正式构建和桌面／窄屏验证必须通过。综合分不能抵消身份错配、隐藏来源泄漏、事实编造或错误的成功状态。
 
+维护版 **8.3.1** 追加运行核对修复：即使本轮核心资料检查已经完成，仍读取照片组件的健康未查批次状态，一分钟后接续；不把核心完成当作整队工作完成。
+
 ## 本轮证据
 
 脚本 `scripts/accept-generalization.py` 默认只生成验收计划，只有 `--live` 才访问公开来源；不读取用户配置、不调用付费模型、不修改用户数据库。固定样本为曼联、布莱顿、马竞、赫塔费、那不勒斯、乌迪内斯、多特、美因茨、里尔、昂热、埃弗顿、塞尔塔、博洛尼亚、奥格斯堡、勒阿弗尔。
 
 | 验收 | 结果与实际范围 |
 | --- | --- |
-| 完整离线回归 | 1191 项通过，0失败、0错误、0跳过，119.420秒 |
+| 完整离线回归 | 1192 项通过，0失败、0错误、0跳过，120.995秒 |
 | 界面与构建 | 38项通过；TypeScript与Vite正式构建通过 |
 | 全目录合同 | 96队冷启动路由、严格球队/赛季/球员ID阵容合同；相同源输入下关注/未关注结果一致；全部模拟数据，不冒充现网 |
 | 固定15队真实资料 | 15/15取得真实阵容；11/15取得七日内正文；两项分别计数，不把阵容成功当作新闻成功 |
@@ -72,6 +74,6 @@ flowchart LR
 
 最新真实新闻零产出样本仍保留：布莱顿11条近期索引但正文缺少可靠主文章绑定；昂热当前已查来源无七日内文章；埃弗顿官网不可读、其他已查源无候选；博洛尼亚官网拒绝访问、当轮其他候选无近期可读正文。此前TMW单独探测曾取得博洛尼亚一篇，不能据此替换最新零产出记录。所有结果是有限时点观察，不证明全世界没有新消息，也不证明来源永久可用。
 
-证据在Git忽略的`output/qa/`：`v83-full-release.json`、`v83-public-15-release.json`、`generalization-model-manchester-united.json`、`generalization-model-mainz.json`、`v8.3-progressive-portrait-acceptance.json`、`generalization-browser-layout.json`、`v83-real-chunk-recovery.json`。外部正文未进入持久原文库，模型key未输出。
+证据在Git忽略的`output/qa/`：`v831-full-release.json`、`v83-public-15-release.json`、`generalization-model-manchester-united.json`、`generalization-model-mainz.json`、`v8.3-progressive-portrait-acceptance.json`、`generalization-browser-layout.json`、`v83-real-chunk-recovery.json`。外部正文未进入持久原文库，模型key未输出。
 
 原始成功计数不能直接代表产品已超过 95 分：真实无近期消息、尚未读全的来源、照片缺失和仅少量模型验收都必须保留。全目录模拟合同通过，也不能冒充全目录现网通过。

@@ -81,7 +81,13 @@ class CollectionScheduler:
                             result = await self.maintenance.wait_for_team(team_id)
                     failed = result.get("status") in {"failed", "partial", "interrupted", "unavailable"}
                     photo = (result.get("components") or {}).get("portraits") or {}
-                    continuing_photos = result.get("status") == "partial" and photo.get("continuation_ready") is True
+                    if not photo:
+                        from .team_center import center_view
+                        photo = center_view(self.store, team_id).get("components", {}).get("portraits", {})
+                    # A core-only review can finish while an earlier healthy
+                    # portrait batch still has work. Inspect that component,
+                    # rather than equating core completion with whole-club work.
+                    continuing_photos = photo.get("status") in {"partial", "missing"} and photo.get("continuation_ready") is True
                     if continuing_photos:
                         failed = False
                 except asyncio.CancelledError:

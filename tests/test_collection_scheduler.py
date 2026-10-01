@@ -93,6 +93,16 @@ class CollectionSchedulerTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.run_once(now=self.moment)
         self.assertEqual(self.manager.status()["teams"]["a"]["next_check"], (self.moment + timedelta(seconds=60)).isoformat())
 
+    async def test_completed_core_review_does_not_postpone_unselected_healthy_photo_batch(self):
+        from unittest.mock import AsyncMock, patch
+        self.reviewer.review_team = AsyncMock(return_value={"started": False, "status": "completed"})
+        with patch("server.team_center.center_view", return_value={"components": {"portraits": {
+            "status": "partial", "continuation_ready": True, "community_remaining_count": 16}}}):
+            await self.manager.run_once(now=self.moment)
+        row = self.manager.status()["teams"]["a"]
+        self.assertEqual(row["next_check"], (self.moment + timedelta(seconds=60)).isoformat())
+        self.assertEqual(row["failures"], 0)
+
     async def test_invalid_or_unfollowed_teams_never_run(self):
         self.store.save_settings({"followed_teams": ["unknown", "c", "c"]})
         await self.manager.run_once(now=self.moment)
