@@ -33,6 +33,22 @@ class ResearchTests(unittest.IsolatedAsyncioTestCase):
         self.store.put("candidates", item)
         return item
 
+    async def test_discovery_and_article_errors_keep_safe_structured_diagnostics(self):
+        blocked = {**SOURCE, 'id': 'blocked', 'name': 'Blocked publisher'}
+        async def fetch(url, source):
+            if source['id'] == 'blocked':
+                raise ingestion.SourceConnectionError('来源域名无法解析 https://private.example/?token=secret')
+            return b'<main><a href="/news/saka">Saka injury update</a></main>', url, 'text/html'
+        empty = ([], [], {'id': 'extra', 'state': 'unavailable', 'checked_at': ingestion.now()})
+        with patch.object(research, 'source_catalog', return_value=[SOURCE, blocked]), \
+             patch.object(research, '_fetch', new=fetch), \
+             patch.object(research, '_web_news_index', new=AsyncMock(return_value=empty)), \
+             patch.object(research, 'read_candidate', new=AsyncMock(side_effect=ingestion.IngestionError('HTTP 403 ?key=secret'))):
+            result = await research.collect_team(self.store, 'arsenal', limit=1)
+        self.assertEqual({row['code'] for row in result['source_errors']}, {'dns_failed', 'http_forbidden'})
+        self.assertEqual(result['coverage'], 'unavailable')
+        self.assertNotIn('secret', json.dumps(result, ensure_ascii=False))
+
     def test_sitemap_modified_time_is_not_publication_time(self):
         entries = research._sitemap_candidates(b'<urlset><url><loc>https://www.arsenal.com/news/saka-injury-update-aABCD12345678</loc><lastmod>2026-09-08T12:00:00Z</lastmod></url><url><loc>https://www.arsenal.com/gallery/photos-aABCD12345678</loc></url></urlset>')
         self.assertEqual(len(entries), 1)

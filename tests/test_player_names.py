@@ -61,6 +61,42 @@ class LookupTests(unittest.TestCase):
         for key in player_names.NAME_READINGS:
             self.assertEqual(player_names.normalize_name(key), key, f"{key!r} is not a normalized key")
 
+    def test_checked_city_names_and_fernandes_spelling_keep_reading_evidence(self):
+        for name, reading in (("Erling Haaland", "哈兰德"), ("Rúben Dias", "鲁本·迪亚斯"),
+                              ("Nico O'Reilly", "奥赖利"), ("Mateus Fernandes", "马特乌斯·费尔南德斯")):
+            with self.subTest(name=name):
+                row = player_names.with_reading({"name": name})
+                self.assertEqual(row["name_zh"], reading)
+                self.assertEqual(row["name"], name)
+                self.assertTrue(row["name_zh_source"])
+                self.assertTrue(row["name_zh_source_url"].startswith("https://"))
+
+    def test_unknown_name_cannot_inherit_previous_reading_evidence(self):
+        row = player_names.with_reading({"name": "Unlisted Youth", "name_zh": "旧译名",
+                                        "name_zh_source_url": "https://example.com/other-person",
+                                        "name_zh_source": "旧来源", "name_zh_checked_at": "2020-01-01"})
+        self.assertFalse(any(key.startswith("name_zh") for key in row))
+
+    def test_official_directory_can_correct_an_old_spelling_and_add_reviewed_youth_names(self):
+        for name, reading in (("Joan García", "乔安·加西亚"), ("Roony Bardghji", "巴尔德吉"),
+                              ("Xavi Espart", "埃斯帕特"), ("Jesse Bisiwu", "比西乌")):
+            row = player_names.with_reading({"name": name, "name_zh": "旧译名"})
+            self.assertEqual(row["name_zh"], reading)
+            self.assertEqual(row["name_zh_source_url"], "https://www.fcbarcelona.cn/players")
+        self.assertEqual(player_names.reading_for("Josh Acheampong"), "阿昌庞")
+
+    def test_reviewed_chelsea_youth_profiles_have_exact_name_readings_and_their_own_sources(self):
+        for name, reading, slug in (("Teddy Sharman-Lowe", "沙曼-洛维", "taidishamanluowei"),
+                                   ("Pep Chavarría", "查瓦利亚", "peipuzhawaliya"),
+                                   ("Aaron Anselmino", "安塞尔米诺", "yalunansaierminuo"),
+                                   ("Olutayo Subuloye", "苏布洛耶", "aolutayuesubuluoye"),
+                                   ("Mahdi Nicoll-Jazuli", "贾祖里", "mahedinikeerjiazuli"),
+                                   ("Reggie Watson", "沃森", "leijiwosen")):
+            row = player_names.with_reading({"name": name})
+            self.assertEqual(row["name_zh"], reading)
+            self.assertEqual(row["name_zh_source_url"], "https://www.qiumiwu.com/player/" + slug)
+            self.assertEqual(row["name"], name)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,7 @@ function component(file, name, props, api, saved = {}) {
   let index = 0, dirty = true, tree, alive = true;
   const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
   const react = {
+    memo: value => value,
     lazy: loader => ({ lazy: loader }),
     Suspense: "Suspense",
     useState(initial) {
@@ -311,7 +312,9 @@ test("workflow shows model configuration failure without pretending work started
 });
 
 test("workflow shows current source failures before any report exists but hides inactive historical errors", async () => {
+  const gaps = [{ source_name: "天空体育", code: "http_forbidden", http_status: 403, message: "private-token-ignored" }];
   for (const [status, enabled, failed, visible] of [
+    ["completed", false, 0, true],
     ["partial", false, 0, true],
     ["running", true, 0, true],
     ["blocked", false, 0, true],
@@ -320,12 +323,14 @@ test("workflow shows current source failures before any report exists but hides 
     ["stopped", false, 8, false],
     ["idle", false, 8, false],
   ]) {
-    const current = workflowState({ status, enabled, last_error: "本轮来源暂不可读，尚未取得正文。",
+    const current = workflowState({ status, enabled, last_error: "本轮来源暂不可读，尚未取得正文。", source_errors: gaps,
       progress: { completed: 0, failed, remaining: 0 } });
     const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: team.id }, () => Promise.resolve(current));
     await host.flush();
     const alerts = nodes(host.tree, node => node.props?.role === "alert");
     assert.equal(text(alerts).includes("本轮来源暂不可读"), visible, `${status}: failure visibility follows the current workflow, not report counts`);
+    assert.deepEqual(nodes(host.tree, node => node.type === "SourceGapNotice").map(node => node.props.gaps),
+      visible ? [gaps] : [], `${status}: source diagnostics do not require a completed report`);
     host.unmount();
   }
 });
@@ -465,6 +470,128 @@ test("Wikimedia player photos need attribution while older sourced photos stay v
   await legacy.flush();
   assert.equal(nodes(legacy.tree, node => node.type === "img").length, 1);
   legacy.unmount();
+});
+
+test("workflow clears the previous source diagnostics when a new update begins", async () => {
+  const gaps = [{ source_name: "天空体育", code: "http_forbidden", http_status: 403 }];
+  const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: team.id }, (_, method) =>
+    Promise.resolve(method === "POST"
+      ? workflowState({ enabled: true, status: "running", source_errors: [] })
+      : workflowState({ status: "failed", last_error: "来源拒绝访问", source_errors: gaps })));
+  await host.flush();
+  assert.deepEqual(nodes(host.tree, node => node.type === "SourceGapNotice").map(node => node.props.gaps), [gaps]);
+  await button(host, "启动").props.onClick();
+  await host.flush();
+  assert.equal(nodes(host.tree, node => node.type === "SourceGapNotice").length, 0);
+  assert.doesNotMatch(text(host.tree), /来源拒绝访问/);
+  host.unmount();
+});
+
+test("a failed sourced portrait can retry in details without adding buttons inside a player card", async () => {
+  const player = { id: "player", name: "测试球员", photo_url: "https://example.com/player.jpg",
+    photo_source_url: "https://example.com/players/player", photo_match: "exact_name_and_number" };
+  const card = component("v7TeamCenter.tsx", "PlayerPhoto", { player }, () => Promise.resolve(null));
+  await card.flush();
+  nodes(card.tree, node => node.type === "img")[0].props.onError();
+  await card.flush();
+  assert.match(text(card.tree), /照片暂时无法加载/);
+  assert.equal(nodes(card.tree, node => node.type === "button").length, 0);
+  card.rerender({ player: { ...player, id: "next-player", photo_url: "https://example.com/next.jpg" } });
+  await card.flush();
+  assert.equal(nodes(card.tree, node => node.type === "img")[0].props.src, "https://example.com/next.jpg");
+  card.unmount();
+  const detail = component("v7TeamCenter.tsx", "PlayerPhoto", { player, allowRetry: true }, () => Promise.resolve(null));
+  await detail.flush();
+  nodes(detail.tree, node => node.type === "img")[0].props.onError();
+  await detail.flush();
+  button(detail, "重试照片").props.onClick();
+  await detail.flush();
+  assert.equal(nodes(detail.tree, node => node.type === "img")[0].props.src, player.photo_url);
+  detail.unmount();
+});
+
+test("roster search finds Chinese and accented source names and resets for a different team", async () => {
+  const roster = [
+    { id: "joan", name: "Joan García", name_zh: "霍安·加西亚", position: "门将", position_group: "GK" },
+    { id: "pedri", name: "Pedri", name_zh: "佩德里", position: "中场", position_group: "MF" },
+  ];
+  const center = { team, roster, matches: [], stats: {}, sources: [] };
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
+  await host.flush();
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  const search = () => nodes(host.tree, node => node.type === "input" && node.props.type === "search")[0];
+  search().props.onChange({ target: { value: "garcia" } });
+  await host.flush();
+  const found = nodes(host.tree, node => node.props?.className === "player-card");
+  assert.equal(found.length, 1);
+  assert.match(text(found[0]), /霍安·加西亚Joan García/);
+  search().props.onChange({ target: { value: "佩德里" } });
+  await host.flush();
+  assert.equal(nodes(host.tree, node => node.props?.className === "player-card").length, 1);
+  button(host, "门将").props.onClick();
+  await host.flush();
+  assert.match(text(host.tree), /没有匹配的球员/);
+  assert.doesNotMatch(text(host.tree), /还没有可读的阵容资料/);
+  button(host, "查看全部球员").props.onClick();
+  await host.flush();
+  assert.equal(nodes(host.tree, node => node.props?.className === "player-card").length, 2);
+  search().props.onChange({ target: { value: "佩德里" } });
+  await host.flush();
+  host.rerender({ team: { id: "barcelona", name: "巴塞罗那" } });
+  await host.flush();
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  assert.equal(search().props.value, "");
+  host.unmount();
+});
+
+test("visible team refresh preserves filters and updates or removes an open player with its source snapshot", async () => {
+  let calls = 0;
+  const player = { id: "player", name: "原球员", name_zh: "中文名", position: "中场", position_group: "MF" };
+  let roster = [player];
+  const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => {
+    calls++;
+    return Promise.resolve({ team, roster, matches: [], stats: {}, sources: [] });
+  });
+  await host.flush();
+  button(host, "球员阵容").props.onClick();
+  await host.flush();
+  const search = () => nodes(host.tree, node => node.type === "input" && node.props.type === "search")[0];
+  search().props.onChange({ target: { value: "中文名" } });
+  await host.flush();
+  button(host, "了解球员").props.onClick();
+  await host.flush();
+  host.setVisibility("hidden");
+  host.tickIntervals(60000);
+  await host.flush();
+  assert.equal(calls, 1);
+  roster = [{ ...player, photo_reason: "照片来源已撤回" }];
+  host.setVisibility("visible");
+  host.tickIntervals(60000);
+  await host.flush();
+  assert.equal(calls, 2);
+  assert.equal(search().props.value, "中文名");
+  assert.match(text(nodes(host.tree, node => node.props?.className === "player-detail")[0]), /照片来源已撤回/);
+  roster = [];
+  host.tickIntervals(60000);
+  await host.flush();
+  assert.equal(nodes(host.tree, node => node.props?.className === "player-detail").length, 0);
+  host.unmount();
+});
+
+test("news source dates use Beijing time and distinguish an unknown publication date", async () => {
+  const host = component("v7Shared.tsx", "Sources", { showDates: true, sources: [
+    { name: "球队官网", url: "https://example.com/news", published_at: "2026-09-30T20:00:00Z" },
+    { name: "另一媒体", url: "https://example.com/other" },
+  ] }, () => Promise.resolve(null));
+  await host.flush();
+  const dates = nodes(host.tree, node => node.type === "time");
+  assert.equal(dates.length, 1);
+  assert.equal(text(dates[0]), "2026/10/1");
+  assert.equal(dates[0].props.dateTime, "2026-09-30T20:00:00Z");
+  assert.match(text(host.tree), /发布时间未知/);
+  host.unmount();
 });
 
 test("player detail makes photographer license and file page readable", async () => {

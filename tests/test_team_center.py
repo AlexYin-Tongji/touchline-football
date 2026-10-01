@@ -98,6 +98,35 @@ class RosterParserTests(unittest.TestCase):
 
 
 class TeamCenterTests(unittest.TestCase):
+    def test_public_roster_rechecks_legacy_photos_without_network_or_database_mutation(self):
+        from server import community_portraits, team_portraits
+        snapshot = team_center.parse_roster(roster_payload(), TEAM, LEAGUE, SEASON, "359")
+        player = next(row for row in snapshot["roster"] if row["provider_id"] == "101")
+        image = "https://www.thesportsdb.com/images/media/player/cutout/player.png"
+        profile = "https://www.thesportsdb.com/player/123"
+        player.update(photo_url=image, photo_match="community_name_and_nationality",
+                      photo_source_url=profile, photo_credit="Community", photo_license="未声明开放许可")
+        self.store.put("team_snapshots", snapshot)
+        with patch.object(team_portraits, "fetch_document", side_effect=AssertionError("network")) as network:
+            first = team_center.center_view(self.store, "arsenal")
+            invalid = next(row for row in first["roster"] if row["provider_id"] == "101")
+            self.assertFalse(invalid["photo_url"])
+            self.assertEqual(invalid["reason_code"], "identity_revalidation")
+            self.assertTrue(all(row.get("photo_reason") for row in first["roster"] if not row.get("photo_url")))
+            self.store.set_meta(community_portraits.portrait_key(player, "arsenal"), {
+                "status": "completed", "fetched_at": now(), "photo_url": image,
+                "photo_source_url": profile, "photo_file_page": profile, "photo_credit": "Community",
+                "photo_license": "未声明开放许可", "photo_match": "community_name_and_nationality",
+                "_identity": {"name": player["name"], "nationality": "Spain", "birth_date": player["birth_date"],
+                              "roster_birth_date": player["birth_date"], "publisher_id": "123"},
+            })
+            verified = next(row for row in team_center.center_view(self.store, "arsenal")["roster"] if row["provider_id"] == "101")
+            self.assertEqual(verified["photo_url"], image)
+            self.assertEqual(verified["name"], player["name"])
+            self.assertEqual(verified["birth_date"], player["birth_date"])
+            network.assert_not_called()
+        self.assertEqual(self.store.get("team_snapshots", snapshot["id"]), snapshot)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "team.sqlite3")

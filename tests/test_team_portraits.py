@@ -4,9 +4,9 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
-from server import team_portraits
+from server import community_portraits, team_portraits, wikimedia_portraits
 from server.storage import Store
 
 
@@ -26,6 +26,10 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "portraits.sqlite3")
+        for module in (wikimedia_portraits, community_portraits):
+            offline = patch.object(module, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"}))
+            offline.start()
+            self.addCleanup(offline.stop)
 
     def tearDown(self):
         self.store.close()
@@ -85,6 +89,28 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
             result = await team_portraits.enrich_portraits(self.store, squad())
         self.assertEqual(result["roster"][0]["photo_url"], "")
 
+    async def test_directory_records_safe_network_and_empty_page_diagnostics(self):
+        for error, code, stage in ((TimeoutError("https://secret@host/path?key=secret"), "timeout", "read"),
+                                   (None, "portrait_directory_empty", "parse")):
+            self.store.set_meta("team_portraits_v1_barcelona", {})
+            with patch.object(team_portraits, "fetch_document", side_effect=error,
+                              return_value=(b"<html></html>", URL, "text/html")):
+                directory = await team_portraits.portrait_directory(self.store, "barcelona")
+            self.assertEqual(directory["status"], "unavailable")
+            self.assertFalse(directory.get("cards"))
+            self.assertEqual(directory["error_code"], code)
+            self.assertEqual(directory["error"]["stage"], stage)
+            self.assertNotIn("secret", directory["last_error"])
+
+    async def test_manual_force_retries_the_official_directory_after_a_recent_network_failure(self):
+        self.store.set_meta("team_portraits_v1_barcelona", {
+            "status": "unavailable", "last_attempt": team_portraits.now(), "cards": []})
+        with self.fetch(card()) as fetch:
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad(), force=True)
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(result["roster"][0]["photo_match"], "exact_name_and_number")
+        self.assertEqual(summary["status"], "completed")
+
     async def test_old_official_photo_can_refresh_without_refetching_the_roster(self):
         old = squad()
         old["roster"][0].update(photo_url=PHOTO, photo_match="exact_name_and_number", photo_updated_at="2020-01-01T00:00:00+00:00")
@@ -112,6 +138,28 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 team_portraits.parse_directory(card(image=url), "barcelona")
 
+    async def test_spurs_lazy_main_portrait_requires_full_name_and_number(self):
+        url = team_portraits.DIRECTORIES["tottenham-hotspur"]["url"]
+        image = "https://resources.thfc.pulselive.com/photo-resources/2026/08/player.png?width=363"
+        html = ('<a class="o-person-pod__inner" href="/player/212319/-richarlison">'
+                '<span class="o-person-pod__number">9</span>'
+                '<!-- <picture class="o-person-pod__image--main"><img src="' + image + '"></picture> -->'
+                '<!-- <picture class="o-person-pod__image--hover"><img src="https://evil.example/action.jpg"></picture> -->'
+                '<h4 class="o-person-pod__name">Richarlison</h4></a>')
+        snapshot = {"team_id": "tottenham-hotspur", "roster": [
+            {"provider_id": "1", "name": "Richarlison", "number": "9", "photo_url": ""},
+            {"provider_id": "2", "name": "Other Player", "number": "9", "photo_url": ""}]}
+        with patch.object(team_portraits, "fetch_document", return_value=(html.encode(), url, "text/html")):
+            result = await team_portraits.enrich_portraits(self.store, snapshot)
+        self.assertEqual(result["roster"][0]["photo_url"], image)
+        self.assertEqual(result["roster"][0]["photo_source_url"], "https://www.tottenhamhotspur.com/player/212319/-richarlison")
+        self.assertFalse(result["roster"][1]["photo_url"])
+        snapshot["roster"][0]["number"] = "10"
+        result = await team_portraits.enrich_portraits(self.store, snapshot)
+        self.assertFalse(result["roster"][0]["photo_url"])
+        with self.assertRaises(ValueError):
+            team_portraits.parse_directory(html.replace(image, "https://evil.example/player.png"), "tottenham-hotspur")
+
     async def test_barcelona_directory_runs_first_and_limits_changes_to_selected_players(self):
         snapshot = squad()
         snapshot["roster"][0]["id"] = "espn-player-123"
@@ -126,10 +174,6 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
     async def test_one_selected_player_cannot_bypass_full_roster_duplicate_name_guard(self):
         snapshot = squad()
         snapshot["roster"].append({**snapshot["roster"][0], "provider_id": "456"})
-        def fetch_page(url, **kwargs):
-            return ((card().encode(), URL, "text/html") if url == URL else
-                    (player_html(player_page(team_id="83", photo=None)), url, "text/html"))
-        with patch.object(team_portraits, "fetch_document", side_effect=fetch_page):
+        with self.fetch(card()):
             result, _ = await team_portraits.enrich_player_photos(self.store, snapshot, player_ids=["123"])
         self.assertTrue(all(not row["photo_url"] for row in result["roster"]))
-

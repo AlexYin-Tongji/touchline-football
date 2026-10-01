@@ -204,6 +204,27 @@ def _stamp(value):
         return None
 
 
+def source_failure(source, error):
+    """Actionable publisher status without transport URLs or response bodies."""
+    return {"source_id": source.get("id"), "source_name": str(source.get("name") or "来源")[:160],
+            "host": urlsplit(source.get("url") or "").hostname or "", **ingestion.source_error_details(error)}
+
+
+def unique_source_failures(errors):
+    result, seen = [], set()
+    for error in errors:
+        if not isinstance(error, dict):
+            continue
+        # Regenerate the safe message rather than trusting an upstream body.
+        safe = {key: error.get(key) for key in ("source_id", "source_name", "host") if error.get(key)}
+        safe.update(ingestion.source_error_details(ingestion.IngestionError(str(error.get("message") or ""))))
+        key = (safe.get("source_id"), safe.get("source_name"), safe["code"], safe.get("http_status"))
+        if key not in seen and len(result) < 30:
+            result.append(safe)
+            seen.add(key)
+    return result
+
+
 def within_days(entry, days, *, now=None):
     if days is None:
         return True
@@ -496,7 +517,8 @@ async def _source_index(store, team_id, source, *, force=False):
         if stale:
             errors.append(source["name"] + "：暂用此前保存的文章索引，尚未确认是否有更新。")
         return (copy.deepcopy(cached["entries"]) if stale else [], errors,
-                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached.get("last_checked")})
+                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached.get("last_checked"),
+                 "error": source_failure(source, ingestion.IngestionError(health.get("last_error_message") or message))})
     if (not force and cached.get("last_error") and last_attempt
             and 0 <= (datetime.now(timezone.utc) - last_attempt).total_seconds() < FAILURE_COOLDOWN_SECONDS):
         stale = 0 <= age <= STALE_INDEX_SECONDS and bool(cached.get("entries"))
@@ -504,7 +526,8 @@ async def _source_index(store, team_id, source, *, force=False):
         if stale:
             errors.append(source["name"] + "：暂用此前保存的文章索引，尚未确认是否有更新。")
         return (copy.deepcopy(cached["entries"]) if stale else [], errors,
-                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached["last_checked"]})
+                {"state": "stale" if stale else "unavailable", "checked_at": cached.get("fetched_at") if stale else cached["last_checked"],
+                 "error": source_failure(source, ingestion.IngestionError(cached["last_error"]))})
     checked_at = ingestion.now()
     attempt_started = [None]
     try:
@@ -534,8 +557,8 @@ async def _source_index(store, team_id, source, *, force=False):
     errors = [source["name"] + "：" + message]
     if 0 <= age <= STALE_INDEX_SECONDS and cached.get("entries"):
         errors.append(source["name"] + "：暂用此前保存的文章索引，尚未确认是否有更新。")
-        return copy.deepcopy(cached["entries"]), errors, {"state": "stale", "checked_at": cached["fetched_at"]}
-    return [], errors, {"state": "unavailable", "checked_at": checked_at}
+        return copy.deepcopy(cached["entries"]), errors, {"state": "stale", "checked_at": cached["fetched_at"], "error": source_failure(source, ingestion.IngestionError(message))}
+    return [], errors, {"state": "unavailable", "checked_at": checked_at, "error": source_failure(source, ingestion.IngestionError(message))}
 
 
 async def _verify_article_dates(store, team_id, source, entries, *, force=False):
@@ -786,6 +809,7 @@ async def discover_news(store, team_id, query="", limit=6, *, category="all", ma
         store.put("candidates", entry)
         candidates.append(entry)
     return {"candidates": candidates, "errors": errors, "notice": DISCOVERY_NOTICE,
+            "source_errors": unique_source_failures([status["error"] for _, _, status in batches if status.get("error")]),
             "sources": [status for _, _, status in batches], "category": category, "max_age_days": max_age_days,
             "matched_count": len(ranked), "offset": offset, "next_offset": offset + limit if offset + limit < len(ranked) else None,
             "coverage": "unavailable" if all(status["state"] == "unavailable" for _, _, status in batches) else "partial" if errors else "available"}
@@ -914,7 +938,7 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
 async def collect_team(store, team_id, query="", limit=4, event_id=None, match_id=None, *, category="all", max_age_days=None, max_attempts=None, force=False):
     limit = max(1, min(40, int(limit)))
     found = await discover_news(store, team_id, query, limit=40 if not query.strip() else min(40, limit + 6), category=category, max_age_days=max_age_days, force=force)
-    result = {"added": 0, "unchanged": 0, "cached": 0, "evidence_ids": [], "event_ids": [], "candidates": found["candidates"], "errors": list(found["errors"]), "notice": found.get("notice", DISCOVERY_NOTICE), "sources": found.get("sources", [])}
+    result = {"added": 0, "unchanged": 0, "cached": 0, "evidence_ids": [], "event_ids": [], "candidates": found["candidates"], "errors": list(found["errors"]), "source_errors": list(found.get("source_errors", [])), "notice": found.get("notice", DISCOVERY_NOTICE), "sources": found.get("sources", [])}
     # Only fetches overlap. ingest remains synchronous and atomic; no database
     # transaction spans an await. Existing candidates remain a fallback.
     candidates = sorted(found["candidates"], key=lambda item: (bool(item.get("last_read")), item.get("last_read") or ""))
@@ -924,9 +948,11 @@ async def collect_team(store, team_id, query="", limit=4, event_id=None, match_i
         try:
             return await read_candidate(store, team_id, candidate["id"], event_id, match_id, **({"force": True} if force else {}))
         except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
-            return {"error": candidate["source_name"] + "：" + (str(exc) or "文章读取超时")}
+            return {"error": candidate["source_name"] + "：" + ingestion.source_error_details(exc)["message"],
+                    "source_error": source_failure({"id": candidate.get("source_id"), "name": candidate["source_name"], "url": candidate.get("url")}, exc)}
         except Exception:
-            return {"error": candidate["source_name"] + "：来源解析未完成，已保留其他可读资料。"}
+            return {"error": candidate["source_name"] + "：来源解析未完成，已保留其他可读资料。",
+                    "source_error": source_failure({"id": candidate.get("source_id"), "name": candidate["source_name"], "url": candidate.get("url")}, ingestion.IngestionError("来源正文解析未完成"))}
     try:
         while True:
             successes = sum("error" not in value for value in completed.values())
@@ -946,6 +972,7 @@ async def collect_team(store, team_id, query="", limit=4, event_id=None, match_i
     for _, imported in sorted(completed.items()):
         if "error" in imported:
             result["errors"].append(imported["error"])
+            result["source_errors"].append(imported["source_error"])
         else:
             result["unchanged" if imported["duplicate"] else "added"] += 1
             result["cached"] += int(imported.get("cached", False))
@@ -955,6 +982,7 @@ async def collect_team(store, team_id, query="", limit=4, event_id=None, match_i
     result["evidence_ids"] = list(dict.fromkeys(result["evidence_ids"]))
     result["event_ids"] = list(dict.fromkeys(result["event_ids"]))
     result["attempted_reads"] = attempts
+    result["source_errors"] = unique_source_failures(result["source_errors"])
     result["coverage"] = "partial" if result["errors"] and result["evidence_ids"] else "unavailable" if result["errors"] else found.get("coverage", "available")
     return result
 

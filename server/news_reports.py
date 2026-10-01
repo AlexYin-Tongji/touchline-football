@@ -152,6 +152,46 @@ def source_version_hash(source):
                   "visibility": source.get("visibility"), "deleted": source.get("deleted")})
 
 
+def _source_scope_hash(source):
+    return _hash({key: source.get(key) for key in
+                  ("id", "team_id", "mode", "url", "source_id", "origin", "private", "visibility", "deleted", "spoiler", "manual_spoiler")})
+
+
+def adopt_initial_reads(store, run, local):
+    """Bind a new draft to its actual first read, before any model wording.
+
+    A restart expires transient bodies. Reading the same link may obtain a
+    corrected version; it is valid input to a NEW draft, never to an old one.
+    Membership, permissions and unread sources must still match the claim.
+    """
+    if not run.get("internal_report") or not run.get("report_source_scope_hashes"):
+        return
+    with _atomic(store):
+        row = store.get("reports", run.get("report_id"))
+        if not row or row.get("status") != "generating" or row.get("run_id") != run.get("id"):
+            raise AgentFailure("本次整理任务已失效，未开始生成稿件。")
+        event = store.get("events", row.get("event_id"))
+        if not event or (event.get("team_id"), event.get("mode")) != (row.get("team_id"), row.get("mode")):
+            raise AgentFailure("事件范围已变化，未开始生成稿件。")
+        snapshot = _snapshot(store, event, store.settings())
+        if (snapshot["boundary_hash"] != row.get("boundary_hash")
+                or set(snapshot["source_hashes"]) != set(row.get("source_hashes", {}))
+                or {source["id"] for source in snapshot["sources"]} != set(row.get("evidence_ids", []))):
+            raise AgentFailure("来源集合或阅读范围已变化，未开始生成稿件。")
+        for eid, original in row["source_hashes"].items():
+            current = store.get("evidence", eid)
+            if current is None and original == "deleted" and snapshot["source_hashes"][eid] == "deleted":
+                continue
+            if not current or _source_scope_hash(current) != run["report_source_scope_hashes"].get(eid):
+                raise AgentFailure("来源权限或身份已变化，未开始生成稿件。")
+            if snapshot["source_hashes"][eid] != original and (eid not in local.read_ids or not local.cache_is_current(eid)):
+                raise AgentFailure("尚未读取的来源已变化，未开始生成稿件。")
+        if snapshot["fingerprint"] != row["fingerprint"]:
+            row.update(fingerprint=snapshot["fingerprint"], source_hashes=snapshot["source_hashes"],
+                       **_source_fields(snapshot), initial_reads_at=_stamp(), updated_at=_stamp())
+            store.put("reports", row)
+
+
 def _snapshot(store, event, settings, *, legacy=False, legacy_boundary=False):
     scope = {"id": "report_visibility", "mode": event["mode"], "team_id": event["team_id"], "skill": "news_report"}
     local = LocalTools(store, scope, settings)
@@ -350,6 +390,12 @@ def _public(store, row, settings, budget):
         # earlier versions. Safe text excerpts do not make an original image
         # safe: a photograph or scoreboard may reveal the removed result.
         cited = {source.get("id") for source in output["report"].get("sources", [])}
+        from .personal_app import source_tier
+        current_sources = {source["id"]: source for source in snapshot["sources"]}
+        output["report"]["sources"] = [
+            {**source, "published_at": current_sources[source["id"]].get("published_at"),
+             **source_tier(current_sources[source["id"]].get("url") or source.get("url") or "")}
+            for source in output["report"].get("sources", []) if source.get("id") in current_sources]
         from .ingestion import image_identity, source_images
         allowed = {source["id"]: {image["url"]: image for image in source_images(source)}
                    for source in snapshot["sources"] if source["id"] in cited}
@@ -759,6 +805,8 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                        "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
                        "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
                        "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}
+                run["report_source_scope_hashes"] = {eid: _source_scope_hash(store.get("evidence", eid) or {})
+                                                     for eid in row.get("source_hashes", {})}
                 if owner_id is not None:
                     run["workflow_id"] = owner_id
                 from .model_config import role_selection

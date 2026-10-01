@@ -111,8 +111,10 @@ export const Photo = memo(function Photo({
 });
 export const Sources = memo(function Sources({
   sources = [],
+  showDates = false,
 }: {
   sources?: SourceLink[];
+  showDates?: boolean;
 }) {
   const unique = sources.filter(
     (source, i, all) =>
@@ -137,6 +139,11 @@ export const Sources = memo(function Sources({
             </span>
           ) : null}
           {source.name || source.source_name || `参考 ${i + 1}`}
+          {showDates && <span className="source-published" title="来源发布时间（北京时间）">
+            {source.published_at && Number.isFinite(Date.parse(source.published_at))
+              ? <time dateTime={source.published_at}>{new Date(source.published_at).toLocaleDateString("zh-CN", { year: "numeric", month: "numeric", day: "numeric", timeZone: "Asia/Shanghai" })}</time>
+              : "发布时间未知"}
+          </span>}
           <ArrowUpRight size={12} />
         </a>
       ))}
@@ -179,5 +186,6 @@ export function friendlyTime(value?: string | null) {
   return new Date(value).toLocaleDateString("zh-CN", {
     month: "long",
     day: "numeric",
+    timeZone: "Asia/Shanghai",
   });
 }

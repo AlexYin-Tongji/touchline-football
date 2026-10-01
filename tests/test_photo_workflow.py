@@ -7,11 +7,13 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from server import team_center, wikimedia_portraits
+from server import community_portraits, team_center, team_portraits, wikimedia_portraits
 from server.ingestion import IngestionError
 from server.main import create_app
 from tests.test_team_center import roster_payload
 from tests.test_wikimedia_portraits import page, commons
+from tests.test_team_portraits import card, PHOTO, URL
+from tests.test_community_portraits import record, search
 
 
 class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
@@ -34,11 +36,16 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.core = patch.object(team_center, 'maintain_team', new=AsyncMock(return_value={
             'status': 'completed', 'components': {part: {'status': 'completed'} for part in team_center.CORE_PARTS}}))
         self.core.start()
+        self.community = patch.object(community_portraits, 'resolve_portrait', new=AsyncMock(return_value={
+            'status': 'unavailable', 'photo_reason': '社区照片来源暂不可达，稍后重试。',
+            'retryable': True, 'reason_code': 'connection_error'}))
+        self.community.start()
 
     async def asyncTearDown(self):
         await self.app.state.workflows.close()
         await self.client.aclose()
         self.core.stop()
+        self.community.stop()
         self.store.close()
         self.temp.cleanup()
 
@@ -81,7 +88,9 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         # than as a permanent verdict about this player.
         self.assertIn('重试', roster[0]['photo_reason'])
         self.assertTrue(roster[0].get('retryable'))
-        self.assertEqual(roster[0].get('reason_code'), 'http_rate_limited')
+        self.assertEqual(roster[0].get('reason_code'), 'connection_error')
+        self.assertIn('维基媒体', roster[0]['photo_reason'])
+        self.assertIn('TheSportsDB', roster[0]['photo_reason'])
 
     async def test_stop_during_photo_fetch_keeps_roster_and_cleans_up_work(self):
         entered = asyncio.Event()
@@ -98,6 +107,63 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stopped.json()['status'], 'stopped')
         self.assertFalse(self.app.state.workflows.tasks)
         self.assertEqual(self.store.get('team_snapshots', self.snapshot_id)['roster'][0]['name'], 'Martin Ødegaard')
+
+    async def official_retry(self, *, explicit_part):
+        team, league, season, provider = team_center.team_season_context(self.store, 'barcelona')
+        payload = roster_payload()
+        payload['season']['year'] = season['season_start_year']
+        payload['team'] = {'id': provider, 'seasonSummary': f"{season['season_start_year']}-{str(season['season_start_year'] + 1)[-2:]}"}
+        payload['athletes'] = [{**payload['athletes'][0], 'displayName': 'Joan García', 'jersey': '1',
+                                'dateOfBirth': '2001-05-04T00:00Z'}]
+        snapshot = team_center.parse_roster(payload, team, league, season, provider)
+        preserved = []
+        if not explicit_part:
+            # More than one fallback batch already has identity-checked photos.
+            # A manual resume must not clear them before filling the one gap.
+            self.community.stop()
+            for index in range(team_portraits.COMMUNITY_PAGE_LIMIT + 1):
+                player = {**snapshot['roster'][0], 'provider_id': str(200 + index), 'id': f'espn-player-{200 + index}',
+                          'name': f'Saved Player {index}', 'number': str(index + 2), 'birth_date': '2000-01-10', 'photo_url': ''}
+                with patch.object(community_portraits, '_search', new=AsyncMock(return_value=search(record(
+                        player['name'], 'Spain', idPlayer=str(34001000 + index), dateBorn=player['birth_date'])))):
+                    await community_portraits.resolve_portrait(self.store, player, 'barcelona')
+                snapshot['roster'].append(player)
+            self.community.start()
+            snapshot = team_portraits.apply_cached_portraits(self.store, snapshot)
+            preserved = [row['photo_url'] for row in snapshot['roster'][1:]]
+            self.assertTrue(all(preserved))
+        self.store.put('team_snapshots', snapshot)
+        self.store.set_meta('team_portraits_v1_barcelona', {
+            'status': 'unavailable', 'cards': [], 'last_attempt': team_center.now()})
+        status_key = team_center._status_key('barcelona', season['id'])
+        self.store.set_meta(status_key, {'components': {'portraits': {
+            'status': 'failed', 'last_attempt': team_center.now(), 'errors': ['此前连接失败']}}})
+        if explicit_part:
+            # Exercise the real maintain_team operation rather than the core
+            # stub used by the unrelated photo-phase integration scenarios.
+            self.core.stop()
+        with patch.object(team_portraits, 'fetch_document', return_value=(card().encode(), URL, 'text/html')) as fetch, \
+             patch.object(wikimedia_portraits, 'resolve_portrait', new=AsyncMock(return_value={'status': 'missing'})):
+            response = await self.client.post('/api/teams/barcelona/maintain', json={'parts': ['portraits']}) if explicit_part else \
+                       await self.client.post('/api/workflows/team/barcelona/start')
+            self.assertEqual(response.status_code, 202)
+            await asyncio.wait_for(asyncio.shield(self.app.state.workflows.tasks[('team', 'barcelona')].task), 2)
+        fetch.assert_called_once()
+        result = self.store.get('team_snapshots', snapshot['id'])['roster'][0]
+        self.assertEqual(result['photo_url'], PHOTO)
+        self.assertEqual(result['photo_match'], 'exact_name_and_number')
+        if preserved:
+            saved = self.store.get('team_snapshots', snapshot['id'])['roster'][1:]
+            self.assertEqual([row['photo_url'] for row in saved], preserved)
+            community_portraits.resolve_portrait.assert_not_awaited()
+        self.assertEqual(self.store.get_meta('team_portraits_v1_barcelona')['status'], 'completed')
+        self.assertEqual((await self.client.get('/api/workflows/team/barcelona')).json()['status'], 'completed')
+
+    async def test_manual_start_retries_recent_official_failure_through_default_photo_phase(self):
+        await self.official_retry(explicit_part=False)
+
+    async def test_explicit_photo_part_retries_recent_failure_through_actual_maintain_operation(self):
+        await self.official_retry(explicit_part=True)
 
 
 if __name__ == '__main__':

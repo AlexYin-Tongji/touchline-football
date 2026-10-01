@@ -24,6 +24,29 @@ class MemoryStore(FakeStore):
 
 
 class WorkflowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_failures_remain_actionable_and_clear_on_next_start(self):
+        from server import research
+        from server.workflows import WorkflowManager
+        store = MemoryStore()
+        async def cycle(manager, entry, first):
+            failures = [research.source_failure({'id': 'blocked', 'name': 'Publisher', 'url': 'https://news.example/private?key=secret'},
+                                               ValueError('HTTP 403 https://private.example/?token=secret'))]
+            manager.update(entry, source_errors=failures, last_error='部分来源暂不可读。')
+        manager = WorkflowManager(store, cycle_runner=cycle)
+        try:
+            manager.start('news', 'arsenal')
+            await manager.tasks[('news', 'arsenal')].task
+            state = manager.status('news', 'arsenal')
+            self.assertEqual(state['status'], 'failed')
+            self.assertEqual(state['source_errors'][0]['code'], 'http_forbidden')
+            self.assertEqual(state['source_errors'][0]['http_status'], 403)
+            self.assertNotIn('secret', json.dumps(state))
+            restarted = manager.start('news', 'arsenal')
+            self.assertEqual(restarted['source_errors'], [])
+            await manager.tasks[('news', 'arsenal')].task
+        finally:
+            await manager.close()
+
     async def test_each_start_finishes_one_cycle_without_scheduling_another(self):
         from server.workflows import WorkflowManager
         store = MemoryStore()

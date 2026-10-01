@@ -89,6 +89,8 @@ def source_error_details(exc):
         name = "http_forbidden" if code in {401, 403} else "http_rate_limited" if code == 429 else "http_unavailable" if code >= 500 else "http_error"
         return {"code": name, "stage": "http", "http_status": code,
                 "message": f"来源返回 HTTP {code}，" + ("请求过于频繁，请稍后重试。" if code == 429 else "暂时无法读取正文。")}
+    if "来源已删除或停用" in text or "来源已停用" in text:
+        return {"code": "source_disabled", "stage": "scope", "message": "该文章的来源已删除或停用，请重新查找文章。"}
     if "验证页面" in text or "访问验证" in text or "地区限制" in text or "同意页面" in text:
         return {"code": "access_challenge", "stage": "parse", "message": "来源返回了访问验证、同意或地区限制页面，暂时无法读取正文。"}
     if any(word in text for word in ("正文", "html", "xml", "文本", "页面结构")):
@@ -532,6 +534,9 @@ def article_image_scope(url):
 _MULTI_TEAM_TITLE = re.compile(
     r"\b(?:round[ -]?up|review|live(?:[ -]?blog)?|as it happened|news digest|football daily)\b"
     r"|综述|综览|汇总|集锦|直播|实时更新", re.I)
+_MULTI_TOPIC_TITLE = re.compile(
+    r"\b(?:gossip|talking points|round[ -]?up|news digest|football daily|transfer (?:rumou?rs|round[ -]?up))\b"
+    r"|流言汇总|传闻汇总|转会汇总|新闻汇总|今日流言", re.I)
 
 
 def _image_mentions_team(value, team_id):
@@ -563,7 +568,9 @@ def source_images(source, limit=4):
     # montage illustrates entirely different teams. Article membership alone
     # is insufficient for that image: require an explicit headline or caption
     # identity. RSS names such as "Guardian · Barcelona" are routing metadata.
-    require_team_caption = bool(_MULTI_TEAM_TITLE.search(str(source.get("title") or ""))) and not _image_mentions_team(source.get("title"), source.get("team_id"))
+    title = str(source.get("title") or "")
+    require_team_caption = (bool(_MULTI_TOPIC_TITLE.search(title)) or
+                            bool(_MULTI_TEAM_TITLE.search(title)) and not _image_mentions_team(title, source.get("team_id")))
     results, seen = [], set()
     for image in source.get("images") or []:
         if not isinstance(image, dict) or image.get("evidence_id", source.get("id")) != source.get("id"):

@@ -212,7 +212,8 @@ class IndependentRefreshTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_manager_closes_optional_photo_task_after_core_finishes(self):
         waiting, release = asyncio.Event(), asyncio.Event()
-        async def slow_photos(store, snapshot):
+        async def slow_photos(store, snapshot, *, force=False):
+            self.assertFalse(force)
             waiting.set()
             await release.wait()
             return snapshot

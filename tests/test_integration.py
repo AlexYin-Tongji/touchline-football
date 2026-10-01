@@ -91,7 +91,7 @@ class EndToEndProtocolTests(unittest.TestCase):
             # Independent verification is covered by V3 quality tests.
             'mode': 'live', 'verification_enabled': False, 'llm': {'base_url': f'http://127.0.0.1:{self.provider.server_port}/v1',
             'model': 'local-protocol-fixture', 'api_key': 'fixture-only-not-a-real-key',
-            'max_rounds': 6, 'timeout_seconds': 10}})
+            'max_rounds': 6, 'timeout_seconds': 10, 'use_env_proxy': False}})
         self.assertEqual(response.status_code, 200, response.text)
 
     def tearDown(self):

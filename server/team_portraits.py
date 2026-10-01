@@ -17,9 +17,10 @@ import unicodedata
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 
-from .ingestion import IngestionError, fetch_document, now, published_time
+from .ingestion import IngestionError, now, published_time, source_error_details
+from .research_transport import fetch_reviewed_portrait_document as fetch_document
 
 DIRECTORIES = {
     "barcelona": {
@@ -42,6 +43,15 @@ DIRECTORIES = {
                     "number": ".jcom-player-info__number",
                     "image": "img[src], img[data-src]"},
     },
+    "tottenham-hotspur": {
+        "url": "https://www.tottenhamhotspur.com/teams/mens/squad",
+        "host": "www.tottenhamhotspur.com", "credit": "Tottenham Hotspur 官方球员目录",
+        "profile_prefix": "/player/", "image_prefix": "/photo-resources/",
+        "image_hosts": {"resources.thfc.pulselive.com"},
+        "cards": {"selector": "a.o-person-pod__inner[href]",
+                  "name": ".o-person-pod__name", "number": ".o-person-pod__number",
+                  "image": ".o-person-pod__image--main img", "lazy_comments": True},
+    },
 }
 CACHE_SECONDS = 86400
 RETRY_SECONDS = 3600
@@ -52,15 +62,9 @@ RETRY_SECONDS = 3600
 # and reports it as "interrupted", which is what made photos look missing.
 PLAYER_PAGE_LIMIT = 12
 PLAYER_PAGE_CONCURRENCY = 3
-# The community database throttles bursts, so its requests are paced serially
-# at about one per second, one player at a time. The bound must leave room in
-# the 180s phase for the Wikimedia batch that runs before it (about 6-7s per
-# player for up to PLAYER_PAGE_LIMIT players); the cursor carries the rest of
-# the squad into the next round rather than overrunning the phase. Measured:
-# a 29-player squad completes in ~32s when the data is there, but a squad whose
-# names mostly miss costs a full paced lookup each and runs four times longer,
-# which is why an unbounded loop is not safe.
-COMMUNITY_PAGE_LIMIT = 40
+# Each source has its own cursor. An outage must not turn one team refresh
+# into a full-squad burst against the fallback source.
+COMMUNITY_PAGE_LIMIT = 12
 PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
                        "photo_file_page", "photo_license", "photo_restrictions", "photo_reason",
                        "retryable", "reason_code")
@@ -68,6 +72,49 @@ PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_u
 # name AND number, so a later refresh may re-derive or replace it.
 REFRESHABLE_PHOTO_MATCHES = frozenset({"exact_name_and_number", "wikimedia_verified_club",
                                        "community_name_and_nationality"})
+
+
+class PortraitDirectoryError(IngestionError):
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.code = code
+
+
+def _apply_photo(player, photo):
+    """A new checked source replaces all metadata from the previous attempt."""
+    for field in PLAYER_PHOTO_FIELDS:
+        player.pop(field, None)
+    player.update({field: photo[field] for field in PLAYER_PHOTO_FIELDS if field in photo})
+    player["photo_updated_at"] = photo.get("fetched_at") or now()
+
+
+def _community_failure(player, photo, preferred=None):
+    """Expose the source that actually failed, preserving an independent fault."""
+    community_reason = "TheSportsDB 社区照片来源：" + (photo.get("photo_reason") or "社区球员库暂时不可达，稍后自动重试。")
+    reasons = []
+    if preferred and preferred.get("status") == "unavailable":
+        reasons.append("维基媒体照片来源：" + (preferred.get("photo_reason") or "维基媒体暂时不可达，稍后自动重试。"))
+    reasons.append(community_reason)
+    player.update(photo_reason="；".join(reasons), retryable=bool(photo.get("retryable", True)),
+                  reason_code=photo.get("reason_code") or "community_unavailable")
+    return community_reason
+
+
+def _recheck_community_photos(store, players, team_id):
+    """A roster's old image cannot bypass the current cache identity check."""
+    from .community_portraits import cached_portrait
+    for player in players:
+        if player.get("photo_match") != "community_name_and_nationality":
+            continue
+        cached = cached_portrait(store, player, team_id)
+        if cached and cached.get("status") == "completed":
+            _apply_photo(player, cached)
+        else:
+            for field in PLAYER_PHOTO_FIELDS:
+                player.pop(field, None)
+            player.update(photo_url="", photo_credit="",
+                          photo_reason="照片身份校验已更新，需要重新核对社区照片。",
+                          retryable=True, reason_code="identity_revalidation")
 
 
 async def _portrait_document(store, url, *, allowed_hosts, max_body, content_types=("text/html", "xhtml")):
@@ -148,8 +195,9 @@ def _public_url(value, config, *, image=False):
     try:
         url = urljoin(config["url"], value)
         parsed = urlsplit(url)
-        if (parsed.scheme != "https" or parsed.hostname != config["host"] or parsed.username or parsed.password
-                or parsed.port not in {None, 443}):
+        hosts = config.get("image_hosts", {config["host"]}) if image else {config["host"]}
+        if (parsed.scheme != "https" or parsed.hostname not in hosts or parsed.username or parsed.password
+                or parsed.port not in {None, 443} or parsed.fragment):
             return ""
         if image:
             if not parsed.path.startswith(config["image_prefix"]) or not parsed.path.lower().endswith(
@@ -164,8 +212,15 @@ def _public_url(value, config, *, image=False):
         return ""
 
 
-def _card_image(node):
-    image = node.select_one("img.team-person__image") if node else None
+def _card_image(node, markup):
+    image = node.select_one(markup["image"]) if node else None
+    if image is None and markup.get("lazy_comments"):
+        # Spurs keeps each card's main portrait inside a lazy-picture comment.
+        # Read only that card and its main picture, never its hover/action shot.
+        for comment in node.find_all(string=lambda value: isinstance(value, Comment)):
+            image = BeautifulSoup(str(comment), "html.parser").select_one(markup["image"])
+            if image is not None:
+                break
     return image.get("data-image-src") or image.get("src") if image else ""
 
 
@@ -180,7 +235,7 @@ def _parse_cards(soup, config):
             "profile": card.get("href"),
             "name": " ".join(node.get_text(" ", strip=True) for node in names).strip(),
             "number": number.get_text(strip=True) if number else "",
-            "image": _card_image(card),
+            "image": _card_image(card, markup),
         })
     return entries
 
@@ -228,11 +283,11 @@ def parse_directory(body, team_id):
         cards.append({"name": name, "normalized_name": normalized_name(name), "number": number,
                       "photo_url": image_url, "source_url": profile})
     if not cards or len(cards) > 100:
-        raise IngestionError("官网球员目录暂未提供可核对的头像。")
+        raise PortraitDirectoryError("官网球员目录暂未提供可核对的头像。", "portrait_directory_empty")
     return cards
 
 
-async def portrait_directory(store, team_id):
+async def portrait_directory(store, team_id, *, force=False):
     config = DIRECTORIES.get(team_id)
     if not config:
         return {}
@@ -242,8 +297,8 @@ async def portrait_directory(store, team_id):
     async with lock:
         key = "team_portraits_v1_" + team_id
         previous = store.get_meta(key, {})
-        if (previous.get("cards") and _elapsed(previous.get("fetched_at")) < CACHE_SECONDS
-                or _elapsed(previous.get("last_attempt")) < RETRY_SECONDS):
+        if not force and (previous.get("cards") and _elapsed(previous.get("fetched_at")) < CACHE_SECONDS
+                          or _elapsed(previous.get("last_attempt")) < RETRY_SECONDS):
             return previous
         attempted = now()
         try:
@@ -251,34 +306,38 @@ async def portrait_directory(store, team_id):
             body, final_url, _ = await _portrait_document(store, config["url"],
                 allowed_hosts={config["host"]}, max_body=2 * 1024 * 1024)
             if final_url.rstrip("/") != config["url"]:
-                raise IngestionError("官网球员目录地址已变化，暂不更新头像。")
+                raise PortraitDirectoryError("官网球员目录地址已变化，暂不更新头像。", "portrait_directory_changed")
             cards = parse_directory(body, team_id)
             result = {"team_id": team_id, "cards": cards, "source_url": config["url"],
                       "fetched_at": now(), "last_attempt": attempted, "status": "completed"}
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
             # The last checked photos remain eligible only after matching this
             # refresh's confirmed player name AND number again.
-            result = {**previous, "last_attempt": attempted, "status": "unavailable"}
+            error = ({"code": exc.code, "stage": "parse", "message": str(exc)}
+                     if isinstance(exc, PortraitDirectoryError) else source_error_details(exc))
+            result = {**previous, "last_attempt": attempted, "status": "unavailable",
+                      "error": error, "error_code": error["code"], "last_error": error["message"], "retryable": True}
         store.set_meta(key, result)
         return result
 
 
-async def enrich_portraits(store, snapshot):
+async def enrich_portraits(store, snapshot, *, force=False):
     team_id = snapshot.get("team_id")
     if team_id not in DIRECTORIES or not any(not player.get("photo_url") or player.get("photo_match") in
             REFRESHABLE_PHOTO_MATCHES for player in snapshot.get("roster", [])):
         return snapshot
-    directory = await portrait_directory(store, team_id)
+    directory = await portrait_directory(store, team_id, force=force)
     return _apply_directory(snapshot, directory)
 
 
 def apply_cached_portraits(store, snapshot):
     """Reuse checked cards without making a core roster fetch wait on HTML."""
     from .community_portraits import cached_portrait as cached_community
-    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait
+    from .wikimedia_portraits import cached_portrait
 
+    _recheck_community_photos(store, snapshot.get("roster", []), snapshot.get("team_id"))
     snapshot = _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
     for player in snapshot.get("roster", []):
         if player.get("photo_url"):
@@ -286,13 +345,14 @@ def apply_cached_portraits(store, snapshot):
         cached = cached_portrait(store, player, snapshot.get("team_id"))
         if cached and cached.get("status") == "completed" and all(cached.get(field) for field in
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
-            player.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
-            player["photo_updated_at"] = cached.get("fetched_at")
+            _apply_photo(player, cached)
             continue
         community = cached_community(store, player, snapshot.get("team_id"))
         if community and community.get("status") == "completed" and community.get("photo_url"):
-            player.update({field: community[field] for field in PHOTO_FIELDS if community.get(field)})
-            player["photo_updated_at"] = community.get("fetched_at")
+            _apply_photo(player, community)
+            continue
+        if community and community.get("status") == "unavailable":
+            _community_failure(player, community, cached)
             continue
         verdict = cached if cached and cached.get("photo_reason") else community
         if verdict and verdict.get("photo_reason"):
@@ -327,7 +387,7 @@ def _apply_directory(snapshot, directory):
         key = normalized_name(player.get("name"))
         counts[key] = counts.get(key, 0) + 1
     for player in roster:
-        if player.get("photo_url") and player.get("photo_match") not in {"exact_name_and_number", "wikimedia_verified_club"}:
+        if player.get("photo_url") and player.get("photo_match") not in REFRESHABLE_PHOTO_MATCHES:
             continue
         # Recheck old official images against the current checked directory;
         # a changed/ambiguous shirt identity must not keep its previous photo.
@@ -344,9 +404,8 @@ def _apply_directory(snapshot, directory):
         card = matches[0]
         if str(player["number"]) != card["number"]:
             continue
-        if player.get("photo_match") == "wikimedia_verified_club":
-            for field in ("photo_file_page", "photo_license", "photo_restrictions", "photo_reason"):
-                player.pop(field, None)
+        for field in PLAYER_PHOTO_FIELDS:
+            player.pop(field, None)
         player.update(photo_url=card["photo_url"], photo_credit=DIRECTORIES[team_id]["credit"],
                       photo_source_url=card["source_url"], photo_updated_at=directory.get("fetched_at"),
                       photo_match="exact_name_and_number")
@@ -375,10 +434,13 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
     else:
         selected = roster
     before = {row["provider_id"]: tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) for row in selected}
+    # A whole-team manual retry resumes missing work. Only an explicit player
+    # selection asks to revalidate a still-current checked photo.
+    _recheck_community_photos(store, selected, result.get("team_id"))
     # Match against the entire roster so selecting one of two same-named players
     # cannot bypass the directory's ambiguity guard. Publish only selected photos.
     if selected and result.get("team_id") in DIRECTORIES:
-        official = await enrich_portraits(store, copy.deepcopy(result))
+        official = await enrich_portraits(store, copy.deepcopy(result), force=force)
         official_players = {row["provider_id"]: row for row in official["roster"]}
         for row in selected:
             source = official_players[row["provider_id"]]
@@ -394,7 +456,8 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
     """Advance one bounded squad batch, then fill the rest from the community
     database; official directory successes are retained throughout."""
-    from .wikimedia_portraits import PHOTO_FIELDS, cached_portrait as cached_wikimedia, resolve_portrait
+    from .wikimedia_portraits import cached_portrait as cached_wikimedia, resolve_portrait
+    from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
 
     roster = snapshot["roster"]
     team_id = snapshot["team_id"]
@@ -402,9 +465,19 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     offset = 0 if explicit_selection or not selected else int(store.get_meta(cursor_key, {}).get("next", 0)) % len(selected)
     ordered = selected[offset:] + selected[:offset]
     cached_count = 0
-    errors = []
+    errors = {}
+    wikimedia_failures = {}
+    held_photo_failures = set()
+    def checked_wikimedia(row):
+        cached = cached_wikimedia(store, row, team_id)
+        return bool(cached and cached.get("status") == "completed" and all(cached.get(field) for field in
+                    ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")))
+
+    def force_player(row):
+        return force and (explicit_selection or not (row.get("photo_url") and checked_wikimedia(row)))
+
     for row in ordered:
-        if force or row.get("photo_url") and row.get("photo_match") != "wikimedia_verified_club":
+        if force and explicit_selection or row.get("photo_url") and row.get("photo_match") != "wikimedia_verified_club":
             continue
         cached = cached_wikimedia(store, row, team_id)
         if not cached:
@@ -412,8 +485,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         cached_count += 1
         if cached.get("status") == "completed" and all(cached.get(field) for field in
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
-            row.update({field: cached[field] for field in PHOTO_FIELDS if field in cached})
-            row["photo_updated_at"] = cached.get("fetched_at")
+            _apply_photo(row, cached)
         else:
             if row.get("photo_match") == "wikimedia_verified_club":
                 for field in PLAYER_PHOTO_FIELDS:
@@ -424,24 +496,37 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row["retryable"] = bool(cached.get("retryable"))
             row["reason_code"] = cached.get("reason_code") or "rejected"
             if cached.get("status") == "unavailable":
-                errors.append(f"球员 {row['provider_id']}：{row['photo_reason']}")
+                wikimedia_failures[row["provider_id"]] = cached
+                errors[row["provider_id"]] = f"球员 {row['provider_id']}：维基媒体照片来源：{row['photo_reason']}"
+    # Reuse a checked independent result before spending the preferred-source
+    # budget. It can remain useful throughout a Wikimedia outage.
+    if not force or not explicit_selection:
+        for row in ordered:
+            if not row.get("photo_url"):
+                cached = cached_community(store, row, team_id)
+                if cached and cached.get("status") == "completed" and cached.get("photo_url"):
+                    _apply_photo(row, cached)
+                    errors.pop(row["provider_id"], None)
     candidates = [row for row in ordered if (not row.get("photo_url") or
+                   force and explicit_selection and row.get("photo_match") == "community_name_and_nationality" or
                    row.get("photo_match") == "wikimedia_verified_club" and
-                   (force or _elapsed(row.get("photo_updated_at")) >= CACHE_SECONDS))
-                  and (force or not cached_wikimedia(store, row, team_id))]
-    requested = candidates[:PLAYER_PAGE_LIMIT]
-    responses = await asyncio.gather(*(resolve_portrait(store, row, team_id, force=True)
-                                       if force else resolve_portrait(store, row, team_id) for row in requested))
-    for row, photo in zip(requested, responses):
+                   (force_player(row) or _elapsed(row.get("photo_updated_at")) >= CACHE_SECONDS))
+                  and (force_player(row) or not cached_wikimedia(store, row, team_id))]
+    requested, responses = [], []
+    for row in candidates[:PLAYER_PAGE_LIMIT]:
+        photo = (await resolve_portrait(store, row, team_id, force=True) if force_player(row)
+                 else await resolve_portrait(store, row, team_id))
+        requested.append(row)
+        responses.append(photo)
         if photo.get("status") == "completed" and all(photo.get(k) for k in
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
-            row.update({field: photo[field] for field in PHOTO_FIELDS if field in photo})
-            row["photo_updated_at"] = photo.get("fetched_at") or now()
+            _apply_photo(row, photo)
         elif row.get("photo_match") == "wikimedia_verified_club":
-            for field in PLAYER_PHOTO_FIELDS:
-                row.pop(field, None)
-            row["photo_url"] = ""
-            row["photo_credit"] = ""
+            if photo.get("status") != "unavailable" or not checked_wikimedia(row):
+                for field in PLAYER_PHOTO_FIELDS:
+                    row.pop(field, None)
+                row["photo_url"] = ""
+                row["photo_credit"] = ""
             row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份与许可核验。"
             row["retryable"] = bool(photo.get("retryable"))
             row["reason_code"] = photo.get("reason_code") or "rejected"
@@ -450,46 +535,33 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row["retryable"] = bool(photo.get("retryable"))
             row["reason_code"] = photo.get("reason_code") or "rejected"
         if photo.get("status") == "unavailable":
-            errors.append(f"球员 {row['provider_id']}：{row.get('photo_reason', '照片来源暂不可用。')}")
+            wikimedia_failures[row["provider_id"]] = photo
+            errors[row["provider_id"]] = f"球员 {row['provider_id']}：维基媒体照片来源：{photo.get('photo_reason') or '照片来源暂不可用。'}"
+            if row.get("photo_url") and row.get("photo_match") == "wikimedia_verified_club":
+                held_photo_failures.add(row["provider_id"])
+            # A transport failure says nothing about the remaining players.
+            # Stop this source for the pass and let an independent source try.
+            break
     if not explicit_selection and requested:
         last = selected.index(requested[-1])
         store.set_meta(cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
-    # Wikimedia is preferred because it carries a checked free licence. Whatever
-    # it cannot supply falls through to the community database, which needs two
-    # agreeing identity facts (full name and nationality) before its unlicensed
-    # portrait is shown. This is what actually fills a squad: a free-licensed
-    # photo exists for only about a fifth of players.
-    #
-    # A *verdict* closes the question — this player has no photo Wikimedia will
-    # accept — so the community source is asked instead. An *unanswered* pass
-    # answers nothing, so the question stays open for the next one rather than
-    # being handed to the community source immediately. Both cases matter: the
-    # first is what left a player Wikimedia once filled with no fallback once its
-    # cache expired, and the second is what would spend a paced community lookup
-    # on every player in a squad during a Wikimedia outage.
-    from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
+    # Full name + nationality are checked independently by the fallback. A
+    # preferred-source outage is therefore no reason to block it indefinitely.
+    community_cursor_key = f"community_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
+    community_offset = (0 if explicit_selection or not selected else
+                        int(store.get_meta(community_cursor_key, {}).get("next", 0)) % len(selected))
+    community_ordered = selected[community_offset:] + selected[:community_offset]
     def community_settled(row):
         cached = cached_community(store, row, team_id)
         return bool(cached) and cached.get("status") in {"missing", "ambiguous"}
 
-    def wikimedia_decided(row):
-        """Whether Wikimedia produced an answer about this player, or nothing yet.
-
-        A missing cache entry means unanswered, and an `unavailable` entry means
-        the lookup itself failed. Neither is a verdict about the player, so
-        neither hands them to the community source in this pass. Everything else
-        — a completed photo, or a refusal on identity or licence — is a verdict,
-        and a refusal is exactly what the community source exists to cover.
-        """
-        cached = cached_wikimedia(store, row, team_id)
-        return bool(cached) and cached.get("status") != "unavailable"
-
-    community_rows = [row for row in ordered if not row.get("photo_url")
-                      and (force or (wikimedia_decided(row) and not community_settled(row)))]
+    community_rows = [row for row in community_ordered if (not row.get("photo_url") or
+                      force and explicit_selection and row.get("photo_match") == "community_name_and_nationality")
+                      and (force or not community_settled(row))]
     attempted = 0
-    for row in community_rows:
-        if attempted >= COMMUNITY_PAGE_LIMIT and not explicit_selection:
-            break
+    processed = []
+    for row in community_rows[:COMMUNITY_PAGE_LIMIT]:
+        processed.append(row)
         cached = None if force else cached_community(store, row, team_id)
         if cached:
             photo = cached
@@ -497,8 +569,16 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             attempted += 1
             photo = await resolve_community(store, row, team_id, force=force)
         if photo.get("status") == "completed" and photo.get("photo_url"):
-            row.update({field: photo[field] for field in PHOTO_FIELDS if photo.get(field)})
-            row["photo_updated_at"] = photo.get("fetched_at") or now()
+            _apply_photo(row, photo)
+            errors.pop(row["provider_id"], None)
+            held_photo_failures.discard(row["provider_id"])
+        elif photo.get("status") != "unavailable" and force and explicit_selection and row.get("photo_match") == "community_name_and_nationality":
+            # A fresh identity/deletion verdict invalidates this source; a
+            # transport failure alone does not invalidate a current proof.
+            for field in PLAYER_PHOTO_FIELDS:
+                row.pop(field, None)
+            row.update(photo_url="", photo_credit="", photo_reason=photo.get("photo_reason") or "社区照片未通过身份核对。",
+                       retryable=bool(photo.get("retryable")), reason_code=photo.get("reason_code") or "community_rejected")
         elif not row.get("photo_reason"):
             # The preferred source already explained this player; only speak up
             # when the row would otherwise show a placeholder with no reason.
@@ -506,7 +586,21 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row["retryable"] = bool(photo.get("retryable"))
             row["reason_code"] = photo.get("reason_code") or "rejected"
         if photo.get("status") == "unavailable":
-            errors.append(f"球员 {row['provider_id']}：{row.get('photo_reason', '照片来源暂不可用。')}")
+            reason = _community_failure(row, photo, wikimedia_failures.get(row["provider_id"]))
+            errors[row["provider_id"]] = f"球员 {row['provider_id']}：{reason}"
+            if row.get("photo_url"):
+                held_photo_failures.add(row["provider_id"])
+            if not cached:
+                break
+    if not explicit_selection and processed:
+        last = selected.index(processed[-1])
+        store.set_meta(community_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
+    errors = [message for identity, message in errors.items()
+              if identity in held_photo_failures or not next(row for row in selected if row["provider_id"] == identity).get("photo_url")]
+    for row in selected:
+        if not row.get("photo_url") and not row.get("photo_reason"):
+            row.update(photo_reason="照片来源尚未给出结论，下次更新会继续核对。",
+                       retryable=True, reason_code="not_yet_resolved")
     available = sum(bool(row.get("photo_url")) for row in roster)
     selected_available = sum(bool(row.get("photo_url")) for row in selected)
     status = ("completed" if selected_available == len(selected) and not errors else
@@ -517,4 +611,9 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         "available_count": available, "total_count": len(roster), "selected_count": len(selected),
         "selected_available_count": selected_available, "missing_count": len(selected) - selected_available,
         "attempted_count": len(responses), "cached_count": cached_count,
-        "remaining_count": len(candidates) - len(requested), "errors": errors, "updated_at": now()}
+        # A fallback success finishes this player's photo work too: do not
+        # report them as still queued in the preferred source's old batch.
+        "remaining_count": sum(not row.get("photo_url") for row in candidates[len(requested):]),
+        "community_attempted_count": attempted,
+        "community_remaining_count": sum(not row.get("photo_url") for row in community_rows[len(processed):]),
+        "errors": errors, "updated_at": now()}

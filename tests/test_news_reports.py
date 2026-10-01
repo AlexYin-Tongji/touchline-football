@@ -120,6 +120,32 @@ class NewsReportQueueTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(public["report"])
             self.assertNotIn("images", public)
 
+    async def test_gossip_source_cannot_attach_another_teams_hero_to_a_single_topic_report(self):
+        source = self.store.get('evidence', 'ev_injury')
+        url = 'https://www.bbc.co.uk/sport/football/articles/example'
+        image = {'url': 'https://ichef.bbci.co.uk/sport/hero.jpg', 'source_url': url,
+                 'evidence_id': source['id'], 'caption': 'Liverpool defender Virgil van Dijk'}
+        source.update(origin='web', url=url, title='Football gossip: Van Dijk, Arsenal midfielder, Kounde', images=[image])
+        self.store.put('evidence', source)
+        row = await self.generate()
+        self.assertEqual(row['report']['images'], [])
+        # An old stored illustration is subject to the same current gate.
+        stored = self.store.get('reports', row['id'])
+        stored['report']['images'] = [image]
+        stored['report']['sections'][0]['illustrations'] = [image]
+        self.store.put('reports', stored)
+        public = news_reports.get_report(self.store, row['id'])
+        self.assertEqual(public['status'], 'completed')
+        self.assertEqual(public['report']['images'], [])
+        self.assertEqual(public['report']['sections'][0]['illustrations'], [])
+        # Ordinary article-owned social artwork remains usable without a
+        # caption; the stricter gate belongs to multi-topic publisher indexes.
+        source['title'] = 'Arsenal midfielder returns to training'
+        self.store.put('evidence', source)
+        fresh = news_reports.enqueue_reports(self.store)[0]
+        await news_reports.process_report_queue(self.store, runner=successful_runner)
+        self.assertEqual([item['url'] for item in news_reports.get_report(self.store, fresh['id'])['report']['images']], [image['url']])
+
     async def test_source_edits_deletion_and_preferences_invalidate_without_leaking_old_prose(self):
         row = await self.generate()
         original = self.store.get("evidence", "ev_injury")

@@ -64,6 +64,18 @@ class PersonalAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    async def test_feed_keeps_source_publication_and_report_organization_times_separate(self):
+        source, _, report = self.event("two-clocks", completed=True, stamp="2026-09-16T10:00:00Z")
+        organized = "2026-10-01T04:00:00+00:00"
+        self.store.put("reports", {**report, "updated_at": organized})
+        feed = await self.feed(team_id="arsenal")
+        item = next(item for item in feed["items"] if item["report_id"] == report["id"])
+        self.assertEqual(item["published_at"], source["published_at"])
+        self.assertEqual(item["organized_at"], organized)
+        self.assertEqual(item["updated_at"], source["published_at"], "existing publication-order cursors remain compatible")
+        detail = (await self.client.get("/api/reports/" + report["id"])).json()
+        self.assertEqual(detail["report"]["sources"][0]["published_at"], source["published_at"])
+
     async def test_feed_shows_completed_chinese_reports_and_real_chinese_sources_only(self):
         _, ready, _ = self.event("ready", completed=True)
         _, pending, _ = self.event("pending")

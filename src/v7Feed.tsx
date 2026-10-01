@@ -30,6 +30,8 @@ interface FeedItem {
   summary: string;
   topic?: string;
   updated_at?: string;
+  published_at?: string | null;
+  organized_at?: string | null;
   images?: MediaImage[];
   sources?: SourceLink[];
   report_id?: string | null;
@@ -340,7 +342,8 @@ export function FeedView({
                   <Crest team={team} small />
                   <div>
                     <strong>{team.name}</strong>
-                    <span>{friendlyTime(item.updated_at)}</span>
+                    <span>{item.organized_at ? `整理于${friendlyTime(item.organized_at) || "时间未知"}`
+                      : item.published_at ? `来源发布于${friendlyTime(item.published_at)}` : "发布时间未知"}</span>
                   </div>
                   <span className={`topic-tag topic-${item.topic}`}>
                     {topicName(item.topic)}
@@ -366,7 +369,7 @@ export function FeedView({
                     ))}
                   </div>
                 )}
-                <Sources sources={item.sources} />
+                <Sources sources={item.sources} showDates />
                 <div className="feed-card-actions">
                   <button
                     className="text-button"
@@ -507,7 +510,8 @@ export function FeedView({
           <article className="story-reader">
             <div className="story-meta">
               <span>{team.name}</span>
-              <span>{friendlyTime(selected.updated_at)}</span>
+              <span>{selected.organized_at ? `整理于${friendlyTime(selected.organized_at) || "时间未知"}`
+                : selected.published_at ? `来源发布于${friendlyTime(selected.published_at)}` : "发布时间未知"}</span>
               <span>{topicName(selected.topic)}</span>
             </div>
             {reading ? (
@@ -557,6 +561,7 @@ export function FeedView({
                           <Photo key={image.url} image={image} />
                         ))}
                         <Sources
+                          showDates
                           sources={report?.report?.sources.filter((source) =>
                             section.evidence_ids?.includes(source.id),
                           )}
@@ -586,6 +591,7 @@ export function FeedView({
                       </section>
                     )}
                     <Sources
+                      showDates
                       sources={
                         selected.report_id
                           ? report?.report?.sources

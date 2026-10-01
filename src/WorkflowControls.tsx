@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, Square } from "lucide-react";
 import { api, errorText, post } from "./api";
+import { SourceGapNotice } from "./components";
+import type { SourceGap } from "./types";
 
 export interface WorkflowState {
   kind: "news" | "team";
@@ -10,6 +12,7 @@ export interface WorkflowState {
   phase: string;
   message: string;
   last_error: string | null;
+  source_errors?: SourceGap[];
   started_at: string | null;
   finished_at: string | null;
   next_run_at: string | null;
@@ -149,6 +152,8 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   // this error at each new cycle; idle/stopped records may retain older errors.
   const failure = current && current.status !== "idle" && current.status !== "stopped"
     ? current.last_error || "" : "";
+  const sourceErrors = current && current.status !== "idle" && current.status !== "stopped"
+    ? current.source_errors || [] : [];
   return (
     <section className="workflow-controls" aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"}>
       <div className="workflow-status" role="status" aria-live="polite">
@@ -160,6 +165,10 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&
             <button className="text-button" onClick={onConfigure}>模型设置</button>}
         </p>}
+        {!!sourceErrors.length && <details className="workflow-source-errors">
+          <summary>查看 {sourceErrors.length} 个未能读取的来源</summary>
+          <SourceGapNotice gaps={sourceErrors} />
+        </details>}
       </div>
       <div className="workflow-actions">
         <button className="button primary" disabled={!ready || active || !!action} onClick={() => control("start")}>

@@ -5,6 +5,10 @@ import asyncio
 import time
 from contextvars import ContextVar
 from functools import wraps
+from urllib.parse import urljoin, urlsplit
+from urllib.request import getproxies
+
+import httpx
 
 from .ingestion import IngestionError, SourceConnectionError
 
@@ -14,6 +18,92 @@ FAILURE_COOLDOWN_SECONDS = 30
 MAX_FAILURES = 256
 _blocking_workers = ContextVar("research_blocking_workers", default=None)
 _manual_refresh_started = ContextVar("research_manual_refresh_started", default=None)
+
+# Fixed, reviewed public metadata endpoints only. Neither configured sources
+# nor credentials can widen this proxy transport's destinations.
+_PORTRAIT_PATHS = {
+    "www.thesportsdb.com": {"/api/v1/json/3/searchplayers.php"},
+    "thesportsdb.com": {"/api/v1/json/3/searchplayers.php"},
+    "www.fcbarcelona.com": {"/en/football/first-team/players", "/en/football/first-team/players/"},
+    "www.tottenhamhotspur.com": {"/teams/mens/squad", "/teams/mens/squad/"},
+    "www.juventus.com": {"/en/teams/first-team-men/squad", "/en/teams/first-team-men/squad/"},
+    "en.wikipedia.org": {"/w/api.php"},
+    "www.wikidata.org": {"/w/api.php"},
+    "commons.wikimedia.org": {"/w/api.php"},
+}
+
+
+def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body,
+                                     content_types=("text/html", "xhtml")):
+    """Use the system HTTPS proxy for reviewed public portrait metadata.
+
+    Some proxy applications resolve publishers to 198.18.* fake addresses.
+    Those remain forbidden to the pinned transport; the explicit proxy must
+    resolve our fixed publisher hostname instead. This function is synchronous
+    so existing shielded workers retain their cancellation/capacity accounting.
+    """
+    from . import ingestion
+    hosts = frozenset(allowed_hosts or ())
+    if not hosts or not hosts <= _PORTRAIT_PATHS.keys():
+        raise IngestionError("球员照片来源地址未获允许。")
+    def checked(value):
+        current = ingestion.normalize_url(value)
+        parts = urlsplit(current)
+        if (parts.scheme != "https" or parts.port not in {None, 443}
+                or parts.hostname not in hosts or parts.path not in _PORTRAIT_PATHS[parts.hostname]):
+            raise IngestionError("球员照片来源或重定向地址未获允许。")
+        return current
+    current = checked(url)
+    max_body = max(1, min(int(max_body), 2 * 1024 * 1024))
+    proxy = getproxies().get("https")
+    if not proxy:
+        return ingestion.fetch_document(current, allowed_hosts=hosts, max_body=max_body, content_types=content_types)
+    started = time.monotonic()
+    try:
+        # Using only this explicit OS proxy avoids NO_PROXY sending a reviewed
+        # host back through intercepted local DNS. Arbitrary hosts never enter.
+        with httpx.Client(proxy=proxy, trust_env=False, follow_redirects=False,
+                          headers={"User-Agent": "Touchline/2.0 (personal football reader)",
+                                   "Accept": "text/html,application/json,text/json,text/plain",
+                                   "Accept-Encoding": "identity"}) as client:
+            for hop in range(5):
+                remaining = 20 - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise SourceConnectionError("来源请求超时，请稍后重试")
+                with client.stream("GET", current, timeout=httpx.Timeout(min(8, remaining))) as response:
+                    if response.status_code in {301, 302, 303, 307, 308}:
+                        if hop == 4 or not response.headers.get("location"):
+                            raise IngestionError("来源重定向次数过多或目标缺失")
+                        current = checked(urljoin(current, response.headers["location"]))
+                        continue
+                    if not 200 <= response.status_code < 300:
+                        raise IngestionError(f"来源返回 HTTP {response.status_code}")
+                    if response.headers.get("cf-mitigated", "").lower() == "challenge":
+                        raise IngestionError("来源返回了访问验证页面，暂时无法读取正文")
+                    content_type = response.headers.get("content-type", "").lower()
+                    if not content_type or not any(kind in content_type for kind in content_types):
+                        raise IngestionError("来源未返回所需的网页或 JSON 文本")
+                    length = response.headers.get("content-length", "")
+                    if length.isdigit() and int(length) > max_body:
+                        raise IngestionError("来源内容超过读取上限")
+                    chunks, total = [], 0
+                    for chunk in response.iter_bytes():
+                        if time.monotonic() - started > 20:
+                            raise SourceConnectionError("来源请求超时，请稍后重试")
+                        total += len(chunk)
+                        if total > max_body:
+                            raise IngestionError("来源内容超过读取上限")
+                        chunks.append(chunk)
+                    return b"".join(chunks), current, content_type
+    except httpx.TimeoutException:
+        raise SourceConnectionError("来源请求超时，请稍后重试") from None
+    except IngestionError:
+        raise
+    except (httpx.HTTPError, ValueError):
+        # Transport exceptions can include authenticated proxy URLs. Keep the
+        # same safe public category as the pinned reader, never raw details.
+        raise SourceConnectionError("无法连接来源，请检查网络或系统代理。") from None
+    raise IngestionError("来源重定向次数过多")
 
 
 def manual_refresh_scope(function):

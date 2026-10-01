@@ -22,8 +22,9 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from urllib.parse import quote, urlsplit
 
-from .ingestion import IngestionError, fetch_document, now, published_time, source_error_details
-from .research_transport import blocking_request, shared_request
+from .ingestion import IngestionError, now, published_time, source_error_details
+from .research_transport import blocking_request, shared_request, fetch_reviewed_portrait_document as fetch_document
+from .player_names import normalize_name
 
 HOST = "www.thesportsdb.com"
 API_PREFIX = "/api/v1/json/3/"
@@ -47,13 +48,13 @@ _LEADING_ARTICLE = re.compile(r"^(?:the|la|le|el|die|der|das)\s+")
 
 
 def normalized(value):
-    text = "".join(c for c in unicodedata.normalize("NFKD", str(value or "")).casefold()
-                   if not unicodedata.combining(c))
-    return " ".join("".join(c if c.isalnum() else " " for c in text).split())
+    return normalize_name(value)
 
 
 def _country_key(value):
-    return _LEADING_ARTICLE.sub("", normalized(value))
+    key = _LEADING_ARTICLE.sub("", normalized(value))
+    return {"usa": "united states", "us": "united states",
+            "uzbekistan": "乌兹别克斯坦"}.get(key, key)
 
 
 def _roster_country(nationality):
@@ -93,19 +94,66 @@ def _age_seconds(value):
     return (datetime.now(timezone.utc) - datetime.fromisoformat(parsed)).total_seconds() if parsed else float("inf")
 
 
-def portrait_key(player, team_id):
+def portrait_key(player, team_id, *, generation=2):
     """Identity for the cache: the roster entry, not the publisher's record."""
-    identity = f"{team_id}|{normalized(player.get('name'))}|{player.get('birth_date') or ''}|{player.get('number') or ''}"
-    return "community_portrait_v1_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
+    name = normalized(player.get("name"))
+    if generation == 1:
+        # The previous version did not fold standalone letters such as ø.
+        text = "".join(c for c in unicodedata.normalize("NFKD", str(player.get("name") or "")).casefold()
+                       if not unicodedata.combining(c))
+        name = " ".join("".join(c if c.isalnum() else " " for c in text).split())
+    identity = f"{team_id}|{name}|{player.get('birth_date') or ''}|{player.get('number') or ''}"
+    if generation == 2:
+        identity += "|" + _country_key(player.get("nationality"))
+    # Identity validation now also rejects contradictory birth dates and invalid
+    # publisher IDs. Older completions cannot bypass those stronger checks.
+    return f"community_portrait_v{generation}_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
 
 
 def cached_portrait(store, player, team_id):
+    """Reuse completions only when their saved identity evidence still agrees.
+
+    A previous-generation completion may be read without rewriting the old
+    entry, but its status alone is insufficient. Older production entries did
+    not save name/country/birthday evidence, so they need a fresh lookup.
+    """
     cached = store.get_meta(portrait_key(player, team_id), {})
     if cached.get("status") in {"completed", "missing", "ambiguous"} and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS:
-        return cached
+        return cached if cached["status"] != "completed" or _completion_matches(cached, player) else None
     if cached.get("status") == "unavailable" and _age_seconds(cached.get("last_attempt")) < RETRY_SECONDS:
+        previous = cached.get("last_success")
+        if (isinstance(previous, dict) and previous.get("status") == "completed"
+                and _age_seconds(previous.get("fetched_at")) < SUCCESS_SECONDS
+                and _completion_matches(previous, player)):
+            return previous
         return cached
+    legacy = store.get_meta(portrait_key(player, team_id, generation=1), {})
+    if (legacy.get("status") == "completed" and _age_seconds(legacy.get("fetched_at")) < SUCCESS_SECONDS
+            and _completion_matches(legacy, player)):
+        return legacy
     return None
+
+
+def _completion_matches(cached, player):
+    evidence = cached.get("_identity")
+    if not isinstance(evidence, dict):
+        return False
+    wanted_name, wanted_country = normalized(player.get("name")), _roster_country(player.get("nationality"))
+    if (not wanted_name or not wanted_country or normalized(evidence.get("name")) != wanted_name
+            or not (_publisher_country(evidence.get("nationality")) & wanted_country)):
+        return False
+    birthday = str(player.get("birth_date") or "")
+    if evidence.get("roster_birth_date", "") != birthday:
+        return False
+    if birthday and evidence.get("birth_date") and evidence["birth_date"] != birthday:
+        return False
+    publisher_id = str(evidence.get("publisher_id") or "")
+    if not re.fullmatch(r"[1-9][0-9]{0,11}", publisher_id):
+        return False
+    profile = f"https://{HOST}/player/{publisher_id}"
+    return bool(_safe_image_url(cached.get("photo_url")) and cached.get("photo_credit")
+                and cached.get("photo_license") and cached.get("photo_match") == "community_name_and_nationality"
+                and cached.get("photo_source_url") == profile and cached.get("photo_file_page") == profile)
 
 
 def _safe_image_url(value):
@@ -114,10 +162,11 @@ def _safe_image_url(value):
         return ""
     try:
         parts = urlsplit(value)
+        port = parts.port
     except ValueError:
         return ""
     if (parts.scheme != "https" or parts.hostname not in IMAGE_HOSTS or parts.username or parts.password
-            or parts.port not in {None, 443} or parts.fragment
+            or port not in {None, 443} or parts.fragment
             or not parts.path.startswith("/images/media/player/")
             or not parts.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))):
         return ""
@@ -126,12 +175,14 @@ def _safe_image_url(value):
 
 async def _pace(store):
     """One paced request at a time; the free tier throttles bursts."""
-    if not hasattr(store, "_community_last_request"):
+    if not hasattr(store, "_community_pace_lock"):
+        store._community_pace_lock = asyncio.Lock()
         store._community_last_request = 0.0
-    wait = MIN_INTERVAL_SECONDS - (time.monotonic() - store._community_last_request)
-    if wait > 0:
-        await asyncio.sleep(wait)
-    store._community_last_request = time.monotonic()
+    async with store._community_pace_lock:
+        wait = MIN_INTERVAL_SECONDS - (time.monotonic() - store._community_last_request)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        store._community_last_request = time.monotonic()
 
 
 async def _search(store, name):
@@ -171,7 +222,7 @@ async def _search(store, name):
     raise last
 
 
-def _unique_match(payload, name, nationality):
+def _unique_match(payload, name, nationality, birth_date=""):
     """Exactly one record, and its nationality must agree with the roster.
 
     A club match is deliberately not required and not accepted: the publisher's
@@ -208,6 +259,10 @@ def _unique_match(payload, name, nationality):
         return None, "ambiguous"
     if not (_publisher_country(record.get("strNationality")) & wanted):
         return None, "ambiguous"
+    if birth_date and record.get("dateBorn") and str(record["dateBorn"])[:10] != birth_date:
+        return None, "ambiguous"
+    if not re.fullmatch(r"[1-9][0-9]{0,11}", str(record.get("idPlayer") or "")):
+        return None, "ambiguous"
     return record, "completed"
 
 
@@ -224,17 +279,18 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         return {"status": "ambiguous", "photo_reason": "缺少可核对的国籍，无法与社区球员库交叉确认。",
                 "retryable": False, "reason_code": "missing_nationality"}
     key = portrait_key(player, team_id)
-    cached = None if force else cached_portrait(store, player, team_id)
+    previous = cached_portrait(store, player, team_id)
+    cached = None if force else previous
     if cached:
         return cached
     attempted = now()
     try:
         payload = await _search(store, name)
-        record, verdict = _unique_match(payload, name, player.get("nationality"))
+        record, verdict = _unique_match(payload, name, player.get("nationality"), player.get("birth_date") or "")
         if verdict != "completed":
             result = {"status": verdict, "photo_reason": {
                 "missing": "社区球员库里没有完整姓名匹配的现役球员。",
-                "ambiguous": "社区球员库的同名记录无法用国籍核对到这名球员。",
+                "ambiguous": "社区球员库的姓名、国籍或出生日期无法唯一核对到这名球员。",
                 "unavailable": "社区球员库返回的资料无法识别。",
             }[verdict], "retryable": verdict == "unavailable",
                 "reason_code": "community_" + verdict}
@@ -250,7 +306,11 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                           "photo_source_url": profile, "photo_file_page": profile,
                           "photo_license": "第三方社区数据库转载；未声明开放许可",
                           "photo_restrictions": "保留来源署名，不得作为开放许可素材再分发",
-                          "photo_match": "community_name_and_nationality", "photo_reason": ""}
+                          "photo_match": "community_name_and_nationality", "photo_reason": "",
+                          "_identity": {"name": record["strPlayer"], "nationality": record["strNationality"],
+                                        "birth_date": str(record.get("dateBorn") or "")[:10],
+                                        "roster_birth_date": player.get("birth_date") or "",
+                                        "publisher_id": str(record["idPlayer"])}}
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -260,5 +320,9 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         result = {"status": "unavailable", "photo_reason": "社区球员库暂时不可达，稍后自动重试。",
                   "retryable": True, "reason_code": details["code"]}
     result.update(fetched_at=now(), last_attempt=attempted)
+    if result.get("status") == "unavailable" and previous and previous.get("status") == "completed":
+        # Preserve only a still-current completion whose saved name, country,
+        # birthday and publisher ID passed the current validator above.
+        result["last_success"] = previous
     store.set_meta(key, result)
     return result

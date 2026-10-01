@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChevronDown,
   MapPin,
+  Search,
   Shield,
   Sparkles,
   Trophy,
@@ -26,6 +27,8 @@ interface Player {
   /** Chinese reading of the name, present only when it is a known reading.
    *  The interface shows it beside `name`, never instead of it. */
   name_zh?: string;
+  name_zh_source?: string;
+  name_zh_source_url?: string;
   number?: string | number;
   position: string;
   position_group: string;
@@ -201,6 +204,7 @@ export function TeamCenter({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("overview");
   const [position, setPosition] = useState("");
+  const [playerQuery, setPlayerQuery] = useState("");
   const [player, setPlayer] = useState<Player | null>(null);
   const [matchTab, setMatchTab] = useState("upcoming");
   const [matchLimit, setMatchLimit] = useState(8);
@@ -210,8 +214,10 @@ export function TeamCenter({
   const active = useRef(team.id);
   active.current = team.id;
   const request = useRef(0);
+  const reading = useRef(false);
   const load = useCallback(async () => {
     const serial = ++request.current;
+    reading.current = true;
     setLoading(true);
     try {
       const next = await api<CenterData>(
@@ -219,11 +225,13 @@ export function TeamCenter({
       );
       if (serial !== request.current || active.current !== team.id) return;
       setCenter(next);
+      setPlayer((current) => current ? next.roster.find((item) => item.id === current.id) || null : null);
       setError("");
     } catch (err) {
       if (serial === request.current) setError(errorText(err));
     } finally {
       if (serial === request.current) {
+        reading.current = false;
         setLoading(false);
       }
     }
@@ -232,6 +240,7 @@ export function TeamCenter({
     setCenter(null);
     setTab("overview");
     setPosition("");
+    setPlayerQuery("");
     setPlayer(null);
     setRevealedTeam(null);
   }, [team.id]);
@@ -239,6 +248,19 @@ export function TeamCenter({
     void load();
     return () => {
       request.current++;
+    };
+  }, [load]);
+  useEffect(() => {
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible" && !reading.current) void load();
+    };
+    const timer = window.setInterval(refreshVisible, 60000);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("online", refreshVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      window.removeEventListener("online", refreshVisible);
     };
   }, [load]);
   const workflowChanged = useCallback(() => {
@@ -261,8 +283,11 @@ export function TeamCenter({
         ? (b.kickoff || "").localeCompare(a.kickoff || "")
         : (a.kickoff || "").localeCompare(b.kickoff || ""),
     );
-  const roster = (center?.roster || []).filter(
-    (item) => !position || item.position_group === position,
+  const normalizeName = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+  const query = normalizeName(playerQuery);
+  const roster = (center?.roster || []).filter((item) =>
+    (!position || item.position_group === position) &&
+    (!query || [item.name, item.name_zh || ""].some((name) => normalizeName(name).includes(query))),
   );
   const goals = (center?.charts?.goals_by_match || []).slice(-10);
   const maxGoals = Math.max(
@@ -752,6 +777,12 @@ export function TeamCenter({
             </div>
             <Users size={21} />
           </div>
+          <label className="player-search">
+            <Search size={17} aria-hidden="true" />
+            <input type="search" aria-label="搜索球员" placeholder="搜索中文名或原名" value={playerQuery}
+              onChange={(event) => setPlayerQuery(event.target.value)} />
+            <span aria-live="polite">{roster.length} / {center?.roster.length || 0}</span>
+          </label>
           <div className="position-tabs filter-tabs">
             {[
               { id: "", name: "全部位置" },
@@ -763,6 +794,7 @@ export function TeamCenter({
               <button
                 key={item.id}
                 className={position === item.id ? "active" : ""}
+                aria-pressed={position === item.id}
                 onClick={() => setPosition(item.id)}
               >
                 {item.name}
@@ -802,8 +834,9 @@ export function TeamCenter({
           {!roster.length && !loading && (
             <div className="empty-state">
               <Users size={31} />
-              <h3>还没有可读的阵容资料</h3>
-              <p>点击上方“启动”持续更新球队资料，已确认的球员会出现在这里。</p>
+              <h3>{center?.roster.length ? "没有匹配的球员" : "还没有可读的阵容资料"}</h3>
+              <p>{center?.roster.length ? "试试中文名、原名，或查看全部位置。" : "点击上方“启动”更新一次球队资料，已确认的球员会出现在这里。"}</p>
+              {!!center?.roster.length && <button className="button" onClick={() => { setPosition(""); setPlayerQuery(""); }}>查看全部球员</button>}
             </div>
           )}
         </section>
@@ -846,6 +879,7 @@ export function TeamCenter({
                       ? new Date(match.kickoff).toLocaleDateString("zh-CN", {
                           month: "numeric",
                           day: "numeric",
+                          timeZone: "Asia/Shanghai",
                         })
                       : "待定"}
                   </strong>
@@ -943,16 +977,17 @@ export function TeamCenter({
         </footer>
       )}
       {player && (
-        <Modal title={player.name} onClose={() => setPlayer(null)}>
+        <Modal title={player.name_zh || player.name} onClose={() => setPlayer(null)}>
           <div className="player-detail">
             <div className="player-detail-hero">
               <div className="player-detail-photo">
                 {player.number ? (
                   <span className="player-number">{player.number}</span>
                 ) : null}
-                <PlayerPhoto player={player} />
+                <PlayerPhoto player={player} allowRetry />
               </div>
               <div className="player-detail-intro">
+                {player.name_zh && <p className="player-original-name">{player.name}</p>}
                 <span className="pill">
                   {player.position} · {team.name}
                 </span>
@@ -1017,6 +1052,9 @@ export function TeamCenter({
             <Sources
               sources={[
                 { name: "球员资料", url: player.source_url },
+                ...(player.name_zh && safeUrl(player.name_zh_source_url)
+                  ? [{ name: `中文名${player.name_zh_source ? ` · ${player.name_zh_source}` : "来源"}`, url: player.name_zh_source_url }]
+                  : []),
                 ...(player.photo_file_page || player.photo_source_url
                   ? [
                       {
@@ -1053,23 +1091,27 @@ function playerPhotoUrl(player: Player) {
       (!player.photo_credit?.trim() || !player.photo_license?.trim() || !safeUrl(player.photo_file_page))) return null;
   return safeUrl(player.photo_url);
 }
-export function PlayerPhoto({ player }: { player: Player }) {
+export function PlayerPhoto({ player, allowRetry = false }: { player: Player; allowRetry?: boolean }) {
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => setFailed(false), [player.id, player.photo_url]);
   const url = playerPhotoUrl(player);
   return url && !failed ? (
     <img
+      key={`${player.id}:${attempt}`}
       className="player-photo"
       src={url}
       alt={player.name}
       loading="lazy"
+      decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
     />
   ) : (
-    <div className="player-photo player-no-photo">
+    <div className="player-photo player-no-photo" title={!url ? player.photo_reason : undefined}>
       <UserRound size={55} strokeWidth={1} />
-      <span>暂无照片</span>
+      <span>{url && failed ? "照片暂时无法加载" : "暂无照片"}</span>
+      {url && failed && allowRetry && <button className="text-button" onClick={() => { setAttempt((value) => value + 1); setFailed(false); }}>重试照片</button>}
     </div>
   );
 }

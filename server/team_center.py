@@ -355,7 +355,9 @@ def center_view(store, team_id, year=None, *, reveal=False):
     matches = _team_matches(store, team_id, season["id"], recent_status if "snapshot_match_ids" in recent_status else league_status)
     domestic_matches = [m for m in matches if m["competition_id"] == league["id"]]
     finished = [m for m in domestic_matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
-    roster = [with_reading(row) for row in copy.deepcopy(snapshot.get("roster", []))]
+    from .team_portraits import apply_cached_portraits
+    visible_snapshot = apply_cached_portraits(store, copy.deepcopy(snapshot))
+    roster = [with_reading(row) for row in visible_snapshot.get("roster", [])]
     roster_season = ({"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]}
                      if roster else None)
     latest = max((s for s in store.list("seasons") if s.get("league_id") == league["id"]),
@@ -531,9 +533,9 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         raise
 
 
-async def sync_portraits(store, team_id, year=None):
+async def sync_portraits(store, team_id, year=None, *, force=False):
     """Fill optional photos without replacing a newer roster or its timestamp."""
-    return await fetch_player_photos(store, team_id, year)
+    return await fetch_player_photos(store, team_id, year, force=force)
 
 
 def _parts_to_refresh(view, requested, force):
@@ -555,7 +557,8 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None, d
     async with lock:
         prior = store.get_meta(key, {})
         selected = _parts_to_refresh(center_view(store, team_id, year), requested, force)
-        selected = tuple(part for part in selected if _elapsed(prior.get("components", {}).get(part, {}).get("last_attempt")) >= RETRY_SECONDS)
+        selected = tuple(part for part in selected if force and part == "portraits"
+                         or _elapsed(prior.get("components", {}).get(part, {}).get("last_attempt")) >= RETRY_SECONDS)
         if not selected:
             return {**prior, "status": "deferred" if decision_id else prior.get("status", "completed"), "cached": True}
         from . import decisions
@@ -570,7 +573,7 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None, d
             "schedule": lambda: league_data.sync_team_recent(store, team_id, season["season_start_year"], force=force and prior.get("components", {}).get("schedule", {}).get("status") != "partial"),
             # All teams in a league share one independently cached table.
             "standings": lambda: league_data.sync_standings(store, league["id"], season["season_start_year"], force=force),
-            "portraits": lambda: fetch_player_photos(store, team_id, year),
+            "portraits": lambda: fetch_player_photos(store, team_id, year, force=force),
         }
         async def refresh(part):
             _record_component(store, key, part, {"status": "running", "last_attempt": started, "errors": []})

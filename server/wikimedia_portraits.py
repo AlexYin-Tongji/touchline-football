@@ -13,9 +13,9 @@ from urllib.parse import quote, urlencode, urlsplit
 from bs4 import BeautifulSoup
 
 from .club_library import TEAM_ALIASES
-from .ingestion import IngestionError, fetch_document, now, published_time, source_error_details
+from .ingestion import IngestionError, now, published_time, source_error_details
 from .news_sources import AMBIGUOUS_GLOBAL_ALIASES, OTHER_CLUB_IDENTITIES, global_feed_mentions_team
-from .research_transport import blocking_request, shared_request
+from .research_transport import blocking_request, shared_request, fetch_reviewed_portrait_document as fetch_document
 
 WIKIPEDIA = "en.wikipedia.org"
 WIKIDATA = "www.wikidata.org"
@@ -331,6 +331,13 @@ def cached_portrait(store, player, team_id):
     cached = store.get_meta(_portrait_key(player, team_id), {})
     if not cached:
         cached = store.get_meta(_portrait_key(player, team_id, generation=1), {})
+    previous = cached.get("last_success")
+    if (cached.get("status") == "unavailable" and isinstance(previous, dict)
+            and previous.get("status") == "completed" and _fresh_enough(previous)
+            and previous.get("photo_match") == "wikimedia_verified_club"
+            and all(previous.get(field) for field in
+                    ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license"))):
+        return previous
     if _fresh_enough(cached):
         return cached
     return None
@@ -397,7 +404,8 @@ async def resolve_portrait(store, player, team_id, *, force=False):
     if not isinstance(name, str) or not _name(name) or team_id not in TEAM_ALIASES:
         return {"status": "rejected", "photo_reason": "缺少可核对的球员或俱乐部身份。"}
     key = _portrait_key(player, team_id)
-    cached = None if force else cached_portrait(store, player, team_id)
+    previous = cached_portrait(store, player, team_id)
+    cached = None if force else previous
     if cached:
         return cached
     attempted = now()
@@ -472,5 +480,10 @@ async def resolve_portrait(store, player, team_id, *, force=False):
             result = {"status": "rejected", "photo_reason": "维基媒体资料无法核对，未采用未经核验图片。",
                       "retryable": False, "reason_code": code}
     result.update(fetched_at=now(), last_attempt=attempted)
+    if (result.get("status") == "unavailable" and previous and previous.get("status") == "completed"
+            and previous.get("photo_match") == "wikimedia_verified_club"
+            and all(previous.get(field) for field in
+                    ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license"))):
+        result["last_success"] = previous
     store.set_meta(key, result)
     return result

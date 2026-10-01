@@ -348,6 +348,9 @@ async def run_agent(store, run_id, cancel_event, *, execution=None, settings_ove
             if not selected_evidence:
                 reasons = "；".join(dict.fromkeys(error["message"] for error in source_errors))
                 raise AgentFailure("所选来源暂时都无法读取：" + reasons + " 未使用旧正文或其他事件替代。")
+        if run.get("internal_report"):
+            from .news_reports import adopt_initial_reads
+            adopt_initial_reads(store, run, local)
         if run["mode"] == "demo":
             run["verification"] = verification.report("not_requested", warnings=["演示未调用模型，不进行原文支持核对。"])
             run["model"] = "规则演示（未调用模型）"

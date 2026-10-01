@@ -43,6 +43,7 @@ class WorkflowManager:
             raise ValueError("功能或球队不存在。")
         default = {"kind": kind, "team_id": team_id, "enabled": False, "status": "idle", "phase": "idle",
                    "message": "点击启动，更新一次资料。", "last_error": None, "started_at": None,
+                   "source_errors": [],
                    "finished_at": None, "updated_at": None, "next_run_at": None, "revision": 0,
                    "progress": {"completed": 0, "failed": 0, "remaining": 0},
                    "memory": {"summary": "尚未启动。", "next_steps": [], "completed_count": 0}}
@@ -92,7 +93,7 @@ class WorkflowManager:
         entry = Work(kind, team_id, state["revision"] + 1, asyncio.Event(), parts=parts)
         state.update(revision=entry.revision, enabled=True, status="running", phase="starting",
                      message="正在接续已保存的工作。", started_at=now(), finished_at=None,
-                     next_run_at=None, last_error=None, updated_at=now(),
+                     next_run_at=None, last_error=None, source_errors=[], updated_at=now(),
                      progress={"completed": 0, "failed": 0, "remaining": 0})
         self.store.set_meta(state_key(kind, team_id), state)
         self.tasks[key] = entry
@@ -209,6 +210,9 @@ class WorkflowManager:
                             else "模型服务暂未完成部分任务，可检查模型设置后重新启动。" if any(word in error for word in ("模型", "协议", "服务"))
                             else "部分消息的来源暂时不可读，已保留其他完成内容。")
                     self.update(entry, last_error=note)
+                if run.get("source_errors"):
+                    state = self.status("news", entry.team_id)
+                    self.update(entry, source_errors=research.unique_source_failures([*state.get("source_errors", []), *run["source_errors"]]))
         async def runner(store, run_id, cancel):
             run = store.get("runs", run_id)
             store.put("runs", {**run, "workflow_context": prompt_context(store, "news", entry.team_id)})
@@ -231,7 +235,9 @@ class WorkflowManager:
             if row["id"] not in before:
                 self.store.put("reports", {**row, "manual_once": True, "manual_stop_after_attempt": True})
         if found.get("errors"):
-            self.update(entry, last_error="部分来源暂不可读，已保留成功获取的资料。")
+            state = self.status("news", entry.team_id)
+            self.update(entry, last_error="部分来源暂不可读，已保留成功获取的资料。",
+                        source_errors=research.unique_source_failures([*state.get("source_errors", []), *found.get("source_errors", [])]))
         base = self.status("news", entry.team_id)["progress"]
         await news_reports.process_report_queue(self.store, team_id=entry.team_id, owner_id=entry.root_id,
                                                cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress)
@@ -265,7 +271,7 @@ class WorkflowManager:
                 # Bounded so one slow publisher cannot hold the whole cycle, but
                 # wide enough for a full PLAYER_PAGE_LIMIT batch at the paced
                 # Wikimedia rate; otherwise the batch is truncated mid-way.
-                return await asyncio.wait_for(sync_portraits(self.store, entry.team_id), 180)
+                return await asyncio.wait_for(sync_portraits(self.store, entry.team_id, force=first), 180)
             photos = await self._unit(entry, portraits, {"team_id": entry.team_id, "part": "portraits"})
             photo_complete = photos.get("status") == "completed"
             photo_failed = photos.get("status") in {"failed", "unavailable", "interrupted"}

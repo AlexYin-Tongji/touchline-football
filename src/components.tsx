@@ -126,6 +126,7 @@ const sourceGapReasons: Record<string, string> = {
   access_challenge: "来源要求访问验证",
   content_unavailable: "暂未找到可读内容",
   source_unavailable: "来源暂时无法读取",
+  source_disabled: "来源已删除或停用",
   source_timeout: "请求超时",
   timeout: "请求超时",
   source_tls: "安全连接中断",

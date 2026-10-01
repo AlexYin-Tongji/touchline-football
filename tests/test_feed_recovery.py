@@ -67,6 +67,15 @@ class ArticleImageTests(unittest.TestCase):
         self.assertEqual(source["images"][0]["caption"], "FC Barcelona players in training.")
         self.assertEqual(len(ingestion.source_images(source)), 1)
 
+    def test_gossip_headline_membership_does_not_identify_its_generic_hero(self):
+        source = self.roundup()
+        source['title'] = 'Football gossip: Van Dijk, Olise, Pickford, Barcelona, Kounde, Shaw'
+        self.assertEqual(ingestion.source_images(source), [])
+        source['images'][0]['caption'] = 'Liverpool defender Virgil van Dijk'
+        self.assertEqual(ingestion.source_images(source), [])
+        source['images'][0]['caption'] = 'FC Barcelona players during training'
+        self.assertEqual(len(ingestion.source_images(source)), 1)
+
     def test_collection_social_artwork_and_related_cards_are_not_article_images(self):
         markup = '''<meta property="og:image" content="https://cdn.example.com/section.jpg">
             <main><article><figure><img src="https://cdn.example.com/unrelated.jpg"></figure>

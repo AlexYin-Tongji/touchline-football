@@ -167,6 +167,149 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["roster"][0].get("photo_file_page"))
         self.assertEqual(summary["status"], "missing")
 
+    async def test_preferred_source_outage_stops_early_and_independent_fallback_recovers(self):
+        squad = {"team_id": "arsenal", "roster": [{"provider_id": str(i), "name": f"Player {i}",
+                    "nationality": "英格兰", "photo_url": "", "retryable": True,
+                    "reason_code": "http_rate_limited", "photo_reason": "旧网络故障"} for i in (1, 2)]}
+        unavailable = {"status": "unavailable", "retryable": True, "photo_reason": "维基媒体暂不可达"}
+        photo = {"status": "completed", "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/a.png",
+                 "photo_credit": "TheSportsDB", "photo_source_url": "https://www.thesportsdb.com/player/123",
+                 "photo_license": "第三方转载", "photo_match": "community_name_and_nationality", "photo_reason": ""}
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value=unavailable)) as primary, \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=photo)) as fallback:
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad)
+        self.assertEqual(primary.await_count, 1)
+        self.assertEqual(fallback.await_count, 2)
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(summary["errors"], [])
+        self.assertEqual(summary["remaining_count"], 0)
+        for row in result["roster"]:
+            self.assertTrue(row["photo_url"])
+            self.assertFalse(row.get("photo_reason"))
+            self.assertFalse(row.get("retryable"))
+            self.assertFalse(row.get("reason_code"))
+        self.assertFalse(squad["roster"][0]["photo_url"], "facts and caller snapshot remain untouched")
+
+    async def test_outage_fallback_is_bounded_and_advances_its_own_cursor(self):
+        size = team_portraits.COMMUNITY_PAGE_LIMIT * 2 + 1
+        squad = {"team_id": "arsenal", "season_id": "PL-2026", "roster": [
+            {"provider_id": str(i), "name": f"Player {i}", "photo_url": ""} for i in range(1, size + 1)]}
+        async def unavailable(store, row, team_id):
+            result = {"status": "unavailable", "last_attempt": now(), "photo_reason": "稍后重试", "retryable": True}
+            store.set_meta(wikimedia_portraits._portrait_key(row, team_id), result)
+            return result
+        async def missing(store, row, team_id, **kwargs):
+            result = {"status": "missing", "fetched_at": now(), "photo_reason": "没有照片"}
+            store.set_meta(community_portraits.portrait_key(row, team_id), result)
+            return result
+        with patch.object(wikimedia_portraits, "resolve_portrait", side_effect=unavailable) as primary, \
+             patch.object(community_portraits, "resolve_portrait", side_effect=missing) as fallback:
+            first, one = await team_portraits.enrich_player_photos(self.store, squad)
+            _, two = await team_portraits.enrich_player_photos(self.store, first)
+        self.assertEqual(primary.await_count, 2)
+        self.assertEqual(one["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
+        self.assertEqual(two["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
+        self.assertEqual([call.args[1]["provider_id"] for call in fallback.call_args_list],
+                         [str(i) for i in range(1, size)])
+
+    async def test_fallback_failure_reports_its_own_source_and_survives_cache_replay(self):
+        row = {"provider_id": "1", "name": "Kai Havertz", "nationality": "德国", "photo_url": ""}
+        primary_gap = {"status": "unavailable", "photo_reason": "维基媒体请求过于频繁，稍后重试。",
+                       "reason_code": "http_rate_limited", "retryable": True, "last_attempt": now()}
+        community_gap = {"status": "unavailable", "photo_reason": "社区球员库连接失败，稍后重试。",
+                         "reason_code": "connection_error", "retryable": True, "last_attempt": now()}
+        async def primary(store, player, team_id):
+            store.set_meta(wikimedia_portraits._portrait_key(player, team_id), primary_gap)
+            return primary_gap
+        async def fallback(store, player, team_id, **kwargs):
+            store.set_meta(community_portraits.portrait_key(player, team_id), community_gap)
+            return community_gap
+        with patch.object(wikimedia_portraits, "resolve_portrait", side_effect=primary), \
+             patch.object(community_portraits, "resolve_portrait", side_effect=fallback):
+            result, summary = await team_portraits.enrich_player_photos(self.store, {"team_id": "arsenal", "roster": [row]})
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(len(summary["errors"]), 1)
+        self.assertIn("TheSportsDB", summary["errors"][0])
+        self.assertIn(community_gap["photo_reason"], summary["errors"][0])
+        self.assertNotIn(primary_gap["photo_reason"], summary["errors"][0])
+        for snapshot in (result, team_portraits.apply_cached_portraits(self.store, {"team_id": "arsenal", "roster": [dict(row)]})):
+            player = snapshot["roster"][0]
+            self.assertFalse(player["photo_url"])
+            self.assertEqual(player["reason_code"], "connection_error")
+            self.assertTrue(player["retryable"])
+            self.assertIn("维基媒体照片来源", player["photo_reason"])
+            self.assertIn("TheSportsDB 社区照片来源", player["photo_reason"])
+            self.assertIn(community_gap["photo_reason"], player["photo_reason"])
+
+    async def test_old_roster_community_photo_cannot_bypass_new_identity_check(self):
+        old_photo = {"status": "completed", "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/old.png",
+                     "photo_source_url": "https://www.thesportsdb.com/player/123", "photo_credit": "TheSportsDB",
+                     "photo_license": "第三方转载", "photo_match": "community_name_and_nationality", "fetched_at": now()}
+        row = {"provider_id": "1", "name": "Kai Havertz", "nationality": "德国", "birth_date": "1999-06-11", **old_photo}
+        squad = {"team_id": "arsenal", "roster": [row]}
+        legacy_key = community_portraits.portrait_key(row, "arsenal", generation=1)
+        self.store.set_meta(legacy_key, old_photo)
+        replay = team_portraits.apply_cached_portraits(self.store, {"team_id": "arsenal", "roster": [dict(row)]})
+        self.assertFalse(replay["roster"][0]["photo_url"])
+        self.assertEqual(replay["roster"][0]["reason_code"], "identity_revalidation")
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "ambiguous"})) as fallback:
+            result, _ = await team_portraits.enrich_player_photos(self.store, squad)
+        self.assertEqual(fallback.await_count, 1)
+        self.assertFalse(result["roster"][0]["photo_url"])
+        self.assertTrue(squad["roster"][0]["photo_url"], "the caller's old snapshot remains untouched")
+        self.assertEqual(self.store.get_meta(legacy_key), old_photo)
+
+    async def test_force_rechecks_a_proven_community_photo(self):
+        from tests.test_community_portraits import PLAYER, record, search
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=search(record("Kai Havertz", "Germany")))):
+            photo = await community_portraits.resolve_portrait(self.store, PLAYER, "arsenal")
+        squad = {"team_id": "arsenal", "roster": [{**PLAYER, **photo}]}
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "ambiguous"})) as fallback:
+            result, _ = await team_portraits.enrich_player_photos(self.store, squad, player_ids=["1"], force=True)
+        self.assertEqual(fallback.await_count, 1)
+        self.assertFalse(result["roster"][0]["photo_url"])
+
+    async def test_whole_team_retry_keeps_current_checked_community_and_wikimedia_caches(self):
+        from tests.test_community_portraits import PLAYER, record, search
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=search(record("Kai Havertz", "Germany")))):
+            community = await community_portraits.resolve_portrait(self.store, PLAYER, "arsenal")
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            wiki = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        squad = {"team_id": "arsenal", "roster": [{**PLAYER, **community},
+            {"provider_id": "2", **self.player, **wiki}]}
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("current photo"))) as primary, \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("current photo"))) as fallback:
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad, force=True)
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual([row["photo_url"] for row in result["roster"]], [community["photo_url"], wiki["photo_url"]])
+        primary.assert_not_awaited()
+        fallback.assert_not_awaited()
+
+    async def test_explicit_recheck_network_fault_keeps_current_community_and_wiki_photos(self):
+        from tests.test_community_portraits import PLAYER, record, search
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=search(record("Kai Havertz", "Germany")))):
+            community = await community_portraits.resolve_portrait(self.store, PLAYER, "arsenal")
+        squad = {"team_id": "arsenal", "roster": [{**PLAYER, **community}]}
+        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
+             patch.object(community_portraits, "_search", new=AsyncMock(side_effect=ConnectionError("offline"))):
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad, player_ids=["1"], force=True)
+        self.assertEqual(result["roster"][0]["photo_url"], community["photo_url"])
+        self.assertEqual(summary["status"], "partial")
+        self.assertIn("TheSportsDB", summary["errors"][0])
+        replay = team_portraits.apply_cached_portraits(self.store, result)
+        self.assertEqual(replay["roster"][0]["photo_url"], community["photo_url"])
+        with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):
+            wiki = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
+        squad = {"team_id": "arsenal", "roster": [{"provider_id": "2", **self.player, **wiki}]}
+        with patch.object(wikimedia_portraits, "request_json", new=AsyncMock(side_effect=ConnectionError("offline"))):
+            result, summary = await team_portraits.enrich_player_photos(self.store, squad, player_ids=["2"], force=True)
+        self.assertEqual(result["roster"][0]["photo_url"], wiki["photo_url"])
+        self.assertEqual(summary["status"], "partial")
+        replay = team_portraits.apply_cached_portraits(self.store, result)
+        self.assertEqual(replay["roster"][0]["photo_url"], wiki["photo_url"])
+
     async def test_cached_rejection_clears_old_wikimedia_photo_without_network(self):
         squad = {"team_id": "arsenal", "season_id": "eng.1:2026", "roster": [{
             "id": "espn-player-1", "provider_id": "1", "name": "Martin Ødegaard",

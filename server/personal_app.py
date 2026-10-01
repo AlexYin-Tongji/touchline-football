@@ -67,7 +67,11 @@ def source_tier(url):
     An unregistered host returns None rather than a default. Defaulting to a
     tier would let an unreviewed blog appear alongside the club's own site.
     """
-    from . import providers, provenance
+    try:
+        url = ingestion.normalize_url(url)
+    except (TypeError, ValueError):
+        return {"tier": None, "tier_label": UNCLASSIFIED_LABEL, "tier_known": False}
+    from . import providers, provenance, news_source_tiers
     # Importing the providers is what grants their hosts a tier, so it is done
     # here rather than trusted to whether some other module happened to load
     # them. A missing import would show every source as unclassified.
@@ -79,6 +83,7 @@ def source_tier(url):
     # eligibility.
     try:
         providers.load()
+        news_source_tiers.load()
     except Exception:
         return {"tier": None, "tier_label": UNCLASSIFIED_LABEL, "tier_known": False}
     try:
@@ -172,6 +177,7 @@ def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
         published = max((source.get("published_at") or "" for source in sources), default="") or None
         items.append({"id": event["id"], "team_id": event["team_id"], "title": title, "summary": summary,
                       "topic": message_topic(title), "published_at": published, "updated_at": published or event.get("updated_at") or (report or {}).get("updated_at"),
+                      "organized_at": report.get("updated_at") if ready else None,
                       "images": safe_images(images), "sources": sources,
                       "source_gap_count": len(content.get("source_gaps") or []),
                       "report_id": report["id"] if ready else None, "status": "ready" if ready else "source",

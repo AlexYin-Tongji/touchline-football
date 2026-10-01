@@ -271,6 +271,138 @@ NAME_READINGS = {
 }
 
 
+# These additions were checked against published Chinese spellings, rather
+# than produced by a model or a transliteration rule. The evidence supports
+# only the name reading: it never changes club membership or another fact.
+_CITY_NAME_SOURCE = {
+    "source": "AllFootball 中文报道及球员资料",
+    "source_url": "https://www.allfootballapp.com/pt/articles/5274563",
+    "checked_at": "2026-10-01",
+}
+VERIFIED_READINGS = {
+    normalize_name(name): {"reading": reading, **_CITY_NAME_SOURCE}
+    for name, reading in (
+        ("Gianluigi Donnarumma", "多纳鲁马"),
+        ("Marcus Bettinelli", "贝蒂内利"),
+        ("Gerónimo Rulli", "鲁利"),
+        ("Rúben Dias", "鲁本·迪亚斯"),
+        ("Marc Guéhi", "格伊"),
+        ("Rayan Aït-Nouri", "艾特-努里"),
+        ("Vitor Reis", "维托尔·雷斯"),
+        ("Josko Gvardiol", "格瓦迪奥尔"),
+        ("Abdukodir Khusanov", "胡桑诺夫"),
+        ("Rico Lewis", "里科·刘易斯"),
+        ("Elliot Anderson", "埃利奥特·安德森"),
+        ("Mateo Kovacic", "科瓦契奇"),
+        ("Rayan Cherki", "谢尔基"),
+        ("Matheus Nunes", "马特乌斯·努内斯"),
+        ("Ayyoub Bouaddi", "布阿迪"),
+        ("Phil Foden", "福登"),
+        ("Iliman Ndiaye", "恩迪亚耶"),
+        ("Erling Haaland", "哈兰德"),
+        ("Antoine Semenyo", "塞门约"),
+        ("Ryan McAidoo", "瑞安·麦卡杜"),
+        ("Enzo Fernández", "恩佐·费尔南德斯"),
+    )
+}
+VERIFIED_READINGS.update({
+    "nico o reilly": {
+        "reading": "奥赖利", "source": "AllFootball 中文球员资料",
+        "source_url": "https://www.allfootballapp.com/zh-CN/player/50665740-nico-oreilly",
+        "checked_at": "2026-10-01",
+    },
+    "jeremy doku": {
+        "reading": "多库", "source": "球天下中文球员资料",
+        "source_url": "https://www.qtx.com/dbsoccer/player_1965381.html", "checked_at": "2026-10-01",
+    },
+})
+VERIFIED_READINGS.update({
+    "mateus fernandes": {
+        "reading": "马特乌斯·费尔南德斯", "source": "懂球帝球员资料",
+        "source_url": "https://pc.dongqiudi.com/player/50785810", "checked_at": "2026-10-01",
+    },
+    "gerard martin": {
+        "reading": "杰拉德·马丁", "source": "FC Barcelona 中文官网",
+        "source_url": "https://www.fcbarcelona.cn/", "checked_at": "2026-10-01",
+    },
+})
+
+
+def _add_verified(source, url, names):
+    for name, reading in names:
+        VERIFIED_READINGS[normalize_name(name)] = {
+            "reading": reading, "source": source, "source_url": url, "checked_at": "2026-10-01",
+        }
+
+
+# The source table contains each complete English name alongside the Chinese
+# spelling. Short display readings use the attested surname; no roster fact
+# is taken from these name references.
+_add_verified("维基百科中文球员目录", "https://zh.wikipedia.org/wiki/托特纳姆热刺足球俱乐部", (
+    ("Antonín Kinsky", "金斯基"), ("Martin Dúbravka", "杜布拉夫卡"),
+    ("Brandon Austin", "奥斯汀"), ("Andy Robertson", "罗伯逊"),
+    ("Tosin Adarabioyo", "阿达拉比奥约"), ("Marcos Senesi", "塞内西"),
+    ("Destiny Udogie", "乌多吉"), ("Pedro Porro", "波罗"), ("Ben Davies", "本·戴维斯"),
+    ("Xavi Simons", "哈维·西蒙斯"), ("Conor Gallagher", "加拉格尔"),
+    ("Archie Gray", "阿奇·格雷"), ("Sandro Tonali", "托纳利"),
+    ("Mohammed Kudus", "库杜斯"), ("Dejan Kulusevski", "库卢塞夫斯基"),
+    ("Mykhailo Mudryk", "穆德里克"), ("Rodrigo Bentancur", "本坦库尔"),
+    ("Mathys Tel", "特尔"), ("Sávio", "萨维尼奥"),
+    ("Dominic Solanke", "索兰克"), ("Omar Marmoush", "马尔穆什"),
+))
+_add_verified("球迷屋中文球员资料", "https://m.qiumiwu.com/player/lichalisen", (("Richarlison", "理查利森"),))
+_add_verified("球迷屋中文球员资料", "https://m.qiumiwu.com/player/zhanmusimaidixun", (("James Maddison", "麦迪逊"),))
+_add_verified("球迷屋中文球员资料", "https://m.qiumiwu.com/player/lukasibeiliwaer", (("Lucas Bergvall", "贝里瓦尔"),))
+_add_verified("球迷屋中文球员资料", "https://m.qiumiwu.com/player/jianbaoluofanheike", (("Jan Paul van Hecke", "范黑克"),))
+_add_verified("PlayersDB 球员资料", "https://playersdb.app/player?id=136184", (("Micky van de Ven", "范德文"),))
+_add_verified("T足球中文球员资料", "https://tzuqiu.cc/players/161329/show.do", (("Wilson Odobert", "奥多贝尔"),))
+_add_verified("维基百科中文球员目录", "https://zh.wikipedia.org/zh-cn/巴塞罗那足球俱乐部", (
+    ("Joan García", "霍安·加西亚"), ("Wojciech Szczesny", "什琴斯尼"),
+    ("Dominik Livakovic", "利瓦科维奇"), ("João Cancelo", "坎塞洛"),
+    ("Alejandro Balde", "巴尔德"), ("Pau Cubarsí", "库巴西"),
+    ("Andreas Christensen", "克里斯滕森"), ("Jules Koundé", "孔德"),
+    ("Eric García", "埃里克·加西亚"), ("Gavi", "加维"), ("Fermín López", "费尔明·洛佩斯"),
+    ("Pedri", "佩德里"), ("Rodri", "罗德里"), ("Dani Olmo", "奥尔莫"),
+    ("Frenkie de Jong", "德容"), ("Marc Bernal", "贝尔纳尔"),
+    ("Gabriel Jesus", "热苏斯"), ("Lamine Yamal", "亚马尔"), ("Raphinha", "拉菲尼亚"),
+    ("Karim Adeyemi", "阿德耶米"), ("Anthony Gordon", "戈登"),
+))
+_add_verified("T足球中文球员资料", "https://tzuqiu.cc/players/133338/show.do", (("Roony Bardghji", "巴尔吉"),))
+_add_verified("维基百科中文球员目录", "https://zh.wikipedia.org/zh-cn/切尔西足球俱乐部", (
+    ("Emiliano Martínez", "埃米利亚诺·马丁内斯"), ("Mike Penders", "彭德斯"),
+    ("Marco Palestra", "帕莱斯特拉"), ("Wesley Fofana", "福法纳"),
+    ("Maxence Lacroix", "拉克鲁瓦"), ("Levi Colwill", "科尔威尔"), ("Jorrel Hato", "哈托"),
+    ("Reece James", "詹姆斯"), ("Malo Gusto", "古斯托"), ("Valentín Barco", "巴尔科"),
+    ("Cole Palmer", "帕尔默"), ("Jordan Henderson", "亨德森"), ("Morgan Rogers", "罗杰斯"),
+    ("Geovany Quenda", "昆达"), ("Moisés Caicedo", "凯塞多"), ("Romeo Lavia", "拉维亚"),
+    ("Pedro Neto", "内托"), ("João Pedro", "若昂·佩德罗"), ("Jamie Gittens", "吉滕斯"),
+    ("Danny Welbeck", "维尔贝克"), ("Emmanuel Emegha", "埃梅加"), ("Estêvão", "埃斯特旺"),
+    ("Josh Acheampong", "阿昌庞"),
+))
+_add_verified("雷速中文球员资料（姓名与出生日期核对）", "https://m.leisu.com/data/zuqiu/player-1154201",
+              (("Gaga Slonina", "斯洛尼纳"),))
+_add_verified("FC Barcelona 中文官方球员目录", "https://www.fcbarcelona.cn/players", (
+    ("Joan García", "乔安·加西亚"), ("Wojciech Szczesny", "什琴斯尼"),
+    ("João Cancelo", "坎塞洛"), ("Alejandro Balde", "巴尔德"), ("Pau Cubarsí", "库巴西"),
+    ("Andreas Christensen", "克里斯滕森"), ("Jules Koundé", "孔德"), ("Eric García", "埃里克·加西亚"),
+    ("Gavi", "加维"), ("Pedri", "佩德里"), ("Rodri", "罗德里"), ("Dani Olmo", "奥尔莫"),
+    ("Frenkie de Jong", "德容"), ("Marc Bernal", "贝尔纳尔"), ("Lamine Yamal", "亚马尔"),
+    ("Raphinha", "拉菲尼亚"), ("Karim Adeyemi", "阿德耶米"), ("Anthony Gordon", "戈登"),
+    ("Roony Bardghji", "巴尔德吉"), ("Gerard Martín", "杰拉德·马丁"),
+    ("Xavi Espart", "埃斯帕特"), ("Jesse Bisiwu", "比西乌"),
+))
+for name, reading, path in (
+    ("Teddy Sharman-Lowe", "沙曼-洛维", "taidishamanluowei"),
+    ("Pep Chavarría", "查瓦利亚", "peipuzhawaliya"),
+    ("Aaron Anselmino", "安塞尔米诺", "yalunansaierminuo"),
+    ("Olutayo Subuloye", "苏布洛耶", "aolutayuesubuluoye"),
+    ("Mahdi Nicoll-Jazuli", "贾祖里", "mahedinikeerjiazuli"),
+    ("Reggie Watson", "沃森", "leijiwosen"),
+):
+    _add_verified("球迷屋中文球员资料", "https://www.qiumiwu.com/player/" + path, ((name, reading),))
+NAME_READINGS.update({key: value["reading"] for key, value in VERIFIED_READINGS.items()})
+
+
 def reading_for(name):
     """The Chinese reading of a name, or "" when the table has none.
 
@@ -288,8 +420,14 @@ def with_reading(row):
     table has a reading.
     """
     reading = reading_for(row.get("name"))
+    for field in ("name_zh_source", "name_zh_source_url", "name_zh_checked_at"):
+        row.pop(field, None)
     if reading:
         row["name_zh"] = reading
+        evidence = VERIFIED_READINGS.get(normalize_name(row.get("name")))
+        if evidence:
+            row.update(name_zh_source=evidence["source"], name_zh_source_url=evidence["source_url"],
+                       name_zh_checked_at=evidence["checked_at"])
     else:
         row.pop("name_zh", None)
     return row

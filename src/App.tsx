@@ -201,6 +201,8 @@ export default function App() {
           {navigation.map((item) => (
             <button
               key={item.id}
+              aria-label={item.label}
+              aria-pressed={page === item.id}
               className={page === item.id ? "active" : ""}
               aria-current={page === item.id ? "page" : undefined}
               onClick={() => setPage(item.id)}
