@@ -23,6 +23,49 @@ PRESS_SOURCES = (
     ("news_kicker", "踢球者", ("kicker.de", "newsfeed.kicker.de")),
     ("news_tmw", "TuttoMercatoWeb", ("tuttomercatoweb.com",)),
     ("news_footmercato", "Foot Mercato", ("footmercato.net",)),
+    # Added 2026-10-08 alongside the feed definitions in news_sources.py. A
+    # publisher that is read but never registered would reach the reader as an
+    # unclassified source, which hides the one thing this page exists to show.
+    ("news_football_italia", "Football Italia", ("football-italia.net",)),
+    ("news_90min", "90min", ("90min.com",)),
+    ("news_metro", "Metro", ("metro.co.uk",)),
+    ("news_mirror", "镜报", ("mirror.co.uk",)),
+    ("news_caught_offside", "Caught Offside", ("caughtoffside.com",)),
+    ("news_hard_tackle", "The Hard Tackle", ("thehardtackle.com",)),
+    ("news_football_london", "Football.London", ("football.london",)),
+    ("news_mundo_deportivo", "世界体育报", ("mundodeportivo.com",)),
+    ("news_tuttosport", "全体育", ("tuttosport.com",)),
+    ("news_record", "Record", ("record.pt",)),
+    ("news_givemesport", "GiveMeSport", ("givemesport.com",)),
+    ("news_the42", "The42", ("the42.ie",)),
+    ("news_hitc", "HITC", ("hitc.com",)),
+    # Non-English desks added 2026-10-08. Attribution is kept for `gazzetta.it`
+    # above and `kicker.de` even though neither feed is currently listed as a
+    # source: a URL from either can still reach the reader through a
+    # user-configured source or a stored report, and an unknown host there would
+    # display as unclassified.
+    ("news_calciomercato", "Calciomercato", ("footballco.com",)),
+    ("news_di_marzio", "Gianluca Di Marzio", ("gianlucadimarzio.com",)),
+    ("news_milannews", "MilanNews", ("milannews.it",)),
+    ("news_relevo", "Relevo", ("relevo.com",)),
+    ("news_diario_gol", "Diario Gol", ("diariogol.com",)),
+    ("news_estadio_deportivo", "Estadio Deportivo", ("estadiodeportivo.com",)),
+    ("news_but_football", "But! Football Club", ("butfootballclub.fr",)),
+    ("news_maisfutebol", "Maisfutebol", ("maisfutebol.iol.pt",)),
+    ("news_vi_nl", "Voetbal International", ("vi.nl",)),
+)
+
+# Supporter publications. They are community sources whatever the quality of
+# the writing, so they are registered at the community tier from the same list
+# the feeds are declared in.
+COMMUNITY_SOURCES = (
+    ("community_arseblog", "Arseblog", ("arseblog.news",)),
+    ("community_barca_blaugranes", "Barca Blaugranes", ("barcablaugranes.com",)),
+    ("community_managing_madrid", "Managing Madrid", ("managingmadrid.com",)),
+    ("community_bavarian_football_works", "Bavarian Football Works", ("bavarianfootballworks.com",)),
+    ("community_fear_the_wall", "Fear the Wall", ("fearthewall.com",)),
+    ("community_ac_milan_offside", "AC Milan Offside", ("acmilan.theoffside.com",)),
+    ("community_into_the_calderon", "Into the Calderón", ("intothecalderon.com",)),
 )
 
 
@@ -51,3 +94,9 @@ def load():
             if not previous or previous["tier"] is not SourceTier.PRESS:
                 provenance.register(identity, host, SourceTier.PRESS, name=name, kinds=("news",),
                                     note="已审核的固定足球新闻媒体；仅作来源归属，不授予阅读或联网范围。")
+    for identity, name, hosts in COMMUNITY_SOURCES:
+        for host in hosts:
+            previous = provenance.registered(host)
+            if not previous or previous["tier"] is not SourceTier.COMMUNITY:
+                provenance.register(identity, host, SourceTier.COMMUNITY, name=name, kinds=("news", "opinion"),
+                                    note="经核对的球迷或独立博客；按社区说法转述，不提升为媒体层级，也不进入结构化字段。")

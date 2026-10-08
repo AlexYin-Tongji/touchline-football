@@ -18,9 +18,9 @@ from bs4 import BeautifulSoup
 from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
 from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
-from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, feed_published_time,
-                           global_feed_mentions_team, readable_publisher_entry, REGIONAL_PUBLISHER_HOSTS,
-                           shared_host, TYC_HOSTS)
+from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, community_sources,
+                           feed_published_time, global_feed_mentions_team, readable_publisher_entry,
+                           REGIONAL_PUBLISHER_HOSTS, shared_host, TYC_HOSTS, verified_publisher_sources)
 from .research_transport import manual_refresh_scope
 
 
@@ -28,6 +28,13 @@ CATALOG = RESEARCH_CATALOG
 TRUSTED_HOSTS = TRUSTED_SOURCE_HOSTS | FEED_HOSTS | REGIONAL_PUBLISHER_HOSTS | {"www.bbc.co.uk", "www.bbc.com", "bbc.com", "bbc.co.uk", "www.espn.com", "espn.com", "www.skysports.com", "skysports.com", "www.reuters.com", "reuters.com", "www.bing.com", "bing.com", "site.api.espn.com"}
 for _host in ("football.london", "espn.co.uk", "goal.com", "eurosport.com", "lequipe.fr", "kicker.de", "marca.com", "as.com", "sport.es", "gazzetta.it", "corrieredellosport.it"):
     TRUSTED_HOSTS.update({_host, "www." + _host})
+# Every reviewed feed's own hosts join the allowlist from its declaration, so
+# adding a source and granting it network reach cannot drift apart. The set is
+# still built only from version-controlled declarations: a user-configured
+# source URL grants nothing here.
+for _source in (*verified_publisher_sources(), *(s for _tid in CATALOG for s in community_sources(_tid))):
+    TRUSTED_HOSTS.update(_source.get("allowed_hosts") or ())
+TRUSTED_HOSTS |= {_host[4:] for _host in tuple(TRUSTED_HOSTS) if _host.startswith("www.")}
 TOPICS = [
     ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out", "lesión", "lesiones", "lesionado", "lesionados", "lesão", "lesões", "blessure", "blessé", "blessés"),
     ("复出", "恢复", "合练", "训练", "training", "recovery", "rehabilitation", "return", "entrenamiento", "entrenamientos", "recuperación", "treino", "treinos", "recuperação", "entraînement", "entrainement", "retour"),
@@ -55,6 +62,10 @@ DATE_VERIFY_TOTAL = 6
 ACCESS_REVIEW_SECONDS = 7 * 24 * 60 * 60
 SOURCE_BACKOFF_SECONDS = (60, 5 * 60, 30 * 60, 2 * 60 * 60, 12 * 60 * 60)
 ESPN_FAILURE_CACHE_SECONDS = 10 * 60
+# Below this, an unbound body is a navigation or consent shell rather than a
+# story: measured shells are 70-90 characters, measured real articles 700+.
+# The gap is wide enough that the threshold is not a tuning knob.
+MIN_UNBOUND_BODY_CHARS = 200
 
 
 class ArticleScopeError(ingestion.IngestionError):
@@ -72,7 +83,8 @@ def source_catalog(store, team_id):
     disabled_urls = {ingestion.normalize_url(item["url"]) for item in configured if not item.get("enabled", True)}
     sources, urls = [], set()
     team_name = store.get("teams", team_id).get("name", "球队")
-    for source in [*CATALOG.get(team_id, []), *additional_sources(team_id)]:
+    for source in [*CATALOG.get(team_id, []), *additional_sources(team_id),
+                   *verified_publisher_sources(), *community_sources(team_id)]:
         url = ingestion.normalize_url(source["url"])
         if url in disabled_urls or url in urls:
             continue
@@ -893,10 +905,14 @@ async def _verify_article_dates(store, team_id, source, entries, *, force=False,
             if article_url(url) != entry["url"]:
                 raise ingestion.IngestionError("核实日期时来源跳转到了其他文章，未作为近期消息。")
             article = ingestion.extract_html(body, url, source["name"])[0]
-            if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
-                raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
             if not _first_team_entry(article):
                 return entry["url"], {}, None, "out_of_scope", None
+            if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
+                # The body could not be bound to this article, so a date read off
+                # the page may belong to the listing around it. The date stays
+                # unknown — but the entry does, rather than the whole source
+                # failing because of one unbound page.
+                return entry["url"], {}, None, "unknown", None
             if article_cache is not None:
                 article_cache[(entry["url"], source["id"])] = article
             return entry["url"], {key: article.get(key) for key in ingestion.PUBLICATION_FIELDS}, article.get("title"), "dated" if _dated(article) else "unknown", None
@@ -1285,11 +1301,25 @@ async def read_candidate(store, team_id, candidate_id, event_id=None, match_id=N
             article = ingestion.extract_html(body, article_url(url), source["name"])[0]
         if not article.get("source_scope") and candidate.get("source_scope"):
             article["source_scope"] = candidate["source_scope"]
-        if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
-            raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
+        unbound_body = bool(source.get("builtin") and article.get("content_method") == "html_fallback"
+                            and not article.get("_article_owned"))
+        if unbound_body:
+            # Two very different pages reach here: a real article whose body the
+            # extractor could not formally bind (a club site returning 700+
+            # characters of its own copy), and a cookie-or-navigation shell that
+            # happens to answer 200 (70-90 characters of link text). Dropping
+            # both is what made club official sites read as zero evidence;
+            # accepting both would file a navigation menu as an article.
+            # Body size separates them by roughly an order of magnitude, so the
+            # decision is made on substance rather than on the binding flag.
+            if len(str(article.get("text") or "")) < MIN_UNBOUND_BODY_CHARS:
+                raise ingestion.IngestionError("该页面没有可确认的正文，只有栏目或导航文字。")
+            article["content_status"] = "partial"
+            article["content_note"] = "未能确认该页面的正文范围，已保留可读文本；其中可能包含栏目或站点文字。"
         if not _first_team_entry(article):
             raise ArticleScopeError("文章属于女足、青年队或其他项目，未纳入男足一线队消息。")
         article.pop("_scope_intro", None)
+        article["_article_owned"] = bool(article.get("_article_owned")) and not unbound_body
         current, match, current_source = _candidate_context(store, team_id, candidate_id, event_id, match_id)
         if current.get("url") != candidate.get("url") or current.get("source_id") != candidate.get("source_id"):
             raise ingestion.IngestionError("读取期间来源链接已变化，请重新查找文章。")
@@ -1407,7 +1437,12 @@ async def read_evidence_source(store, evidence_id, *, force=False):
     body, url, _ = await _fetch_shared(store, item["url"], source, force=force)
     article = ingestion.extract_html(body, article_url(url), source["name"])[0]
     if source.get("builtin") and article.get("content_method") == "html_fallback" and not article.get("_article_owned"):
-        raise ingestion.IngestionError("未确认文章自己的正文，页面目前仅有栏目或网站文字。")
+        # Same substance test as the read path: keep a real body, refuse a shell.
+        if len(str(article.get("text") or "")) < MIN_UNBOUND_BODY_CHARS:
+            raise ingestion.IngestionError("该页面没有可确认的正文，只有栏目或导航文字。")
+        article["content_status"] = "partial"
+        article["content_note"] = "未能确认该页面的正文范围，已保留可读文本；其中可能包含栏目或站点文字。"
+        article["_article_owned"] = False
     if not _first_team_entry(article):
         raise ArticleScopeError("文章属于女足、青年队或其他项目，未纳入男足一线队消息。")
     article.pop("_scope_intro", None)
