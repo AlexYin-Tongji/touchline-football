@@ -33,7 +33,14 @@ class ClubLibraryTests(unittest.TestCase):
                 self.assertTrue(club["city"] and club["profile_sources"])
                 self.assertTrue(club["official_url"].startswith("https://"))
                 self.assertIn("权利归", club["crest_attribution"])
-                self.assertTrue(club["crest_url"].startswith("/assets/"))
+                # Every crest lives in one directory. Four clubs used to point at
+                # /assets/<file> while the other 92 used /assets/clubs/<file>, so
+                # the same Arsenal file shipped at three paths and a filename
+                # alone did not say where to look. The build index and the
+                # browser both pass this value through verbatim, so the shape has
+                # to be asserted here or it drifts again.
+                self.assertTrue(club["crest_url"].startswith("/assets/clubs/"),
+                                f"{club['id']} 的队徽不在统一目录：{club['crest_url']}")
                 file = ROOT / "public" / club["crest_url"].lstrip("/")
                 body = file.read_bytes()
                 self.assertEqual(hashlib.sha256(body).hexdigest(), credits[club["id"]]["sha256"])
@@ -47,6 +54,32 @@ class ClubLibraryTests(unittest.TestCase):
                     self.assertEqual(body[:8], b"\x89PNG\r\n\x1a\n")
                     self.assertGreater(int.from_bytes(body[16:20], "big"), 32)
                     self.assertGreater(int.from_bytes(body[20:24], "big"), 32)
+
+    def test_every_shipped_crest_file_is_either_used_or_registered(self):
+        """A file in the crest directory must be accounted for.
+
+        The directory held four images nothing referenced: a second copy of the
+        Arsenal crest, a Liverpool SVG the catalogue never pointed at, and the
+        two files kept deliberately for old URLs. Three of those were silently
+        dead weight and one was a real compatibility asset, and nothing in the
+        repository distinguished them. Every file is now either the catalogue's
+        current crest or registered in `compatibility_assets` with a stated
+        purpose, so an orphan is a test failure rather than a discovery.
+        """
+        manifest = json.loads((ROOT / "public/assets/clubs/attribution.json").read_text(encoding="utf-8"))
+        used = {club["crest_url"] for club in CLUBS}
+        registered = {row["crest_url"] for row in manifest.get("compatibility_assets", [])}
+        extensions = {".png", ".svg", ".jpg", ".jpeg", ".webp", ".avif"}
+        on_disk = {"/assets/clubs/" + path.name for path in (ROOT / "public/assets/clubs").iterdir()
+                   if path.is_file() and path.suffix.lower() in extensions}
+        self.assertTrue(on_disk, "队徽目录不应为空")
+        for path in sorted(on_disk - used - registered):
+            self.fail(f"{path} 既没有被目录使用，也没有登记用途")
+        for entry in manifest.get("compatibility_assets", []):
+            self.assertTrue(entry.get("purpose"), f"{entry['crest_url']} 缺少保留用途说明")
+            self.assertTrue((ROOT / "public" / entry["crest_url"].lstrip("/")).is_file())
+        # Every catalogue crest must be on disk; the reverse is already covered.
+        self.assertEqual(used - on_disk, set())
 
     def test_all_teams_have_public_sources_and_scoped_aliases(self):
         self.assertEqual(set(RESEARCH_CATALOG), {club["id"] for club in CLUBS})

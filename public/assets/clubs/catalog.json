@@ -7,7 +7,7 @@
       "阿仙奴",
       "Arsenal FC"
     ],
-    "crest_url": "/assets/arsenal.svg",
+    "crest_url": "/assets/clubs/arsenal.svg",
     "short_name": "ARS",
     "color": "#C83C3C",
     "country": "英格兰",
@@ -105,6 +105,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "362"
+    },
+    "stadium": "Villa Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18711",
+        "url": "https://www.wikidata.org/wiki/Q18711",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -151,6 +163,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "349"
+    },
+    "founded": 1899,
+    "nickname": "The Cherries",
+    "stadium": "Dean Court",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19568",
+        "url": "https://www.wikidata.org/wiki/Q19568",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -197,6 +225,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "337"
+    },
+    "stadium": "Griffin Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19571",
+        "url": "https://www.wikidata.org/wiki/Q19571",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -246,6 +286,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "331"
+    },
+    "nickname": "The Seagulls",
+    "stadium": "Brighton Community Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19453",
+        "url": "https://www.wikidata.org/wiki/Q19453",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -292,6 +346,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "363"
+    },
+    "nickname": "The Blues",
+    "stadium": "Stamford Bridge",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q9616",
+        "url": "https://www.wikidata.org/wiki/Q9616",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -339,6 +407,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "388"
+    },
+    "founded": 1883,
+    "stadium": "Coventry Building Society Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19580",
+        "url": "https://www.wikidata.org/wiki/Q19580",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -384,6 +466,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "384"
+    },
+    "founded": 1905,
+    "nickname": "The Eagles",
+    "stadium": "Selhurst Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19467",
+        "url": "https://www.wikidata.org/wiki/Q19467",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -434,6 +532,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "368"
+    },
+    "stadium": "Hill Dickinson Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q5794",
+        "url": "https://www.wikidata.org/wiki/Q5794",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -480,6 +590,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "370"
+    },
+    "nickname": "The Cottagers",
+    "stadium": "Craven Cottage",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18708",
+        "url": "https://www.wikidata.org/wiki/Q18708",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -527,6 +651,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "306"
+    },
+    "nickname": "The Tigers",
+    "stadium": "MKM Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19477",
+        "url": "https://www.wikidata.org/wiki/Q19477",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -575,6 +713,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "373"
+    },
+    "stadium": "Portman Road",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q9653",
+        "url": "https://www.wikidata.org/wiki/Q9653",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -622,6 +772,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "357"
+    },
+    "nickname": "The Whites",
+    "stadium": "Elland Road",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1128631",
+        "url": "https://www.wikidata.org/wiki/Q1128631",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -632,7 +796,7 @@
       "Liverpool FC",
       "LFC"
     ],
-    "crest_url": "/assets/liverpool.png",
+    "crest_url": "/assets/clubs/liverpool.png",
     "short_name": "LIV",
     "color": "#BE3945",
     "country": "英格兰",
@@ -731,6 +895,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "382"
+    },
+    "nickname": "City",
+    "stadium": "Etihad Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q50602",
+        "url": "https://www.wikidata.org/wiki/Q50602",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -781,6 +959,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "360"
+    },
+    "nickname": "The Red Devils",
+    "stadium": "Old Trafford",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18656",
+        "url": "https://www.wikidata.org/wiki/Q18656",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -830,6 +1022,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "361"
+    },
+    "founded": 1892,
+    "nickname": "The Magpies",
+    "stadium": "St James’ Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18716",
+        "url": "https://www.wikidata.org/wiki/Q18716",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -879,6 +1087,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "393"
+    },
+    "nickname": "Forest",
+    "stadium": "City Ground",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19490",
+        "url": "https://www.wikidata.org/wiki/Q19490",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -924,6 +1146,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "366"
+    },
+    "founded": 1879,
+    "stadium": "Stadium of Light",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18739",
+        "url": "https://www.wikidata.org/wiki/Q18739",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -973,6 +1209,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "367"
+    },
+    "nickname": "The Lilywhites",
+    "stadium": "Tottenham Hotspur Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q18741",
+        "url": "https://www.wikidata.org/wiki/Q18741",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -996,7 +1246,7 @@
     "stadium": "诺坎普球场",
     "nickname": "红蓝军团",
     "description": "1899 年由甘伯等人创立。诺坎普球场于 1957 年启用，是俱乐部历史与城市足球文化的重要组成部分。",
-    "crest_url": "/assets/barcelona.png",
+    "crest_url": "/assets/clubs/barcelona.png",
     "crest_source_url": "https://www.fcbarcelona.com/en/",
     "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
     "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -1050,7 +1300,7 @@
     "stadium": "朱塞佩·梅阿查球场",
     "nickname": "蓝黑军团",
     "description": "1908 年 3 月 9 日在米兰创立。梅阿查球场又称圣西罗球场，自 1947 年起承载着国际米兰的主场历史。",
-    "crest_url": "/assets/inter.png",
+    "crest_url": "/assets/clubs/inter.png",
     "crest_source_url": "https://www.inter.it/en",
     "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
     "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -1128,6 +1378,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "86"
+    },
+    "nickname": "Los Blancos",
+    "stadium": "Bernabéu",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8682",
+        "url": "https://www.wikidata.org/wiki/Q8682",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1176,6 +1440,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "132"
+    },
+    "stadium": "Grünwalder Stadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q15789",
+        "url": "https://www.wikidata.org/wiki/Q15789",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1225,6 +1501,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "160"
+    },
+    "stadium": "Parc des Princes",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q483020",
+        "url": "https://www.wikidata.org/wiki/Q483020",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1272,6 +1560,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "111"
+    },
+    "nickname": "La Vecchia Signora",
+    "stadium": "Juventus Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1422",
+        "url": "https://www.wikidata.org/wiki/Q1422",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1320,6 +1622,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "103"
+    },
+    "nickname": "Il Diavolo",
+    "stadium": "Giuseppe Meazza Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1543",
+        "url": "https://www.wikidata.org/wiki/Q1543",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1370,6 +1686,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "1068"
+    },
+    "stadium": "Estadio Metropolitano de Madrid",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8701",
+        "url": "https://www.wikidata.org/wiki/Q8701",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1418,6 +1746,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "124"
+    },
+    "stadium": "Westfalenstadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q41420",
+        "url": "https://www.wikidata.org/wiki/Q41420",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1465,6 +1805,18 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "104"
+    },
+    "stadium": "Stadio Olimpico",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2739",
+        "url": "https://www.wikidata.org/wiki/Q2739",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -1536,7 +1888,21 @@
     "provider_ids": {
       "espn": "96"
     },
-    "founded": 1921
+    "founded": 1921,
+    "nickname": "Babazorroak",
+    "stadium": "Mendizorrotza Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q223620",
+        "url": "https://www.wikidata.org/wiki/Q223620",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "athletic-club",
@@ -1604,7 +1970,21 @@
     "provider_ids": {
       "espn": "93"
     },
-    "founded": 1898
+    "founded": 1898,
+    "nickname": "Rojiblancos",
+    "stadium": "San Mamés Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8687",
+        "url": "https://www.wikidata.org/wiki/Q8687",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "celta-vigo",
@@ -1672,7 +2052,19 @@
     "provider_ids": {
       "espn": "85"
     },
-    "founded": 1923
+    "founded": 1923,
+    "stadium": "Abanca Balaídos Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8749",
+        "url": "https://www.wikidata.org/wiki/Q8749",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "deportivo-la-coruna",
@@ -1741,7 +2133,19 @@
     "provider_ids": {
       "espn": "90"
     },
-    "founded": 1906
+    "founded": 1906,
+    "stadium": "Estadio Municipal de Abanca Riazor",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8760",
+        "url": "https://www.wikidata.org/wiki/Q8760",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "elche",
@@ -1808,7 +2212,19 @@
     "provider_ids": {
       "espn": "3751"
     },
-    "founded": 1923
+    "founded": 1923,
+    "stadium": "Estadio Manuel Martínez Valero",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q10512",
+        "url": "https://www.wikidata.org/wiki/Q10512",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "espanyol",
@@ -1875,7 +2291,19 @@
     "provider_ids": {
       "espn": "88"
     },
-    "founded": 1900
+    "founded": 1900,
+    "stadium": "RCDE Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8780",
+        "url": "https://www.wikidata.org/wiki/Q8780",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "getafe",
@@ -1942,7 +2370,19 @@
     "provider_ids": {
       "espn": "2922"
     },
-    "founded": 1983
+    "founded": 1983,
+    "stadium": "Estadio Coliseum",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8806",
+        "url": "https://www.wikidata.org/wiki/Q8806",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "levante",
@@ -2009,7 +2449,19 @@
     "provider_ids": {
       "espn": "1538"
     },
-    "founded": 1909
+    "founded": 1909,
+    "stadium": "Estadi Ciutat de València",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8823",
+        "url": "https://www.wikidata.org/wiki/Q8823",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "malaga",
@@ -2077,7 +2529,19 @@
     "provider_ids": {
       "espn": "99"
     },
-    "founded": 1994
+    "founded": 1994,
+    "stadium": "La Rosaleda Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8857",
+        "url": "https://www.wikidata.org/wiki/Q8857",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "osasuna",
@@ -2144,7 +2608,21 @@
     "provider_ids": {
       "espn": "97"
     },
-    "founded": 1920
+    "founded": 1920,
+    "nickname": "Gorritxoak",
+    "stadium": "El Sadar Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q10286",
+        "url": "https://www.wikidata.org/wiki/Q10286",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "racing-santander",
@@ -2213,7 +2691,19 @@
     "provider_ids": {
       "espn": "87"
     },
-    "founded": 1913
+    "founded": 1913,
+    "stadium": "Campos de Sport de El Sardinero",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q12236",
+        "url": "https://www.wikidata.org/wiki/Q12236",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "rayo-vallecano",
@@ -2281,7 +2771,19 @@
     "provider_ids": {
       "espn": "101"
     },
-    "founded": 1924
+    "founded": 1924,
+    "stadium": "Campo de Fútbol de Vallecas",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q10300",
+        "url": "https://www.wikidata.org/wiki/Q10300",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "real-betis",
@@ -2350,7 +2852,19 @@
     "provider_ids": {
       "espn": "244"
     },
-    "founded": 1907
+    "founded": 1907,
+    "stadium": "Estadio Benito Villamarín",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8723",
+        "url": "https://www.wikidata.org/wiki/Q8723",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "real-sociedad",
@@ -2417,7 +2931,21 @@
     "provider_ids": {
       "espn": "89"
     },
-    "founded": 1909
+    "founded": 1909,
+    "nickname": "Erreala",
+    "stadium": "Anoeta Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q10315",
+        "url": "https://www.wikidata.org/wiki/Q10315",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "nickname",
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "sevilla",
@@ -2484,7 +3012,19 @@
     "provider_ids": {
       "espn": "243"
     },
-    "founded": 1890
+    "founded": 1890,
+    "stadium": "Ramón Sánchez Pizjuán Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q10329",
+        "url": "https://www.wikidata.org/wiki/Q10329",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "valencia",
@@ -2552,7 +3092,19 @@
     "provider_ids": {
       "espn": "94"
     },
-    "founded": 1919
+    "founded": 1919,
+    "stadium": "Estadio Misael Delgado",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q9092324",
+        "url": "https://www.wikidata.org/wiki/Q9092324",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "villarreal",
@@ -2620,7 +3172,19 @@
     "provider_ids": {
       "espn": "102"
     },
-    "founded": 1923
+    "founded": 1923,
+    "stadium": "Estadio de la Cerámica",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q12297",
+        "url": "https://www.wikidata.org/wiki/Q12297",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "stadium"
+        ]
+      }
+    }
   },
   {
     "id": "atalanta",
@@ -2687,7 +3251,19 @@
     "provider_ids": {
       "espn": "105"
     },
-    "stadium": "New Balance Arena"
+    "stadium": "New Balance Arena",
+    "founded": 1907,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1886",
+        "url": "https://www.wikidata.org/wiki/Q1886",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "bologna",
@@ -2754,7 +3330,21 @@
     "provider_ids": {
       "espn": "107"
     },
-    "stadium": "Renato Dall’Ara"
+    "stadium": "Renato Dall’Ara",
+    "founded": 1909,
+    "nickname": "Rossoblù",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1893",
+        "url": "https://www.wikidata.org/wiki/Q1893",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname"
+        ]
+      }
+    }
   },
   {
     "id": "cagliari",
@@ -2821,7 +3411,21 @@
     "provider_ids": {
       "espn": "2925"
     },
-    "stadium": "Unipol Domus"
+    "stadium": "Unipol Domus",
+    "founded": 1920,
+    "nickname": "Casteddu",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1900",
+        "url": "https://www.wikidata.org/wiki/Q1900",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname"
+        ]
+      }
+    }
   },
   {
     "id": "como",
@@ -2888,7 +3492,19 @@
     "provider_ids": {
       "espn": "2572"
     },
-    "stadium": "Giuseppe Sinigaglia"
+    "stadium": "Giuseppe Sinigaglia",
+    "founded": 1907,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1120838",
+        "url": "https://www.wikidata.org/wiki/Q1120838",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "fiorentina",
@@ -2956,7 +3572,19 @@
     "provider_ids": {
       "espn": "109"
     },
-    "stadium": "Artemio Franchi"
+    "stadium": "Artemio Franchi",
+    "founded": 1926,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2052",
+        "url": "https://www.wikidata.org/wiki/Q2052",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "frosinone",
@@ -3023,7 +3651,19 @@
     "provider_ids": {
       "espn": "4057"
     },
-    "stadium": "Benito Stirpe"
+    "stadium": "Benito Stirpe",
+    "founded": 1928,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q845043",
+        "url": "https://www.wikidata.org/wiki/Q845043",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "genoa",
@@ -3090,7 +3730,19 @@
     "provider_ids": {
       "espn": "3263"
     },
-    "stadium": "Luigi Ferraris"
+    "stadium": "Luigi Ferraris",
+    "founded": 1893,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2074",
+        "url": "https://www.wikidata.org/wiki/Q2074",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "lazio",
@@ -3157,7 +3809,19 @@
     "provider_ids": {
       "espn": "112"
     },
-    "stadium": "Olimpico"
+    "stadium": "Olimpico",
+    "founded": 1900,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2609",
+        "url": "https://www.wikidata.org/wiki/Q2609",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "lecce",
@@ -3227,7 +3891,19 @@
     "provider_ids": {
       "espn": "113"
     },
-    "stadium": "Ettore Giardiniero - Via del Mare"
+    "stadium": "Ettore Giardiniero - Via del Mare",
+    "founded": 1908,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q13391",
+        "url": "https://www.wikidata.org/wiki/Q13391",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "monza",
@@ -3294,7 +3970,21 @@
     "provider_ids": {
       "espn": "4007"
     },
-    "stadium": "Brianteo"
+    "stadium": "Brianteo",
+    "founded": 1912,
+    "nickname": "I Biancorossi",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q289482",
+        "url": "https://www.wikidata.org/wiki/Q289482",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname"
+        ]
+      }
+    }
   },
   {
     "id": "napoli",
@@ -3361,7 +4051,21 @@
     "provider_ids": {
       "espn": "114"
     },
-    "stadium": "Diego Armando Maradona"
+    "stadium": "Diego Armando Maradona",
+    "founded": 1926,
+    "nickname": "I Partenopei",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2641",
+        "url": "https://www.wikidata.org/wiki/Q2641",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname"
+        ]
+      }
+    }
   },
   {
     "id": "parma",
@@ -3428,7 +4132,19 @@
     "provider_ids": {
       "espn": "115"
     },
-    "stadium": "Ennio Tardini"
+    "stadium": "Ennio Tardini",
+    "founded": 1913,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2693",
+        "url": "https://www.wikidata.org/wiki/Q2693",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "sassuolo",
@@ -3495,7 +4211,19 @@
     "provider_ids": {
       "espn": "3997"
     },
-    "stadium": "Mapei Stadium"
+    "stadium": "Mapei Stadium",
+    "founded": 1920,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q8603",
+        "url": "https://www.wikidata.org/wiki/Q8603",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "torino",
@@ -3562,7 +4290,19 @@
     "provider_ids": {
       "espn": "239"
     },
-    "stadium": "Olimpico - Grande Torino"
+    "stadium": "Olimpico - Grande Torino",
+    "founded": 2005,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2768",
+        "url": "https://www.wikidata.org/wiki/Q2768",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "udinese",
@@ -3629,7 +4369,19 @@
     "provider_ids": {
       "espn": "118"
     },
-    "stadium": "Friuli / Bluenergy Stadium"
+    "stadium": "Friuli / Bluenergy Stadium",
+    "founded": 1896,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q2798",
+        "url": "https://www.wikidata.org/wiki/Q2798",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "venezia",
@@ -3696,7 +4448,19 @@
     "provider_ids": {
       "espn": "17530"
     },
-    "stadium": "Pier Luigi Penzo"
+    "stadium": "Pier Luigi Penzo",
+    "founded": 1907,
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q501245",
+        "url": "https://www.wikidata.org/wiki/Q501245",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded"
+        ]
+      }
+    }
   },
   {
     "id": "union-berlin",
@@ -3762,6 +4526,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "598"
+    },
+    "founded": 1966,
+    "nickname": "Eiserne",
+    "stadium": "Stadion An der Alten Försterei",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q141971",
+        "url": "https://www.wikidata.org/wiki/Q141971",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -3830,6 +4610,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "131"
+    },
+    "founded": 1904,
+    "stadium": "BayArena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q104761",
+        "url": "https://www.wikidata.org/wiki/Q104761",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -3899,6 +4693,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "268"
+    },
+    "founded": 1900,
+    "stadium": "ista-Borussia-Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q101959",
+        "url": "https://www.wikidata.org/wiki/Q101959",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -3964,6 +4772,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "125"
+    },
+    "founded": 1899,
+    "stadium": "Waldstadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q38245",
+        "url": "https://www.wikidata.org/wiki/Q38245",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4030,6 +4852,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "3841"
+    },
+    "founded": 1907,
+    "stadium": "WWK Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q15755",
+        "url": "https://www.wikidata.org/wiki/Q15755",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4099,6 +4935,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "122"
+    },
+    "founded": 1948,
+    "nickname": "Effzeh",
+    "stadium": "RheinEnergie Stadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q104770",
+        "url": "https://www.wikidata.org/wiki/Q104770",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4167,6 +5019,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "127"
+    },
+    "founded": 1887,
+    "nickname": "Die Rothosen",
+    "stadium": "Volksparkstadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q51974",
+        "url": "https://www.wikidata.org/wiki/Q51974",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4235,6 +5103,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "2950"
+    },
+    "founded": 1905,
+    "nickname": "Die Nullfünfer",
+    "stadium": "Mewa Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q105254",
+        "url": "https://www.wikidata.org/wiki/Q105254",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4302,6 +5186,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "11420"
+    },
+    "founded": 2009,
+    "stadium": "Red Bull Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q702455",
+        "url": "https://www.wikidata.org/wiki/Q702455",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4369,6 +5267,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "126"
+    },
+    "founded": 1904,
+    "stadium": "Dreisamstadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q106394",
+        "url": "https://www.wikidata.org/wiki/Q106394",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4435,6 +5347,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "3307"
+    },
+    "founded": 1907,
+    "stadium": "Home Deluxe Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q160532",
+        "url": "https://www.wikidata.org/wiki/Q160532",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4502,6 +5428,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "10388"
+    },
+    "founded": 1907,
+    "stadium": "Waldstadion an der Kaiserlinde",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q692691",
+        "url": "https://www.wikidata.org/wiki/Q692691",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4570,6 +5510,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "133"
+    },
+    "founded": 1904,
+    "stadium": "Arena AufSchalke",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q32494",
+        "url": "https://www.wikidata.org/wiki/Q32494",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4637,6 +5591,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "7911"
+    },
+    "founded": 1899,
+    "stadium": "SNP Arena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q22707",
+        "url": "https://www.wikidata.org/wiki/Q22707",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4703,6 +5671,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "134"
+    },
+    "founded": 1893,
+    "stadium": "MHPArena",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q4512",
+        "url": "https://www.wikidata.org/wiki/Q4512",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4771,6 +5753,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "137"
+    },
+    "founded": 1899,
+    "stadium": "Weserstadion",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q51976",
+        "url": "https://www.wikidata.org/wiki/Q51976",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4837,6 +5833,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "172"
+    },
+    "founded": 1905,
+    "nickname": "AJA",
+    "stadium": "Stade de l'Abbé-Deschamps",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q182876",
+        "url": "https://www.wikidata.org/wiki/Q182876",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4903,6 +5915,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "174"
+    },
+    "founded": 1924,
+    "stadium": "Stade Louis II",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q180305",
+        "url": "https://www.wikidata.org/wiki/Q180305",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -4969,6 +5995,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "7868"
+    },
+    "founded": 1919,
+    "nickname": "le SCO",
+    "stadium": "Stade Raymond Kopa",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q845137",
+        "url": "https://www.wikidata.org/wiki/Q845137",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5036,6 +6078,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "6997"
+    },
+    "founded": 1950,
+    "stadium": "Stade Francis-Le Blé",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q218372",
+        "url": "https://www.wikidata.org/wiki/Q218372",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5104,6 +6160,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "3236"
+    },
+    "founded": 1884,
+    "stadium": "Stade Océane",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q328658",
+        "url": "https://www.wikidata.org/wiki/Q328658",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5170,6 +6240,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "2697"
+    },
+    "founded": 1985,
+    "stadium": "stade Marie-Marvingt",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q210864",
+        "url": "https://www.wikidata.org/wiki/Q210864",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5236,6 +6320,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "175"
+    },
+    "founded": 1906,
+    "stadium": "Stade Bollaert-Delelis",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q191843",
+        "url": "https://www.wikidata.org/wiki/Q191843",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5303,6 +6401,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "166"
+    },
+    "founded": 1944,
+    "stadium": "Pierre Mauroy Stadium",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19516",
+        "url": "https://www.wikidata.org/wiki/Q19516",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5369,6 +6481,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "273"
+    },
+    "founded": 1926,
+    "stadium": "Stade du Moustoir",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q48911",
+        "url": "https://www.wikidata.org/wiki/Q48911",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5435,6 +6561,22 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "167"
+    },
+    "founded": 1950,
+    "nickname": "OL",
+    "stadium": "Parc Olympique Lyonnais",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q704",
+        "url": "https://www.wikidata.org/wiki/Q704",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "nickname",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5501,6 +6643,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "176"
+    },
+    "founded": 1899,
+    "stadium": "Stade Vélodrome",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q132885",
+        "url": "https://www.wikidata.org/wiki/Q132885",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5567,6 +6723,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "2502"
+    },
+    "founded": 1904,
+    "stadium": "Allianz Riviera",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q185163",
+        "url": "https://www.wikidata.org/wiki/Q185163",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5633,6 +6803,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "6851"
+    },
+    "founded": 1969,
+    "stadium": "Stade Charléty",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q1051013",
+        "url": "https://www.wikidata.org/wiki/Q1051013",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5700,6 +6884,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "169"
+    },
+    "founded": 1901,
+    "stadium": "Roazhon Park",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19509",
+        "url": "https://www.wikidata.org/wiki/Q19509",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5767,6 +6965,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "180"
+    },
+    "founded": 1906,
+    "stadium": "Stade de la Meinau",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q126334",
+        "url": "https://www.wikidata.org/wiki/Q126334",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5833,6 +7045,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "179"
+    },
+    "founded": 1970,
+    "stadium": "Stadium Municipal",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q19518",
+        "url": "https://www.wikidata.org/wiki/Q19518",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   },
   {
@@ -5899,6 +7125,20 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "170"
+    },
+    "founded": 1986,
+    "stadium": "Stade de l'Aube",
+    "background_sources": {
+      "wikidata": {
+        "entity": "Q501693",
+        "url": "https://www.wikidata.org/wiki/Q501693",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08",
+        "fields": [
+          "founded",
+          "stadium"
+        ]
+      }
     }
   }
 ]

@@ -6,7 +6,7 @@
     {
       "id": "arsenal",
       "english_name": "Arsenal",
-      "crest_url": "/assets/arsenal.svg",
+      "crest_url": "/assets/clubs/arsenal.svg",
       "crest_source_url": "https://www.premierleague.com/en/clubs/3/arsenal/overview",
       "crest_asset_url": "https://resources.premierleague.com/premierleague25/badges-alt/3.svg",
       "crest_attribution": "阿森纳俱乐部标识，来自英超官方球队资料页。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -23,7 +23,13 @@
       "crest_attribution": "阿斯顿维拉俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "7f3c149342283f285bceb557eb94c47a8e0f0cfc8b0e25cccf3c3478cd690d52",
-      "bytes": 22375
+      "bytes": 22375,
+      "background_sources": {
+        "entity": "Q18711",
+        "url": "https://www.wikidata.org/wiki/Q18711",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "bournemouth",
@@ -34,7 +40,13 @@
       "crest_attribution": "伯恩茅斯俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "3815981d1993309836ba0ef09cad8bda57becd61530e6449ffad14ca08c89d43",
-      "bytes": 20129
+      "bytes": 20129,
+      "background_sources": {
+        "entity": "Q19568",
+        "url": "https://www.wikidata.org/wiki/Q19568",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "brentford",
@@ -45,7 +57,13 @@
       "crest_attribution": "布伦特福德俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f785147e395b80f9f63f1d8015a70cc39978c208745a585fa5c8dd23aed68045",
-      "bytes": 10871
+      "bytes": 10871,
+      "background_sources": {
+        "entity": "Q19571",
+        "url": "https://www.wikidata.org/wiki/Q19571",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "brighton",
@@ -56,7 +74,13 @@
       "crest_attribution": "布莱顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "7c4d315ac7138ad75561628f2af5c6e69811cf2f578cb89ce564cae96d42f6b8",
-      "bytes": 74588
+      "bytes": 74588,
+      "background_sources": {
+        "entity": "Q19453",
+        "url": "https://www.wikidata.org/wiki/Q19453",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "chelsea",
@@ -67,7 +91,13 @@
       "crest_attribution": "切尔西俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "29fa524f7a230182d3b14ec0c5054c2589ef78bf4d3d8ea1d495dab8a7d918e6",
-      "bytes": 35066
+      "bytes": 35066,
+      "background_sources": {
+        "entity": "Q9616",
+        "url": "https://www.wikidata.org/wiki/Q9616",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "coventry-city",
@@ -78,7 +108,13 @@
       "crest_attribution": "考文垂俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e2208587baf85b2dec64d2844781b4f561d558c782feec6660e381133cbb0dbe",
-      "bytes": 72114
+      "bytes": 72114,
+      "background_sources": {
+        "entity": "Q19580",
+        "url": "https://www.wikidata.org/wiki/Q19580",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "crystal-palace",
@@ -89,7 +125,13 @@
       "crest_attribution": "水晶宫俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e40fc09ca61fa76545c4bd0c99acc6fc7d3f7339ca1d5344a76dc68cb803be7f",
-      "bytes": 31022
+      "bytes": 31022,
+      "background_sources": {
+        "entity": "Q19467",
+        "url": "https://www.wikidata.org/wiki/Q19467",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "everton",
@@ -100,7 +142,13 @@
       "crest_attribution": "埃弗顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "93563ca0c3aca4d4472c0068d321e3c7203d92924197139e255364188cba7a4a",
-      "bytes": 46400
+      "bytes": 46400,
+      "background_sources": {
+        "entity": "Q5794",
+        "url": "https://www.wikidata.org/wiki/Q5794",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "fulham",
@@ -111,7 +159,13 @@
       "crest_attribution": "富勒姆俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8686cfca58f1bd2243bc55bc96a5886d2850188efe83df1835003595aed75956",
-      "bytes": 3406
+      "bytes": 3406,
+      "background_sources": {
+        "entity": "Q18708",
+        "url": "https://www.wikidata.org/wiki/Q18708",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "hull-city",
@@ -122,7 +176,13 @@
       "crest_attribution": "赫尔城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "be5c525fb285965c162a0acbd6732455b734744aa994dac0aa50034d125f3127",
-      "bytes": 157728
+      "bytes": 157728,
+      "background_sources": {
+        "entity": "Q19477",
+        "url": "https://www.wikidata.org/wiki/Q19477",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "ipswich-town",
@@ -133,7 +193,13 @@
       "crest_attribution": "伊普斯维奇俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "acd50f73c31d3abd8dc087c51831e822916e7ed3ee1121dfd3dd561cf3059207",
-      "bytes": 49156
+      "bytes": 49156,
+      "background_sources": {
+        "entity": "Q9653",
+        "url": "https://www.wikidata.org/wiki/Q9653",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "leeds-united",
@@ -144,12 +210,18 @@
       "crest_attribution": "利兹联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "9301963653bed97114901f9e6bf9b1d7e7ccf2ebb3850561b0ccfde4246daf62",
-      "bytes": 23078
+      "bytes": 23078,
+      "background_sources": {
+        "entity": "Q1128631",
+        "url": "https://www.wikidata.org/wiki/Q1128631",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "liverpool",
       "english_name": "Liverpool",
-      "crest_url": "/assets/liverpool.png",
+      "crest_url": "/assets/clubs/liverpool.png",
       "crest_source_url": "https://www.liverpoolfc.com/",
       "crest_asset_url": "https://www.liverpoolfc.com/apple-touch-icon.png",
       "crest_attribution": "利物浦俱乐部利弗鸟标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -166,7 +238,13 @@
       "crest_attribution": "曼城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "5992dc73d3a29ef6d1e028a1658207b0b77e5afe9221fd14add86b03e3f54c42",
-      "bytes": 20188
+      "bytes": 20188,
+      "background_sources": {
+        "entity": "Q50602",
+        "url": "https://www.wikidata.org/wiki/Q50602",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "manchester-united",
@@ -177,7 +255,13 @@
       "crest_attribution": "曼联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "26a24cef1e79effd71f2ce571b5ac73a847916f53c4d50c60731f669dc32c004",
-      "bytes": 20534
+      "bytes": 20534,
+      "background_sources": {
+        "entity": "Q18656",
+        "url": "https://www.wikidata.org/wiki/Q18656",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "newcastle-united",
@@ -188,7 +272,13 @@
       "crest_attribution": "纽卡斯尔联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "c22245c6265c78035859015945ece2554e94b5916eab7075ca501a6e915b2147",
-      "bytes": 97889
+      "bytes": 97889,
+      "background_sources": {
+        "entity": "Q18716",
+        "url": "https://www.wikidata.org/wiki/Q18716",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "nottingham-forest",
@@ -199,7 +289,13 @@
       "crest_attribution": "诺丁汉森林俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "c3bc36f713d19db7aa55e46bffa51220b23ecdb77977e02e4017c2b1ea5eb173",
-      "bytes": 29638
+      "bytes": 29638,
+      "background_sources": {
+        "entity": "Q19490",
+        "url": "https://www.wikidata.org/wiki/Q19490",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "sunderland",
@@ -210,7 +306,13 @@
       "crest_attribution": "桑德兰俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "2f11acfe7db58e2673a340c6ba8fe0268c149a52256e6b68e172e48493985ed4",
-      "bytes": 132610
+      "bytes": 132610,
+      "background_sources": {
+        "entity": "Q18739",
+        "url": "https://www.wikidata.org/wiki/Q18739",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "tottenham-hotspur",
@@ -221,12 +323,18 @@
       "crest_attribution": "热刺俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "bc950ff01fc068b095ae49cbcd7ad0280774d2d78c1ae42de719a3c44b20164f",
-      "bytes": 735257
+      "bytes": 735257,
+      "background_sources": {
+        "entity": "Q18741",
+        "url": "https://www.wikidata.org/wiki/Q18741",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "barcelona",
       "english_name": "Barcelona",
-      "crest_url": "/assets/barcelona.png",
+      "crest_url": "/assets/clubs/barcelona.png",
       "crest_source_url": "https://www.fcbarcelona.com/en/",
       "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
       "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -237,7 +345,7 @@
     {
       "id": "inter",
       "english_name": "Inter",
-      "crest_url": "/assets/inter.png",
+      "crest_url": "/assets/clubs/inter.png",
       "crest_source_url": "https://www.inter.it/en",
       "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
       "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
@@ -254,7 +362,13 @@
       "crest_attribution": "皇家马德里俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "b60c418da06dc6f43ccf05df5ca090f5d781feb4cdd2bf099100b49ff276b412",
-      "bytes": 27826
+      "bytes": 27826,
+      "background_sources": {
+        "entity": "Q8682",
+        "url": "https://www.wikidata.org/wiki/Q8682",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "bayern-munich",
@@ -265,7 +379,13 @@
       "crest_attribution": "拜仁慕尼黑俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "c52a623de8adf5e689b177da7b807e8ac952fc1c15bbb349f6efb19184dd945e",
-      "bytes": 9285
+      "bytes": 9285,
+      "background_sources": {
+        "entity": "Q15789",
+        "url": "https://www.wikidata.org/wiki/Q15789",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "paris-saint-germain",
@@ -276,7 +396,13 @@
       "crest_attribution": "巴黎圣日耳曼俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "bace927d2d75b58d945e4ef7ac8d7a6a5b347f729fd3f7f2804f7094f9599c53",
-      "bytes": 29917
+      "bytes": 29917,
+      "background_sources": {
+        "entity": "Q483020",
+        "url": "https://www.wikidata.org/wiki/Q483020",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "juventus",
@@ -287,7 +413,13 @@
       "crest_attribution": "尤文图斯俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "d737ab3466d7df4eecc74fd27d38644ccb97acc1596d54e8569401316ca71dab",
-      "bytes": 6281
+      "bytes": 6281,
+      "background_sources": {
+        "entity": "Q1422",
+        "url": "https://www.wikidata.org/wiki/Q1422",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "ac-milan",
@@ -298,7 +430,13 @@
       "crest_attribution": "AC米兰俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "3b46526f328c44c09d5f89a1934a562c4a02d14841c28e9e97981a9ad429be6f",
-      "bytes": 12156
+      "bytes": 12156,
+      "background_sources": {
+        "entity": "Q1543",
+        "url": "https://www.wikidata.org/wiki/Q1543",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "atletico-madrid",
@@ -309,7 +447,13 @@
       "crest_attribution": "马德里竞技俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "88ec48abebd23b06a0585ae8bb34363ac1a02a7b369293969311917c80f1847d",
-      "bytes": 7759
+      "bytes": 7759,
+      "background_sources": {
+        "entity": "Q8701",
+        "url": "https://www.wikidata.org/wiki/Q8701",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "borussia-dortmund",
@@ -320,7 +464,13 @@
       "crest_attribution": "多特蒙德俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "fa97a8745e67ab866cbd9910fe2276f3df51c14969d434147a9c2b628b6fa87b",
-      "bytes": 3570
+      "bytes": 3570,
+      "background_sources": {
+        "entity": "Q41420",
+        "url": "https://www.wikidata.org/wiki/Q41420",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "roma",
@@ -331,7 +481,13 @@
       "crest_attribution": "罗马俱乐部标识，取自AC米兰官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "4ac4bea64dbb3b6f8b52b84833b1b4b2dd302cf09b459b986472d88d1a747302",
-      "bytes": 19032
+      "bytes": 19032,
+      "background_sources": {
+        "entity": "Q2739",
+        "url": "https://www.wikidata.org/wiki/Q2739",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "alaves",
@@ -342,7 +498,13 @@
       "crest_attribution": "阿拉维斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "0aff431593b58fbf7b7bb5da90be267dbe211e4e68db1f5a1a11e262685db1e7",
-      "bytes": 103718
+      "bytes": 103718,
+      "background_sources": {
+        "entity": "Q223620",
+        "url": "https://www.wikidata.org/wiki/Q223620",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "athletic-club",
@@ -353,7 +515,13 @@
       "crest_attribution": "毕尔巴鄂竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "ce67012de7d0cef9323bb2afd7481258eee4c927ae1a4f2b9fd156ef66800eec",
-      "bytes": 42036
+      "bytes": 42036,
+      "background_sources": {
+        "entity": "Q8687",
+        "url": "https://www.wikidata.org/wiki/Q8687",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "celta-vigo",
@@ -364,7 +532,13 @@
       "crest_attribution": "塞尔塔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "3b539c13d57dd1e21c1c2c7f7347e5b3433cb03ed966eceec381ff4c1ff1e434",
-      "bytes": 32741
+      "bytes": 32741,
+      "background_sources": {
+        "entity": "Q8749",
+        "url": "https://www.wikidata.org/wiki/Q8749",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "deportivo-la-coruna",
@@ -375,7 +549,13 @@
       "crest_attribution": "拉科鲁尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "5f4255c6a0e0773c29fe1291390bb4ed4548f67e5f3fa249340d87af49967ccb",
-      "bytes": 51470
+      "bytes": 51470,
+      "background_sources": {
+        "entity": "Q8760",
+        "url": "https://www.wikidata.org/wiki/Q8760",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "elche",
@@ -386,7 +566,13 @@
       "crest_attribution": "埃尔切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "2712d99239ae99768630326e29998ed57da381cc4e2c4acb25cde8d1d7299f8a",
-      "bytes": 32195
+      "bytes": 32195,
+      "background_sources": {
+        "entity": "Q10512",
+        "url": "https://www.wikidata.org/wiki/Q10512",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "espanyol",
@@ -397,7 +583,13 @@
       "crest_attribution": "西班牙人俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "1b176c3f83401de41dc550160132b4cc777f9b5d74e68b52cd23e487277f5349",
-      "bytes": 32620
+      "bytes": 32620,
+      "background_sources": {
+        "entity": "Q8780",
+        "url": "https://www.wikidata.org/wiki/Q8780",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "getafe",
@@ -408,7 +600,13 @@
       "crest_attribution": "赫塔费俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "537d665b5c446452b030414b9b214d6b501e95f12be3b19304da43735c9e9bdf",
-      "bytes": 144907
+      "bytes": 144907,
+      "background_sources": {
+        "entity": "Q8806",
+        "url": "https://www.wikidata.org/wiki/Q8806",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "levante",
@@ -419,7 +617,13 @@
       "crest_attribution": "莱万特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "2e50213517306c537d11929055c7bd01eb8d809854a63f78e0a29a0d09ae8de8",
-      "bytes": 30963
+      "bytes": 30963,
+      "background_sources": {
+        "entity": "Q8823",
+        "url": "https://www.wikidata.org/wiki/Q8823",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "malaga",
@@ -430,7 +634,13 @@
       "crest_attribution": "马拉加俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "70c57c651fd431e97019c1c65234ce15e28a52a25abf9d11516eede56bb450a4",
-      "bytes": 227125
+      "bytes": 227125,
+      "background_sources": {
+        "entity": "Q8857",
+        "url": "https://www.wikidata.org/wiki/Q8857",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "osasuna",
@@ -441,7 +651,13 @@
       "crest_attribution": "奥萨苏纳俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e1d53ac19501c51bad348bce766cfa42d4f0660ca7d14ae972ca9cc0bff4de6c",
-      "bytes": 25635
+      "bytes": 25635,
+      "background_sources": {
+        "entity": "Q10286",
+        "url": "https://www.wikidata.org/wiki/Q10286",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "racing-santander",
@@ -452,7 +668,13 @@
       "crest_attribution": "桑坦德竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "52370c21a13a57593801b63c3aa23e826b2b3a397130a270479b2b5ca52b83cb",
-      "bytes": 55306
+      "bytes": 55306,
+      "background_sources": {
+        "entity": "Q12236",
+        "url": "https://www.wikidata.org/wiki/Q12236",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "rayo-vallecano",
@@ -463,7 +685,13 @@
       "crest_attribution": "巴列卡诺俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "66aee2a6712de83310002c53c7b361a816b0d325f3944bbf3b9d728d6ed04251",
-      "bytes": 29165
+      "bytes": 29165,
+      "background_sources": {
+        "entity": "Q10300",
+        "url": "https://www.wikidata.org/wiki/Q10300",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "real-betis",
@@ -474,7 +702,13 @@
       "crest_attribution": "皇家贝蒂斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8a2e9a3db45280f3aa8be1737e140333493828c94c98283a5bcad458529369a6",
-      "bytes": 25867
+      "bytes": 25867,
+      "background_sources": {
+        "entity": "Q8723",
+        "url": "https://www.wikidata.org/wiki/Q8723",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "real-sociedad",
@@ -485,7 +719,13 @@
       "crest_attribution": "皇家社会俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "87b985ea790b3155b84fd5f09fdbc38b0da7853c4c61942eeaadbe2aa1db2d9c",
-      "bytes": 44781
+      "bytes": 44781,
+      "background_sources": {
+        "entity": "Q10315",
+        "url": "https://www.wikidata.org/wiki/Q10315",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "sevilla",
@@ -496,7 +736,13 @@
       "crest_attribution": "塞维利亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "992624b39a65ae153e9754ba302596d234faafe95062ca5d9b3095ac56211988",
-      "bytes": 64740
+      "bytes": 64740,
+      "background_sources": {
+        "entity": "Q10329",
+        "url": "https://www.wikidata.org/wiki/Q10329",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "valencia",
@@ -507,7 +753,13 @@
       "crest_attribution": "瓦伦西亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "4961f443b5d247b7a1ba5e2cc51bdea51633c4c0fe50a78f260e6f03b438b134",
-      "bytes": 66579
+      "bytes": 66579,
+      "background_sources": {
+        "entity": "Q9092324",
+        "url": "https://www.wikidata.org/wiki/Q9092324",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "villarreal",
@@ -518,7 +770,13 @@
       "crest_attribution": "比利亚雷亚尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "69c1768ac26ad66621c5133c1ad5788cec94fc3ab7ad5645c23db16c37617539",
-      "bytes": 100657
+      "bytes": 100657,
+      "background_sources": {
+        "entity": "Q12297",
+        "url": "https://www.wikidata.org/wiki/Q12297",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "atalanta",
@@ -529,7 +787,13 @@
       "crest_attribution": "亚特兰大俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "d3626b9d4f0fd313cc101ab5013c4d872713786d1ece24361329059ea37134f6",
-      "bytes": 17663
+      "bytes": 17663,
+      "background_sources": {
+        "entity": "Q1886",
+        "url": "https://www.wikidata.org/wiki/Q1886",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "bologna",
@@ -540,7 +804,13 @@
       "crest_attribution": "博洛尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "b7e9f6c4b3bec908c40315995fcf54dcc2d61997dd1daa2cc1263259f3aa231e",
-      "bytes": 34384
+      "bytes": 34384,
+      "background_sources": {
+        "entity": "Q1893",
+        "url": "https://www.wikidata.org/wiki/Q1893",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "cagliari",
@@ -551,7 +821,13 @@
       "crest_attribution": "卡利亚里俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "29153286c972211ea64319d226a169774cd9f6f24692dbb6ee59015855a3accc",
-      "bytes": 22534
+      "bytes": 22534,
+      "background_sources": {
+        "entity": "Q1900",
+        "url": "https://www.wikidata.org/wiki/Q1900",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "como",
@@ -562,7 +838,13 @@
       "crest_attribution": "科莫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "5dd64170e48010d6a4089175e4391a86e86d6479eb188e86d3442cf0ef14b08f",
-      "bytes": 44308
+      "bytes": 44308,
+      "background_sources": {
+        "entity": "Q1120838",
+        "url": "https://www.wikidata.org/wiki/Q1120838",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "fiorentina",
@@ -573,7 +855,13 @@
       "crest_attribution": "佛罗伦萨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "df0a545d8a7a51b6a8f7377c9fee771aea608ca0a98cad5fda114c2043a36b85",
-      "bytes": 17390
+      "bytes": 17390,
+      "background_sources": {
+        "entity": "Q2052",
+        "url": "https://www.wikidata.org/wiki/Q2052",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "frosinone",
@@ -584,7 +872,13 @@
       "crest_attribution": "弗罗西诺内俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "2db80a1a58ec56eca422f861b1be12d1c6fc3f89da4a987f20aef6c048aeb669",
-      "bytes": 52802
+      "bytes": 52802,
+      "background_sources": {
+        "entity": "Q845043",
+        "url": "https://www.wikidata.org/wiki/Q845043",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "genoa",
@@ -595,7 +889,13 @@
       "crest_attribution": "热那亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "a696eac5d0cb3de16effd38280997078876fd5a563b767838f88b983e70bcc27",
-      "bytes": 26407
+      "bytes": 26407,
+      "background_sources": {
+        "entity": "Q2074",
+        "url": "https://www.wikidata.org/wiki/Q2074",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lazio",
@@ -606,7 +906,13 @@
       "crest_attribution": "拉齐奥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "774df8a00d798e0647dd8198ab0bdc27fda7daf3ca5ffbea0870f2b653d3cfe1",
-      "bytes": 47949
+      "bytes": 47949,
+      "background_sources": {
+        "entity": "Q2609",
+        "url": "https://www.wikidata.org/wiki/Q2609",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lecce",
@@ -617,7 +923,13 @@
       "crest_attribution": "莱切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "17e9596761336c277f9f78253ae7b0ac2cdc324715a61ed53d12650b123bf8a6",
-      "bytes": 30558
+      "bytes": 30558,
+      "background_sources": {
+        "entity": "Q13391",
+        "url": "https://www.wikidata.org/wiki/Q13391",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "monza",
@@ -628,7 +940,13 @@
       "crest_attribution": "蒙扎俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f7cf3e763787e4a3ca8d5d0dda906ec72f37adcfe2c28b23a5f751425b20ff00",
-      "bytes": 63137
+      "bytes": 63137,
+      "background_sources": {
+        "entity": "Q289482",
+        "url": "https://www.wikidata.org/wiki/Q289482",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "napoli",
@@ -639,7 +957,13 @@
       "crest_attribution": "那不勒斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e871ac8b6d9cf7acd850bfcf8e22e20d6258f55a45cf97023d937c5bdb515b4f",
-      "bytes": 16309
+      "bytes": 16309,
+      "background_sources": {
+        "entity": "Q2641",
+        "url": "https://www.wikidata.org/wiki/Q2641",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "parma",
@@ -650,7 +974,13 @@
       "crest_attribution": "帕尔马俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "844f97f605c596103b56b9734b5c932b2f1598b82bd2023e1d50e721a34cb744",
-      "bytes": 10551
+      "bytes": 10551,
+      "background_sources": {
+        "entity": "Q2693",
+        "url": "https://www.wikidata.org/wiki/Q2693",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "sassuolo",
@@ -661,7 +991,13 @@
       "crest_attribution": "萨索洛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8b941afda4d138ffcc751c3cac8ac568c82430b7a880968dda0dc92b02428121",
-      "bytes": 65711
+      "bytes": 65711,
+      "background_sources": {
+        "entity": "Q8603",
+        "url": "https://www.wikidata.org/wiki/Q8603",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "torino",
@@ -672,7 +1008,13 @@
       "crest_attribution": "都灵俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "24bacdd110ee8a4a3599c120e81db8b002c375c5c08c95cd3d7bd41e93f84046",
-      "bytes": 32607
+      "bytes": 32607,
+      "background_sources": {
+        "entity": "Q2768",
+        "url": "https://www.wikidata.org/wiki/Q2768",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "udinese",
@@ -683,7 +1025,13 @@
       "crest_attribution": "乌迪内斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f9acfd56f4ffb566c583319cd9e2cfd0d66d2c77fa5a8cbfd96f1301b4a29ce7",
-      "bytes": 44188
+      "bytes": 44188,
+      "background_sources": {
+        "entity": "Q2798",
+        "url": "https://www.wikidata.org/wiki/Q2798",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "venezia",
@@ -694,7 +1042,13 @@
       "crest_attribution": "威尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "0607a31c4b325feb0f07ae7b6067c4bcccb902643141f026f3626b539ea99b7a",
-      "bytes": 41097
+      "bytes": 41097,
+      "background_sources": {
+        "entity": "Q501245",
+        "url": "https://www.wikidata.org/wiki/Q501245",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "union-berlin",
@@ -705,7 +1059,13 @@
       "crest_attribution": "柏林联合俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f2973a87642765b242fa1797fd64ecfb4c2ad9a0d0338c353afb79c3323a8238",
-      "bytes": 60840
+      "bytes": 60840,
+      "background_sources": {
+        "entity": "Q141971",
+        "url": "https://www.wikidata.org/wiki/Q141971",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "bayer-leverkusen",
@@ -716,7 +1076,13 @@
       "crest_attribution": "勒沃库森俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e0be43c3d770332d031309e661f127e22bc8202a1211993c467193444481cb4b",
-      "bytes": 68738
+      "bytes": 68738,
+      "background_sources": {
+        "entity": "Q104761",
+        "url": "https://www.wikidata.org/wiki/Q104761",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "borussia-monchengladbach",
@@ -727,7 +1093,13 @@
       "crest_attribution": "门兴格拉德巴赫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "6c25f5093b31fead98e8149f1aed4ce9d8c2f41fb19eaade48111bd17afa6a48",
-      "bytes": 23230
+      "bytes": 23230,
+      "background_sources": {
+        "entity": "Q101959",
+        "url": "https://www.wikidata.org/wiki/Q101959",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "eintracht-frankfurt",
@@ -738,7 +1110,13 @@
       "crest_attribution": "法兰克福俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8ed093c2fc6ef46b7cc8e8ac58b0dd7f8fccbae719cba7514dffe7c40507f16c",
-      "bytes": 79536
+      "bytes": 79536,
+      "background_sources": {
+        "entity": "Q38245",
+        "url": "https://www.wikidata.org/wiki/Q38245",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "augsburg",
@@ -749,7 +1127,13 @@
       "crest_attribution": "奥格斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "15defdc0576d2d60161d16b685c026e262de42f164a20cc8a191bfc685216581",
-      "bytes": 24973
+      "bytes": 24973,
+      "background_sources": {
+        "entity": "Q15755",
+        "url": "https://www.wikidata.org/wiki/Q15755",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "cologne",
@@ -760,7 +1144,13 @@
       "crest_attribution": "科隆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "180137781f4086f4f459f99ab4672d4b8904d4e997327f3fd640349d182ee058",
-      "bytes": 38258
+      "bytes": 38258,
+      "background_sources": {
+        "entity": "Q104770",
+        "url": "https://www.wikidata.org/wiki/Q104770",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "hamburg",
@@ -771,7 +1161,13 @@
       "crest_attribution": "汉堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "39f948aa09e784443c3546f2248c19dfb1c15c19ecef3e588efc3128faa00a07",
-      "bytes": 4471
+      "bytes": 4471,
+      "background_sources": {
+        "entity": "Q51974",
+        "url": "https://www.wikidata.org/wiki/Q51974",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "mainz",
@@ -782,7 +1178,13 @@
       "crest_attribution": "美因茨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "49d8054439ee37df533c9c88b9409c72a23647fdb7a9912d8d743482e4faced9",
-      "bytes": 28646
+      "bytes": 28646,
+      "background_sources": {
+        "entity": "Q105254",
+        "url": "https://www.wikidata.org/wiki/Q105254",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "rb-leipzig",
@@ -793,7 +1195,13 @@
       "crest_attribution": "RB莱比锡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "0734f241fe3b1a5c94bd4beb659c186cbb6fcf01592ac00ecbfb2d5bd29ab0c3",
-      "bytes": 62907
+      "bytes": 62907,
+      "background_sources": {
+        "entity": "Q702455",
+        "url": "https://www.wikidata.org/wiki/Q702455",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "freiburg",
@@ -804,7 +1212,13 @@
       "crest_attribution": "弗赖堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "53e64e30e43ff3c4a7a2f8c8802e439572afae543cf42d5ab70d0b694dfdf95b",
-      "bytes": 27497
+      "bytes": 27497,
+      "background_sources": {
+        "entity": "Q106394",
+        "url": "https://www.wikidata.org/wiki/Q106394",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "paderborn",
@@ -815,7 +1229,13 @@
       "crest_attribution": "帕德博恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "2875d52faa8e27b811ffe2fa346231bb8006a5cc3f79c2360c26c253f67cb2ce",
-      "bytes": 30429
+      "bytes": 30429,
+      "background_sources": {
+        "entity": "Q160532",
+        "url": "https://www.wikidata.org/wiki/Q160532",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "elversberg",
@@ -826,7 +1246,13 @@
       "crest_attribution": "埃尔弗斯贝格俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8b6d58b3602555fb90065e7cf22b7ebae555363a9549ec060400e44e8c058d9b",
-      "bytes": 66416
+      "bytes": 66416,
+      "background_sources": {
+        "entity": "Q692691",
+        "url": "https://www.wikidata.org/wiki/Q692691",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "schalke-04",
@@ -837,7 +1263,13 @@
       "crest_attribution": "沙尔克04俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f938aab67187c8f154ad5da75cd41867bc92b5b4c0fbd9de0ac758df42d560a1",
-      "bytes": 15089
+      "bytes": 15089,
+      "background_sources": {
+        "entity": "Q32494",
+        "url": "https://www.wikidata.org/wiki/Q32494",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "hoffenheim",
@@ -848,7 +1280,13 @@
       "crest_attribution": "霍芬海姆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8fe1207f20c067ae8be9f8af4ce4e622824f9d392691df43c2d7c4cfc43b5462",
-      "bytes": 25719
+      "bytes": 25719,
+      "background_sources": {
+        "entity": "Q22707",
+        "url": "https://www.wikidata.org/wiki/Q22707",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "stuttgart",
@@ -859,7 +1297,13 @@
       "crest_attribution": "斯图加特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8a32c1caf1e7ebbd41e52ad28d3781002a789ab12826479b6abbbe78ec77c86b",
-      "bytes": 54812
+      "bytes": 54812,
+      "background_sources": {
+        "entity": "Q4512",
+        "url": "https://www.wikidata.org/wiki/Q4512",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "werder-bremen",
@@ -870,7 +1314,13 @@
       "crest_attribution": "云达不莱梅俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "54937bfaf99876aef4942503e6131368294f32ad01ec6d04e1b8ac08ec9f91fe",
-      "bytes": 20194
+      "bytes": 20194,
+      "background_sources": {
+        "entity": "Q51976",
+        "url": "https://www.wikidata.org/wiki/Q51976",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "auxerre",
@@ -881,7 +1331,13 @@
       "crest_attribution": "欧塞尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "115f93bf5d37e2a845997ea3be547c1860a4436c9aab5024f009f46b0bb82b5a",
-      "bytes": 22238
+      "bytes": 22238,
+      "background_sources": {
+        "entity": "Q182876",
+        "url": "https://www.wikidata.org/wiki/Q182876",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "monaco",
@@ -892,7 +1348,13 @@
       "crest_attribution": "摩纳哥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "bd23a74bdca89df5ed4876567478e5f08e82a4d6576e0252f16968f266300d64",
-      "bytes": 19606
+      "bytes": 19606,
+      "background_sources": {
+        "entity": "Q180305",
+        "url": "https://www.wikidata.org/wiki/Q180305",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "angers",
@@ -903,7 +1365,13 @@
       "crest_attribution": "昂热俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "112434f38848350bc1747b84c0a85e7a5230e8bee185b3da27e91ddebde02193",
-      "bytes": 65012
+      "bytes": 65012,
+      "background_sources": {
+        "entity": "Q845137",
+        "url": "https://www.wikidata.org/wiki/Q845137",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "brest",
@@ -914,7 +1382,13 @@
       "crest_attribution": "布雷斯特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "3a3b9c059c3a2f5e2015eb72f75190ccba4618f9c6a3c2357e0a18193f4a273d",
-      "bytes": 34336
+      "bytes": 34336,
+      "background_sources": {
+        "entity": "Q218372",
+        "url": "https://www.wikidata.org/wiki/Q218372",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "le-havre",
@@ -925,7 +1399,13 @@
       "crest_attribution": "勒阿弗尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "fdf43253adc2da2dd1d542bcf229e4cebcbc82e816abaa5adc977868dd0598f5",
-      "bytes": 93890
+      "bytes": 93890,
+      "background_sources": {
+        "entity": "Q328658",
+        "url": "https://www.wikidata.org/wiki/Q328658",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "le-mans",
@@ -936,7 +1416,13 @@
       "crest_attribution": "勒芒俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "de3e7ca04205bbdda86b44e1ab00f950b90975000d19e449330ce2ae7306258e",
-      "bytes": 109710
+      "bytes": 109710,
+      "background_sources": {
+        "entity": "Q210864",
+        "url": "https://www.wikidata.org/wiki/Q210864",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lens",
@@ -947,7 +1433,13 @@
       "crest_attribution": "朗斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "4f4ba6f0e63826c16f62a4753e0874e54cc30077c62b8c19790cd4f4d01e0e20",
-      "bytes": 41414
+      "bytes": 41414,
+      "background_sources": {
+        "entity": "Q191843",
+        "url": "https://www.wikidata.org/wiki/Q191843",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lille",
@@ -958,7 +1450,13 @@
       "crest_attribution": "里尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "95e0ee084cb4f8cd14407aa8a75e0db932d4f0558cd3a1dfac72f293cca86e69",
-      "bytes": 108528
+      "bytes": 108528,
+      "background_sources": {
+        "entity": "Q19516",
+        "url": "https://www.wikidata.org/wiki/Q19516",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lorient",
@@ -969,7 +1467,13 @@
       "crest_attribution": "洛里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "e9aad5b8eac3ee5cb87908729d39572dd0799824dcb17c41fea8df0102be731f",
-      "bytes": 27379
+      "bytes": 27379,
+      "background_sources": {
+        "entity": "Q48911",
+        "url": "https://www.wikidata.org/wiki/Q48911",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "lyon",
@@ -980,7 +1484,13 @@
       "crest_attribution": "里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "8d19c1378008637e0f7a75c4a56bd82610c719ae3bfdcb7c1305edfe81710bcf",
-      "bytes": 22330
+      "bytes": 22330,
+      "background_sources": {
+        "entity": "Q704",
+        "url": "https://www.wikidata.org/wiki/Q704",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "marseille",
@@ -991,7 +1501,13 @@
       "crest_attribution": "马赛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "55fde2ea6f3e0524ae9226ccbf9240cf1cc6f49f6a402ed444b147558040428e",
-      "bytes": 51919
+      "bytes": 51919,
+      "background_sources": {
+        "entity": "Q132885",
+        "url": "https://www.wikidata.org/wiki/Q132885",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "nice",
@@ -1002,7 +1518,13 @@
       "crest_attribution": "尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "4d799a2e63732e66bb9e447fa8f036440c48091621ca2e97c001c14eaa758fe8",
-      "bytes": 140613
+      "bytes": 140613,
+      "background_sources": {
+        "entity": "Q185163",
+        "url": "https://www.wikidata.org/wiki/Q185163",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "paris-fc",
@@ -1013,7 +1535,13 @@
       "crest_attribution": "巴黎FC俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "f46a439b974261f722182dc7d9264461ce7e75e959eb2f9a8376b17ec844b27b",
-      "bytes": 109705
+      "bytes": 109705,
+      "background_sources": {
+        "entity": "Q1051013",
+        "url": "https://www.wikidata.org/wiki/Q1051013",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "rennes",
@@ -1024,7 +1552,13 @@
       "crest_attribution": "雷恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "899d5d3df75bc0dba315d1bc81dcbf5b637dec04153f2491483fb4ba30412abc",
-      "bytes": 26300
+      "bytes": 26300,
+      "background_sources": {
+        "entity": "Q19509",
+        "url": "https://www.wikidata.org/wiki/Q19509",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "strasbourg",
@@ -1035,7 +1569,13 @@
       "crest_attribution": "斯特拉斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "6ea9bb62bce52eddea2d274f60924b9d08641287fb13d2845b7b5b3d30ac814f",
-      "bytes": 12670
+      "bytes": 12670,
+      "background_sources": {
+        "entity": "Q126334",
+        "url": "https://www.wikidata.org/wiki/Q126334",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "toulouse",
@@ -1046,7 +1586,13 @@
       "crest_attribution": "图卢兹俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "53782a7e221353360a53eef230873478ffe5454eb5afe771b1163376fbc5614f",
-      "bytes": 127777
+      "bytes": 127777,
+      "background_sources": {
+        "entity": "Q19518",
+        "url": "https://www.wikidata.org/wiki/Q19518",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     },
     {
       "id": "troyes",
@@ -1057,7 +1603,13 @@
       "crest_attribution": "特鲁瓦俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
       "reviewed_at": "2026-09-12",
       "sha256": "34049d3fb98cc26bde433a4f28a0ebfb584a8e3b8d770eb6bc03f2cef06e08ad",
-      "bytes": 44735
+      "bytes": 44735,
+      "background_sources": {
+        "entity": "Q501693",
+        "url": "https://www.wikidata.org/wiki/Q501693",
+        "license": "CC0",
+        "reviewed_at": "2026-10-08"
+      }
     }
   ],
   "compatibility_assets": [
@@ -1082,6 +1634,56 @@
       "reviewed_at": "2026-09-12",
       "purpose": "保留曾写入球队档案的内置地址；新目录使用PNG，不改写用户已保存的队徽设置。",
       "crest_attribution": "来自该俱乐部官方网站的真实标识；商标及图形权利归所属俱乐部，未声明为开放授权。"
+    },
+    {
+      "id": "arsenal",
+      "crest_url": "/assets/arsenal.svg",
+      "crest_source_url": "https://www.premierleague.com/en/clubs/3/arsenal/overview",
+      "crest_asset_url": "https://resources.premierleague.com/premierleague25/badges-alt/3.svg",
+      "crest_attribution": "阿森纳俱乐部标识，来自英超官方球队资料页。商标及图形权利归所属俱乐部；未声明为开放授权。",
+      "sha256": "34846859662c2f27d51e0880d82998cbe15edbaaf265df191e18a050cb8b6216",
+      "bytes": 12700,
+      "purpose": "旧版目录使用过的路径；已保存球队资料仍可能引用，继续随构建发布。"
+    },
+    {
+      "id": "liverpool",
+      "crest_url": "/assets/liverpool.png",
+      "crest_source_url": "https://www.liverpoolfc.com/",
+      "crest_asset_url": "https://www.liverpoolfc.com/apple-touch-icon.png",
+      "crest_attribution": "利物浦俱乐部利弗鸟标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+      "sha256": "35d2f0c8c4ec72b0b1035800a22ca997f7e92a16230c2642f3c607366d78e086",
+      "bytes": 7564,
+      "purpose": "旧版目录使用过的路径；已保存球队资料仍可能引用，继续随构建发布。"
+    },
+    {
+      "id": "barcelona",
+      "crest_url": "/assets/barcelona.png",
+      "crest_source_url": "https://www.fcbarcelona.com/en/",
+      "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
+      "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+      "sha256": "1b08409a81d47383c3cdc21d4064ee0f2abdf97b32cb3dd61ac46804d697fbc4",
+      "bytes": 24751,
+      "purpose": "旧版目录使用过的路径；已保存球队资料仍可能引用，继续随构建发布。"
+    },
+    {
+      "id": "inter",
+      "crest_url": "/assets/inter.png",
+      "crest_source_url": "https://www.inter.it/en",
+      "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
+      "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+      "sha256": "d21acfbfdbc8a0d5d7612d051540fa40479a074f9d540cf687ea00fd97b7982e",
+      "bytes": 8005,
+      "purpose": "旧版目录使用过的路径；已保存球队资料仍可能引用，继续随构建发布。"
+    },
+    {
+      "id": "liverpool",
+      "crest_url": "/assets/clubs/liverpool.svg",
+      "crest_source_url": "https://www.liverpoolfc.com/",
+      "crest_asset_url": "",
+      "crest_attribution": "利物浦俱乐部标识的旧版本地文件；当前目录使用 /assets/clubs/liverpool.png。商标及图形权利归所属俱乐部；未声明为开放授权。",
+      "sha256": "546343327ca8f2c5006eb2498016fb3d58f18d35a21958507281eeef20f01363",
+      "bytes": 51560,
+      "purpose": "当前目录未引用；曾随目录发布，保留并登记以便审计，不在界面使用。"
     }
   ]
 }

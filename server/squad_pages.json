@@ -1,0 +1,70 @@
+{
+  "_comment": "Reviewed club squad pages found by matching the club's own published player names against the squad the structured source returns. A page is listed only when at least a quarter of the current squad appears on it by full name, so it is the squad page and not a news article or a youth list. Not every entry is usable as a portrait source: a page that renders its portraits client-side, or that names its portrait files without a shirt number, cannot be matched to a player without guessing. Verified by tmp/photo-exp/find-squad-pages.py on 2026-10-08 across all 96 catalogue clubs; 43 pages verified, 27 clubs had no page in server-rendered HTML, 26 had only a weak or wrong-type match.",
+  "reviewed_at": "2026-10-08",
+  "method": "name_coverage",
+  "threshold": 0.25,
+  "verified": {
+    "auxerre": {"url": "https://www.aja.fr/equipes/equipe-pro/", "matched": 32, "roster": 34},
+    "sassuolo": {"url": "https://www.sassuolocalcio.it/squadre/prima-squadra-maschile/rosa-e-staff-3/", "matched": 31, "roster": 33},
+    "genoa": {"url": "https://genoacfc.it/prima-squadra-maschile/", "matched": 30, "roster": 32},
+    "stuttgart": {"url": "https://www.vfb.de/de/1893/profis/kader/saisonen/2026-2027/kader/", "matched": 30, "roster": 32},
+    "cologne": {"url": "https://fc.de/mannschaften/maenner/kader", "matched": 29, "roster": 31},
+    "crystal-palace": {"url": "https://www.cpfc.co.uk/teams/first-team", "matched": 29, "roster": 31},
+    "monza": {"url": "https://www.acmonza.com/it/squadra/", "matched": 29, "roster": 31},
+    "paderborn": {"url": "https://www.scp07.de/Teams/Profis/Mannschaft/", "matched": 29, "roster": 31},
+    "brentford": {"url": "https://www.brentfordfc.com/en/teams/mens", "matched": 28, "roster": 30},
+    "lazio": {"url": "https://www.sslazio.it/team/lazio/squadra", "matched": 28, "roster": 32},
+    "tottenham-hotspur": {"url": "https://www.tottenhamhotspur.com/teams/mens/squad", "matched": 28, "roster": 29},
+    "lecce": {"url": "https://www.uslecce.it/giocatori/?squadra=prima-squadra&stagione=2026-2027", "matched": 27, "roster": 30},
+    "lens": {"url": "https://www.rclens.fr/fr/equipe-premiere/effectif/joueurs", "matched": 27, "roster": 30},
+    "torino": {"url": "https://www.torinofc.it/prima-squadra/2026-2027", "matched": 27, "roster": 33},
+    "udinese": {"url": "https://www.udinese.it/squadre/prima-squadra", "matched": 27, "roster": 28},
+    "ac-milan": {"url": "https://www.acmilan.com/en/teams/men-first-team", "matched": 26, "roster": 29},
+    "fulham": {"url": "https://www.fulhamfc.com/teams", "matched": 26, "roster": 29},
+    "juventus": {"url": "https://www.juventus.com/en/teams/first-team-men/squad/", "matched": 26, "roster": 37},
+    "lorient": {"url": "https://www.fclorient.bzh/lequipe-professionnelle-2026-2027/", "matched": 26, "roster": 29},
+    "newcastle-united": {"url": "https://www.newcastleunited.com/en/teams/mens-team", "matched": 26, "roster": 29},
+    "augsburg": {"url": "https://www.fcaugsburg.de/team/", "matched": 25, "roster": 27},
+    "freiburg": {"url": "https://www.scfreiburg.com/teams/profis/spieler/", "matched": 25, "roster": 27},
+    "monaco": {"url": "https://www.asmonaco.com/fr/pros/joueurs", "matched": 25, "roster": 27},
+    "napoli": {"url": "https://sscnapoli.it/rosa-ssc-napoli-2025-2026/", "matched": 25, "roster": 27},
+    "strasbourg": {"url": "https://www.rcstrasbourgalsace.fr/leffectif-pro-26-27/", "matched": 25, "roster": 27},
+    "union-berlin": {"url": "https://www.fc-union-berlin.de/de/fussball/profis-maenner-p6kl", "matched": 25, "roster": 32},
+    "elversberg": {"url": "https://sv07elversberg.de/teams/profis/kader/", "matched": 24, "roster": 28},
+    "nice": {"url": "https://www.ogcnice.com/fr/f/equipes/2026-2027/equipe-pro", "matched": 24, "roster": 27},
+    "parma": {"url": "https://www.parmacalcio1913.com/prima-squadra-maschile/", "matched": 24, "roster": 28},
+    "rennes": {"url": "https://www.staderennais.com/equipe-pro", "matched": 24, "roster": 25},
+    "roma": {"url": "https://www.asroma.com/en/men/players-and-staff", "matched": 24, "roster": 30},
+    "celta-vigo": {"url": "https://rccelta.es/first-team", "matched": 23, "roster": 26},
+    "lille": {"url": "https://www.losc.fr/effectif/lille/76", "matched": 23, "roster": 25},
+    "mainz": {"url": "https://www.mainz05.de/tab/kader", "matched": 23, "roster": 28},
+    "paris-fc": {"url": "https://parisfc.fr/pro-homme/joueurs-staff/", "matched": 23, "roster": 25},
+    "toulouse": {"url": "https://www.toulousefc.com/equipes/equipe-professionnelle/effectif", "matched": 23, "roster": 26},
+    "angers": {"url": "https://angers-sco.fr/equipe-pro/", "matched": 21, "roster": 26},
+    "marseille": {"url": "https://www.om.fr/equipe/hommes", "matched": 21, "roster": 26},
+    "troyes": {"url": "https://www.estac.fr/equipe-premiere/effectif", "matched": 21, "roster": 29},
+    "real-betis": {"url": "https://www.realbetisbalompie.es/primer-equipo/plantilla/", "matched": 19, "roster": 28},
+    "fiorentina": {"url": "https://www.acffiorentina.com/fiorentina-prima-squadra-maschile", "matched": 17, "roster": 30},
+    "borussia-dortmund": {"url": "https://www.bvb.de/de/en/teams/football/first-team.html", "matched": 16, "roster": 27},
+    "barcelona": {"url": "https://www.fcbarcelona.com/en/football/first-team/players", "matched": 28, "roster": 30, "note": "Discovery matched a B-team page at /en/football/barca-b/players first; the first-team path is listed here and is the one server/team_portraits.py already uses."}
+  },
+  "rejected": {
+    "_comment": "Correctly excluded: these matched a news article, a statistics page or a reserve side, so name coverage alone would have accepted them.",
+    "real-madrid": {"matched": 2, "url": "https://www.realmadrid.com/en-US/football/first-team/home", "why": "landing page, not the squad list"},
+    "hoffenheim": {"matched": 2, "url": "https://www.tsg-hoffenheim.de/teams/profis/statistik/", "why": "statistics page"},
+    "osasuna": {"matched": 5, "url": "https://www.osasuna.es/entrenamiento-06-10-2026", "why": "training report"},
+    "paris-saint-germain": {"matched": 2, "url": "https://www.psg.fr/en/content/ferran-torres-nomme-...", "why": "news article"},
+    "villarreal": {"matched": 2, "url": "https://villarrealcf.es/es/noticias-primer-equipo/", "why": "news index"}
+  },
+  "no_page_in_static_html": {
+    "_comment": "The club publishes its squad, but through client-side rendering: the server HTML contains none of the player names, so no URL can be verified from it. These clubs need a different source for portraits.",
+    "clubs": ["arsenal", "aston-villa", "atalanta", "athletic-club", "bayer-leverkusen", "bayern-munich", "bologna", "borussia-monchengladbach", "bournemouth", "cagliari", "chelsea", "coventry-city", "deportivo-la-coruna", "eintracht-frankfurt", "everton", "hamburg", "hull-city", "ipswich-town", "le-mans", "lyon", "manchester-united", "nottingham-forest", "rb-leipzig", "sevilla", "sunderland", "werder-bremen"]
+  },
+  "usable_as_portrait_source": {
+    "_comment": "A verified squad page is not automatically a portrait source. The extractor needs a stable per-player image whose identity can be checked against the roster's own name AND shirt number. These entries were inspected by hand on 2026-10-08.",
+    "already_configured": ["barcelona", "tottenham-hotspur", "juventus"],
+    "blocked_by_identity": {
+      "lille": "Portrait files are named after the player (e.g. 'Berke dos.png') with no alt text and no shirt number in the markup, so a portrait cannot be attached to a roster row without guessing from a surname."
+    }
+  }
+}

@@ -44,9 +44,33 @@ PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_file_pag
                 "photo_license", "photo_restrictions", "photo_match", "photo_reason",
                 "retryable", "reason_code")
 
+# How a community record was tied to a roster entry, from the strongest check
+# to the weakest. The name is always required; what differs is the second fact
+# that confirms it, because one fact is never enough to publish an unlicensed
+# face. Kept in one place so the acquisition policy, the cache validator and
+# the roster refresh all recognise the same set.
+MATCH_NAME_AND_NATIONALITY = "community_name_and_nationality"  # full name + country
+MATCH_NAME_AND_BIRTHDATE = "community_name_and_birthdate"      # full name + exact date
+MATCH_NAME_AND_BIRTH_YEAR = "community_name_and_birth_year"    # full name + same year
+MATCH_SURNAME_AND_BIRTHDATE = "community_surname_and_birthdate"  # variant name + exact date
+COMMUNITY_PHOTO_MATCHES = frozenset({
+    MATCH_NAME_AND_NATIONALITY, MATCH_NAME_AND_BIRTHDATE,
+    MATCH_NAME_AND_BIRTH_YEAR, MATCH_SURNAME_AND_BIRTHDATE,
+})
+# The two that a manual retry may re-derive; they rest on a name plus a date,
+# so a fresh lookup can legitimately change the answer.
+REFRESHABLE_COMMUNITY_MATCHES = frozenset({
+    MATCH_NAME_AND_NATIONALITY, MATCH_NAME_AND_BIRTHDATE,
+    MATCH_NAME_AND_BIRTH_YEAR, MATCH_SURNAME_AND_BIRTHDATE,
+})
+
 # The publisher's own spelling varies ("The Netherlands" vs "Netherlands"), so
 # compare on a normalised form that drops a leading article.
 _LEADING_ARTICLE = re.compile(r"^(?:the|la|le|el|die|der|das)\s+")
+# A surname is only worth searching when it is long enough to be specific.
+# "Lee" or "Roy" returns a hundred strangers and could never be confirmed by
+# a date alone, so the weaker tier refuses rather than guesses.
+MIN_SURNAME_LENGTH = 4
 
 
 def normalized(value):
@@ -137,24 +161,53 @@ def cached_portrait(store, player, team_id):
 
 
 def _completion_matches(cached, player):
+    """Whether a saved completion still proves this exact roster entry.
+
+    The saved verdict is not trusted on its own: the evidence that produced it
+    is re-derived against the roster values the app holds now, so a completion
+    earned under a weaker rule cannot outlive that rule. A country disagreement
+    is allowed here only when an exact birth date carries the match, which is
+    the same condition that let the match be made.
+    """
     evidence = cached.get("_identity")
     if not isinstance(evidence, dict):
         return False
-    wanted_name, wanted_country = normalized(player.get("name")), _roster_country(player.get("nationality"))
-    if (not wanted_name or not wanted_country or normalized(evidence.get("name")) != wanted_name
-            or not (_publisher_country(evidence.get("nationality")) & wanted_country)):
+    wanted_name = normalized(player.get("name"))
+    if not wanted_name:
         return False
+    published_name = normalized(evidence.get("name"))
+    # The weakest tier exists precisely because the two spellings differ, so the
+    # full name is required to agree only for the tiers that matched on it. What
+    # every tier does require is the surname, which is the part that had to
+    # agree for the record to be chosen at all.
+    if cached.get("photo_match") == MATCH_SURNAME_AND_BIRTHDATE:
+        if _surname(published_name) != _surname(wanted_name):
+            return False
+    elif published_name != wanted_name:
+        return False
+    wanted_country = _roster_country(player.get("nationality"))
+    country_agrees = bool(wanted_country
+                          and (_publisher_country(evidence.get("nationality")) & wanted_country))
     birthday = str(player.get("birth_date") or "")
     if evidence.get("roster_birth_date", "") != birthday:
         return False
-    if birthday and evidence.get("birth_date") and evidence["birth_date"] != birthday:
+    published = str(evidence.get("birth_date") or "")
+    if birthday and published:
+        if published == birthday:
+            pass                       # an exact date carries the match alone
+        elif published[:4] == birthday[:4]:
+            pass                       # a shared year is the same evidence the
+                                       # acquisition tier accepted on
+        else:
+            return False               # contradictory dates are a different person
+    elif not country_agrees:
         return False
     publisher_id = str(evidence.get("publisher_id") or "")
     if not re.fullmatch(r"[1-9][0-9]{0,11}", publisher_id):
         return False
     profile = f"https://{HOST}/player/{publisher_id}"
     return bool(_safe_image_url(cached.get("photo_url")) and cached.get("photo_credit")
-                and cached.get("photo_license") and cached.get("photo_match") == "community_name_and_nationality"
+                and cached.get("photo_license") and cached.get("photo_match") in COMMUNITY_PHOTO_MATCHES
                 and cached.get("photo_source_url") == profile and cached.get("photo_file_page") == profile)
 
 
@@ -224,48 +277,167 @@ async def _search(store, name):
     raise last
 
 
+def _live(record):
+    """A retired or non-football record can never answer for a live squad."""
+    return (record.get("strSport") in {None, "Soccer"}
+            and record.get("strStatus") in {None, "Active"})
+
+
+def _valid_id(record):
+    return bool(re.fullmatch(r"[1-9][0-9]{0,11}", str(record.get("idPlayer") or "")))
+
+
+def _publisher_born(record):
+    return str(record.get("dateBorn") or "")[:10]
+
+
+def _birth_verdict(roster_birth, record):
+    """How the two stated birth dates relate, when both exist.
+
+    'exact'    the dates agree to the day
+    'year'     only the year agrees
+    'conflict' both state a date and they disagree beyond the year
+    'unknown'  either side states nothing, so this fact decides nothing
+    """
+    published = _publisher_born(record)
+    if not roster_birth or not published:
+        return "unknown"
+    if published == roster_birth:
+        return "exact"
+    if published[:4] == str(roster_birth)[:4]:
+        return "year"
+    return "conflict"
+
+
+def _surname(value):
+    parts = normalized(value).split()
+    return parts[-1] if parts else ""
+
+
+def _narrow(candidates, wanted_country, roster_birth):
+    """Pick the one candidate a second identity fact leaves, or nothing.
+
+    Tried in order of strength: an exact birth date separates namesakes that a
+    country cannot, a shared birth year is the publisher's own imprecision, and
+    country is the weakest because dual nationals are stated inconsistently.
+    """
+    for key, value in (("exact_birthdate", lambda row: _birth_verdict(roster_birth, row) == "exact"),
+                       ("birth_year", lambda row: _birth_verdict(roster_birth, row) == "year")):
+        narrowed = [row for row in candidates if value(row)]
+        if len(narrowed) == 1:
+            return narrowed[0], key
+    if wanted_country:
+        narrowed = [row for row in candidates
+                    if _publisher_country(row.get("strNationality")) & wanted_country]
+        if len(narrowed) == 1:
+            return narrowed[0], "nationality"
+    return None, ""
+
+
+def _confirm(record, wanted_country, roster_birth, *, base):
+    """Decide whether a record is this player, and say which fact settled it."""
+    if not _live(record):
+        # A retired or non-football record cannot answer for a live squad entry.
+        return None, "missing", ""
+    if not _valid_id(record):
+        # The identity is known but its publisher id cannot be linked, so the
+        # record is unusable rather than absent.
+        return None, "ambiguous", ""
+    verdict = _birth_verdict(roster_birth, record)
+    country_agrees = bool(wanted_country
+                          and _publisher_country(record.get("strNationality")) & wanted_country)
+    if verdict == "conflict":
+        # Both sides state a birthday and they disagree: this is a different
+        # person who happens to share the name, never a data quibble.
+        return None, "ambiguous", ""
+    if verdict == "exact":
+        # A birth date to the day is a stronger fact than nationality, which
+        # dual nationals and the publisher state inconsistently. It is allowed
+        # to carry the match alone, and to overrule a country disagreement.
+        return record, "completed", f"{base}_and_birthdate"
+    if verdict == "year" and roster_birth:
+        # The name is exact and the year agrees; only the day differs, which is
+        # the publisher's own imprecision. Accepted, and labelled for the weaker
+        # evidence it actually rests on, even when the country agrees too.
+        return record, "completed", MATCH_NAME_AND_BIRTH_YEAR
+    if not country_agrees:
+        return None, "ambiguous", ""
+    return record, "completed", (MATCH_NAME_AND_NATIONALITY if base == "community_name"
+                                 else MATCH_SURNAME_AND_BIRTHDATE)
+
+
 def _unique_match(payload, name, nationality, birth_date=""):
-    """Exactly one record, and its nationality must agree with the roster.
+    """The one record that is this player, by name plus a second stated fact.
 
     A club match is deliberately not required and not accepted: the publisher's
     club field was observed naming a different club for a player whose club the
     roster states, so it carries no identity weight in either direction.
+
+    The second fact is read in order of strength — an exact birth date, then a
+    shared birth year, then country. A record whose stated birthday contradicts
+    the roster's is refused however well the name matches, because that is the
+    shape a namesake takes.
     """
     records = payload.get("player")
     if records is None:
-        return None, "missing"
-    if not isinstance(records, list) or not 1 <= len(records) <= 50:
-        return None, "unavailable"
+        return None, "missing", ""
+    if not isinstance(records, list) or len(records) > 50:
+        return None, "unavailable", ""
+    if not records:
+        return None, "missing", ""
+    wanted_country = _roster_country(nationality)
     wanted = normalized(name)
     exact = [row for row in records if isinstance(row, dict) and normalized(row.get("strPlayer")) == wanted]
-    if not exact:
-        return None, "missing"
-    wanted = _roster_country(nationality)
-    if len(exact) > 1:
-        # A namesake is only separable by a second identity fact, and the only
-        # one both sides state is the country the roster already holds. If that
-        # leaves nothing or leaves two, no photo is used: falling back to the
-        # first record would publish a stranger's face.
-        if not wanted:
-            return None, "ambiguous"
-        narrowed = [row for row in exact if _publisher_country(row.get("strNationality")) & wanted]
-        if len(narrowed) != 1:
-            return None, "ambiguous"
-        exact = narrowed
-    record = exact[0]
-    if record.get("strSport") not in {None, "Soccer"} or record.get("strStatus") not in {None, "Active"}:
-        return None, "missing"
-    if not wanted:
-        # Without a roster nationality there is only one identity fact, which
-        # is not enough to publish an unlicensed portrait.
-        return None, "ambiguous"
-    if not (_publisher_country(record.get("strNationality")) & wanted):
-        return None, "ambiguous"
-    if birth_date and record.get("dateBorn") and str(record["dateBorn"])[:10] != birth_date:
-        return None, "ambiguous"
-    if not re.fullmatch(r"[1-9][0-9]{0,11}", str(record.get("idPlayer") or "")):
-        return None, "ambiguous"
-    return record, "completed"
+    if exact:
+        if len(exact) == 1:
+            return _confirm(exact[0], wanted_country, birth_date, base="community_name")
+        record, _key = _narrow(exact, wanted_country, birth_date)
+        if record is None:
+            # Two records share the name and nothing separates them: refusing
+            # is the only honest answer, because falling back to the first
+            # would publish a stranger's face.
+            return None, "ambiguous", ""
+        return _confirm(record, wanted_country, birth_date, base="community_name")
+    # No record carries the roster's exact spelling. The publisher spells names
+    # inconsistently ("Branco Boomen" for "Branco van den Boomen"), so a second
+    # request is spent on the surname alone — that is the only way to reach
+    # those records. It is admitted only when an exact birth date agrees, which
+    # is the evidence that makes a partial name safe.
+    return None, "missing", ""
+
+
+def _surname_match(payload, name, birth_date=""):
+    """The one record whose surname matches and whose birth date agrees exactly.
+
+    This is the weaker of the two name checks and it never stands alone: the
+    roster's own birth date must equal the publisher's to the day, so a surname
+    shared with a stranger cannot publish a photo. Country is deliberately not
+    required here — it is exactly the fact that fails on dual nationals such as
+    the ones this tier exists to recover.
+    """
+    records = payload.get("player")
+    if records is None:
+        return None, "missing", ""
+    if not isinstance(records, list) or len(records) > 50:
+        return None, "unavailable", ""
+    if not records:
+        # The surname search legitimately answers with nothing; that is a gap
+        # in the source, not a fault to retry.
+        return None, "missing", ""
+    surname = _surname(name)
+    if not surname or len(surname) < MIN_SURNAME_LENGTH or not birth_date:
+        return None, "missing", ""
+    same_surname = [row for row in records
+                    if isinstance(row, dict) and _surname(row.get("strPlayer")) == surname and _live(row)]
+    if not same_surname:
+        return None, "missing", ""
+    exact_date = [row for row in same_surname if _birth_verdict(birth_date, row) == "exact"]
+    if len(exact_date) != 1:
+        return None, ("ambiguous" if len(exact_date) > 1 else "missing"), ""
+    record = exact_date[0]
+    if not _valid_id(record):
+        return None, "ambiguous", ""
+    return record, "completed", MATCH_SURNAME_AND_BIRTHDATE
 
 
 async def resolve_portrait(store, player, team_id, *, force=False):
@@ -274,11 +446,12 @@ async def resolve_portrait(store, player, team_id, *, force=False):
     if not isinstance(name, str) or not normalized(name):
         return {"status": "missing", "photo_reason": "缺少可核对的球员姓名。", "retryable": False,
                 "reason_code": "missing_name"}
-    if not _roster_country((player or {}).get("nationality")):
-        # With no roster nationality there is only one identity fact, which is
-        # not enough to publish an unlicensed portrait. Answer without a
-        # request rather than spending a paced lookup that cannot be accepted.
-        return {"status": "ambiguous", "photo_reason": "缺少可核对的国籍，无法与社区球员库交叉确认。",
+    if not _roster_country((player or {}).get("nationality")) and not (player or {}).get("birth_date"):
+        # No country and no birthday leaves only the name, which is one identity
+        # fact, and one fact is not enough to publish an unlicensed portrait.
+        # Answer without a request rather than spending a paced lookup that
+        # could not be accepted either way.
+        return {"status": "ambiguous", "photo_reason": "缺少可核对的国籍和出生日期，无法与社区球员库交叉确认。",
                 "retryable": False, "reason_code": "missing_nationality"}
     key = portrait_key(player, team_id)
     previous = cached_portrait(store, player, team_id)
@@ -288,7 +461,20 @@ async def resolve_portrait(store, player, team_id, *, force=False):
     attempted = now()
     try:
         payload = await _search(store, name)
-        record, verdict = _unique_match(payload, name, player.get("nationality"), player.get("birth_date") or "")
+        record, verdict, matched_by = _unique_match(payload, name, player.get("nationality"),
+                                                    player.get("birth_date") or "")
+        if verdict == "missing":
+            # The exact spelling found nothing. One extra paced request on the
+            # surname reaches the publisher's own spelling of the same player,
+            # and is attempted only when the roster states a birth date for the
+            # date check to confirm it with.
+            surname = _surname(name)
+            if surname and len(surname) >= MIN_SURNAME_LENGTH and player.get("birth_date"):
+                by_surname = await _search(store, surname)
+                found, fallback_verdict, fallback_match = _surname_match(
+                    by_surname, name, player.get("birth_date") or "")
+                if fallback_verdict == "completed":
+                    record, verdict, matched_by = found, fallback_verdict, fallback_match
         if verdict != "completed":
             result = {"status": verdict, "photo_reason": {
                 "missing": "社区球员库里没有完整姓名匹配的现役球员。",
@@ -308,9 +494,9 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                           "photo_source_url": profile, "photo_file_page": profile,
                           "photo_license": "第三方社区数据库转载；未声明开放许可",
                           "photo_restrictions": "保留来源署名，不得作为开放许可素材再分发",
-                          "photo_match": "community_name_and_nationality", "photo_reason": "",
+                          "photo_match": matched_by, "photo_reason": "",
                           "_identity": {"name": record["strPlayer"], "nationality": record["strNationality"],
-                                        "birth_date": str(record.get("dateBorn") or "")[:10],
+                                        "birth_date": _publisher_born(record),
                                         "roster_birth_date": player.get("birth_date") or "",
                                         "publisher_id": str(record["idPlayer"])}}
     except asyncio.CancelledError:

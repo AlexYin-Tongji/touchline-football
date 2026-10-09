@@ -902,7 +902,12 @@ async def _verify_article_dates(store, team_id, source, entries, *, force=False,
     async def verify(entry):
         try:
             body, url, _ = await _fetch_shared(store, entry["url"], source, force=force)
-            if article_url(url) != entry["url"]:
+            # Compare the two addresses the same way. A publisher that only
+            # adds or drops a trailing slash has served the same article; the
+            # strict comparison read that as "redirected to a different story"
+            # and threw away a body that was perfectly good. Anything else —
+            # another path, another host — must still be refused.
+            if article_url(url).rstrip("/") != str(entry["url"]).rstrip("/"):
                 raise ingestion.IngestionError("核实日期时来源跳转到了其他文章，未作为近期消息。")
             article = ingestion.extract_html(body, url, source["name"])[0]
             if not _first_team_entry(article):

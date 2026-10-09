@@ -49,7 +49,7 @@ class ProfilePersistenceTests(unittest.TestCase):
             with TestClient(create_app(path)) as client:
                 profile = client.get("/api/teams/arsenal/profile?mode=live").json()
                 self.assertEqual(profile["library"]["knowledge_count"], 0)
-                self.assertEqual(profile["team"]["crest_url"], "/assets/arsenal.svg")
+                self.assertEqual(profile["team"]["crest_url"], "/assets/clubs/arsenal.svg")
                 team = client.post("/api/teams", json={"name": "自建球队"}).json()
                 result = client.patch(f"/api/teams/{team['id']}/profile", json={
                     "city": "上海", "description": "我的社区球队。", "founded": 2021,

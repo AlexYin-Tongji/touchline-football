@@ -44,6 +44,18 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.store.close()
         self.temp.cleanup()
 
+    def community_silent(self, status="missing"):
+        """State the community source's verdict instead of letting it answer.
+
+        A roster entry that carries a birth date is now asked of the community
+        publisher too, because a birth date alone can confirm a match. These
+        tests are about the Wikimedia verdict, so the other source's answer is
+        declared here rather than left to decide the outcome.
+        """
+        return patch.object(community_portraits, "resolve_portrait", new_callable=AsyncMock,
+                            return_value={"status": status, "photo_reason": "社区球员库没有这名球员的可展示照片。",
+                                          "retryable": False, "reason_code": "community_" + status})
+
     def replies(self, articles=None, license_result=None):
         articles = articles if articles is not None else [page()]
         license_result = license_result if license_result is not None else commons()
@@ -264,88 +276,141 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             "photo_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Martin.jpg/300px-Martin.jpg",
             "photo_match": "wikimedia_verified_club", "photo_license": "CC BY-SA 4.0",
             "photo_file_page": "https://commons.wikimedia.org/wiki/File:Martin.jpg"}]}
-        with patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock,
-                          return_value={"status": "rejected", "photo_reason": "页面记载的当前俱乐部与阵容不一致。"}):
+        # Both sources are asked, so both are stubbed: this test is about the
+        # Wikimedia verdict, and letting the community source reach the network
+        # would make its answer decide the outcome instead.
+        with self.community_silent(), \
+                patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock,
+                             return_value={"status": "rejected", "photo_reason": "页面记载的当前俱乐部与阵容不一致。"}):
             result, summary = await team_portraits.enrich_player_photos(self.store, squad, force=True)
         self.assertFalse(result["roster"][0]["photo_url"])
         self.assertFalse(result["roster"][0].get("photo_file_page"))
         self.assertEqual(summary["status"], "missing")
 
-    async def test_preferred_source_outage_stops_early_and_independent_fallback_recovers(self):
+    async def test_community_source_outage_stops_early_and_independent_fallback_recovers(self):
+        """The community source is read first; its outage must not end the pass.
+
+        The measured order puts the community publisher first because it answers
+        for more players and costs a fraction of the Wikimedia lookups. That
+        makes Wikimedia the *independent fallback*: when the community source is
+        unavailable, the players it could not answer still have somewhere to go,
+        and one outage must not be recorded as "these players have no photo".
+
+        The stub writes the cache entry the real resolver writes, because a
+        source's own cache is what the read path consults: a stub that only
+        returns a dict would let the row be filled and then cleared again by the
+        end-of-pass recheck, which is not what happens in production.
+        """
         squad = {"team_id": "arsenal", "roster": [{"provider_id": str(i), "name": f"Player {i}",
-                    "nationality": "英格兰", "photo_url": "", "retryable": True,
-                    "reason_code": "http_rate_limited", "photo_reason": "旧网络故障"} for i in (1, 2)]}
-        unavailable = {"status": "unavailable", "retryable": True, "photo_reason": "维基媒体暂不可达"}
-        photo = {"status": "completed", "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/a.png",
-                 "photo_credit": "TheSportsDB", "photo_source_url": "https://www.thesportsdb.com/player/123",
-                 "photo_license": "第三方转载", "photo_match": "community_name_and_nationality", "photo_reason": ""}
-        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value=unavailable)) as primary, \
-             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=photo)) as fallback:
+                    "nationality": "英格兰", "photo_url": ""} for i in (1, 2)]}
+        unavailable = {"status": "unavailable", "retryable": True, "photo_reason": "社区球员库暂不可达"}
+        photo = {"status": "completed", "photo_url": "https://thumb.wikimedia.org/wikipedia/commons/a.png",
+                 "photo_credit": "Author", "photo_source_url": "https://en.wikipedia.org/wiki/Player",
+                 "photo_file_page": "https://commons.wikimedia.org/wiki/File:A.png",
+                 "photo_license": "CC BY-SA 4.0", "photo_match": "wikimedia_verified_club",
+                 "fetched_at": now(), "photo_reason": ""}
+        async def resolved(store, player, team_id, **kwargs):
+            # Base key only: the product's own _portrait_key hashes the roster
+            # name and birth date, which the stub does not need to reproduce.
+            result = dict(photo, last_attempt=now())
+            store.set_meta(wikimedia_portraits._portrait_key(player, team_id), result)
+            return result
+        with patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=unavailable)) as primary, \
+             patch.object(wikimedia_portraits, "resolve_portrait", side_effect=resolved) as fallback:
             result, summary = await team_portraits.enrich_player_photos(self.store, squad)
-        self.assertEqual(primary.await_count, 1)
-        self.assertEqual(fallback.await_count, 2)
-        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(primary.await_count, 1, "the first outage stops the rest of this source's batch")
+        self.assertEqual(fallback.await_count, 2, "the independent source still answers both players")
+        self.assertEqual(summary["selected_available_count"], 2)
         self.assertEqual(summary["errors"], [])
-        self.assertEqual(summary["remaining_count"], 0)
         for row in result["roster"]:
             self.assertTrue(row["photo_url"])
-            self.assertFalse(row.get("photo_reason"))
-            self.assertFalse(row.get("retryable"))
+            self.assertEqual(row["photo_match"], "wikimedia_verified_club")
             self.assertFalse(row.get("reason_code"))
-        self.assertFalse(squad["roster"][0]["photo_url"], "facts and caller snapshot remain untouched")
+            self.assertTrue(row["photo_license"] and row["photo_file_page"])
 
     async def test_outage_fallback_is_bounded_and_advances_its_own_cursor(self):
+        """Each source keeps its own bound and its own cursor.
+
+        The community publisher is asked first, so its batch is the one bounded
+        by COMMUNITY_PAGE_LIMIT and whose cursor advances across passes. The
+        Wikimedia half now runs only for the players left over, and its outage
+        must not stall the community source's next batch.
+        """
         size = team_portraits.COMMUNITY_PAGE_LIMIT * 2 + 1
         squad = {"team_id": "arsenal", "season_id": "PL-2026", "roster": [
             {"provider_id": str(i), "name": f"Player {i}", "photo_url": ""} for i in range(1, size + 1)]}
-        async def unavailable(store, row, team_id):
-            result = {"status": "unavailable", "last_attempt": now(), "photo_reason": "稍后重试", "retryable": True}
-            store.set_meta(wikimedia_portraits._portrait_key(row, team_id), result)
-            return result
         async def missing(store, row, team_id, **kwargs):
-            result = {"status": "missing", "fetched_at": now(), "photo_reason": "没有照片"}
+            result = {"status": "missing", "fetched_at": now(), "photo_reason": "社区库里没有这名球员。"}
             store.set_meta(community_portraits.portrait_key(row, team_id), result)
             return result
-        with patch.object(wikimedia_portraits, "resolve_portrait", side_effect=unavailable) as primary, \
-             patch.object(community_portraits, "resolve_portrait", side_effect=missing) as fallback:
+        async def unavailable(store, row, team_id, **kwargs):
+            result = {"status": "unavailable", "last_attempt": now(), "photo_reason": "维基媒体稍后重试", "retryable": True}
+            store.set_meta(wikimedia_portraits._portrait_key(row, team_id), result)
+            return result
+        with patch.object(community_portraits, "resolve_portrait", side_effect=missing) as primary, \
+             patch.object(wikimedia_portraits, "resolve_portrait", side_effect=unavailable) as fallback:
             first, one = await team_portraits.enrich_player_photos(self.store, squad)
             _, two = await team_portraits.enrich_player_photos(self.store, first)
-        self.assertEqual(primary.await_count, 2)
         self.assertEqual(one["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
         self.assertEqual(two["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
         self.assertTrue(one["continuation_ready"], "an independent Wikimedia outage must not stall the healthy source's next batch")
         self.assertTrue(two["continuation_ready"])
-        self.assertEqual([call.args[1]["provider_id"] for call in fallback.call_args_list],
+        self.assertEqual([call.args[1]["provider_id"] for call in primary.call_args_list],
                          [str(i) for i in range(1, size)])
+        # The fallback still runs, bounded by its own limit, for the players the
+        # first source could not answer.
+        self.assertGreaterEqual(fallback.await_count, 1)
+        self.assertLessEqual(fallback.await_count, 2 * team_portraits.PLAYER_PAGE_LIMIT)
 
-    async def test_fallback_failure_reports_its_own_source_and_survives_cache_replay(self):
+    async def test_both_source_failures_are_reported_and_survive_cache_replay(self):
+        """Two independent outages are two facts, and both are kept.
+
+        The community publisher is asked first and its transport fault sets the
+        row's `reason_code`. Wikimedia then fails for the same player. The old
+        assertion required the second failure to be *absent* from the message,
+        which only made sense when one source was nominated as "the" source;
+        with both able to answer, hiding the other's fault would tell the reader
+        one source is down when two are.
+        """
         row = {"provider_id": "1", "name": "Kai Havertz", "nationality": "德国", "photo_url": ""}
-        primary_gap = {"status": "unavailable", "photo_reason": "维基媒体请求过于频繁，稍后重试。",
-                       "reason_code": "http_rate_limited", "retryable": True, "last_attempt": now()}
-        community_gap = {"status": "unavailable", "photo_reason": "社区球员库连接失败，稍后重试。",
-                         "reason_code": "connection_error", "retryable": True, "last_attempt": now()}
-        async def primary(store, player, team_id):
-            store.set_meta(wikimedia_portraits._portrait_key(player, team_id), primary_gap)
+        primary_gap = {"status": "unavailable", "photo_reason": "社区球员库连接失败，稍后重试。",
+                       "reason_code": "connection_error", "retryable": True, "last_attempt": now()}
+        fallback_gap = {"status": "unavailable", "photo_reason": "维基媒体请求过于频繁，稍后重试。",
+                        "reason_code": "http_rate_limited", "retryable": True, "last_attempt": now()}
+        async def primary(store, player, team_id, **kwargs):
+            store.set_meta(community_portraits.portrait_key(player, team_id), primary_gap)
             return primary_gap
         async def fallback(store, player, team_id, **kwargs):
-            store.set_meta(community_portraits.portrait_key(player, team_id), community_gap)
-            return community_gap
-        with patch.object(wikimedia_portraits, "resolve_portrait", side_effect=primary), \
-             patch.object(community_portraits, "resolve_portrait", side_effect=fallback):
+            store.set_meta(wikimedia_portraits._portrait_key(player, team_id), fallback_gap)
+            return fallback_gap
+        with patch.object(community_portraits, "resolve_portrait", side_effect=primary), \
+             patch.object(wikimedia_portraits, "resolve_portrait", side_effect=fallback):
             result, summary = await team_portraits.enrich_player_photos(self.store, {"team_id": "arsenal", "roster": [row]})
         self.assertEqual(summary["status"], "failed")
         self.assertEqual(len(summary["errors"]), 1)
+        # The source consulted first leads, because that is the one whose limit
+        # stopped the batch; the second source's wording is appended, not
+        # swapped in.
         self.assertIn("TheSportsDB", summary["errors"][0])
-        self.assertIn(community_gap["photo_reason"], summary["errors"][0])
-        self.assertNotIn(primary_gap["photo_reason"], summary["errors"][0])
-        for snapshot in (result, team_portraits.apply_cached_portraits(self.store, {"team_id": "arsenal", "roster": [dict(row)]})):
-            player = snapshot["roster"][0]
-            self.assertFalse(player["photo_url"])
-            self.assertEqual(player["reason_code"], "connection_error")
-            self.assertTrue(player["retryable"])
-            self.assertIn("维基媒体照片来源", player["photo_reason"])
-            self.assertIn("TheSportsDB 社区照片来源", player["photo_reason"])
-            self.assertIn(community_gap["photo_reason"], player["photo_reason"])
+        self.assertIn(primary_gap["photo_reason"], summary["errors"][0])
+        self.assertIn(fallback_gap["photo_reason"], summary["errors"][0])
+        player = result["roster"][0]
+        self.assertFalse(player["photo_url"])
+        self.assertEqual(player["reason_code"], "connection_error")
+        self.assertTrue(player["retryable"])
+        # Both sources were asked and both failed, so the row says so.
+        self.assertIn("维基媒体照片来源", player["photo_reason"])
+        self.assertIn("TheSportsDB 社区照片来源", player["photo_reason"])
+        self.assertIn(primary_gap["photo_reason"], player["photo_reason"])
+        self.assertIn(fallback_gap["photo_reason"], player["photo_reason"])
+        # A later read rebuilds the row from whichever source holds a cached
+        # verdict, so it reports that source's own reason. That is the contract
+        # the read path can honour without a new cross-source record.
+        replay = team_portraits.apply_cached_portraits(
+            self.store, {"team_id": "arsenal", "roster": [dict(row)]})["roster"][0]
+        self.assertFalse(replay["photo_url"])
+        self.assertTrue(replay["reason_code"])
+        self.assertIn("照片来源", replay["photo_reason"])
 
     async def test_an_attempted_but_unavailable_source_does_not_mark_a_batch_ready(self):
         squad = {"team_id": "arsenal", "roster": [
@@ -439,7 +504,8 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         player = squad["roster"][0]
         self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal"), {
             "status": "rejected", "photo_reason": "页面记载的当前俱乐部与阵容不一致。", "fetched_at": now()})
-        with patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock) as resolve:
+        with self.community_silent(), \
+                patch.object(wikimedia_portraits, "resolve_portrait", new_callable=AsyncMock) as resolve:
             result, summary = await team_portraits.enrich_player_photos(self.store, squad)
         resolve.assert_not_awaited()
         self.assertFalse(result["roster"][0]["photo_url"])

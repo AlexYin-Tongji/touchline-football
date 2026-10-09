@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+from urllib.parse import urlsplit
 
 from server import community_portraits, team_portraits, wikimedia_portraits
 from server.ingestion import now
@@ -368,3 +369,175 @@ class PortraitTests(unittest.IsolatedAsyncioTestCase):
         with self.fetch(card()):
             result, _ = await team_portraits.enrich_player_photos(self.store, snapshot, player_ids=["123"])
         self.assertTrue(all(not row["photo_url"] for row in result["roster"]))
+
+
+class PhotoSourcePrecedenceTests(unittest.IsolatedAsyncioTestCase):
+    """One authority per player: a weaker source cannot replace a stronger one.
+
+    Four sources can each supply a portrait, and before this rule the row simply
+    kept whichever one wrote last. That is how a community photo could land on a
+    player ESPN had already answered, and how an official club card could strip
+    the licence and file-page metadata a Wikimedia photo has to carry. The order
+    is now measured — a club's own directory answers for 81% of a squad, the
+    community database for 73% of the players it knows, Wikimedia for 11% — and
+    enforced in one place so the acquiring loop and the read path agree.
+    """
+
+    DIRECTORY = {"status": "completed", "photo_url": "https://www.fcbarcelona.com/x.jpg",
+                 "photo_credit": "FC Barcelona 官方球员目录", "photo_source_url": URL,
+                 "photo_match": "exact_name_and_number", "fetched_at": "2026-10-08T00:00:00+00:00"}
+    COMMUNITY = {"status": "completed", "photo_url": "https://r2.thesportsdb.com/x.png",
+                 "photo_credit": "TheSportsDB", "photo_source_url": "https://www.thesportsdb.com/player/1",
+                 "photo_file_page": "https://www.thesportsdb.com/player/1",
+                 "photo_license": "第三方社区数据库转载；未声明开放许可",
+                 "photo_match": "community_name_and_nationality", "fetched_at": "2026-10-08T00:00:00+00:00"}
+    WIKIMEDIA = {"status": "completed", "photo_url": "https://upload.wikimedia.org/x.jpg",
+                 "photo_credit": "Author", "photo_source_url": "https://en.wikipedia.org/wiki/X",
+                 "photo_file_page": "https://commons.wikimedia.org/wiki/File:X.jpg",
+                 "photo_license": "CC BY-SA 4.0", "photo_match": "wikimedia_verified_club",
+                 "fetched_at": "2026-10-08T00:00:00+00:00"}
+
+    def test_a_weaker_source_never_replaces_a_stronger_one(self):
+        # (what the row already holds, what just arrived, may it be written)
+        cases = [
+            (self.WIKIMEDIA, self.COMMUNITY, True, "覆盖率更高的社区源可以替换维基照片"),
+            (self.WIKIMEDIA, self.DIRECTORY, True, "官网目录可以替换维基照片"),
+            (self.COMMUNITY, self.DIRECTORY, True, "官网目录可以替换社区照片"),
+            (self.COMMUNITY, self.WIKIMEDIA, False, "维基照片不得覆盖社区照片"),
+            (self.DIRECTORY, self.COMMUNITY, False, "社区照片不得覆盖官网目录结果"),
+            (self.DIRECTORY, self.WIKIMEDIA, False, "维基照片不得覆盖官网目录结果"),
+            (self.COMMUNITY, self.COMMUNITY, True, "同一来源重跑是刷新"),
+        ]
+        for current, incoming, expected, why in cases:
+            with self.subTest(current=current["photo_match"], incoming=incoming["photo_match"]):
+                player = {"provider_id": "1", "name": "Joan Garcia", **current}
+                applied = team_portraits._apply_photo(player, incoming)
+                self.assertEqual(applied, expected, why)
+                if expected:
+                    self.assertEqual(player["photo_url"], incoming["photo_url"])
+                    self.assertEqual(player["photo_match"], incoming["photo_match"])
+                else:
+                    self.assertEqual(player["photo_url"], current["photo_url"])
+                    self.assertEqual(player["photo_match"], current["photo_match"])
+                    self.assertEqual(player["photo_credit"], current["photo_credit"])
+
+    def test_a_refused_replacement_keeps_the_licence_metadata_it_needs(self):
+        """The specific loss the rule prevents, stated as an invariant.
+
+        A Wikimedia photo is only renderable when credit, licence and file page
+        are all present — the frontend refuses it otherwise. The community
+        publisher has *higher* measured coverage, so it is allowed to replace a
+        Wikimedia photo, and the losing case is the reverse: Wikimedia being
+        applied over a community row would erase the credit and licence the
+        community source does publish.
+        """
+        player = {"provider_id": "1", "name": "Joan Garcia", **self.COMMUNITY}
+        applied = team_portraits._apply_photo(player, self.WIKIMEDIA)
+        self.assertFalse(applied)
+        for field in ("photo_credit", "photo_license", "photo_file_page", "photo_url"):
+            self.assertTrue(player.get(field), f"{field} 不应被缺少署名的来源清空")
+        self.assertEqual(player["photo_match"], "community_name_and_nationality")
+
+    def test_a_stronger_source_replacing_a_weaker_one_leaves_no_stale_metadata(self):
+        """The other direction: when the replacement *is* allowed, nothing of
+        the old source survives. A half-written row would show one source's
+        photo beside another source's licence."""
+        player = {"provider_id": "1", "name": "Joan Garcia", **self.WIKIMEDIA}
+        applied = team_portraits._apply_photo(player, self.DIRECTORY)
+        self.assertTrue(applied)
+        self.assertEqual(player["photo_match"], "exact_name_and_number")
+        self.assertEqual(player["photo_url"], self.DIRECTORY["photo_url"])
+        self.assertEqual(player["photo_credit"], self.DIRECTORY["photo_credit"])
+        # The official directory has no licence; the Wikimedia one must not be
+        # left behind claiming this photo carries it.
+        self.assertNotIn("photo_license", player)
+        self.assertNotIn("photo_file_page", player)
+
+    def test_the_order_is_the_measured_one(self):
+        """The declared order matches the numbers it was derived from."""
+        self.assertEqual(team_portraits.PHOTO_SOURCE_ORDER,
+                         ("exact_name_and_number",
+                          "community_name_and_nationality", "community_name_and_birthdate",
+                          "community_name_and_birth_year", "community_surname_and_birthdate",
+                          "wikimedia_verified_club", "espn_directory_provider_id",
+                          "espn_provider_id"))
+        # The club's own directory outranks everything; the community tiers all
+        # come from one publisher, so they share a rank and outrank the weaker
+        # fallbacks that used to be tried before them.
+        self.assertLess(team_portraits.photo_source_rank("exact_name_and_number"),
+                        team_portraits.photo_source_rank("wikimedia_verified_club"))
+        for match in community_portraits.COMMUNITY_PHOTO_MATCHES:
+            self.assertEqual(team_portraits.photo_source_rank(match),
+                             team_portraits.photo_source_rank("community_name_and_nationality"))
+            self.assertLess(team_portraits.photo_source_rank(match),
+                            team_portraits.photo_source_rank("wikimedia_verified_club"))
+
+
+class SquadPageRegistryTests(unittest.TestCase):
+    """The verified official squad pages, checked against the catalogue.
+
+    Finding these pages for all 96 clubs was done once, off-line, by matching a
+    club's own published player names against the squad the structured source
+    returns. The result is committed as a reviewed record rather than re-fetched
+    at runtime, because a page that merely looks like a squad list is worth
+    nothing: it either yields no player or attaches the wrong one. What the
+    record has to guarantee is that it is internally consistent and that it
+    never claims a page is usable as a portrait source when the markup cannot
+    support the identity check.
+    """
+
+    def setUp(self):
+        import json
+        self.record = json.loads(
+            (Path(__file__).resolve().parents[1] / "server/squad_pages.json").read_text(encoding="utf-8"))
+
+    def test_every_recorded_page_belongs_to_the_club_it_is_filed_under(self):
+        from server.club_library import CLUBS
+        clubs = {club["id"]: club for club in CLUBS}
+        verified = self.record["verified"]
+        self.assertGreaterEqual(len(verified), 40)
+        for club_id, entry in verified.items():
+            with self.subTest(club=club_id):
+                self.assertIn(club_id, clubs, "记录里的球队必须在目录中")
+                club_host = urlsplit(clubs[club_id]["official_url"]).hostname.lower().removeprefix("www.")
+                page_host = urlsplit(entry["url"]).hostname.lower().removeprefix("www.")
+                self.assertEqual(page_host, club_host,
+                                 f"{club_id} 的阵容页必须在该俱乐部自己的域名下")
+                # The threshold the discovery used. A page below it is a story
+                # or a landing page, not a squad list.
+                self.assertGreaterEqual(entry["matched"], max(8, entry["roster"] // 4))
+                self.assertLessEqual(entry["matched"], entry["roster"])
+
+    def test_a_verified_page_is_not_claimed_to_be_a_portrait_source(self):
+        """Being the squad page and being usable for portraits are two things.
+
+        A page can list the whole squad and still render every portrait
+        client-side, or name each file after the player with no shirt number.
+        Nothing may promote such a page to a portrait source without the
+        matching evidence, so the record keeps the two questions apart and only
+        names clubs that were checked by hand.
+        """
+        usable = self.record["usable_as_portrait_source"]
+        configured = set(usable["already_configured"])
+        verified = set(self.record["verified"])
+        self.assertTrue(configured <= verified, "已被照片管线使用的球队必须也在已验证清单中")
+        for club_id, reason in usable["blocked_by_identity"].items():
+            self.assertIn(club_id, verified)
+            self.assertTrue(reason, f"{club_id} 需要说明为何不能作为照片来源")
+        # Every club the pipeline actually reads must be in the record, so a
+        # newly hard-coded directory cannot escape review.
+        self.assertTrue(set(team_portraits.DIRECTORIES) <= configured,
+                        "team_portraits.DIRECTORIES 中的球队必须在清单里登记")
+
+    def test_the_clubs_with_no_server_rendered_page_are_recorded_not_omitted(self):
+        """A gap is stated, because "not looked for" and "not there" differ.
+
+        These clubs publish a squad that only exists after JavaScript runs, so
+        the server HTML contains none of the player names and no URL could be
+        verified from it. They are listed explicitly, which is what lets a
+        reader tell a club that needs another source from one that was skipped.
+        """
+        gap = set(self.record["no_page_in_static_html"]["clubs"])
+        self.assertGreaterEqual(len(gap), 20)
+        self.assertFalse(gap & set(self.record["verified"]), "同一支球队不能既已验证又记为缺失")
+        self.assertTrue(self.record["no_page_in_static_html"]["_comment"])
