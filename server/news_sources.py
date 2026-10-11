@@ -1,7 +1,9 @@
 """Reviewed publisher feeds and their narrow metadata compatibility rules."""
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from . import ingestion
@@ -126,8 +128,15 @@ def shared_host(url):
         return False
 # These shorthand names are safe in a club-specific feed, but can identify
 # another club or an ordinary word worldwide. Keep stronger club identities.
+#
+# Chinese text is the reason two entries here carry a bare place name. "米兰"
+# alone is Milan the city, and it is a substring of 国际米兰 (Inter) as well as
+# of AC米兰, so an article about either club matches the other's alias. Chinese
+# has no word boundary to fall back on, so the short form is dropped and the
+# full club name has to appear.
 AMBIGUOUS_GLOBAL_ALIASES = {
-    "inter": {"inter"}, "ac-milan": {"milan", "米兰"},
+    "inter": {"inter", "米兰"},
+    "ac-milan": {"milan", "米兰"},
     "nice": {"nice"}, "lens": {"lens"}, "angers": {"angers"},
 }
 # French clubs whose names are also ordinary English words ("angers", "nice",
@@ -339,6 +348,44 @@ def community_sources(team_id):
                         "allowed_hosts": sorted(BBC_HOSTS), "reviewed_at": "2026-10-08",
                         "description": "BBC 按俱乐部发布的专属订阅；比综合订阅更集中，仍按当前球队筛选。"})
     return sources
+
+
+# Entry points that answer on an ordinary network in mainland China, where the
+# reviewed Western desks above are unreachable because local DNS is
+# intercepted. The file is a probe result, not a hand-written list: it holds
+# only the shapes that scripts/probe-news-sources.py fetched and found entries
+# in. Sources that answered but yielded nothing readable are deliberately absent
+# — a permanent failure occupying a source slot is worse than no source, which
+# is why `espn_soccer` and `gazzetta_football` were removed from the list above.
+DOMESTIC_CHANNELS_PATH = Path(__file__).resolve().parents[1] / "public/assets/clubs/news_channels.json"
+
+
+def _domestic_channels():
+    try:
+        payload = json.loads(DOMESTIC_CHANNELS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    channels = payload.get("channels")
+    return channels if isinstance(channels, list) else []
+
+
+def domestic_sources(team_id):
+    """Reachable Chinese-language desks, shared by every club.
+
+    These are general football feeds covering a competition rather than one
+    club, so the same club-scope filter that applies to the global publisher
+    feeds applies here.
+    """
+    if team_id not in TEAM_ALIASES:
+        return []
+    return [{**channel, "builtin": True, "global_feed": True, "shared_index": True,
+             "description": channel.get("description") or "本机网络可达的中文体育栏目；按当前球队与男足一线队范围筛选。"}
+            for channel in _domestic_channels()]
+
+
+def domestic_hosts():
+    """Every host a domestic channel needs, for the allowlist that grants reach."""
+    return {host for channel in _domestic_channels() for host in (channel.get("allowed_hosts") or ()) if host}
 
 
 def feed_published_time(value, url):

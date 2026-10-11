@@ -234,6 +234,33 @@ class ParserTests(unittest.TestCase):
             connection.connect()
             connect.assert_called_once_with(("93.184.216.34", 80), timeout=5)
 
+    def test_a_mixed_resolution_keeps_the_public_addresses_and_drops_the_rest(self):
+        # CDNs behind Chinese publishers return routable and private addresses
+        # for the same name. Refusing the host over the mix blocks a source the
+        # app can plainly read; the private entries are dropped instead, and the
+        # connection is still pinned to a public one.
+        returns = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("fe80::1", 443, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("119.96.6.192", 443)),
+        ]
+        with patch("server.ingestion.socket.getaddrinfo", return_value=returns):
+            self.assertEqual(ingestion.public_addresses("mixed.example", 443), ["119.96.6.192"])
+
+    def test_a_host_with_no_public_address_is_still_refused(self):
+        returns = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.7", 443)),
+        ]
+        with patch("server.ingestion.socket.getaddrinfo", return_value=returns):
+            with self.assertRaises(ingestion.IngestionError):
+                ingestion.public_addresses("internal.example", 443)
+
+    def test_an_unresolvable_host_reports_a_connection_failure(self):
+        with patch("server.ingestion.socket.getaddrinfo", side_effect=socket.gaierror()):
+            with self.assertRaises(ingestion.SourceConnectionError):
+                ingestion.public_addresses("nowhere.example", 443)
+
     def test_redirect_to_private_network_is_rejected_before_connection(self):
         class Response:
             status = 302

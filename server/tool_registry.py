@@ -83,6 +83,11 @@ TOOL_CAPABILITIES = {
     "query_structured_sources": (TEAM,),
     "maintain_team_data": (TEAM, PERSON, NEWS),
     "fetch_player_photos": (PERSON,),
+    # Read-only and local, unlike the two background photo tools: it costs no
+    # network wait, so a conversation may use it to see what is missing before
+    # asking for a batch.
+    "photo_queue": (TEAM, PERSON),
+    "plan_photo_batch": (PERSON,),
     "conversation_history": (IDENTITY,),
     "use_skill": (SKILL,),
     "submit_answer": (OUTPUT,),

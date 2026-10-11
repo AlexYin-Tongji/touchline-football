@@ -158,6 +158,11 @@ export interface Settings {
   };
   verification_enabled?: boolean;
   verification_timeout_seconds?: number;
+  network: {
+    // Reviewed publishers are reached through this when the machine's own DNS
+    // cannot. Empty means "use whatever the OS reports".
+    proxy_url: string;
+  };
   llm: {
     thinking_enabled?: boolean;
     protocol?: "chat_completions" | "responses";
@@ -171,6 +176,13 @@ export interface Settings {
     timeout_seconds: number;
     temperature: number;
   };
+}
+export interface NetworkDiagnostics {
+  proxy: { state: "absent" | "unusable" | "usable"; configured: boolean; host: string | null; port: number | null; listening: boolean };
+  dns: { intercepted: boolean; sample: string | null };
+  sources: { total: number; transport_failed: number; http_failed: number; reachable: number };
+  verdict: "local_network_blocked" | "proxy_unusable" | "proxy_missing" | null;
+  notice: string | null;
 }
 export interface Run {
   internal_report?: boolean;

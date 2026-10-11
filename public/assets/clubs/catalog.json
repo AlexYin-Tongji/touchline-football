@@ -7,7 +7,7 @@
       "阿仙奴",
       "Arsenal FC"
     ],
-    "crest_url": "/assets/clubs/arsenal.svg",
+    "crest_url": "/assets/clubs/arsenal.png",
     "short_name": "ARS",
     "color": "#C83C3C",
     "country": "英格兰",
@@ -18,9 +18,9 @@
     "stadium": "酋长球场",
     "nickname": "枪手",
     "description": "1886 年创立于伦敦伍尔维奇，1913 年迁至北伦敦。俱乐部自 2006 年起以酋长球场为主场。",
-    "crest_source_url": "https://www.premierleague.com/en/clubs/3/arsenal/overview",
-    "crest_asset_url": "https://resources.premierleague.com/premierleague25/badges-alt/3.svg",
-    "crest_attribution": "阿森纳俱乐部标识，来自英超官方球队资料页。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/359",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "阿森纳官方 · 俱乐部历史",
@@ -58,7 +58,13 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "359"
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/arsenal.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "aston-villa",
@@ -69,7 +75,7 @@
       "阿士东维拉",
       "Aston Villa FC"
     ],
-    "crest_url": "/assets/clubs/aston-villa.svg",
+    "crest_url": "/assets/clubs/aston-villa.png",
     "short_name": "AVL",
     "color": "#812D52",
     "country": "英格兰",
@@ -84,9 +90,9 @@
       }
     ],
     "founded": 1874,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#aston-villa",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw9ee09a12/logos/clubs/astonvilla.svg",
-    "crest_attribution": "阿斯顿维拉俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/362",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_aston_villa",
@@ -117,7 +123,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/aston-villa.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "bournemouth",
@@ -128,7 +140,7 @@
       "AFC Bournemouth",
       "Bournemouth AFC"
     ],
-    "crest_url": "/assets/clubs/bournemouth.svg",
+    "crest_url": "/assets/clubs/bournemouth.png",
     "short_name": "BOU",
     "color": "#C6323E",
     "country": "英格兰",
@@ -142,9 +154,9 @@
         "url": "https://www.afcb.co.uk/"
       }
     ],
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#bournemouth",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw822b8915/logos/clubs/bournemouth.svg",
-    "crest_attribution": "伯恩茅斯俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/349",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_bournemouth",
@@ -179,7 +191,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/bournemouth.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "brentford",
@@ -189,7 +207,7 @@
       "宾福特",
       "Brentford FC"
     ],
-    "crest_url": "/assets/clubs/brentford.svg",
+    "crest_url": "/assets/clubs/brentford.png",
     "short_name": "BRE",
     "color": "#BC3944",
     "country": "英格兰",
@@ -204,9 +222,9 @@
       }
     ],
     "founded": 1889,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#brentford",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw88a35201/logos/clubs/brentford.svg",
-    "crest_attribution": "布伦特福德俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/337",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/337.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_brentford",
@@ -237,7 +255,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/brentford.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "brighton",
@@ -250,7 +274,7 @@
       "Brighton Hove Albion",
       "Brighton and Hove Albion FC"
     ],
-    "crest_url": "/assets/clubs/brighton.svg",
+    "crest_url": "/assets/clubs/brighton.png",
     "short_name": "BHA",
     "color": "#3378B7",
     "country": "英格兰",
@@ -265,9 +289,9 @@
       }
     ],
     "founded": 1901,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#brighton-amp-hove-albion",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwd232d4ca/logos/clubs/brighton.svg",
-    "crest_attribution": "布莱顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/331",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_brighton",
@@ -300,7 +324,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/brighton.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "chelsea",
@@ -310,7 +340,7 @@
       "车路士",
       "Chelsea FC"
     ],
-    "crest_url": "/assets/clubs/chelsea.svg",
+    "crest_url": "/assets/clubs/chelsea.png",
     "short_name": "CHE",
     "color": "#3559A7",
     "country": "英格兰",
@@ -325,9 +355,9 @@
       }
     ],
     "founded": 1905,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#chelsea",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw2d99592d/logos/clubs/chelsea.svg",
-    "crest_attribution": "切尔西俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/363",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_chelsea",
@@ -360,7 +390,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/chelsea.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "coventry-city",
@@ -372,7 +408,7 @@
       "Coventry",
       "Coventry City FC"
     ],
-    "crest_url": "/assets/clubs/coventry-city.svg",
+    "crest_url": "/assets/clubs/coventry-city.png",
     "short_name": "COV",
     "color": "#599FC3",
     "country": "英格兰",
@@ -386,9 +422,9 @@
         "url": "https://www.ccfc.co.uk/news/2022/february/news-oggy-to-record-made-in-the-midlands-podcast-at-sky-blue-tavern/"
       }
     ],
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#coventry-city",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw60a818ea/logos/clubs/Club=Coventry_City,%20Mode=light.svg",
-    "crest_attribution": "考文垂俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/388",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/388.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_coventry_city",
@@ -421,7 +457,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/coventry-city.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "crystal-palace",
@@ -431,7 +473,7 @@
       "Crystal Palace FC",
       "C Palace"
     ],
-    "crest_url": "/assets/clubs/crystal-palace.svg",
+    "crest_url": "/assets/clubs/crystal-palace.png",
     "short_name": "CRY",
     "color": "#385BA4",
     "country": "英格兰",
@@ -445,9 +487,9 @@
         "url": "https://www.cpfc.co.uk/information/crystal-palace-1861-history/"
       }
     ],
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#crystal-palace",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1d055761/logos/clubs/crystalpalace.svg",
-    "crest_attribution": "水晶宫俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/384",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_crystal_palace",
@@ -482,7 +524,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/crystal-palace.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "everton",
@@ -492,7 +540,7 @@
       "爱华顿",
       "Everton FC"
     ],
-    "crest_url": "/assets/clubs/everton.svg",
+    "crest_url": "/assets/clubs/everton.png",
     "short_name": "EVE",
     "color": "#3154A3",
     "country": "英格兰",
@@ -511,9 +559,9 @@
       }
     ],
     "founded": 1878,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#everton",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw6564e2a4/logos/clubs/everton.svg",
-    "crest_attribution": "埃弗顿俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/368",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_everton",
@@ -544,7 +592,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/everton.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "fulham",
@@ -554,7 +608,7 @@
       "富咸",
       "Fulham FC"
     ],
-    "crest_url": "/assets/clubs/fulham.svg",
+    "crest_url": "/assets/clubs/fulham.png",
     "short_name": "FUL",
     "color": "#4A5058",
     "country": "英格兰",
@@ -569,9 +623,9 @@
       }
     ],
     "founded": 1879,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#fulham",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwaed9659d/logos/clubs/fulham.svg",
-    "crest_attribution": "富勒姆俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/370",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_fulham",
@@ -604,7 +658,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/fulham.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "hull-city",
@@ -615,7 +675,7 @@
       "Hull",
       "Hull City AFC"
     ],
-    "crest_url": "/assets/clubs/hull-city.svg",
+    "crest_url": "/assets/clubs/hull-city.png",
     "short_name": "HUL",
     "color": "#B97B23",
     "country": "英格兰",
@@ -630,9 +690,9 @@
       }
     ],
     "founded": 1904,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#hull-city",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw44b2bc9d/logos/clubs/Club=Hull_City,%20Mode=light.svg",
-    "crest_attribution": "赫尔城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/306",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/306.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_hull_city",
@@ -665,7 +725,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/hull-city.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "ipswich-town",
@@ -677,7 +743,7 @@
       "Ipswich",
       "Ipswich Town FC"
     ],
-    "crest_url": "/assets/clubs/ipswich-town.svg",
+    "crest_url": "/assets/clubs/ipswich-town.png",
     "short_name": "IPS",
     "color": "#3D66AB",
     "country": "英格兰",
@@ -692,9 +758,9 @@
       }
     ],
     "founded": 1878,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#ipswich-town",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw8400b2cf/logos/clubs/Club=Ipswich_Town,%20Mode=light.svg",
-    "crest_attribution": "伊普斯维奇俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/373",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/373.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_ipswich_town",
@@ -725,7 +791,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/ipswich-town.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "leeds-united",
@@ -736,7 +808,7 @@
       "Leeds",
       "Leeds United FC"
     ],
-    "crest_url": "/assets/clubs/leeds-united.svg",
+    "crest_url": "/assets/clubs/leeds-united.png",
     "short_name": "LEE",
     "color": "#64739D",
     "country": "英格兰",
@@ -751,9 +823,9 @@
       }
     ],
     "founded": 1919,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#leeds-united",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1af306cf/logos/clubs/leeds.svg",
-    "crest_attribution": "利兹联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/357",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_leeds_united",
@@ -786,7 +858,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/leeds-united.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "liverpool",
@@ -807,9 +885,9 @@
     "stadium": "安菲尔德球场",
     "nickname": "红军",
     "description": "1892 年在利物浦创立，并以安菲尔德球场为主场。俱乐部的首场比赛也于同年在安菲尔德举行。",
-    "crest_source_url": "https://www.liverpoolfc.com/",
-    "crest_asset_url": "https://www.liverpoolfc.com/apple-touch-icon.png",
-    "crest_attribution": "利物浦俱乐部利弗鸟标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/364",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "利物浦官方 · 俱乐部创立",
@@ -846,7 +924,13 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "364"
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/liverpool.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "manchester-city",
@@ -859,7 +943,7 @@
       "Man City",
       "MCFC"
     ],
-    "crest_url": "/assets/clubs/manchester-city.svg",
+    "crest_url": "/assets/clubs/manchester-city.png",
     "short_name": "MCI",
     "color": "#568DAD",
     "country": "英格兰",
@@ -874,9 +958,9 @@
       }
     ],
     "founded": 1880,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#manchester-city",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw4d0f9c0f/logos/clubs/manchestercity.svg",
-    "crest_attribution": "曼城俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/382",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_manchester_city",
@@ -909,7 +993,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/manchester-city.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "manchester-united",
@@ -923,7 +1013,7 @@
       "Man Utd",
       "MUFC"
     ],
-    "crest_url": "/assets/clubs/manchester-united.svg",
+    "crest_url": "/assets/clubs/manchester-united.png",
     "short_name": "MUN",
     "color": "#B93E3F",
     "country": "英格兰",
@@ -938,9 +1028,9 @@
       }
     ],
     "founded": 1878,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#manchester-united",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwc94b4c76/logos/clubs/manchesterunited.svg",
-    "crest_attribution": "曼联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/360",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_manchester_united",
@@ -973,7 +1063,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/manchester-united.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "newcastle-united",
@@ -987,7 +1083,7 @@
       "Newcastle United FC",
       "Newcastle Utd"
     ],
-    "crest_url": "/assets/clubs/newcastle-united.svg",
+    "crest_url": "/assets/clubs/newcastle-united.png",
     "short_name": "NEW",
     "color": "#4A5058",
     "country": "英格兰",
@@ -1001,9 +1097,9 @@
         "url": "https://www.newcastleunited.com/en/club/history"
       }
     ],
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#newcastle-united",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw1b65836e/logos/clubs/newcastle.svg",
-    "crest_attribution": "纽卡斯尔联俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/361",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_newcastle_united",
@@ -1038,7 +1134,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/newcastle-united.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "nottingham-forest",
@@ -1051,7 +1153,7 @@
       "Nottm Forest",
       "Nott Forest"
     ],
-    "crest_url": "/assets/clubs/nottingham-forest.svg",
+    "crest_url": "/assets/clubs/nottingham-forest.png",
     "short_name": "NFO",
     "color": "#B43C42",
     "country": "英格兰",
@@ -1066,9 +1168,9 @@
       }
     ],
     "founded": 1865,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#nottingham-forest",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw5c5bfaf0/logos/clubs/nottinghamforest.svg",
-    "crest_attribution": "诺丁汉森林俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/393",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_nottingham_forest",
@@ -1101,7 +1203,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/nottingham-forest.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "sunderland",
@@ -1111,7 +1219,7 @@
       "新特兰",
       "Sunderland AFC"
     ],
-    "crest_url": "/assets/clubs/sunderland.svg",
+    "crest_url": "/assets/clubs/sunderland.png",
     "short_name": "SUN",
     "color": "#B53D49",
     "country": "英格兰",
@@ -1125,9 +1233,9 @@
         "url": "https://www.safc.com/"
       }
     ],
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#sunderland",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dwaca67b42/logos/clubs/sunderland.svg",
-    "crest_attribution": "桑德兰俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/366",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_sunderland",
@@ -1160,7 +1268,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/sunderland.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "tottenham-hotspur",
@@ -1173,7 +1287,7 @@
       "Tottenham Hotspur FC",
       "Spurs"
     ],
-    "crest_url": "/assets/clubs/tottenham-hotspur.svg",
+    "crest_url": "/assets/clubs/tottenham-hotspur.png",
     "short_name": "TOT",
     "color": "#3E5076",
     "country": "英格兰",
@@ -1188,9 +1302,9 @@
       }
     ],
     "founded": 1882,
-    "crest_source_url": "https://shop.premierleague.com/en/clubs/#tottenham-hotspur",
-    "crest_asset_url": "https://shop.premierleague.com/on/demandware.static/-/Library-Sites-PL-shared/default/dw8e1bc3a4/logos/clubs/tottenham.svg",
-    "crest_attribution": "热刺俱乐部标识，取自英超官方球队商店目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/367",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_tottenham_hotspur",
@@ -1223,7 +1337,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/tottenham-hotspur.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "barcelona",
@@ -1247,9 +1367,9 @@
     "nickname": "红蓝军团",
     "description": "1899 年由甘伯等人创立。诺坎普球场于 1957 年启用，是俱乐部历史与城市足球文化的重要组成部分。",
     "crest_url": "/assets/clubs/barcelona.png",
-    "crest_source_url": "https://www.fcbarcelona.com/en/",
-    "crest_asset_url": "https://www.fcbarcelona.com/resources/v3.9.4-8986/i/favicon/favicon-196x196.png",
-    "crest_attribution": "巴塞罗那俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/83",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/83.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "巴塞罗那官方 · 俱乐部历史",
@@ -1278,7 +1398,13 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "83"
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/barcelona.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "inter",
@@ -1301,9 +1427,9 @@
     "nickname": "蓝黑军团",
     "description": "1908 年 3 月 9 日在米兰创立。梅阿查球场又称圣西罗球场，自 1947 年起承载着国际米兰的主场历史。",
     "crest_url": "/assets/clubs/inter.png",
-    "crest_source_url": "https://www.inter.it/en",
-    "crest_asset_url": "https://www.inter.it/favicon/apple-touch-icon-180x180.png",
-    "crest_attribution": "国际米兰俱乐部标识，来自俱乐部官方网站。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/110",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/110.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "国际米兰官方 · 俱乐部创立",
@@ -1332,7 +1458,13 @@
     "profile_reviewed_at": "2026-09-12",
     "provider_ids": {
       "espn": "110"
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/inter.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "real-madrid",
@@ -1357,9 +1489,9 @@
       }
     ],
     "crest_url": "/assets/clubs/real-madrid.png",
-    "crest_source_url": "https://www.realmadrid.com/en-US",
-    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/3kq9cckrnlogidldtdie2fkbl?$Mobile$&fit=wrap&wid=144&hei=144",
-    "crest_attribution": "皇家马德里俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/86",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/86.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_real_madrid",
@@ -1392,7 +1524,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/real-madrid.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "bayern-munich",
@@ -1418,10 +1556,10 @@
         "url": "https://fcbayern.com/en/club/history/mile-stones"
       }
     ],
-    "crest_url": "/assets/clubs/bayern-munich.jpg",
-    "crest_source_url": "https://www.realmadrid.com/en-US",
-    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/bpx4ib85d65u9oyhglkt36k1b",
-    "crest_attribution": "拜仁慕尼黑俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_url": "/assets/clubs/bayern-munich.png",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/132",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/132.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_bayern_munich",
@@ -1452,7 +1590,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/bayern-munich.jpg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "paris-saint-germain",
@@ -1480,9 +1624,9 @@
       }
     ],
     "crest_url": "/assets/clubs/paris-saint-germain.png",
-    "crest_source_url": "https://www.psg.fr/en",
-    "crest_asset_url": "https://media.psg.fr/image/upload/psg-logo_avcznk.png",
-    "crest_attribution": "巴黎圣日耳曼俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/160",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/160.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_paris_saint_germain",
@@ -1513,7 +1657,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/paris-saint-germain.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "juventus",
@@ -1539,9 +1689,9 @@
       }
     ],
     "crest_url": "/assets/clubs/juventus.png",
-    "crest_source_url": "https://www.juventus.com/en/",
-    "crest_asset_url": "https://www.juventus.com/images/image/upload/f_auto/dev/assets/icons/128x128",
-    "crest_attribution": "尤文图斯俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/111",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/111.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_juventus",
@@ -1574,7 +1724,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/juventus.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "ac-milan",
@@ -1601,9 +1757,9 @@
       }
     ],
     "crest_url": "/assets/clubs/ac-milan.png",
-    "crest_source_url": "https://www.acmilan.com/en",
-    "crest_asset_url": "https://assets-eu-01.kc-usercontent.com:443/006f7528-416b-01e4-8ef2-ab6ab3f4e177/002bcea4-7693-4f1d-a5a4-aa157135a28e/Milan.png",
-    "crest_attribution": "AC米兰俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/103",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_ac_milan",
@@ -1636,7 +1792,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/ac-milan.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "atletico-madrid",
@@ -1665,9 +1827,9 @@
       }
     ],
     "crest_url": "/assets/clubs/atletico-madrid.png",
-    "crest_source_url": "https://www.realmadrid.com/en-US",
-    "crest_asset_url": "https://assets.realmadrid.com/is/image/realmadrid/4ku8o6uf87yd8iecdalipo6wd?$Mobile$&fit=wrap&wid=144&hei=144",
-    "crest_attribution": "马德里竞技俱乐部标识，取自皇家马德里官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/1068",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/1068.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_atletico_madrid",
@@ -1698,7 +1860,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/atletico-madrid.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "borussia-dortmund",
@@ -1724,10 +1892,10 @@
         "url": "https://www.bvb.de/de/en/borussia-dortmund/history/decades/1909.html"
       }
     ],
-    "crest_url": "/assets/clubs/borussia-dortmund.svg",
-    "crest_source_url": "https://www.bvb.de/de/en.html",
-    "crest_asset_url": "https://www.bvb.de/etc.clientlibs/bvbweb/clientlibs/clientlib-site/resources/images/bvb-logo.svg",
-    "crest_attribution": "多特蒙德俱乐部标识，取自俱乐部官网。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_url": "/assets/clubs/borussia-dortmund.png",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/124",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/124.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_borussia_dortmund",
@@ -1758,7 +1926,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/borussia-dortmund.svg",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "roma",
@@ -1784,9 +1958,9 @@
       }
     ],
     "crest_url": "/assets/clubs/roma.png",
-    "crest_source_url": "https://www.acmilan.com/en",
-    "crest_asset_url": "https://assets-eu-01.kc-usercontent.com:443/006f7528-416b-01e4-8ef2-ab6ab3f4e177/1d20420f-1510-43d3-ad47-15a329f30d36/Roma-2024.png",
-    "crest_attribution": "罗马俱乐部标识，取自AC米兰官网球队标识。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/104",
+    "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/104.png",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "research_sources": [
       {
         "id": "official_roma",
@@ -1817,7 +1991,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/roma.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "alaves",
@@ -1836,9 +2016,9 @@
     "official_url": "https://www.deportivoalaves.com/",
     "description": "阿拉维斯是来自维多利亚的西班牙足球俱乐部，英文名称为 Alavés。西甲官方俱乐部资料登记的创立年份为 1921 年。",
     "crest_url": "/assets/clubs/alaves.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/96/alaves",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/96",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/96.png",
-    "crest_attribution": "阿拉维斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "阿拉维斯官方",
@@ -1902,7 +2082,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/alaves.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "athletic-club",
@@ -1921,9 +2107,9 @@
     "official_url": "https://www.athletic-club.eus/",
     "description": "毕尔巴鄂竞技是来自毕尔巴鄂的西班牙足球俱乐部，英文名称为 Athletic Club。西甲官方俱乐部资料登记的创立年份为 1898 年。",
     "crest_url": "/assets/clubs/athletic-club.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/93/athletic-club",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/93",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/93.png",
-    "crest_attribution": "毕尔巴鄂竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "毕尔巴鄂竞技官方",
@@ -1984,7 +2170,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/athletic-club.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "celta-vigo",
@@ -2003,9 +2195,9 @@
     "official_url": "https://rccelta.es/",
     "description": "塞尔塔是来自维戈的西班牙足球俱乐部，英文名称为 Celta Vigo。西甲官方俱乐部资料登记的创立年份为 1923 年。",
     "crest_url": "/assets/clubs/celta-vigo.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/85/celta-vigo",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/85",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/85.png",
-    "crest_attribution": "塞尔塔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "塞尔塔官方",
@@ -2064,7 +2256,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/celta-vigo.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "deportivo-la-coruna",
@@ -2084,9 +2282,9 @@
     "official_url": "https://www.rcdeportivo.es/",
     "description": "拉科鲁尼亚是来自拉科鲁尼亚的西班牙足球俱乐部，英文名称为 Deportivo。西甲官方俱乐部资料登记的创立年份为 1906 年。",
     "crest_url": "/assets/clubs/deportivo-la-coruna.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/90/deportivo",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/90",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/90.png",
-    "crest_attribution": "拉科鲁尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "拉科鲁尼亚官方",
@@ -2145,7 +2343,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/deportivo-la-coruna.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "elche",
@@ -2163,9 +2367,9 @@
     "official_url": "https://www.elchecf.es/",
     "description": "埃尔切是来自埃尔切的西班牙足球俱乐部，英文名称为 Elche。西甲官方俱乐部资料登记的创立年份为 1923 年。",
     "crest_url": "/assets/clubs/elche.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3751/elche",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3751",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3751.png",
-    "crest_attribution": "埃尔切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "埃尔切官方",
@@ -2224,7 +2428,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/elche.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "espanyol",
@@ -2242,9 +2452,9 @@
     "official_url": "https://www.rcdespanyol.com/",
     "description": "西班牙人是来自巴塞罗那的西班牙足球俱乐部，英文名称为 Espanyol。西甲官方俱乐部资料登记的创立年份为 1900 年。",
     "crest_url": "/assets/clubs/espanyol.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/88/espanyol",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/88",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/88.png",
-    "crest_attribution": "西班牙人俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "西班牙人官方",
@@ -2303,7 +2513,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/espanyol.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "getafe",
@@ -2321,9 +2537,9 @@
     "official_url": "https://www.getafecf.com/",
     "description": "赫塔费是来自赫塔费的西班牙足球俱乐部，英文名称为 Getafe。西甲官方俱乐部资料登记的创立年份为 1983 年。",
     "crest_url": "/assets/clubs/getafe.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2922/getafe",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2922",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2922.png",
-    "crest_attribution": "赫塔费俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "赫塔费官方",
@@ -2382,7 +2598,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/getafe.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "levante",
@@ -2400,9 +2622,9 @@
     "official_url": "https://www.levanteud.com/",
     "description": "莱万特是来自瓦伦西亚的西班牙足球俱乐部，英文名称为 Levante。西甲官方俱乐部资料登记的创立年份为 1909 年。",
     "crest_url": "/assets/clubs/levante.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/1538/levante",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/1538",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/1538.png",
-    "crest_attribution": "莱万特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "莱万特官方",
@@ -2461,7 +2683,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/levante.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "malaga",
@@ -2480,9 +2708,9 @@
     "official_url": "https://www.malagacf.com/",
     "description": "马拉加是来自马拉加的西班牙足球俱乐部，英文名称为 Málaga。西甲官方俱乐部资料登记的创立年份为 1994 年。",
     "crest_url": "/assets/clubs/malaga.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/99/malaga",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/99",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/99.png",
-    "crest_attribution": "马拉加俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "马拉加官方",
@@ -2541,7 +2769,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/malaga.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "osasuna",
@@ -2559,9 +2793,9 @@
     "official_url": "https://www.osasuna.es/",
     "description": "奥萨苏纳是来自潘普洛纳的西班牙足球俱乐部，英文名称为 Osasuna。西甲官方俱乐部资料登记的创立年份为 1920 年。",
     "crest_url": "/assets/clubs/osasuna.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/97/osasuna",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/97",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/97.png",
-    "crest_attribution": "奥萨苏纳俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "奥萨苏纳官方",
@@ -2622,7 +2856,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/osasuna.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "racing-santander",
@@ -2642,9 +2882,9 @@
     "official_url": "https://www.realracingclub.es/",
     "description": "桑坦德竞技是来自桑坦德的西班牙足球俱乐部，英文名称为 Racing Santander。西甲官方俱乐部资料登记的创立年份为 1913 年。",
     "crest_url": "/assets/clubs/racing-santander.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/87/racing-santander",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/87",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/87.png",
-    "crest_attribution": "桑坦德竞技俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "桑坦德竞技官方",
@@ -2703,7 +2943,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/racing-santander.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "rayo-vallecano",
@@ -2722,9 +2968,9 @@
     "official_url": "https://www.rayovallecano.es/",
     "description": "巴列卡诺是来自马德里的西班牙足球俱乐部，英文名称为 Rayo Vallecano。西甲官方俱乐部资料登记的创立年份为 1924 年。",
     "crest_url": "/assets/clubs/rayo-vallecano.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/101/rayo-vallecano",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/101",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/101.png",
-    "crest_attribution": "巴列卡诺俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "巴列卡诺官方",
@@ -2783,7 +3029,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/rayo-vallecano.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "real-betis",
@@ -2803,9 +3055,9 @@
     "official_url": "https://www.realbetisbalompie.es/",
     "description": "皇家贝蒂斯是来自塞维利亚的西班牙足球俱乐部，英文名称为 Real Betis。西甲官方俱乐部资料登记的创立年份为 1907 年。",
     "crest_url": "/assets/clubs/real-betis.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/244/real-betis",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/244",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/244.png",
-    "crest_attribution": "皇家贝蒂斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "皇家贝蒂斯官方",
@@ -2864,7 +3116,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/real-betis.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "real-sociedad",
@@ -2882,9 +3140,9 @@
     "official_url": "https://www.realsociedad.eus/",
     "description": "皇家社会是来自圣塞瓦斯蒂安的西班牙足球俱乐部，英文名称为 Real Sociedad。西甲官方俱乐部资料登记的创立年份为 1909 年。",
     "crest_url": "/assets/clubs/real-sociedad.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/89/real-sociedad",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/89",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/89.png",
-    "crest_attribution": "皇家社会俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "皇家社会官方",
@@ -2945,7 +3203,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/real-sociedad.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "sevilla",
@@ -2963,9 +3227,9 @@
     "official_url": "https://sevillafc.es/",
     "description": "塞维利亚是来自塞维利亚的西班牙足球俱乐部，英文名称为 Sevilla。西甲官方俱乐部资料登记的创立年份为 1890 年。",
     "crest_url": "/assets/clubs/sevilla.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/243/sevilla",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/243",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/243.png",
-    "crest_attribution": "塞维利亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "塞维利亚官方",
@@ -3024,7 +3288,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/sevilla.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "valencia",
@@ -3043,9 +3313,9 @@
     "official_url": "https://www.valenciacf.com/",
     "description": "瓦伦西亚是来自瓦伦西亚的西班牙足球俱乐部，英文名称为 Valencia。西甲官方俱乐部资料登记的创立年份为 1919 年。",
     "crest_url": "/assets/clubs/valencia.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/94/valencia",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/94",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/94.png",
-    "crest_attribution": "瓦伦西亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "瓦伦西亚官方",
@@ -3104,7 +3374,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/valencia.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "villarreal",
@@ -3123,9 +3399,9 @@
     "official_url": "https://villarrealcf.es/",
     "description": "比利亚雷亚尔是来自比利亚雷亚尔的西班牙足球俱乐部，英文名称为 Villarreal。西甲官方俱乐部资料登记的创立年份为 1923 年。",
     "crest_url": "/assets/clubs/villarreal.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/102/villarreal",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/102",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/102.png",
-    "crest_attribution": "比利亚雷亚尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "比利亚雷亚尔官方",
@@ -3184,7 +3460,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/villarreal.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "atalanta",
@@ -3202,9 +3484,9 @@
     "official_url": "https://www.atalanta.it/",
     "description": "亚特兰大是来自贝加莫的意大利足球俱乐部，英文名称为 Atalanta。意甲官方俱乐部目录列出的主场为 New Balance Arena。",
     "crest_url": "/assets/clubs/atalanta.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/105/atalanta",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/105",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/105.png",
-    "crest_attribution": "亚特兰大俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "亚特兰大官方",
@@ -3263,7 +3545,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/atalanta.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "bologna",
@@ -3281,9 +3569,9 @@
     "official_url": "https://www.bolognafc.it/",
     "description": "博洛尼亚是来自博洛尼亚的意大利足球俱乐部，英文名称为 Bologna。意甲官方俱乐部目录列出的主场为 Renato Dall’Ara。",
     "crest_url": "/assets/clubs/bologna.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/107/bologna",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/107",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/107.png",
-    "crest_attribution": "博洛尼亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "博洛尼亚官方",
@@ -3344,7 +3632,13 @@
           "nickname"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/bologna.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "cagliari",
@@ -3362,9 +3656,9 @@
     "official_url": "https://cagliaricalcio.com/",
     "description": "卡利亚里是来自卡利亚里的意大利足球俱乐部，英文名称为 Cagliari。意甲官方俱乐部目录列出的主场为 Unipol Domus。",
     "crest_url": "/assets/clubs/cagliari.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2925/cagliari",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2925",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2925.png",
-    "crest_attribution": "卡利亚里俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "卡利亚里官方",
@@ -3425,7 +3719,13 @@
           "nickname"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/cagliari.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "como",
@@ -3443,9 +3743,9 @@
     "official_url": "https://comofootball.com/",
     "description": "科莫是来自科莫的意大利足球俱乐部，英文名称为 Como。意甲官方俱乐部目录列出的主场为 Giuseppe Sinigaglia。",
     "crest_url": "/assets/clubs/como.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2572/como",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2572",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2572.png",
-    "crest_attribution": "科莫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "科莫官方",
@@ -3504,7 +3804,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/como.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "fiorentina",
@@ -3523,9 +3829,9 @@
     "official_url": "https://www.acffiorentina.com/",
     "description": "佛罗伦萨是来自佛罗伦萨的意大利足球俱乐部，英文名称为 Fiorentina。意甲官方俱乐部目录列出的主场为 Artemio Franchi。",
     "crest_url": "/assets/clubs/fiorentina.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/109/fiorentina",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/109",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/109.png",
-    "crest_attribution": "佛罗伦萨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "佛罗伦萨官方",
@@ -3584,7 +3890,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/fiorentina.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "frosinone",
@@ -3602,9 +3914,9 @@
     "official_url": "https://www.frosinonecalcio.com/",
     "description": "弗罗西诺内是来自弗罗西诺内的意大利足球俱乐部，英文名称为 Frosinone。意甲官方俱乐部目录列出的主场为 Benito Stirpe。",
     "crest_url": "/assets/clubs/frosinone.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/4057/frosinone",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/4057",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/4057.png",
-    "crest_attribution": "弗罗西诺内俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "弗罗西诺内官方",
@@ -3663,7 +3975,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/frosinone.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "genoa",
@@ -3681,9 +3999,9 @@
     "official_url": "https://genoacfc.it/",
     "description": "热那亚是来自热那亚的意大利足球俱乐部，英文名称为 Genoa。意甲官方俱乐部目录列出的主场为 Luigi Ferraris。",
     "crest_url": "/assets/clubs/genoa.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3263/genoa",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3263",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3263.png",
-    "crest_attribution": "热那亚俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "热那亚官方",
@@ -3742,7 +4060,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/genoa.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lazio",
@@ -3760,9 +4084,9 @@
     "official_url": "https://www.sslazio.it/",
     "description": "拉齐奥是来自罗马的意大利足球俱乐部，英文名称为 Lazio。意甲官方俱乐部目录列出的主场为 Olimpico。",
     "crest_url": "/assets/clubs/lazio.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/112/lazio",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/112",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/112.png",
-    "crest_attribution": "拉齐奥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "拉齐奥官方",
@@ -3821,7 +4145,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lazio.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lecce",
@@ -3839,9 +4169,9 @@
     "official_url": "https://www.uslecce.it/",
     "description": "莱切是来自莱切的意大利足球俱乐部，英文名称为 Lecce。意甲官方俱乐部目录列出的主场为 Ettore Giardiniero - Via del Mare。",
     "crest_url": "/assets/clubs/lecce.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/113/lecce",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/113",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/113.png",
-    "crest_attribution": "莱切俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "莱切官方",
@@ -3903,7 +4233,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lecce.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "monza",
@@ -3921,9 +4257,9 @@
     "official_url": "https://www.acmonza.com/",
     "description": "蒙扎是来自蒙扎的意大利足球俱乐部，英文名称为 Monza。意甲官方俱乐部目录列出的主场为 Brianteo。",
     "crest_url": "/assets/clubs/monza.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/4007/monza",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/4007",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/4007.png",
-    "crest_attribution": "蒙扎俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "蒙扎官方",
@@ -3984,7 +4320,13 @@
           "nickname"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/monza.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "napoli",
@@ -4002,9 +4344,9 @@
     "official_url": "https://sscnapoli.it/",
     "description": "那不勒斯是来自那不勒斯的意大利足球俱乐部，英文名称为 Napoli。意甲官方俱乐部目录列出的主场为 Diego Armando Maradona。",
     "crest_url": "/assets/clubs/napoli.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/114/napoli",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/114",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/114.png",
-    "crest_attribution": "那不勒斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "那不勒斯官方",
@@ -4065,7 +4407,13 @@
           "nickname"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/napoli.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "parma",
@@ -4083,9 +4431,9 @@
     "official_url": "https://www.parmacalcio1913.com/",
     "description": "帕尔马是来自帕尔马的意大利足球俱乐部，英文名称为 Parma。意甲官方俱乐部目录列出的主场为 Ennio Tardini。",
     "crest_url": "/assets/clubs/parma.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/115/parma",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/115",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/115.png",
-    "crest_attribution": "帕尔马俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "帕尔马官方",
@@ -4144,7 +4492,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/parma.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "sassuolo",
@@ -4162,9 +4516,9 @@
     "official_url": "https://www.sassuolocalcio.it/",
     "description": "萨索洛是来自萨索洛的意大利足球俱乐部，英文名称为 Sassuolo。意甲官方俱乐部目录列出的主场为 Mapei Stadium。",
     "crest_url": "/assets/clubs/sassuolo.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3997/sassuolo",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3997",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3997.png",
-    "crest_attribution": "萨索洛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "萨索洛官方",
@@ -4223,7 +4577,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/sassuolo.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "torino",
@@ -4241,9 +4601,9 @@
     "official_url": "https://www.torinofc.it/",
     "description": "都灵是来自都灵的意大利足球俱乐部，英文名称为 Torino。意甲官方俱乐部目录列出的主场为 Olimpico - Grande Torino。",
     "crest_url": "/assets/clubs/torino.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/239/torino",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/239",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/239.png",
-    "crest_attribution": "都灵俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "都灵官方",
@@ -4302,7 +4662,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/torino.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "udinese",
@@ -4320,9 +4686,9 @@
     "official_url": "https://www.udinese.it/",
     "description": "乌迪内斯是来自乌迪内的意大利足球俱乐部，英文名称为 Udinese。意甲官方俱乐部目录列出的主场为 Friuli / Bluenergy Stadium。",
     "crest_url": "/assets/clubs/udinese.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/118/udinese",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/118",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/118.png",
-    "crest_attribution": "乌迪内斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "乌迪内斯官方",
@@ -4381,7 +4747,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/udinese.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "venezia",
@@ -4399,9 +4771,9 @@
     "official_url": "https://www.veneziafc.it/",
     "description": "威尼斯是来自威尼斯的意大利足球俱乐部，英文名称为 Venezia。意甲官方俱乐部目录列出的主场为 Pier Luigi Penzo。",
     "crest_url": "/assets/clubs/venezia.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/17530/venezia",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/17530",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/17530.png",
-    "crest_attribution": "威尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "威尼斯官方",
@@ -4460,7 +4832,13 @@
           "founded"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/venezia.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "union-berlin",
@@ -4478,9 +4856,9 @@
     "official_url": "https://www.fc-union-berlin.de/",
     "description": "柏林联合是来自柏林的德国足球俱乐部，英文名称为 1. FC Union Berlin。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/union-berlin.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/598/1-fc-union-berlin",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/598",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/598.png",
-    "crest_attribution": "柏林联合俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "柏林联合官方",
@@ -4542,7 +4920,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/union-berlin.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "bayer-leverkusen",
@@ -4562,9 +4946,9 @@
     "official_url": "https://www.bayer04.de/",
     "description": "勒沃库森是来自勒沃库森的德国足球俱乐部，英文名称为 Bayer Leverkusen。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/bayer-leverkusen.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/131/bayer-leverkusen",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/131",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/131.png",
-    "crest_attribution": "勒沃库森俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "勒沃库森官方",
@@ -4624,7 +5008,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/bayer-leverkusen.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "borussia-monchengladbach",
@@ -4645,9 +5035,9 @@
     "official_url": "https://www.borussia.de/",
     "description": "门兴格拉德巴赫是来自门兴格拉德巴赫的德国足球俱乐部，英文名称为 Borussia Mönchengladbach。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/borussia-monchengladbach.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/268/borussia-monchengladbach",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/268",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/268.png",
-    "crest_attribution": "门兴格拉德巴赫俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "门兴格拉德巴赫官方",
@@ -4707,7 +5097,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/borussia-monchengladbach.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "eintracht-frankfurt",
@@ -4724,9 +5120,9 @@
     "official_url": "https://www.eintracht.de/",
     "description": "法兰克福是来自法兰克福的德国足球俱乐部，英文名称为 Eintracht Frankfurt。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/eintracht-frankfurt.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/125/eintracht-frankfurt",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/125",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/125.png",
-    "crest_attribution": "法兰克福俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "法兰克福官方",
@@ -4786,7 +5182,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/eintracht-frankfurt.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "augsburg",
@@ -4804,9 +5206,9 @@
     "official_url": "https://www.fcaugsburg.de/",
     "description": "奥格斯堡是来自奥格斯堡的德国足球俱乐部，英文名称为 FC Augsburg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/augsburg.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3841/fc-augsburg",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3841",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3841.png",
-    "crest_attribution": "奥格斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "奥格斯堡官方",
@@ -4866,7 +5268,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/augsburg.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "cologne",
@@ -4887,9 +5295,9 @@
     "official_url": "https://fc.de/",
     "description": "科隆是来自科隆的德国足球俱乐部，英文名称为 FC Cologne。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/cologne.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/122/fc-cologne",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/122",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/122.png",
-    "crest_attribution": "科隆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "科隆官方",
@@ -4951,7 +5359,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/cologne.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "hamburg",
@@ -4971,9 +5385,9 @@
     "official_url": "https://www.hsv.de/",
     "description": "汉堡是来自汉堡的德国足球俱乐部，英文名称为 Hamburg SV。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/hamburg.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/127/hamburg-sv",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/127",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/127.png",
-    "crest_attribution": "汉堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "汉堡官方",
@@ -5035,7 +5449,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/hamburg.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "mainz",
@@ -5055,9 +5475,9 @@
     "official_url": "https://www.mainz05.de/",
     "description": "美因茨是来自美因茨的德国足球俱乐部，英文名称为 Mainz。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/mainz.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2950/mainz",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2950",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2950.png",
-    "crest_attribution": "美因茨俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "美因茨官方",
@@ -5119,7 +5539,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/mainz.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "rb-leipzig",
@@ -5138,9 +5564,9 @@
     "official_url": "https://rbleipzig.com/",
     "description": "RB莱比锡是来自莱比锡的德国足球俱乐部，英文名称为 RB Leipzig。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/rb-leipzig.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/11420/rb-leipzig",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/11420",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/11420.png",
-    "crest_attribution": "RB莱比锡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "RB莱比锡官方",
@@ -5200,7 +5626,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/rb-leipzig.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "freiburg",
@@ -5219,9 +5651,9 @@
     "official_url": "https://www.scfreiburg.com/",
     "description": "弗赖堡是来自弗赖堡的德国足球俱乐部，英文名称为 SC Freiburg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/freiburg.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/126/sc-freiburg",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/126",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/126.png",
-    "crest_attribution": "弗赖堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "弗赖堡官方",
@@ -5281,7 +5713,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/freiburg.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "paderborn",
@@ -5299,9 +5737,9 @@
     "official_url": "https://www.scp07.de/",
     "description": "帕德博恩是来自帕德博恩的德国足球俱乐部，英文名称为 SC Paderborn 07。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/paderborn.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3307/sc-paderborn-07",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3307",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3307.png",
-    "crest_attribution": "帕德博恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "帕德博恩官方",
@@ -5361,7 +5799,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/paderborn.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "elversberg",
@@ -5380,9 +5824,9 @@
     "official_url": "https://sv07elversberg.de/",
     "description": "埃尔弗斯贝格是来自施皮森-埃尔弗斯贝格的德国足球俱乐部，英文名称为 SV Elversberg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/elversberg.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/10388/sv-elversberg",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/10388",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/10388.png",
-    "crest_attribution": "埃尔弗斯贝格俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "埃尔弗斯贝格官方",
@@ -5442,7 +5886,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/elversberg.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "schalke-04",
@@ -5462,9 +5912,9 @@
     "official_url": "https://schalke04.de/",
     "description": "沙尔克04是来自盖尔森基兴的德国足球俱乐部，英文名称为 Schalke 04。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/schalke-04.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/133/schalke-04",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/133",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/133.png",
-    "crest_attribution": "沙尔克04俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "沙尔克04官方",
@@ -5524,7 +5974,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/schalke-04.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "hoffenheim",
@@ -5543,9 +5999,9 @@
     "official_url": "https://www.tsg-hoffenheim.de/",
     "description": "霍芬海姆是来自辛斯海姆的德国足球俱乐部，英文名称为 TSG Hoffenheim。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/hoffenheim.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/7911/tsg-hoffenheim",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/7911",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/7911.png",
-    "crest_attribution": "霍芬海姆俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "霍芬海姆官方",
@@ -5605,7 +6061,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/hoffenheim.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "stuttgart",
@@ -5623,9 +6085,9 @@
     "official_url": "https://www.vfb.de/",
     "description": "斯图加特是来自斯图加特的德国足球俱乐部，英文名称为 VfB Stuttgart。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/stuttgart.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/134/vfb-stuttgart",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/134",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/134.png",
-    "crest_attribution": "斯图加特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "斯图加特官方",
@@ -5685,7 +6147,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/stuttgart.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "werder-bremen",
@@ -5705,9 +6173,9 @@
     "official_url": "https://www.werder.de/",
     "description": "云达不莱梅是来自不莱梅的德国足球俱乐部，英文名称为 Werder Bremen。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/werder-bremen.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/137/werder-bremen",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/137",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/137.png",
-    "crest_attribution": "云达不莱梅俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "云达不莱梅官方",
@@ -5767,7 +6235,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/werder-bremen.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "auxerre",
@@ -5785,9 +6259,9 @@
     "official_url": "https://www.aja.fr/",
     "description": "欧塞尔是来自欧塞尔的法国足球俱乐部，英文名称为 AJ Auxerre。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/auxerre.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/172/aj-auxerre",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/172",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/172.png",
-    "crest_attribution": "欧塞尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "欧塞尔官方",
@@ -5849,7 +6323,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/auxerre.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "monaco",
@@ -5867,9 +6347,9 @@
     "official_url": "https://www.asmonaco.com/",
     "description": "摩纳哥是来自摩纳哥的摩纳哥足球俱乐部，英文名称为 AS Monaco。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/monaco.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/174/as-monaco",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/174",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/174.png",
-    "crest_attribution": "摩纳哥俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "摩纳哥官方",
@@ -5929,7 +6409,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/monaco.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "angers",
@@ -5947,9 +6433,9 @@
     "official_url": "https://angers-sco.fr/",
     "description": "昂热是来自昂热的法国足球俱乐部，英文名称为 Angers。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/angers.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/7868/angers",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/7868",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/7868.png",
-    "crest_attribution": "昂热俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "昂热官方",
@@ -6011,7 +6497,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/angers.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "brest",
@@ -6030,9 +6522,9 @@
     "official_url": "https://www.sb29.bzh/",
     "description": "布雷斯特是来自布雷斯特的法国足球俱乐部，英文名称为 Brest。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/brest.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/6997/brest",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/6997",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/6997.png",
-    "crest_attribution": "布雷斯特俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "布雷斯特官方",
@@ -6092,7 +6584,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/brest.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "le-havre",
@@ -6109,9 +6607,9 @@
     "official_url": "https://www.hac-foot.com/",
     "description": "勒阿弗尔是来自勒阿弗尔的法国足球俱乐部，英文名称为 Le Havre AC。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/le-havre.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/3236/le-havre-ac",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/3236",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/3236.png",
-    "crest_attribution": "勒阿弗尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "勒阿弗尔官方",
@@ -6174,7 +6672,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/le-havre.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "le-mans",
@@ -6192,9 +6696,9 @@
     "official_url": "https://www.lemansfc.fr/",
     "description": "勒芒是来自勒芒的法国足球俱乐部，英文名称为 Le Mans。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/le-mans.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2697/le-mans",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2697",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2697.png",
-    "crest_attribution": "勒芒俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "勒芒官方",
@@ -6254,7 +6758,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/le-mans.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lens",
@@ -6272,9 +6782,9 @@
     "official_url": "https://www.rclens.fr/",
     "description": "朗斯是来自朗斯的法国足球俱乐部，英文名称为 Lens。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/lens.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/175/lens",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/175",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/175.png",
-    "crest_attribution": "朗斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "朗斯官方",
@@ -6334,7 +6844,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lens.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lille",
@@ -6353,9 +6869,9 @@
     "official_url": "https://www.losc.fr/",
     "description": "里尔是来自里尔的法国足球俱乐部，英文名称为 Lille。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/lille.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/166/lille",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/166",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/166.png",
-    "crest_attribution": "里尔俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "里尔官方",
@@ -6415,7 +6931,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lille.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lorient",
@@ -6433,9 +6955,9 @@
     "official_url": "https://www.fclorient.bzh/",
     "description": "洛里昂是来自洛里昂的法国足球俱乐部，英文名称为 Lorient。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/lorient.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/273/lorient",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/273",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/273.png",
-    "crest_attribution": "洛里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "洛里昂官方",
@@ -6495,7 +7017,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lorient.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "lyon",
@@ -6513,9 +7041,9 @@
     "official_url": "https://www.ol.fr/",
     "description": "里昂是来自里昂的法国足球俱乐部，英文名称为 Lyon。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/lyon.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/167/lyon",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/167",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/167.png",
-    "crest_attribution": "里昂俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "里昂官方",
@@ -6577,7 +7105,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/lyon.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "marseille",
@@ -6595,9 +7129,9 @@
     "official_url": "https://www.om.fr/",
     "description": "马赛是来自马赛的法国足球俱乐部，英文名称为 Marseille。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/marseille.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/176/marseille",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/176",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/176.png",
-    "crest_attribution": "马赛俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "马赛官方",
@@ -6657,7 +7191,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/marseille.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "nice",
@@ -6675,9 +7215,9 @@
     "official_url": "https://www.ogcnice.com/",
     "description": "尼斯是来自尼斯的法国足球俱乐部，英文名称为 Nice。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/nice.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/2502/nice",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/2502",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/2502.png",
-    "crest_attribution": "尼斯俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "尼斯官方",
@@ -6737,7 +7277,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/nice.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "paris-fc",
@@ -6755,9 +7301,9 @@
     "official_url": "https://parisfc.fr/",
     "description": "巴黎FC是来自巴黎的法国足球俱乐部，英文名称为 Paris FC。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/paris-fc.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/6851/paris-fc",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/6851",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/6851.png",
-    "crest_attribution": "巴黎FC俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "巴黎FC官方",
@@ -6817,7 +7363,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/paris-fc.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "rennes",
@@ -6836,9 +7388,9 @@
     "official_url": "https://www.staderennais.com/",
     "description": "雷恩是来自雷恩的法国足球俱乐部，英文名称为 Stade Rennais。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/rennes.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/169/stade-rennais",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/169",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/169.png",
-    "crest_attribution": "雷恩俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "雷恩官方",
@@ -6898,7 +7450,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/rennes.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "strasbourg",
@@ -6917,9 +7475,9 @@
     "official_url": "https://www.rcstrasbourgalsace.fr/",
     "description": "斯特拉斯堡是来自斯特拉斯堡的法国足球俱乐部，英文名称为 Strasbourg。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/strasbourg.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/180/strasbourg",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/180",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/180.png",
-    "crest_attribution": "斯特拉斯堡俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "斯特拉斯堡官方",
@@ -6979,7 +7537,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/strasbourg.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "toulouse",
@@ -6997,9 +7561,9 @@
     "official_url": "https://www.toulousefc.com/",
     "description": "图卢兹是来自图卢兹的法国足球俱乐部，英文名称为 Toulouse。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/toulouse.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/179/toulouse",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/179",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/179.png",
-    "crest_attribution": "图卢兹俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "图卢兹官方",
@@ -7059,7 +7623,13 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/toulouse.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   },
   {
     "id": "troyes",
@@ -7077,9 +7647,9 @@
     "official_url": "https://www.estac.fr/",
     "description": "特鲁瓦是来自特鲁瓦的法国足球俱乐部，英文名称为 Troyes。官网提供俱乐部公告与一线队信息，本地资料同时保留公开媒体报道入口。",
     "crest_url": "/assets/clubs/troyes.png",
-    "crest_source_url": "https://www.espn.com/soccer/club/_/id/170/troyes",
+    "crest_source_url": "https://www.espn.com/soccer/team/_/id/170",
     "crest_asset_url": "https://a.espncdn.com/i/teamlogos/soccer/500/170.png",
-    "crest_attribution": "特鲁瓦俱乐部标识，来自 ESPN 球队资料图片目录。商标及图形权利归所属俱乐部；未声明为开放授权。",
+    "crest_attribution": "队徽来自 ESPN 球队资料页；商标及图形权利归所属俱乐部，未声明为开放授权。",
     "profile_sources": [
       {
         "name": "特鲁瓦官方",
@@ -7139,6 +7709,12 @@
           "stadium"
         ]
       }
-    }
+    },
+    "crest_history": [
+      {
+        "replaced_asset_url": "/assets/clubs/troyes.png",
+        "replaced_at": "2026-10-11"
+      }
+    ]
   }
 ]

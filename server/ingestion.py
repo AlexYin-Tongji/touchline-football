@@ -29,6 +29,15 @@ MAX_FEED_FOLLOWUPS = 6
 CONTENT_FIELDS = ("content_status", "content_method", "content_note", "text_truncated")
 PUBLICATION_FIELDS = ("published_at", "published_date", "publication_precision")
 
+# Wikimedia answers HTTP 403 "Please respect our robot policy" to any client
+# whose User-Agent names only a product. Its policy requires a way to contact
+# the operator, and a browser string fares no better because the request does
+# not come from a browser. A single constant is used everywhere so the three
+# strings that had drifted apart (Touchline/1.0, 2.0 and 7.1) can no longer
+# disagree about who is asking.
+USER_AGENT = ("Touchline/2.0 (personal football reader; "
+              "+https://github.com/AlexYin-Tongji/touchline-football)")
+
 
 def content_details(item):
     """Describe the supplied visible text; callers must apply spoiler scope first.
@@ -154,13 +163,26 @@ def normalize_url(url: str, *, allow_local=False):
 
 
 def public_addresses(host: str, port: int):
+    """Addresses a hostname resolves to that are safe to connect to.
+
+    A host may resolve to a mix of public and private addresses — CDNs that
+    serve Chinese publishers commonly return both, and some answer with an
+    IPv6 link-local address alongside a routable one. Rejecting the whole host
+    over that mix blocks sources the app can plainly read, so the private
+    addresses are dropped and the connection is still pinned to a public one,
+    which is what the check exists to guarantee. A host with *no* public
+    address remains refused.
+    """
     try:
         addresses = sorted({result[4][0] for result in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
     except OSError:
         raise SourceConnectionError("来源域名无法解析，请检查网址") from None
-    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+    if not addresses:
+        raise SourceConnectionError("来源域名无法解析，请检查网址") from None
+    public = [address for address in addresses if ipaddress.ip_address(address).is_global]
+    if not public:
         raise IngestionError("来源域名解析到本机或私有网络，已阻止访问")
-    return addresses
+    return public
 
 
 class _PinnedHTTP(http.client.HTTPConnection):
@@ -213,7 +235,7 @@ def fetch_document(url: str, *, allowed_hosts=None, max_body=MAX_BODY, content_t
         connection = _PinnedHTTP(parts.hostname, port, addresses[0], parts.scheme == "https", min(8, remaining))
         try:
             target = urlunsplit(("", "", parts.path or "/", parts.query, ""))
-            request_headers = {"Host": parts.netloc, "User-Agent": "Touchline/1.0 (personal football reader)",
+            request_headers = {"Host": parts.netloc, "User-Agent": USER_AGENT,
                                "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json",
                                "Accept-Encoding": "identity"}
             request_headers.update(headers or {})

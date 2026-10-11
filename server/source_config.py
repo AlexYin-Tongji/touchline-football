@@ -2,7 +2,7 @@
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from . import providers
+from . import network_probe, network_verdict, providers, research
 
 
 class CredentialInput(BaseModel):
@@ -41,3 +41,64 @@ def register_routes(app, store):
         row = keyed_source(identity)
         store.set_secret(row.requires_key, None)
         return safe_source(row)
+
+    @app.get("/api/network-diagnostics")
+    async def network_diagnostics():
+        """Whether the local network is the reason sources are failing.
+
+        Reads only records the app already wrote plus two cheap local probes; it
+        makes no publisher request. The response is reduced to counts and a
+        verdict on purpose: proxy credentials, source URLs and response bodies
+        have no place in a diagnostic the browser renders.
+        """
+        settings = store.transport_settings() if hasattr(store, "transport_settings") else None
+        proxy = network_probe.proxy_reachability(settings)
+        state = network_probe.proxy_state(settings)
+        records, transport_failed, http_failed, reachable = [], 0, 0, 0
+        failing_hosts = []
+        for source in _diagnostic_sources(store):
+            health = research.source_health(store, source)
+            kind = health.get("last_error_kind")
+            records.append((source, health))
+            if kind in network_verdict.TRANSPORT_CODES:
+                transport_failed += 1
+                host = (source.get("url") or "").split("//")[-1].split("/")[0].lower()
+                if host:
+                    failing_hosts.append(host)
+            elif kind:
+                http_failed += 1
+            elif health.get("last_ok_at"):
+                reachable += 1
+        sampled = next((host for host in failing_hosts if host), None)
+        intercepted = bool(sampled) and network_probe.dns_verdict(sampled) == "intercepted"
+        conclusion = network_verdict.verdict(records, state, dns_intercepted=intercepted)
+        return {
+            "proxy": {"state": state, "configured": proxy["configured"],
+                      "host": proxy["host"], "port": proxy["port"], "listening": proxy["listening"]},
+            "dns": {"intercepted": intercepted, "sample": sampled if intercepted else None},
+            "sources": {"total": len(records), "transport_failed": transport_failed,
+                        "http_failed": http_failed, "reachable": reachable},
+            "verdict": conclusion,
+            "notice": network_verdict.VERDICTS.get(conclusion) if conclusion else None,
+        }
+
+
+def _diagnostic_sources(store):
+    """Every built-in source once, without depending on a followed team.
+
+    Diagnosing the network must not require the reader to be following any
+    particular club, and the shared publisher feeds are the ones whose failure
+    carries the signal.
+    """
+    from .news_sources import (additional_sources, community_sources, verified_publisher_sources)
+    from .club_library import TEAM_ALIASES
+    seen, result = set(), []
+    team_id = next(iter(sorted(TEAM_ALIASES)), None)
+    candidates = [*(verified_publisher_sources()),
+                  *(additional_sources(team_id) if team_id else []),
+                  *(community_sources(team_id) if team_id else [])]
+    for source in candidates:
+        if source["id"] not in seen:
+            seen.add(source["id"])
+            result.append(source)
+    return result

@@ -122,7 +122,8 @@ class ConversationRoleTests(unittest.IsolatedAsyncioTestCase):
         await self.client.delete("/api/model-providers/alpha")
         setup = (await self.client.get("/api/state")).json()["setup"]
         self.assertTrue(setup["model_configured"])
-        self.assertEqual(setup["model_roles_configured"], {"chat": True, "feed": False, "team": False, "verify": False})
+        self.assertEqual(setup["model_roles_configured"],
+                         {"chat": True, "feed": False, "team": False, "verify": False, "photos": False})
 
     async def test_removed_provider_updates_roles_without_rebinding_old_turns(self):
         await self.client.put("/api/models/roles", json={"roles": {"feed": {"provider_id": "beta", "model": "two"}}})

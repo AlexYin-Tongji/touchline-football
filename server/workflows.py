@@ -345,11 +345,17 @@ class WorkflowManager:
         if entry.parts is None and view.get("roster") and (
                 portraits_state.get("status") != "fresh" or photos_present < len(roster_rows)):
             self.update(entry, phase="portraits", message="核心资料已保存，正在补充可核对的球员照片。")
+            # The outer bound stays at 180s, but the pass itself is told it has
+            # less: a batch sized against the full window can still be running
+            # when the wait expires, and that is reported as interrupted rather
+            # than as the partial progress it actually is.
+            photo_budget = 150
             async def portraits(context):
                 # Bounded so one slow publisher cannot hold the whole cycle, but
-                # wide enough for a full PLAYER_PAGE_LIMIT batch at the paced
-                # Wikimedia rate; otherwise the batch is truncated mid-way.
-                return await asyncio.wait_for(sync_portraits(self.store, entry.team_id, force=first), 180)
+                # wide enough for a full batch at the paced Wikimedia rate;
+                # otherwise the batch is truncated mid-way.
+                return await asyncio.wait_for(
+                    sync_portraits(self.store, entry.team_id, force=first, budget_seconds=photo_budget), 180)
             photos = await self._unit(entry, portraits, {"team_id": entry.team_id, "part": "portraits"})
             photo_complete = photos.get("status") == "completed"
             photo_failed = photos.get("status") in {"failed", "unavailable", "interrupted"}

@@ -13,6 +13,7 @@ import asyncio
 import copy
 import json
 import re
+import time
 import unicodedata
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urljoin, urlsplit
@@ -66,6 +67,21 @@ PLAYER_PAGE_CONCURRENCY = 3
 # Each source has its own cursor. An outage must not turn one team refresh
 # into a full-squad burst against the fallback source.
 COMMUNITY_PAGE_LIMIT = 12
+# Measured mean cost of one player attempt, used to size a batch against the
+# time actually left rather than against a fixed ceiling. Raising the ceiling
+# alone is what truncated batches and reported them as "interrupted".
+BATCH_SECONDS_PER_PLAYER = 6.5
+
+
+def batch_limit(remaining_seconds, *, ceiling=PLAYER_PAGE_LIMIT):
+    """How many players fit in the time left, never fewer than one.
+
+    A caller with no deadline passes nothing and gets the historical ceiling,
+    so existing behaviour is unchanged where no clock is known.
+    """
+    if remaining_seconds is None:
+        return ceiling
+    return max(1, min(ceiling, int(remaining_seconds // BATCH_SECONDS_PER_PLAYER)))
 PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
                        "photo_file_page", "photo_license", "photo_restrictions", "photo_reason",
                        "retryable", "reason_code")
@@ -169,9 +185,10 @@ def _apply_photo(player, photo):
 # is tried first, and a source that answers less often must not overwrite it.
 PHOTO_SOURCE_ORDER = (
     "exact_name_and_number",          # the club's own directory, name + number
-    # The community tiers, strongest evidence first. All four are one source, so
-    # they share a rank: only a re-derivation by the same source may replace one,
-    # which is what a manual retry asks for.
+    # The community tiers, strongest evidence first. All of them are one source,
+    # so they share a rank: only a re-derivation by the same source may replace
+    # one, which is what a manual retry asks for.
+    "community_espn_provider_id",      # same athlete id as the roster carries
     "community_name_and_nationality",  # one unique record, nationality agrees
     "community_name_and_birthdate",    # full name, birth date agrees to the day
     "community_name_and_birth_year",   # full name, birth year only
@@ -529,6 +546,100 @@ def _apply_cached_reading(store, player, team_id):
     with_reading(player, source_reading=cached_reading(store, player, team_id), team_id=team_id)
 
 
+def photo_queue(store, snapshot, *, limit=60):
+    """What photo work remains for one team, and why each player is still open.
+
+    This exists because the batch loop could only ever answer "who is next by
+    cursor position". Measured on a real squad, every missing player carried
+    ``not_yet_resolved`` — none had been *rejected* — so the queue was the
+    whole problem: 30 players, 12 per pass, and the cursor is pure rotation
+    with no notion of which twelve are worth asking about first.
+
+    The report is deliberately narrow. It carries no image URL, no licence and
+    no identity evidence: a caller may decide *who to ask about*, never *what
+    the answer is*. Identity stays with the source that can prove it.
+    """
+    roster = snapshot.get("roster") or []
+    team_id = snapshot.get("team_id", "")
+    season_id = snapshot.get("season_id", "")
+    untried, settled = [], []
+    for row in roster[:120]:
+        entry = {"player_id": str(row.get("provider_id") or row.get("id") or ""),
+                 "name": row.get("name") or "", "position_group": row.get("position_group") or "",
+                 # Which identity facts exist locally decides whether either
+                 # source can be asked at all, which is different from the
+                 # source having answered "no".
+                 "has_nationality": bool(row.get("nationality")),
+                 "has_birth_date": bool(row.get("birth_date"))}
+        if row.get("photo_url"):
+            continue
+        reason = row.get("reason_code") or "not_yet_resolved"
+        entry["reason_code"] = reason
+        if reason == "not_yet_resolved" or row.get("retryable"):
+            untried.append(entry)
+        else:
+            settled.append(entry)
+    # A player with neither a nationality nor a birth date can never be matched
+    # by the community source: it refuses before making a request. Surfacing
+    # the count separately says "asking again will not help" rather than leaving
+    # them indistinguishable from players merely not reached yet.
+    no_facts = [entry for entry in untried
+                if not entry["has_nationality"] and not entry["has_birth_date"]]
+    available = sum(bool(row.get("photo_url")) for row in roster)
+    return {
+        "team_id": team_id, "season_id": season_id,
+        "total": len(roster), "available": available, "missing": len(roster) - available,
+        "untried": untried[:limit], "untried_count": len(untried),
+        "settled": settled[:limit], "settled_count": len(settled),
+        "no_identity_facts_count": len(no_facts),
+        "cursors": {"community": _cursor_position(store, "community_cursor_v1", team_id, season_id, roster),
+                    "wikimedia": _cursor_position(store, "wikimedia_cursor_v1", team_id, season_id, roster)},
+        "batch_budget": {"community_limit": COMMUNITY_PAGE_LIMIT, "wikimedia_limit": PLAYER_PAGE_LIMIT,
+                         "seconds_per_player": BATCH_SECONDS_PER_PLAYER},
+        "hint": ("有 {0} 名球员缺少国籍和出生日期，两个照片来源都无法核对。"
+                 "先补全阵容资料（maintain_team_data）才能恢复他们的照片核对路径。").format(len(no_facts))
+                if no_facts else None,
+    }
+
+
+def _ordered_selection(selected, order, roster):
+    """Reorder a selection by someone else's priority, without adding to it.
+
+    Every id must already be in this roster, so a caller cannot introduce a
+    player that the roster does not contain. Rows the order does not mention
+    keep their original relative order and follow it — the order is a
+    preference among real work, not a filter that hides the rest.
+    """
+    if not isinstance(order, (list, tuple)):
+        raise IngestionError("补充照片的顺序必须是球队阵容内的球员列表。")
+    by_key = {}
+    for row in selected:
+        for key in ("id", "provider_id"):
+            value = row.get(key)
+            if value:
+                by_key.setdefault(str(value), row)
+    ranked, seen = [], set()
+    for value in order:
+        row = by_key.get(str(value))
+        if row is None:
+            raise IngestionError("只能补充当前已核对阵容内的球员照片。")
+        identity = id(row)
+        if identity not in seen:
+            seen.add(identity)
+            ranked.append(row)
+    return ranked + [row for row in selected if id(row) not in seen]
+
+
+def _cursor_position(store, prefix, team_id, season_id, roster):
+    if not hasattr(store, "get_meta") or not roster:
+        return {"next": 0, "size": len(roster)}
+    stored = store.get_meta(f"{prefix}_{team_id}_{season_id}", {})
+    try:
+        return {"next": int(stored.get("next", 0)) % len(roster), "size": len(roster)}
+    except (TypeError, ValueError):
+        return {"next": 0, "size": len(roster)}
+
+
 def _espn_directory_with_revocations(store, directory, *, player_ids):
     """Athlete IDs are global: a transfer cannot restore another team's old image."""
     revoked = set(directory.get("revoked_ids") or [])
@@ -699,8 +810,15 @@ def _apply_directory(snapshot, directory):
     return snapshot
 
 
-async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False):
-    """Return a copied snapshot and bounded progress, without changing roster facts."""
+async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False, order=None, deadline=None):
+    """Return a copied snapshot and bounded progress, without changing roster facts.
+
+    ``order`` is a caller-supplied priority over the same roster — the model's
+    answer to "which twelve first". It selects *who to ask about* and nothing
+    else: the photo fields on a row are still written only by ``_apply_photo``
+    from a source that proved the identity. ``deadline`` is a monotonic time
+    within which this pass must finish, used to size the batch.
+    """
     result = copy.deepcopy(snapshot)
     roster = result.get("roster", [])
     if not isinstance(roster, list) or len(roster) > 120:
@@ -720,6 +838,8 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
         selected = [row for row in roster if str(row.get("id")) in selection or str(row.get("provider_id")) in selection]
     else:
         selected = roster
+    if order is not None:
+        selected = _ordered_selection(selected, order, roster)
     before = {row["provider_id"]: tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) for row in selected}
     # A whole-team manual retry resumes missing work. Only an explicit player
     # selection asks to revalidate a still-current checked photo.
@@ -740,7 +860,8 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
                 else:
                     row.pop(field, None)
     snapshot, summary = await _enrich_wikimedia_photos(store, result, selected, before, force=force,
-                                                      explicit_selection=player_ids is not None)
+                                                      explicit_selection=player_ids is not None or order is not None,
+                                                      deadline=deadline)
     # A selected lookup can discover a Commons withdrawal shared by an
     # unselected old portrait. Clear it before returning the full snapshot.
     _recheck_wikimedia_photos(store, snapshot["roster"], snapshot.get("team_id"))
@@ -755,7 +876,7 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False)
     return snapshot, summary
 
 
-async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection):
+async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection, deadline=None):
     """Fill portraits from the sources, strongest-first, one source per player.
 
     Order is by measured coverage and cost (see ``PHOTO_SOURCE_ORDER``): the
@@ -770,6 +891,13 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
 
     roster = snapshot["roster"]
     team_id = snapshot["team_id"]
+    # The batch is sized against the time this pass actually has. A fixed
+    # ceiling is what produced truncated batches: the phase budget expires
+    # mid-player and the whole pass reports as interrupted, which reads as
+    # missing photos.
+    remaining_seconds = None if deadline is None else max(0.0, deadline - time.monotonic())
+    community_limit = batch_limit(remaining_seconds, ceiling=COMMUNITY_PAGE_LIMIT)
+    wikimedia_limit = batch_limit(remaining_seconds)
     cursor_key = f"wikimedia_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
     offset = 0 if explicit_selection or not selected else int(store.get_meta(cursor_key, {}).get("next", 0)) % len(selected)
     ordered = selected[offset:] + selected[:offset]
@@ -810,7 +938,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     attempted = 0
     processed = []
     community_unavailable = False
-    for row in community_rows[:COMMUNITY_PAGE_LIMIT]:
+    for row in community_rows[:community_limit]:
         processed.append(row)
         cached = None if force else cached_community(store, row, team_id)
         if cached:
@@ -882,7 +1010,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
                    (force_player(row) or _elapsed(row.get("photo_updated_at")) >= CACHE_SECONDS))
                   and (force_player(row) or not cached_wikimedia(store, row, team_id))]
     requested, responses = [], []
-    for row in candidates[:PLAYER_PAGE_LIMIT]:
+    for row in candidates[:wikimedia_limit]:
         photo = (await resolve_portrait(store, row, team_id, force=True) if force_player(row)
                  else await resolve_portrait(store, row, team_id))
         requested.append(row)

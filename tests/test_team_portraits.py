@@ -457,6 +457,7 @@ class PhotoSourcePrecedenceTests(unittest.IsolatedAsyncioTestCase):
         """The declared order matches the numbers it was derived from."""
         self.assertEqual(team_portraits.PHOTO_SOURCE_ORDER,
                          ("exact_name_and_number",
+                          "community_espn_provider_id",
                           "community_name_and_nationality", "community_name_and_birthdate",
                           "community_name_and_birth_year", "community_surname_and_birthdate",
                           "wikimedia_verified_club", "espn_directory_provider_id",

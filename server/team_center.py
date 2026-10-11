@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import math
+import time
 from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 
@@ -458,6 +459,33 @@ def center_view(store, team_id, year=None, *, reveal=False):
         community_unavailable=portraits_state.get("community_unavailable", False),
         continuation_ready=portraits_state.get("continuation_ready") is True,
         retry_seconds=_portrait_retry_seconds(portraits_state))
+    # Why the rest are missing. "17 张没有" reads as a failure; the same gap is
+    # ordinary when most of it is players not reached yet, or players a source
+    # cannot match at all.
+    if photo_count < len(roster):
+        from . import photo_acceptance
+        from .team_portraits import photo_queue
+        # A stored verdict from the last pass is reused rather than recomputed:
+        # it carries the comparison against the pass before it, which is the
+        # part that says whether work is still moving.
+        stored_acceptance = store.get_meta(_photo_acceptance_key(team_id, season["id"]), None)
+        acceptance = stored_acceptance if isinstance(stored_acceptance, dict) else None
+        if acceptance is None:
+            try:
+                acceptance = photo_acceptance.assess(roster)
+            except Exception:
+                acceptance = None
+        if acceptance is not None:
+            components["portraits"].update(acceptance=acceptance,
+                                           acceptance_note=photo_acceptance.summarize(acceptance),
+                                           continuation_worthwhile=photo_acceptance.should_continue(acceptance))
+        try:
+            gap = photo_queue(store, snapshot, limit=1)
+            components["portraits"].update(untried_count=gap["untried_count"],
+                                           settled_count=gap["settled_count"],
+                                           no_identity_facts_count=gap["no_identity_facts_count"])
+        except Exception:
+            pass
     timestamps = [x for x in (snapshot.get("fetched_at"), schedule_time, table.get("fetched_at")) if x]
     errors = list(dict.fromkeys(error for part in CORE_PARTS for error in components[part]["errors"]))
     return {"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
@@ -492,7 +520,12 @@ def _record_component(store, key, part, patch):
     store.set_meta(key, {**status, "components": components})
 
 
-async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, force=False):
+def _photo_acceptance_key(team_id, season_id):
+    """Where the last photo pass's own judgement is kept for comparison."""
+    return f"photo_acceptance_v1_{team_id}_{season_id}"
+
+
+async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, force=False, order=None, deadline=None):
     """Share a same-team photo pass across the manual and background callers."""
     _, _, season, _ = team_season_context(store, team_id, year)
     key = _status_key(team_id, season["id"])
@@ -508,14 +541,15 @@ async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, for
         if (waited and prior and prior["signature"] == signature
                 and store.get("team_snapshots", snapshot_id) == prior["snapshot"]):
             return {**prior["result"], "cached": True}
-        result = await _fetch_player_photos_once(store, team_id, year, player_ids=player_ids, force=force)
+        result = await _fetch_player_photos_once(store, team_id, year, player_ids=player_ids, force=force,
+                                                 order=order, deadline=deadline)
         if result.get("status") not in {"failed", "interrupted", "unavailable"}:
             store._team_photo_passes[key] = {"signature": signature, "result": result,
                                              "snapshot": store.get("team_snapshots", snapshot_id)}
         return result
 
 
-async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=None, force=False):
+async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=None, force=False, order=None, deadline=None):
     """Independently fetch attributed photos for the checked roster, never facts."""
     from .team_portraits import enrich_player_photos
     _, _, season, provider_team_id = team_season_context(store, team_id, year)
@@ -528,8 +562,8 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
     _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
     try:
         updated, summary = await enrich_player_photos(store, snapshot,
-                                                       player_ids=player_ids, force=force)
-        # The network wait must never resurrect a replaced roster or alter a
+                                                       player_ids=player_ids, force=force,
+                                                       order=order, deadline=deadline)        # The network wait must never resurrect a replaced roster or alter a
         # freshly corrected membership. Photos attach only to this exact view.
         if store.get("team_snapshots", snapshot_id) != snapshot:
             summary = {"status": "interrupted", "errors": ["阵容已在照片获取期间更新，请按新阵容重新核对照片。"]}
@@ -537,6 +571,19 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
             store.put("team_snapshots", updated)
         _record_component(store, key, "portraits", summary)
         current = store.get("team_snapshots", snapshot_id) or {}
+        # Judge the pass in code, not by asking anything paid. This is the
+        # acceptance step the loop was missing: the caller gets a verdict on
+        # whether the gaps that remain are reachable, so a repeat pass is a
+        # decision with a reason instead of "it still says not fresh".
+        from . import photo_acceptance
+        acceptance = photo_acceptance.assess(current.get("roster"))
+        previous = store.get_meta(_photo_acceptance_key(team_id, season["id"]), None)
+        summary.update(acceptance=acceptance,
+                       acceptance_note=photo_acceptance.summarize(acceptance, previous),
+                       continuation_worthwhile=photo_acceptance.should_continue(acceptance, previous))
+        if store.get("team_snapshots", snapshot_id) == current:
+            store.set_meta(_photo_acceptance_key(team_id, season["id"]), acceptance)
+        _record_component(store, key, "portraits", summary)
         photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license", "photo_restrictions", "photo_updated_at", "photo_match")}
                   for player in current.get("roster", []) if player.get("photo_url")]
         missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason", "retryable", "reason_code")}
@@ -551,9 +598,43 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         raise
 
 
-async def sync_portraits(store, team_id, year=None, *, force=False):
-    """Fill optional photos without replacing a newer roster or its timestamp."""
-    return await fetch_player_photos(store, team_id, year, force=force)
+async def sync_portraits(store, team_id, year=None, *, force=False, budget_seconds=None):
+    """Fill optional photos without replacing a newer roster or its timestamp.
+
+    Photo planning is opt-in through ``budget_seconds``: only the caller that
+    owns a time budget asks for a model to order the batch. Every other path —
+    opening a team, the maintenance queue — runs the ordinary cursor order, so
+    a background refresh never spends a model call the reader did not ask for.
+    """
+    order, deadline = None, None
+    if budget_seconds is not None:
+        deadline = time.monotonic() + max(1.0, float(budget_seconds))
+        order = await _photo_order(store, team_id, year, deadline=deadline)
+    return await fetch_player_photos(store, team_id, year, force=force, order=order, deadline=deadline)
+
+
+async def _photo_order(store, team_id, year, *, deadline=None):
+    """The batch order from the photo role, or None to keep the cursor order.
+
+    A planner that cannot answer — no model assigned, a service outage, a
+    malformed reply — leaves the refresh running exactly as it does today.
+    """
+    from . import photo_planning
+    from .team_portraits import photo_queue
+    try:
+        _, _, season, _ = team_season_context(store, team_id, year)
+        snapshot = store.get("team_snapshots", _snapshot_id(team_id, season["id"])) or {}
+        if not snapshot.get("roster"):
+            return None
+        report = photo_queue(store, snapshot)
+        if not report.get("untried"):
+            return None
+        seconds = 45.0 if deadline is None else max(5.0, min(45.0, deadline - time.monotonic()))
+        return await photo_planning.ordered_batch(store, report, timeout=seconds)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        return None
 
 
 def _parts_to_refresh(view, requested, force):

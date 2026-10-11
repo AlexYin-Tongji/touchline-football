@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Evidence, Run, SourceGap, Team } from "./types";
+import type { Evidence, NetworkDiagnostics, Run, SourceGap, Team } from "./types";
 
 export function dateTime(value?: string | null) {
   if (!value) return "时间未知";
@@ -140,7 +140,40 @@ const sourceGapReasons: Record<string, string> = {
   source_redirect: "来源跳转无法安全读取",
   source_body: "正文暂时无法读取",
   source_content: "暂未找到可读内容",
+  local_network_blocked: "本机网络暂时无法直连该来源",
 };
+/**
+ * One local condition, said once.
+ *
+ * When local DNS is intercepted, every reviewed publisher fails with its own
+ * "无法解析", and a reader sees two dozen broken sources. The server
+ * distinguishes that case by how *widely* the transport is failing; when it
+ * does, this replaces the per-source list instead of joining it.
+ */
+export function NetworkVerdictNotice({ diagnostics }: { diagnostics?: NetworkDiagnostics | null }) {
+  if (!diagnostics?.verdict || !diagnostics.notice) return null;
+  const { proxy, dns, sources } = diagnostics;
+  return (
+    <div className="network-verdict-notice" role="note">
+      <strong>{diagnostics.notice}</strong>
+      <ul>
+        <li>
+          {proxy.configured
+            ? `代理 ${proxy.host || ""}${proxy.port ? ":" + proxy.port : ""}${proxy.listening ? " 可用" : " 未响应"}`
+            : "未配置代理"}
+        </li>
+        {dns.intercepted && <li>本机域名解析被替换{dns.sample ? `（例如 ${dns.sample}）` : ""}，直连这些来源不会成功</li>}
+        <li>
+          本轮 {sources.transport_failed} 个来源无法建立连接
+          {sources.reachable ? `，${sources.reachable} 个正常` : ""}
+        </li>
+      </ul>
+      <p className="network-verdict-advice">
+        在设置里填写可用的代理地址后，已审核的国外来源会自动改走代理重试；中文来源不受影响。
+      </p>
+    </div>
+  );
+}
 export function SourceGapNotice({ gaps }: { gaps?: SourceGap[] }) {
   if (!gaps?.length) return null;
   return (
@@ -172,21 +205,14 @@ export function Crest({
 }) {
   const [failed, setFailed] = useState(false);
   const label = team?.name || name || "球队";
-  const key =
-    `${team?.id || ""} ${team?.english_name || ""} ${label}`.toLowerCase();
-  const fallbackAsset = /arsenal|阿森纳/.test(key)
-    ? "arsenal.svg"
-    : /liverpool|利物浦/.test(key)
-      ? "liverpool.png"
-      : /barcelona|巴塞罗那|巴萨/.test(key)
-        ? "barcelona.png"
-        : /(^| )inter( |$)|internazionale|国际米兰|国米/.test(key)
-          ? "inter.png"
-          : null;
+  // Every catalogued club ships a local crest and crest_url is always set, so
+  // there is no name-matching fallback here: a club we cannot resolve gets its
+  // initial on the team colour rather than a guess that could show the wrong
+  // badge. safeUrl still guards a profile that stores a remote URL.
   const configuredAsset = team?.crest_url;
   const asset = configuredAsset?.startsWith("/assets/")
     ? configuredAsset
-    : safeUrl(configuredAsset) || (fallbackAsset ? `/assets/${fallbackAsset}` : null);
+    : safeUrl(configuredAsset);
   useEffect(() => setFailed(false), [asset]);
   return (
     <span

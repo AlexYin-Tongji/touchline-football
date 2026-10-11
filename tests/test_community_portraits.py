@@ -303,3 +303,113 @@ class CommunityPortraitTests(unittest.IsolatedAsyncioTestCase):
         for match in community_portraits.COMMUNITY_PHOTO_MATCHES:
             self.assertEqual(team_portraits.photo_source_rank(match),
                              team_portraits.photo_source_rank("community_name_and_nationality"))
+
+
+class EspnBoundTierTests(unittest.IsolatedAsyncioTestCase):
+    """The one tier that is an identity, not an inference.
+
+    The roster's ESPN player id and the publisher's `idESPN` are the same
+    numbering space. A record stating that id is the same athlete, so this tier
+    is deliberately allowed to accept a record the name and date checks would
+    have refused — and it must never accept one that states a different id.
+    """
+
+    OTHER_ID = "34200629"
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "idbound.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    async def resolve(self, payload, full_record, player=None):
+        """Route the search and the per-id lookup to their payloads."""
+        lookups = []
+
+        async def lookup(_store, publisher_id):
+            lookups.append(publisher_id)
+            return {"players": [full_record]}
+
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=payload)), \
+             patch.object(community_portraits, "_lookup", new=AsyncMock(side_effect=lookup)):
+            result = await community_portraits.resolve_portrait(
+                self.store, player or PLAYER, "arsenal", force=True)
+        return result, lookups
+
+    async def test_the_rosters_own_espn_id_carries_the_match(self):
+        # The publisher's spelling and its birth date both disagree here — the
+        # exact shape a namesake takes — but it states this roster's ESPN id.
+        player = {"provider_id": "270190", "name": "Wesley Fofana", "nationality": "法国",
+                  "birth_date": "2000-12-17"}
+        hit = record("Wesley Fofana", "France", idPlayer=self.OTHER_ID, dateBorn="1988-01-20")
+        full = {"idPlayer": self.OTHER_ID, "strPlayer": "Wesley Fofana", "strNationality": "France",
+                "strSport": "Soccer", "strStatus": "Active", "dateBorn": "1988-01-20",
+                "idESPN": "270190", "strCutout": CUTOUT}
+        result, lookups = await self.resolve(search(hit), full, player)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["photo_match"], "community_espn_provider_id")
+        self.assertEqual(result["photo_url"], CUTOUT)
+        self.assertEqual(lookups, [self.OTHER_ID])
+
+    async def test_a_record_stating_a_different_espn_id_is_refused(self):
+        player = {"provider_id": "270190", "name": "Wesley Fofana", "nationality": "法国",
+                  "birth_date": "2000-12-17"}
+        hit = record("Wesley Fofana", "France", idPlayer=self.OTHER_ID, dateBorn="1988-01-20")
+        full = {"idPlayer": self.OTHER_ID, "strPlayer": "Wesley Fofana", "strNationality": "France",
+                "strSport": "Soccer", "strStatus": "Active", "dateBorn": "1988-01-20",
+                "idESPN": "999999", "strCutout": CUTOUT}
+        result, _ = await self.resolve(search(hit), full, player)
+        self.assertNotEqual(result["status"], "completed")
+        self.assertFalse(result.get("photo_url"))
+
+    async def test_a_roster_without_an_espn_id_never_spends_a_lookup(self):
+        # A record whose stated birthday contradicts the roster's is refused by
+        # every name tier, and without an id there is nothing else to check.
+        hit = record("Wesley Fofana", "Germany", idPlayer=self.OTHER_ID, dateBorn="1988-01-20")
+        result, lookups = await self.resolve(search(hit), {}, {"provider_id": "", "name": "Wesley Fofana",
+                                                               "nationality": "法国", "birth_date": "2000-12-17"})
+        self.assertEqual(lookups, [])
+        self.assertFalse(result.get("photo_url"))
+
+    async def test_a_failed_per_id_read_does_not_become_a_new_failure(self):
+        # The tier is an addition. If the extra read fails, the name tiers'
+        # verdict stands rather than the player becoming "unavailable".
+        player = {"provider_id": "270190", "name": "Wesley Fofana", "nationality": "法国",
+                  "birth_date": "2000-12-17"}
+        hit = record("Wesley Fofana", "Germany", idPlayer=self.OTHER_ID, dateBorn="1988-01-20")
+
+        async def broken(_store, _publisher_id):
+            raise ingestion.SourceConnectionError("来源请求超时，请稍后重试")
+
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=search(hit))), \
+             patch.object(community_portraits, "_lookup", new=AsyncMock(side_effect=broken)):
+            result = await community_portraits.resolve_portrait(self.store, player, "arsenal", force=True)
+        self.assertEqual(result["status"], "ambiguous")
+        self.assertEqual(result["reason_code"], "community_ambiguous")
+
+    async def test_the_bound_completion_survives_its_own_cache_check(self):
+        # The saved match is re-derived on every read. This tier's evidence is
+        # the id, so the name and date that disagree must not void it — while a
+        # roster whose id changed must.
+        player = {"provider_id": "270190", "name": "Wesley Fofana", "nationality": "法国",
+                  "birth_date": "2000-12-17"}
+        hit = record("Wesley Fofana", "France", idPlayer=self.OTHER_ID, dateBorn="1988-01-20")
+        full = {"idPlayer": self.OTHER_ID, "strPlayer": "Wesley Fofana", "strNationality": "France",
+                "strSport": "Soccer", "strStatus": "Active", "dateBorn": "1988-01-20",
+                "idESPN": "270190", "strCutout": CUTOUT}
+        result, _ = await self.resolve(search(hit), full, player)
+        self.assertEqual(result["status"], "completed")
+        self.assertIsNotNone(community_portraits.cached_portrait(self.store, player, "arsenal"))
+        moved = {**player, "provider_id": "111111"}
+        self.assertIsNone(community_portraits.cached_portrait(self.store, moved, "arsenal"))
+
+    async def test_a_common_name_result_set_is_not_walked_id_by_id(self):
+        player = {"provider_id": "270190", "name": "J. Silva", "nationality": "葡萄牙",
+                  "birth_date": "2000-12-17"}
+        many = search(*[record("J. Silva", "Germany", idPlayer=str(34000000 + index), dateBorn="1988-01-20")
+                        for index in range(community_portraits.MAX_PROVIDER_LOOKUPS + 1)])
+        result, lookups = await self.resolve(many, {}, player)
+        self.assertEqual(lookups, [])
+        self.assertFalse(result.get("photo_url"))

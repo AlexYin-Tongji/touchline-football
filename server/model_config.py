@@ -116,7 +116,12 @@ class RolesInput(StrictModel):
     roles: RoleAssignments
 
 
-MODEL_ROLES = ("feed", "chat", "team", "verify")
+# `verify` and `photos` are the two roles that must never fall back to the
+# active model. Verification is a different judgement from writing, and photo
+# planning is a paid background call: a reader who configured a chat model did
+# not ask for either to start happening on a team page they merely opened.
+NEVER_INHERITED_ROLES = frozenset({"verify", "photos"})
+MODEL_ROLES = ("feed", "chat", "team", "verify", "photos")
 
 
 def role_selection(store, role):
@@ -124,7 +129,7 @@ def role_selection(store, role):
         raise ValueError("Unknown model role")
     read_meta = getattr(store, "get_meta", lambda key: None)
     selected = (read_meta("model_roles") or {}).get(role)
-    return copy.deepcopy(selected or (read_meta("active_model") if role != "verify" else None))
+    return copy.deepcopy(selected or (read_meta("active_model") if role not in NEVER_INHERITED_ROLES else None))
 
 
 def verification_config(store, task_config):

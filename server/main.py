@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -54,7 +55,6 @@ class LLMSettings(Model):
     @classmethod
     def validate_base(cls, value):
         if value:
-            from urllib.parse import urlsplit
             if urlsplit(value).query or urlsplit(value).fragment:
                 raise ValueError("模型地址不支持查询参数或片段，密钥请填写在独立密钥栏")
             return ingestion.normalize_url(value, allow_local=True).rstrip("/")
@@ -105,6 +105,32 @@ class ClubPreparationInput(Model):
     kind: Literal["team", "news"] = "team"
 
 
+class NetworkSettings(Model):
+    """How the app reaches the network.
+
+    `proxy_url` exists because the OS registry can hold a stale address from a
+    client that is not running, and on a machine whose system proxy toggle is
+    off there is otherwise no way to say "use this one" for reviewed sources
+    without changing a system-wide setting.
+    """
+    proxy_url: str | None = Field(None, max_length=2048)
+
+    @field_validator("proxy_url")
+    @classmethod
+    def validate_proxy(cls, value):
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            return value
+        if any(ord(char) < 32 for char in value):
+            raise ValueError("代理地址不能包含控制字符")
+        parsed = urlsplit(value if "//" in value else "//" + value)
+        if parsed.scheme not in {"http", "https", "socks5", "socks5h"} or not parsed.hostname:
+            raise ValueError("请填写形如 http://127.0.0.1:7897 的代理地址")
+        return value
+
+
 class SettingsPatch(Model):
     mode: Mode | None = None
     followed_teams: list[Identifier] | None = Field(None, max_length=100)
@@ -116,6 +142,7 @@ class SettingsPatch(Model):
     automation: AutomationSettings | None = None
     personalization: PersonalizationSettings | None = None
     reports: ReportSettings | None = None
+    network: NetworkSettings | None = None
     verification_enabled: bool | None = None
     verification_timeout_seconds: int | None = Field(None, ge=10, le=90)
 
@@ -892,6 +919,16 @@ def create_app(db_path=None, *, collection_enabled=None):
         if patch.get("automation", {}).get("enabled") is False:
             await automation.close()
         return safe_settings(saved)
+
+    @app.get("/api/network-settings")
+    async def network_settings():
+        """The network section's own view, without the rest of the settings.
+
+        A saved proxy address is not a credential — it is the address of a local
+        client — so it is returned as written. Nothing else from settings, and
+        in particular no key material, travels with it.
+        """
+        return {"network": (store.settings().get("network") or {}).get("proxy_url", "")}
 
     @app.post("/api/settings/test")
     async def settings_test(payload: TestSettings):

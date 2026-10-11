@@ -6,6 +6,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  Globe,
   LoaderCircle,
   MessageCircle,
   Newspaper,
@@ -16,7 +17,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, errorText, post, put } from "./api";
-import { Spinner } from "./components";
+import { NetworkVerdictNotice, Spinner } from "./components";
+import type { NetworkDiagnostics } from "./types";
 // Styles live in v7-app.css with the rest of the design system.
 
 interface Model {
@@ -39,7 +41,7 @@ interface ProviderState {
   resolved_roles?: Partial<Record<ModelRole, ModelSelection | null>>;
 }
 type ModelSelection = { provider_id: string; model: string };
-type ModelRole = "feed" | "chat" | "team" | "verify";
+type ModelRole = "feed" | "chat" | "team" | "verify" | "photos";
 const roleDescriptions = [
   {
     id: "feed" as const,
@@ -68,6 +70,16 @@ const roleDescriptions = [
     icon: CheckCircle2,
     text: "核对证据与候选答复",
     context: "只核对本次已读证据和候选答复，不读取私人对话。",
+  },
+  {
+    id: "photos" as const,
+    title: "球员照片排序",
+    icon: Shield,
+    // Unlike every other role this one is not inherited from the default
+    // model: it runs during a team refresh, so leaving it unset costs nothing
+    // and setting it means paying for one extra call per refresh.
+    text: "决定先核对哪些缺图球员",
+    context: "只在补图时读取缺图清单与球员编号顺序，不接收照片地址或身份依据；不指定则按原有顺序推进。",
   },
 ];
 const empty = (): Provider => ({
@@ -116,7 +128,10 @@ export function ModelSettings({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [section, setSection] = useState<"roles" | "providers">("roles");
+  const [section, setSection] = useState<"roles" | "providers" | "network">("roles");
+  const [proxyUrl, setProxyUrl] = useState("");
+  const [diagnostics, setDiagnostics] = useState<NetworkDiagnostics | null>(null);
+  const [networkDirty, setNetworkDirty] = useState(false);
   const choose = (provider: Provider | null) => {
     setDraft(provider || empty());
     setEditing(provider?.id || null);
@@ -155,6 +170,21 @@ export function ModelSettings({
       valid = false;
     };
   }, []);
+  // The network section reads its own state and a fresh diagnosis when opened.
+  // Both are local: the diagnostic makes no publisher request.
+  useEffect(() => {
+    if (section !== "network") return;
+    let valid = true;
+    api<{ network: string }>("/network-settings")
+      .then((result) => valid && !networkDirty && setProxyUrl(result.network || ""))
+      .catch((err) => valid && setError(errorText(err)));
+    api<NetworkDiagnostics>("/network-diagnostics")
+      .then((result) => valid && setDiagnostics(result))
+      .catch(() => valid && setDiagnostics(null));
+    return () => {
+      valid = false;
+    };
+  }, [section, networkDirty]);
   const action = async (name: string, fn: () => Promise<void>) => {
     if (busy) return;
     setBusy(name);
@@ -251,6 +281,13 @@ export function ModelSettings({
         >
           <Server size={18} />服务商与模型
         </button>
+        <button
+          className={section === "network" ? "active" : ""}
+          aria-pressed={section === "network"}
+          onClick={() => setSection("network")}
+        >
+          <Globe size={18} />网络与来源
+        </button>
       </div>
       {error && (
         <div className="notice error" role="alert">
@@ -315,7 +352,9 @@ export function ModelSettings({
                       }}
                     >
                       <option value="">
-                        {role.id === "verify" ? "跟随当前任务模型" : `跟随默认${state?.active ? ` · ${state.active.model}` : "（尚未设置）"}`}
+                        {role.id === "verify" ? "跟随当前任务模型" :
+                         role.id === "photos" ? "不启用（按原有顺序推进）" :
+                         `跟随默认${state?.active ? ` · ${state.active.model}` : "（尚未设置）"}`}
                       </option>
                       {state?.providers.map((provider) => (
                         <optgroup key={provider.id} label={provider.name}>
@@ -350,6 +389,81 @@ export function ModelSettings({
                 <Plus size={15} /> 管理服务商与可用模型{" "}
                 <ChevronRight size={15} />
               </button>
+            </section>
+          )}
+          {section === "network" && (
+            <section className="network-settings">
+              <div className="role-intro">
+                <h3>网络与来源</h3>
+                <p>
+                  已审核的国外来源会优先走这里的代理；本机域名解析被替换时，只有代理能读到它们。
+                  中文来源不经过代理。
+                </p>
+                <p>留空表示沿用系统已配置的代理。</p>
+              </div>
+              <label htmlFor="network-proxy">代理地址</label>
+              <input
+                id="network-proxy"
+                type="text"
+                inputMode="url"
+                placeholder="http://127.0.0.1:7897"
+                value={proxyUrl}
+                onChange={(event) => {
+                  setNetworkDirty(true);
+                  setProxyUrl(event.target.value);
+                }}
+              />
+              <div className="network-settings-actions">
+                <button
+                  className="button"
+                  disabled={!!busy || !networkDirty}
+                  onClick={() =>
+                    action("network", async () => {
+                      await put("/settings", { network: { proxy_url: proxyUrl.trim() } });
+                      setNetworkDirty(false);
+                      setMessage("代理设置已保存，下一次取源会使用它。");
+                      try {
+                        setDiagnostics(await api<NetworkDiagnostics>("/network-diagnostics"));
+                      } catch {
+                        setDiagnostics(null);
+                      }
+                    })
+                  }
+                >
+                  {busy === "network" && <LoaderCircle size={15} className="spin" />}
+                  保存代理
+                </button>
+                <button
+                  className="button"
+                  disabled={!!busy}
+                  onClick={() =>
+                    action("diagnose", async () => {
+                      setDiagnostics(await api<NetworkDiagnostics>("/network-diagnostics"));
+                      setMessage("已重新检测本机网络。");
+                    })
+                  }
+                >
+                  {busy === "diagnose" && <LoaderCircle size={15} className="spin" />}
+                  重新检测
+                </button>
+              </div>
+              {diagnostics && (
+                <div className="network-diagnostics">
+                  <p>
+                    代理：{diagnostics.proxy.configured
+                      ? `${diagnostics.proxy.host || ""}${diagnostics.proxy.port ? ":" + diagnostics.proxy.port : ""} · ${diagnostics.proxy.listening ? "端口有响应" : "端口未响应"}`
+                      : "未配置"}
+                  </p>
+                  <p>
+                    来源：{diagnostics.sources.total} 个中 {diagnostics.sources.transport_failed} 个无法建立连接
+                    {diagnostics.sources.reachable ? `，${diagnostics.sources.reachable} 个正常` : ""}
+                  </p>
+                  {diagnostics.dns.intercepted && (
+                    <p>本机域名解析被替换{diagnostics.dns.sample ? `（例如 ${diagnostics.dns.sample}）` : ""}。</p>
+                  )}
+                </div>
+              )}
+              <NetworkVerdictNotice diagnostics={diagnostics} />
             </section>
           )}
           {section === "providers" && (

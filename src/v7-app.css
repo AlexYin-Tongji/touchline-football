@@ -291,7 +291,11 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  /* A rounded square, not a circle. Most shipped crests are vertical shields
+     (24 of the SVGs, and 31 of 74 PNGs deviate from square by more than 20%),
+     so a circular mask trims their corners and leaves wide side gutters. The
+     radius stays in one place so the whole look is a one-line revert. */
+  border-radius: 28%;
   background: var(--paper-sunk);
   overflow: hidden;
   flex-shrink: 0;
@@ -1188,7 +1192,7 @@
 .club-hero-crest {
   width: 84px;
   height: 84px;
-  border-radius: 50%;
+  border-radius: 28%;
   background: #ffffff1a;
   display: flex;
   align-items: center;
@@ -1196,22 +1200,17 @@
   flex-shrink: 0;
 }
 /* 圆环本身没有图片，真正的徽章是组件渲染的 .crest（默认 30px）。
-   重写尺寸必须落在 .crest 上，否则内层 logo 停在 30px、在 84px 圆环里偏左。 */
-.club-hero-crest {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  background: #ffffff1a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
+   重写尺寸必须落在 .crest 上，否则内层 logo 停在 30px、在 84px 圆环里偏左。
+
+   这里曾经写死 `background: transparent`，是全站唯一抹掉队色底的地方。
+   单色队徽（利物浦的利弗鸟、国米）因此落在 --ink 的深墨绿上——红鸟在
+   深绿上几乎没有对比度，看起来就是"显示不出来"。改成一层浅色托盘：
+   队色底在深色 hero 上同样会打架（#BE3945 红对 #1f2a22 墨绿），而浅色
+   托盘对全部 96 支球队都成立，不需要逐队判断。 */
 .club-hero-crest .crest {
   width: 62px;
   height: 62px;
-  background: transparent;
-  border-radius: 0;
+  background: #ffffff14;
 }
 .club-hero-crest .crest img {
   width: 100%;
@@ -1575,6 +1574,69 @@
 }
 .workflow-source-errors .source-gap-notice {
   margin-top: 8px;
+}
+/* One local condition replaces the per-source list, so this is a block rather
+   than the single-line row `.source-gap-notice` draws. It uses the same amber
+   as an unreadable source: nothing here is an error the reader caused. */
+.network-verdict-notice {
+  padding: 13px 15px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--amber-wash);
+  color: var(--amber);
+  font-size: 13.5px;
+  line-height: 1.8;
+  margin: 0 0 18px;
+}
+.network-verdict-notice strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.network-verdict-notice ul {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.network-verdict-notice li {
+  color: var(--muted);
+}
+.network-verdict-advice {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+.network-settings {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+}
+.network-settings > label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.network-settings input {
+  padding: 10px 12px;
+  border: var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-size: 13.5px;
+}
+.network-settings-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.network-diagnostics {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.network-diagnostics p {
+  margin: 0;
 }
 .position-tabs {
   display: flex;

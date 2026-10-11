@@ -410,9 +410,25 @@ def reading_for(name):
 
     Absence is a real answer here, not a failure: the caller shows the source
     spelling and nothing else.
+
+    The reading and its evidence are separate questions, and this function
+    answers only the first. A reading that was written down without a citable
+    source is still the reading this table holds; withholding it would leave
+    the reader with an English spelling and no Chinese name at all, which is
+    worse than a Chinese name whose source is not linked. Whether evidence
+    exists is decided by the caller through ``verified_evidence``.
     """
-    evidence = VERIFIED_READINGS.get(normalize_name(name))
-    return evidence["reading"] if evidence else ""
+    return NAME_READINGS.get(normalize_name(name), "")
+
+
+def verified_evidence(name):
+    """The citation for a reading, or ``None`` when the table has none.
+
+    Only the 106 entries checked against a publisher carry a source. The other
+    129 are readings without a citation, and the interface must not claim one
+    for them.
+    """
+    return VERIFIED_READINGS.get(normalize_name(name))
 
 
 NAME_FIELDS = ("name_zh", "name_zh_source", "name_zh_source_url", "name_zh_checked_at", "name_zh_identity")
@@ -460,17 +476,32 @@ def with_reading(row, *, source_reading=_SOURCE_UNSET, team_id=None):
     """Add ``name_zh`` to a roster row without touching the source spelling.
 
     ``name`` stays exactly as the source wrote it — it is the identity used for
-    photo matching and for quoting. Attested readings take priority; otherwise
-    an identity-checked publisher label may supply the separate Chinese name.
+    photo matching and for quoting. Reading and citation are attached
+    separately: every name the table holds gets its Chinese reading, and only
+    the entries checked against a publisher also get the source fields the
+    interface links from.
+
+    An identity-checked Wikidata label is preferred over the table in one case
+    only: when the table's reading is a *part* of it. The table is terse by
+    design ("Ødegaard" → "厄德高"), while Wikidata carries the full published
+    name ("马丁·厄德高"), and that longer form is both more complete and
+    citable. The two cannot disagree about who the player is — one contains the
+    other — so taking the longer one loses nothing. Where they do not contain
+    one another the table wins, because a genuine disagreement about the name
+    is not something a label should silently overrule.
     """
     reading = reading_for(row.get("name"))
-    dynamic = (checked_wikidata_reading(row if source_reading is _SOURCE_UNSET else source_reading, row, team_id=team_id)
-               if not reading else None)
+    dynamic = checked_wikidata_reading(row if source_reading is _SOURCE_UNSET else source_reading, row,
+                                       team_id=team_id)
+    if reading and dynamic and reading in str(dynamic.get("name_zh") or ""):
+        reading = ""
+    elif reading:
+        dynamic = None
     for field in NAME_FIELDS:
         row.pop(field, None)
     if reading:
         row["name_zh"] = reading
-        evidence = VERIFIED_READINGS.get(normalize_name(row.get("name")))
+        evidence = verified_evidence(row.get("name"))
         if evidence:
             row.update(name_zh_source=evidence["source"], name_zh_source_url=evidence["source_url"],
                        name_zh_checked_at=evidence["checked_at"])

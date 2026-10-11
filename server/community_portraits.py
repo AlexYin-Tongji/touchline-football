@@ -53,15 +53,23 @@ MATCH_NAME_AND_NATIONALITY = "community_name_and_nationality"  # full name + cou
 MATCH_NAME_AND_BIRTHDATE = "community_name_and_birthdate"      # full name + exact date
 MATCH_NAME_AND_BIRTH_YEAR = "community_name_and_birth_year"    # full name + same year
 MATCH_SURNAME_AND_BIRTHDATE = "community_surname_and_birthdate"  # variant name + exact date
+# The strongest tier of all, and the only one that is not an inference: the
+# publisher states the same athlete id the roster already carries from ESPN.
+# Two databases agreeing on a stable numeric id is not a name coincidence, so
+# this tier does not need a birthday to agree and is allowed to overrule the
+# date checks the name tiers depend on.
+MATCH_ESPN_PROVIDER_ID = "community_espn_provider_id"
 COMMUNITY_PHOTO_MATCHES = frozenset({
     MATCH_NAME_AND_NATIONALITY, MATCH_NAME_AND_BIRTHDATE,
     MATCH_NAME_AND_BIRTH_YEAR, MATCH_SURNAME_AND_BIRTHDATE,
+    MATCH_ESPN_PROVIDER_ID,
 })
 # The two that a manual retry may re-derive; they rest on a name plus a date,
 # so a fresh lookup can legitimately change the answer.
 REFRESHABLE_COMMUNITY_MATCHES = frozenset({
     MATCH_NAME_AND_NATIONALITY, MATCH_NAME_AND_BIRTHDATE,
     MATCH_NAME_AND_BIRTH_YEAR, MATCH_SURNAME_AND_BIRTHDATE,
+    MATCH_ESPN_PROVIDER_ID,
 })
 
 # The publisher's own spelling varies ("The Netherlands" vs "Netherlands"), so
@@ -71,6 +79,10 @@ _LEADING_ARTICLE = re.compile(r"^(?:the|la|le|el|die|der|das)\s+")
 # "Lee" or "Roy" returns a hundred strangers and could never be confirmed by
 # a date alone, so the weaker tier refuses rather than guesses.
 MIN_SURNAME_LENGTH = 4
+# How many search hits the id-bound tier will spend a second request on. A
+# common surname can return dozens of rows and the id is only found by reading
+# each one, so the tier stops rather than turning one lookup into twenty.
+MAX_PROVIDER_LOOKUPS = 4
 
 
 def normalized(value):
@@ -176,6 +188,18 @@ def _completion_matches(cached, player):
     if not wanted_name:
         return False
     published_name = normalized(evidence.get("name"))
+    if cached.get("photo_match") == MATCH_ESPN_PROVIDER_ID:
+        # This tier was chosen because the id matched, and the publisher's own
+        # spelling or dates may disagree without that meaning anything: the
+        # whole point of the tier is that a name or date check would have
+        # refused this record. The id is what is re-checked, and it must still
+        # be the one the roster carries.
+        return bool(_safe_image_url(cached.get("photo_url")) and cached.get("photo_credit")
+                    and cached.get("photo_license")
+                    and bool(evidence.get("espn_id"))
+                    and str(evidence.get("espn_id")) == str(player.get("provider_id") or "")
+                    and cached.get("photo_source_url") == f"https://{HOST}/player/{evidence.get('publisher_id')}"
+                    and cached.get("photo_file_page") == cached.get("photo_source_url"))
     # The weakest tier exists precisely because the two spellings differ, so the
     # full name is required to agree only for the tiers that matched on it. What
     # every tier does require is the surname, which is the part that had to
@@ -281,6 +305,18 @@ def _live(record):
     """A retired or non-football record can never answer for a live squad."""
     return (record.get("strSport") in {None, "Soccer"}
             and record.get("strStatus") in {None, "Active"})
+
+
+def _linkable_record(record):
+    """Whether the publisher's id for this record is usable as a key.
+
+    Deliberately weaker than `_live`: the id-bound tier does not read the
+    record's own claims about retirement or sport, because another database has
+    already identified the athlete by id and the namesake risk that `_live`
+    guards against does not exist there. A record with no usable id is still
+    refused, since the id is what the whole tier rests on.
+    """
+    return _valid_id(record)
 
 
 def _valid_id(record):
@@ -440,6 +476,88 @@ def _surname_match(payload, name, birth_date=""):
     return record, "completed", MATCH_SURNAME_AND_BIRTHDATE
 
 
+async def _lookup(store, publisher_id):
+    """The publisher's full record for one id, where the cross-references live."""
+    url = f"https://{HOST}{API_PREFIX}lookupplayer.php?id={quote(str(publisher_id))}"
+
+    async def factory():
+        body, final_url, content_type = await blocking_request(fetch_document, url, timeout=22,
+            allowed_hosts=ACCEPTED_HOSTS, max_body=MAX_JSON_BYTES,
+            content_types=("application/json", "text/json", "text/plain", "text/html"))
+        parts = urlsplit(final_url)
+        if (parts.scheme != "https" or parts.hostname not in ACCEPTED_HOSTS or parts.username
+                or parts.password or parts.port not in {None, 443}
+                or not parts.path.startswith(API_PREFIX.rstrip("/")) or parts.fragment
+                or len(body) > MAX_JSON_BYTES or "json" not in content_type.lower()):
+            raise IngestionError("球员照片社区来源响应不完整，未采用照片。")
+        try:
+            payload = json.loads(body)
+        except (UnicodeError, ValueError, RecursionError):
+            raise IngestionError("球员照片社区来源资料无法读取，未采用照片。") from None
+        if not isinstance(payload, dict):
+            raise IngestionError("球员照片社区来源返回了无法识别的格式。")
+        return payload
+
+    last = None
+    for attempt, wait in enumerate(RETRY_BACKOFF_SECONDS):
+        await _pace(store)
+        try:
+            return await shared_request(store, "community-lookup:" + url, HOST, factory, force=attempt > 0)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            last = exc
+            if source_error_details(exc)["code"] != "http_rate_limited":
+                raise
+            if wait:
+                await asyncio.sleep(wait)
+    raise last
+
+
+async def _espn_bound_match(store, payload, provider_id):
+    """The one record that states the athlete id the roster already carries.
+
+    The roster's ESPN provider id and the publisher's `idESPN` are the same
+    numbering space, so a record that names the roster's id is the same athlete
+    by construction rather than by inference. That is why this tier is allowed
+    to accept a record whose stated birthday disagrees — the publisher's own
+    dates were measured a year off for a player it identifies correctly — and
+    why it may accept a record whose search hit is a namesake elsewhere: the id
+    is checked on the *record*, not on the name.
+
+    Version 3 of the published API omits `idESPN` from search results, so the
+    cross-reference has to be read from the per-id record. That costs one extra
+    paced request per candidate, which is why the candidate list is capped.
+    """
+    wanted = str(provider_id or "")
+    if not re.fullmatch(r"[0-9]{1,10}", wanted):
+        return None
+    records = payload.get("player")
+    if not isinstance(records, list) or not records or len(records) > MAX_PROVIDER_LOOKUPS:
+        # An over-long result set is a common-surname search, not this player.
+        return None
+    for candidate in records[:MAX_PROVIDER_LOOKUPS]:
+        if not isinstance(candidate, dict) or not _linkable_record(candidate):
+            continue
+        try:
+            full = await _lookup(store, candidate["idPlayer"])
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The id-bound tier is an addition, never a new failure mode: if the
+            # per-id read fails, the name tiers still decide the answer.
+            return None
+        players = full.get("players")
+        if not isinstance(players, list) or not players:
+            continue
+        record = players[0]
+        if not isinstance(record, dict) or not _linkable_record(record):
+            continue
+        if str(record.get("idESPN") or "") == wanted:
+            return record
+    return None
+
+
 async def resolve_portrait(store, player, team_id, *, force=False):
     """Return checked portrait metadata or an explicit non-photo reason."""
     name = player.get("name") if isinstance(player, dict) else ""
@@ -463,6 +581,15 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         payload = await _search(store, name)
         record, verdict, matched_by = _unique_match(payload, name, player.get("nationality"),
                                                     player.get("birth_date") or "")
+        if verdict != "completed":
+            # Before accepting a name-based refusal, ask the one question the
+            # name tiers cannot answer: does any hit state the athlete id the
+            # roster already carries? A namesake elsewhere in the database, or
+            # a birthday the publisher recorded a year off, defeats the name
+            # checks while leaving the id untouched.
+            bound = await _espn_bound_match(store, payload, (player or {}).get("provider_id"))
+            if bound is not None:
+                record, verdict, matched_by = bound, "completed", MATCH_ESPN_PROVIDER_ID
         if verdict == "missing":
             # The exact spelling found nothing. One extra paced request on the
             # surname reaches the publisher's own spelling of the same player,
@@ -498,7 +625,12 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                           "_identity": {"name": record["strPlayer"], "nationality": record["strNationality"],
                                         "birth_date": _publisher_born(record),
                                         "roster_birth_date": player.get("birth_date") or "",
-                                        "publisher_id": str(record["idPlayer"])}}
+                                        "publisher_id": str(record["idPlayer"]),
+                                        # Saved only for the tier that rests on
+                                        # it, so the validator can re-check the
+                                        # one fact that earned the match.
+                                        "espn_id": (str(record.get("idESPN") or "")
+                                                    if matched_by == MATCH_ESPN_PROVIDER_ID else "")}}
     except asyncio.CancelledError:
         raise
     except Exception as exc:

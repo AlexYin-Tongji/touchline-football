@@ -88,6 +88,17 @@ class CollectionScheduler:
                     # portrait batch still has work. Inspect that component,
                     # rather than equating core completion with whole-club work.
                     continuing_photos = photo.get("status") in {"partial", "missing"} and photo.get("continuation_ready") is True
+                    # The acceptance verdict takes precedence when it is present,
+                    # because it answers the question `continuation_ready` only
+                    # gestures at: are the remaining gaps *reachable*? A squad
+                    # whose gaps are all players the sources do not hold is
+                    # finished work, and rescheduling it on a short interval
+                    # would only re-ask a question already answered.
+                    worthwhile = photo.get("continuation_worthwhile")
+                    if worthwhile is False:
+                        continuing_photos = False
+                    elif worthwhile is True:
+                        continuing_photos = True
                     if continuing_photos:
                         failed = False
                 except asyncio.CancelledError:

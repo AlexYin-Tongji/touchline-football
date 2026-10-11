@@ -29,12 +29,25 @@ class LookupTests(unittest.TestCase):
         self.assertEqual(player_names.reading_for("Erling Haaland"), "哈兰德")
         self.assertEqual(player_names.reading_for("Rúben Dias"), "鲁本·迪亚斯")
 
-    def test_a_legacy_spelling_without_source_is_not_presented_as_checked(self):
+    def test_a_reading_without_a_citation_is_still_shown_but_adds_no_source(self):
+        # The table holds two kinds of entry: readings checked against a
+        # publisher, and readings written down without a citation. Both are
+        # readings and both must reach the reader — presenting an English
+        # spelling instead helps nobody. Only the citation differs.
         for name in ("Thibaut Courtois", "Jude Bellingham"):
-            self.assertEqual(player_names.reading_for(name), "")
+            self.assertTrue(player_names.reading_for(name))
+            self.assertIsNone(player_names.verified_evidence(name))
             row = player_names.with_reading({"name": name, "name_zh": "旧译名"})
-            self.assertNotIn("name_zh", row)
+            self.assertEqual(row["name_zh"], player_names.reading_for(name))
             self.assertEqual(row["name"], name)
+            self.assertFalse(any(key.startswith("name_zh") for key in row if key != "name_zh"),
+                             "an uncited reading must not claim a source")
+
+    def test_a_reading_with_a_citation_still_carries_its_source(self):
+        self.assertIsNotNone(player_names.verified_evidence("Erling Haaland"))
+        row = player_names.with_reading({"name": "Harry Kane"})
+        self.assertTrue(row["name_zh"])
+        self.assertEqual(row["name"], "Harry Kane")
 
     def test_attested_reading_stays_preferred_over_an_identity_checked_label(self):
         row = {"name": "Erling Haaland", "team_id": "manchester-city", "provider_id": "1"}

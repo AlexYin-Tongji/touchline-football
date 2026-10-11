@@ -24,6 +24,7 @@ DEFAULT_SETTINGS = {
     "verification_enabled": True, "verification_timeout_seconds": 45,
     "personalization": {"interests": [], "reading_language": "zh", "fan_level": "regular", "briefing_window_hours": 72},
     "reports": {"auto_generate": True},
+    "network": {"proxy_url": ""},
     "llm": {"base_url": "", "model": "", "api_key": "", "max_rounds": 10,
             "timeout_seconds": 90, "temperature": 0.2, "protocol": "chat_completions",
             "send_temperature": False, "max_output_tokens": 16000, "use_env_proxy": True,
@@ -310,14 +311,35 @@ class Store:
         with self.lock:
             settings = copy.deepcopy(DEFAULT_SETTINGS)
             saved = self.get_meta("settings", {})
-            settings.update({key: value for key, value in saved.items() if key not in {"llm", "automation", "personalization", "reports"}})
+            settings.update({key: value for key, value in saved.items() if key not in {"llm", "automation", "personalization", "reports", "network"}})
             settings["llm"].update(saved.get("llm", {}))
             settings["automation"].update(saved.get("automation", {}))
             settings["personalization"].update(saved.get("personalization", {}))
             settings["reports"].update(saved.get("reports", {}))
+            settings["network"].update(saved.get("network", {}))
             row = self._db.execute("SELECT encrypted FROM secrets WHERE key='llm_api_key'").fetchone()
             settings["llm"]["api_key"] = self._cipher.decrypt(row[0]).decode() if row else ""
             return settings
+
+    def proxy_url(self):
+        """The saved proxy address alone, without the settings deep copy.
+
+        Read once per source fetch, so it deliberately avoids decrypting the API
+        key and copying every settings section. The value is cached until
+        `save_settings` runs, which is the only thing that can change it.
+        """
+        cached = getattr(self, "_proxy_url_cache", None)
+        if cached is None:
+            with self.lock:
+                saved = self.get_meta("settings", {})
+            network = saved.get("network") or {}
+            cached = (network.get("proxy_url") or "").strip() if isinstance(network, dict) else ""
+            self._proxy_url_cache = cached
+        return cached
+
+    def transport_settings(self):
+        """The only settings the transport decision reads."""
+        return {"network": {"proxy_url": self.proxy_url()}}
 
     def save_settings(self, patch: dict):
         with self.lock:
@@ -326,6 +348,7 @@ class Store:
             current["automation"].update(patch.get("automation", {}))
             current["personalization"].update(patch.get("personalization", {}))
             current["reports"].update(patch.get("reports", {}))
+            current["network"].update(patch.get("network", {}))
             llm = copy.deepcopy(patch.get("llm", {}))
             key = llm.pop("api_key", "")
             clear = llm.pop("clear_api_key", False)
@@ -341,6 +364,7 @@ class Store:
             current["llm"].pop("api_key", None)
             self.set_meta("settings", current)
             self._commit()
+            self._proxy_url_cache = None
             return self.settings()
 
     def close(self):

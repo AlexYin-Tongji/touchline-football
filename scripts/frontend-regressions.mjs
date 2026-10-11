@@ -45,6 +45,46 @@ test("a real React recovery boundary shows a local refresh without exposing the 
   assert.equal(refreshed, 1);
 });
 
+// Load the real `components.tsx` rendering so a view that *renders* one of its
+// notices shows the shipped markup instead of a stub name. These components
+// schedule no effects, so calling them during the parent's render is enough.
+let componentsRender = null;
+function realComponents() {
+  if (componentsRender) return componentsRender;
+  const slots = [];
+  let index = 0;
+  const react = {
+    useState(initial) {
+      const i = index++;
+      if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
+      return [slots[i], value => { slots[i] = typeof value === "function" ? value(slots[i]) : value; }];
+    },
+    useRef(value) { const i = index++; return slots[i] ??= { current: value }; },
+    useEffect() { },
+    useCallback(fn) { return fn; },
+  };
+  const jsx = (type, props) => ({ type, props });
+  const exports = {};
+  const browser = { setInterval: () => 1, setTimeout: () => 1, clearInterval() {}, clearTimeout() {}, addEventListener() {}, removeEventListener() {} };
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/components.tsx", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    exports, Date, Set, Map, JSON, console, URL, Intl, window: browser, document: browser,
+    require(module) {
+      if (module === "react") return react;
+      if (module === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
+      if (module === "lucide-react") return new Proxy({}, { get: (_, key) => (typeof key === "string" ? key : undefined) });
+      if (module === "react-markdown") return function Markdown() { return null; };
+      if (module === "remark-gfm") return {};
+      return new Proxy({}, { get: (_, key) => String(key) });
+    },
+  });
+  return (componentsRender = props => {
+    index = 0;
+    return exports.NetworkVerdictNotice(props);
+  });
+}
+
 // Execute the actual components with a small hook host. No server, browser, or
 // provider is contacted; event handlers and lifecycle cleanup remain production code.
 function component(file, name, props, api, saved = {}) {
@@ -95,8 +135,8 @@ function component(file, name, props, api, saved = {}) {
       if (module === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
       if (module === "./api") return { api: (path, options) => api(path, options?.method || "GET", options?.body ? JSON.parse(options.body) : undefined), post: (path, body) => api(path, "POST", body), errorText: e => e.message };
       if (module === "./v7Shared") return { uniqueImages: images => images || [], friendlyTime: () => "", Markdown: "Markdown", Photo: "Photo", Sources: "Sources" };
-      if (module === "./components") return { dateTime: () => "", safeUrl: value => value || null, Crest: "Crest", Modal: "Modal", SourceGapNotice: "SourceGapNotice", Spinner: "Spinner" };
-      if (module === "./clubCatalog") return { findClub: () => null };
+      if (module === "./components") return { dateTime: () => "", safeUrl: value => value || null, Crest: "Crest", Modal: "Modal", SourceGapNotice: "SourceGapNotice", Spinner: "Spinner",
+        NetworkVerdictNotice: function NetworkVerdictNotice(props) { return realComponents()(props); } };      if (module === "./clubCatalog") return { findClub: () => null };
       if (module === "./teamHub" || module === "./clubNames") return { clubName: x => x };
       return new Proxy({}, { get: (_, key) => String(key) });
     },
@@ -130,6 +170,13 @@ function text(node) {
   if (node == null) return "";
   if (typeof node !== "object") return String(node);
   return Array.isArray(node) ? node.map(text).join("") : text(node.props?.children);
+}
+// The host substitutes `./components` wholesale, so a notice a view renders
+// arrives as a plain function carrying its props. Render it the way the browser
+// would, so its markup can be asserted without changing how `nodes` walks the
+// tree for every other element.
+function renderedNotice(node) {
+  return typeof node?.type === "function" ? node.type(node.props) : null;
 }
 const button = (host, label) => nodes(host.tree, n => n.type === "button" && text(n).includes(label))[0];
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -241,6 +288,53 @@ test("workflow separates a source outage from reports that were never generated"
   assert.match(text(host.tree), /尚未进入中文整理/);
   assert.match(text(host.tree), /0 \/ 4 个索引可用/);
   assert.doesNotMatch(text(host.tree), /中文整理：已完成 0/);
+  host.unmount();
+});
+
+test("a local network verdict replaces the per-source list in the workflow panel", async () => {
+  const current = workflowState({ status: "partial", message: "部分来源未能读取。",
+    source_errors: [
+      { source_name: "BBC 体育 · 足球", host: "feeds.bbci.co.uk", code: "dns_failed", message: "域名无法解析" },
+      { source_name: "天空体育 · 足球", host: "www.skysports.com", code: "dns_failed", message: "域名无法解析" },
+      { source_name: "马卡报 · 足球", host: "e00-marca.uecdn.es", code: "timeout", message: "请求超时" },
+    ] });
+  const verdict = {
+    proxy: { state: "absent", configured: false, host: null, port: null, listening: false },
+    dns: { intercepted: true, sample: "feeds.bbci.co.uk" },
+    sources: { total: 34, transport_failed: 22, http_failed: 2, reachable: 10 },
+    verdict: "local_network_blocked",
+    notice: "本机网络暂时无法直连这些国外来源，已跳过本轮重试；配置代理后会自动恢复。",
+  };
+  const asked = [];
+  const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: team.id },
+    path => { asked.push(path); return Promise.resolve(path === "/network-diagnostics" ? verdict : current); });
+  await host.flush();
+  assert.ok(asked.includes("/network-diagnostics"), "a failing read asks for a diagnosis");
+  const notice = renderedNotice(nodes(host.tree, node => typeof node.type === "function"
+    && node.type.name === "NetworkVerdictNotice")[0]);
+  assert.ok(notice, "the verdict notice is rendered into the panel");
+  assert.match(text(notice), /配置代理后会自动恢复/);
+  assert.match(text(notice), /22 个来源无法建立连接/);
+  // The three per-source rows must not also be listed; one condition, said once.
+  assert.equal(nodes(host.tree, node => node.type === "details").length, 0);
+  assert.doesNotMatch(text(host.tree), /查看 3 个未能读取的来源/);
+  host.unmount();
+});
+
+test("a failing read with no local verdict still lists its sources", async () => {
+  const current = workflowState({ status: "partial", message: "部分来源未能读取。",
+    source_errors: [{ source_name: "唯一来源", host: "one.example", code: "http_forbidden", message: "来源拒绝访问" }] });
+  const host = component("WorkflowControls.tsx", "WorkflowControls", { kind: "news", teamId: team.id },
+    path => Promise.resolve(path === "/network-diagnostics"
+      ? { proxy: { state: "configured", configured: true, host: "127.0.0.1", port: 7897, listening: true },
+          dns: { intercepted: false, sample: null },
+          sources: { total: 34, transport_failed: 0, http_failed: 1, reachable: 33 }, verdict: null, notice: null }
+      : current));
+  await host.flush();
+  assert.match(text(host.tree), /查看 1 个未能读取的来源/);
+  // A null verdict renders nothing, so the per-source list keeps its place.
+  assert.equal(nodes(host.tree, node => typeof node.type === "function"
+    && node.type.name === "NetworkVerdictNotice").length, 1);
   host.unmount();
 });
 
@@ -920,4 +1014,134 @@ test("an unavailable conversation model offers a new conversation without discar
   assert.equal(nodes(host.tree, n => n.type === "textarea")[0].props.value, "继续的问题");
   assert.equal(host.saved["touchline-conversation-arsenal"], "");
   host.unmount();
+});
+
+// `components.tsx` pulls icons and markdown from packages the hook host above
+// stubs out entirely. Render the real module with only those boundaries faked,
+// so what runs here is the shipped Crest code, not a copy of its logic.
+function crestModule() {
+  const slots = [];
+  const effects = [];
+  let index = 0, dirty = true, alive = true, tree;
+  const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
+  const react = {
+    useState(initial) {
+      const i = index++;
+      if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
+      return [slots[i], value => {
+        const next = typeof value === "function" ? value(slots[i]) : value;
+        if (!Object.is(slots[i], next)) { slots[i] = next; dirty = true; }
+      }];
+    },
+    useRef(value) { const i = index++; return slots[i] ??= { current: value }; },
+    useEffect(fn, deps) {
+      const i = index++;
+      if (!same(slots[i]?.deps, deps)) effects.push(() => {
+        slots[i]?.cleanup?.();
+        slots[i] = { deps, cleanup: fn() };
+      });
+    },
+  };
+  const jsx = (type, props) => ({ type, props });
+  const icon = name => name;
+  const exports = {};
+  const browser = { setInterval: () => 1, setTimeout: () => 1, clearInterval() {}, clearTimeout() {}, addEventListener() {}, removeEventListener() {} };
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/components.tsx", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    exports, Date, Set, Map, JSON, console, URL, Intl, window: browser, document: browser,
+    require(module) {
+      if (module === "react") return react;
+      if (module === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
+      if (module === "lucide-react") return new Proxy({}, { get: (_, key) => (typeof key === "string" ? icon(key) : undefined) });
+      if (module === "react-markdown") return function Markdown() { return null; };
+      if (module === "remark-gfm") return {};
+      return new Proxy({}, { get: (_, key) => String(key) });
+    },
+  });
+  return {
+    render(props) {
+      dirty = true; index = 0;
+      tree = exports.Crest(props);
+      while (effects.length) effects.shift()();
+      return tree;
+    },
+    fail(props) {
+      const image = nodes(tree, n => n.type === "img")[0];
+      assert.ok(image, "an <img> must be rendered before it can fail");
+      image.props.onError();
+      dirty = true; index = 0;
+      tree = exports.Crest(props);
+      while (effects.length) effects.shift()();
+      return tree;
+    },
+    get tree() { return tree; },
+    unmount() { alive = false; for (const slot of slots) slot?.cleanup?.(); },
+  };
+}
+
+test("crest renders a local club asset as an image and never guesses a badge", () => {
+  const crest = crestModule();
+  const liverpool = { id: "liverpool", name: "利物浦", crest_url: "/assets/clubs/liverpool.png", color: "#BE3945" };
+  const image = nodes(crest.render({ team: liverpool }), n => n.type === "img")[0];
+  assert.ok(image, "a catalogued club crest is rendered from its own asset");
+  assert.equal(image.props.src, "/assets/clubs/liverpool.png");
+  assert.equal(image.props.alt, "利物浦队徽");
+  crest.unmount();
+});
+
+test("a club without a crest falls back to its initial instead of another club's badge", () => {
+  const crest = crestModule();
+  // A name that previously matched a hardcoded regex must not borrow that crest.
+  const unknown = { id: "unknown-fc", name: "利物浦二队", color: "#123456" };
+  const tree = crest.render({ team: unknown });
+  assert.equal(nodes(tree, n => n.type === "img").length, 0, "no badge is guessed for an unknown club");
+  assert.ok(text(tree).includes("利"), "the initial stands in for the missing crest");
+  assert.equal(tree.props.title, "利物浦二队 · 暂无队徽");
+  crest.unmount();
+});
+
+test("a broken crest image falls back to the initial rather than an empty frame", () => {
+  const crest = crestModule();
+  const club = { id: "arsenal", name: "阿森纳", crest_url: "/assets/clubs/arsenal.png", color: "#EF0107" };
+  crest.render({ team: club });
+  const after = crest.fail({ team: club });
+  assert.equal(nodes(after, n => n.type === "img").length, 0, "the failed image is dropped");
+  assert.ok(text(after).includes("阿"));
+  assert.equal(after.props.title, "阿森纳 · 暂无队徽");
+  crest.unmount();
+});
+
+test("one local network verdict replaces a wave of per-source gap notices", async () => {
+  const diagnostics = {
+    proxy: { state: "unusable", configured: true, host: "127.0.0.1", port: 7897, listening: false },
+    dns: { intercepted: true, sample: "feeds.bbci.co.uk" },
+    sources: { total: 34, transport_failed: 22, http_failed: 2, reachable: 10 },
+    verdict: "local_network_blocked",
+    notice: "本机网络暂时无法直连这些国外来源，已跳过本轮重试；配置代理后会自动恢复。",
+  };
+  const host = component("components.tsx", "NetworkVerdictNotice", { diagnostics }, () => Promise.resolve(null));
+  await host.flush();
+  assert.match(text(host.tree), /配置代理后会自动恢复/);
+  assert.match(text(host.tree), /22 个来源无法建立连接/);
+  assert.match(text(host.tree), /127\.0\.0\.1:7897/);
+  assert.match(text(host.tree), /feeds\.bbci\.co\.uk/);
+  // The advice has to name the way out, not just the problem.
+  assert.match(text(host.tree), /设置/);
+  host.unmount();
+});
+
+test("no verdict means no notice, so single-source failures still stand alone", async () => {
+  const host = component("components.tsx", "NetworkVerdictNotice",
+    { diagnostics: { proxy: { state: "absent", configured: false, host: null, port: null, listening: false },
+                     dns: { intercepted: false, sample: null },
+                     sources: { total: 34, transport_failed: 1, http_failed: 0, reachable: 33 },
+                     verdict: null, notice: null } }, () => Promise.resolve(null));
+  await host.flush();
+  assert.equal(host.tree, null);
+  const absent = component("components.tsx", "NetworkVerdictNotice", {}, () => Promise.resolve(null));
+  await absent.flush();
+  assert.equal(absent.tree, null);
+  host.unmount();
+  absent.unmount();
 });

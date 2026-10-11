@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, Square } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { SourceGapNotice } from "./components";
-import type { SourceGap } from "./types";
+import { NetworkVerdictNotice, SourceGapNotice } from "./components";
+import type { NetworkDiagnostics, SourceGap } from "./types";
 
 export interface WorkflowState {
   kind: "news" | "team";
@@ -59,6 +59,7 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const [state, setState] = useState<WorkflowState | null>(null);
   const [error, setError] = useState<{ target: string; message: string } | null>(null);
   const [pending, setPending] = useState<{ target: string; action: "start" | "stop" } | null>(null);
+  const [network, setNetwork] = useState<NetworkDiagnostics | null>(null);
   const mounted = useRef(false);
   const activeTarget = useRef(target);
   const generation = useRef(0);
@@ -121,6 +122,24 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
 
   const current = state?.kind === kind && state.team_id === teamId ? state : null;
   const active = isActive(current);
+  // Only a failing read can be a network problem, so the diagnosis is fetched
+  // when one is showing and cleared when it is not. It makes no publisher
+  // request; the server reads records it already wrote plus two local probes.
+  const failingCount = current && current.status !== "idle" && current.status !== "stopped"
+    ? (current.source_errors || []).length : 0;
+  useEffect(() => {
+    if (!failingCount) {
+      setNetwork(null);
+      return;
+    }
+    let valid = true;
+    api<NetworkDiagnostics>("/network-diagnostics")
+      .then((result) => valid && setNetwork(result))
+      .catch(() => valid && setNetwork(null));
+    return () => {
+      valid = false;
+    };
+  }, [failingCount]);
   useEffect(() => {
     const refreshVisible = () => {
       if (document.visibilityState === "visible") void load();
@@ -180,7 +199,8 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&
             <button className="text-button" onClick={onConfigure}>模型设置</button>}
         </p>}
-        {!!sourceErrors.length && <details className="workflow-source-errors">
+        <NetworkVerdictNotice diagnostics={network} />
+        {!!sourceErrors.length && !network?.verdict && <details className="workflow-source-errors">
           <summary>查看 {sourceErrors.length} 个未能读取的来源</summary>
           <SourceGapNotice gaps={sourceErrors} />
         </details>}

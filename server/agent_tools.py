@@ -77,6 +77,8 @@ TOOL_DEFINITIONS = [
 BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data")
 TOOL_DEFINITIONS.extend([
     {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
+    {"name": "photo_queue", "description": "查看当前球队还剩哪些球员没有照片，以及每人为什么还没拿到：从未核对、来源已否决、还是缺少可核对的身份信息。只读，不联网，不返回图片地址或身份依据。补图前先用它看清缺口。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 120}}, "additionalProperties": False}},
+    {"name": "plan_photo_batch", "description": "在补图前指定本轮先核对哪一批球员及先后顺序（最多 12 人）。只能从 photo_queue 已列出的未核对球员中选择；它决定先问谁，不能新增球员、不能提供或更改照片与身份依据。省略则按原有顺序推进。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 12}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
@@ -339,6 +341,10 @@ class LocalTools:
         self.network_queries = 0
         self.article_reads = 0
         self.candidate_count = 0
+        # Which players the model asked to check first this run. It orders the
+        # work; it never supplies a photo or an identity proof, which still come
+        # only from a source that can show them.
+        self._photo_order = None
         self.match = self.scoped_get("matches", run.get("match_id")) if run.get("match_id") else None
         self.review = self.scope_skill == "match_review"
         if self.scope_skill in {"match_preview", "match_review"} and not self.match:
@@ -574,17 +580,22 @@ class LocalTools:
     def available_tools(self):
         """Only advertise executable capabilities; guards still enforce scope."""
         excluded = set()
+        # An explicit allowlist means an internal orchestrator that already
+        # declared exactly what it runs. It is the one caller that may have the
+        # background photo tools, which are otherwise withheld because they are
+        # the team page's job and the slowest thing in the set.
+        orchestrated = set(self.run.get("tool_allowlist") or ()) if self.run.get("internal_agent") else set()
         # Background maintenance stays callable but is not offered: it is the
         # team page's job, not a conversation's, and it is the slowest thing in
         # the tool set.
-        excluded.update(BACKGROUND_TOOL_NAMES)
+        excluded.update(set(BACKGROUND_TOOL_NAMES) - orchestrated)
         if self.skill != "news_report" or not isinstance(self.news_draft, dict):
             excluded.add("revise_news")
         if self.mode != "live" or self.match or self.run.get("report_id"):
-            excluded.update({"get_team_data", "maintain_team_data", "fetch_player_photos"})
+            excluded.update({"get_team_data", "maintain_team_data", "fetch_player_photos"} - orchestrated)
         if (not self.allow_network
                 or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff)):
-            excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data", "fetch_player_photos"})
+            excluded.update({"discover_news", "refresh_team_sources", "research_news", "maintain_team_data", "fetch_player_photos"} - orchestrated)
         if not self.allow_network or (self.cutoff and datetime.now(timezone.utc) >= self.cutoff):
             excluded.add("read_article")
             excluded.add("query_structured_sources")
@@ -1176,13 +1187,21 @@ class LocalTools:
                           scope_resolution=resolution,
                           notice="结构化来源结果不是本轮已读原文；最终引用仍须 read_evidence 阅读可见证据。")
             return result
+        if name == "photo_queue":
+            # Read-only and local: no network, no waiting, so unlike the two
+            # background photo tools this one is safe for a conversation.
+            return self.photo_queue_result(arguments.get("limit", 60))
+        if name == "plan_photo_batch":
+            return self.plan_photo_batch(arguments.get("player_ids"))
         if name == "fetch_player_photos":
             self.network_guard()
             if self.match or self.run.get("report_id"):
                 raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
             self.network_queries += 1
             from .team_center import fetch_player_photos
-            return await fetch_player_photos(self.store, self.team_id, player_ids=arguments.get("player_ids"), force=arguments.get("force", False))
+            return await fetch_player_photos(self.store, self.team_id, player_ids=arguments.get("player_ids"),
+                                             force=arguments.get("force", False),
+                                             order=self._photo_order)
         if name == "maintain_team_data":
             self.network_guard()
             if self.match or self.run.get("report_id"):
@@ -1293,6 +1312,58 @@ class LocalTools:
         # to cite fields it saw outside the actual reading/quotation contract.
         return {"team_id": self.team_id, "evidence": self.call("read_evidence", {"evidence_id": evidence_id}),
                 "notice": "球队资料只在evidence正文中交付。姓名、号码及各项时间可用同一球员行的passage_id引用，并按事实需要补充片段。未读后续页须按next_offset继续read_evidence；行号和球衣号码不代表首发排序。"}
+
+    def _photo_snapshot(self):
+        from .team_center import team_season_context
+        team_id = self.team_id
+        _, _, season, _ = team_season_context(self.store, team_id, None)
+        from .team_center import _snapshot_id
+        snapshot = self.store.get("team_snapshots", _snapshot_id(team_id, season["id"])) or {}
+        if not snapshot.get("roster") or snapshot.get("team_id") != team_id:
+            raise ToolError("请先取得这个球队和赛季的可核对阵容，再查看照片缺口。")
+        return snapshot
+
+    def photo_queue_result(self, limit=60):
+        """The remaining photo work, and why each player is still open.
+
+        Carries no image address and no identity evidence: a caller may decide
+        who to ask about next, never what the answer is.
+        """
+        from .team_portraits import photo_queue
+        try:
+            size = max(1, min(int(limit), 120))
+        except (TypeError, ValueError):
+            size = 60
+        report = photo_queue(self.store, self._photo_snapshot(), limit=size)
+        notice = ("这里只列出还缺照片的球员和原因，不含照片地址或身份依据。"
+                  "选好顺序后用 plan_photo_batch 指定这一轮先核对谁。")
+        if report.get("untried_count", 0) > len(report.get("untried", [])):
+            notice += f" 未核对球员共 {report['untried_count']} 人，此处只列出前 {len(report['untried'])} 人。"
+        return {**report, "notice": notice}
+
+    def plan_photo_batch(self, player_ids):
+        """Order the next batch, refusing any id the roster does not contain.
+
+        The input is a list of ids and nothing else, so there is no field
+        through which a caller could write a photo or an identity claim. The
+        roster check is the same shape as the one that stops a model naming a
+        team id for a structured query.
+        """
+        if not isinstance(player_ids, (list, tuple)) or not player_ids:
+            raise ToolError("请给出本轮要先核对的球员编号。")
+        if len(player_ids) > 12:
+            raise ToolError("一轮最多核对 12 名球员，请分批推进。")
+        from .team_portraits import photo_queue
+        report = photo_queue(self.store, self._photo_snapshot(), limit=120)
+        open_ids = {str(entry["player_id"]) for entry in (*report.get("untried", []), *report.get("settled", []))}
+        chosen = [str(value) for value in player_ids]
+        unknown = [value for value in chosen if value not in open_ids]
+        if unknown:
+            raise ToolError("只能选择 photo_queue 列出的、当前仍缺照片的球员。")
+        self._photo_order = chosen
+        return {"ordered_count": len(chosen), "player_ids": chosen,
+                "queued_count": report.get("untried_count", 0),
+                "notice": "顺序已记录。调用 fetch_player_photos 时会先核对这些人；照片仍由来源核对身份后写入。"}
 
     def budget(self):
         return {"queries_used": self.network_queries, "queries_limit": None,

@@ -14,6 +14,7 @@ from urllib.request import getproxies
 
 import httpx
 
+from . import ingestion
 from .ingestion import IngestionError, now
 from .league_catalog import LEAGUES, EUROPEAN_COMPETITIONS
 
@@ -318,7 +319,7 @@ async def _fetch_public_document(url, *, timeout=15):
         async with asyncio.timeout(timeout):
             async with httpx.AsyncClient(timeout=httpx.Timeout(min(13, timeout), connect=min(8, timeout)), follow_redirects=False,
                     proxy=getproxies().get("https"), trust_env=False,
-                    headers={"User-Agent": "Touchline/7.1 (personal football reader)", "Accept": "text/html"}) as client:
+                    headers={"User-Agent": ingestion.USER_AGENT, "Accept": "text/html"}) as client:
                 async with client.stream("GET", url) as response:
                     if response.status_code != 200:
                         _fail(f"返回 HTTP {response.status_code}")

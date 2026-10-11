@@ -22,8 +22,8 @@ _manual_refresh_started = ContextVar("research_manual_refresh_started", default=
 # Fixed, reviewed public metadata endpoints only. Neither configured sources
 # nor credentials can widen this proxy transport's destinations.
 _PORTRAIT_PATHS = {
-    "www.thesportsdb.com": {"/api/v1/json/3/searchplayers.php"},
-    "thesportsdb.com": {"/api/v1/json/3/searchplayers.php"},
+    "www.thesportsdb.com": {"/api/v1/json/3/searchplayers.php", "/api/v1/json/3/lookupplayer.php"},
+    "thesportsdb.com": {"/api/v1/json/3/searchplayers.php", "/api/v1/json/3/lookupplayer.php"},
     "www.fcbarcelona.com": {"/en/football/first-team/players", "/en/football/first-team/players/"},
     "www.tottenhamhotspur.com": {"/teams/mens/squad", "/teams/mens/squad/"},
     "www.juventus.com": {"/en/teams/first-team-men/squad", "/en/teams/first-team-men/squad/"},
@@ -63,7 +63,7 @@ def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body,
         # Using only this explicit OS proxy avoids NO_PROXY sending a reviewed
         # host back through intercepted local DNS. Arbitrary hosts never enter.
         with httpx.Client(proxy=proxy, trust_env=False, follow_redirects=False,
-                          headers={"User-Agent": "Touchline/2.0 (personal football reader)",
+                          headers={"User-Agent": ingestion.USER_AGENT,
                                    "Accept": "text/html,application/json,text/json,text/plain",
                                    "Accept-Encoding": "identity"}) as client:
             for hop in range(5):

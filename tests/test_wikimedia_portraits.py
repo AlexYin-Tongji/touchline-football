@@ -147,12 +147,18 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies()):
             verified = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
         shown = team_portraits.apply_cached_portraits(self.store, {"team_id": "arsenal", "roster": [dict(player)]})
+        # The identity-checked label is longer than the table's reading and
+        # contains it, so the full published name is shown with its citation.
         self.assertEqual(shown["roster"][0]["name_zh"], "马丁·厄德高")
         self.store.set_meta(wikimedia_portraits._portrait_key(player, "arsenal"),
                             {"status": "unavailable", "name_status": "unknown", "last_success": verified})
         revoked = team_portraits.apply_cached_portraits(self.store, shown)
-        self.assertNotIn("name_zh", revoked["roster"][0])
+        # The revoked label and its proof must not survive. The table's own
+        # reading is a separate fact and does survive: withdrawing a Wikidata
+        # label does not un-write the name table.
         self.assertNotIn("name_zh_identity", revoked["roster"][0])
+        self.assertNotEqual(revoked["roster"][0].get("name_zh_source"), "Wikidata 中文标签")
+        self.assertEqual(revoked["roster"][0]["name_zh"], "厄德高")
 
     async def test_ambiguous_person_pages_cannot_publish_either_chinese_label(self):
         player = {**self.player, "provider_id": "101", "team_id": "arsenal"}

@@ -127,6 +127,9 @@ interface CenterData {
     errors: string[];
     available_count?: number;
     total_count?: number;
+    untried_count?: number;
+    settled_count?: number;
+    no_identity_facts_count?: number;
   }>>;
   coverage?: { matches: number; expected_matches: number | null; has_full_schedule: boolean; results_complete: boolean | null; basis: string };
   preparation?: { status: string; message: string; counts?: { players?: number; photos?: number } };
@@ -416,6 +419,7 @@ export function TeamCenter({
                 <strong>{componentNames[key]}</strong>
                 <span className={`data-state data-state-${part.status}`}>{componentStatuses[part.status] || part.status}</span>
                 <small>{key === "portraits" && part.total_count != null ? `${part.available_count || 0} / ${part.total_count} 张有来源照片` : part.updated_at ? `更新于${friendlyTime(part.updated_at)}` : "尚无有效快照"}</small>
+                {key === "portraits" && photoGapNote(part) && <small>{photoGapNote(part)}</small>}
                 {!!part.errors?.length && <p>{part.errors.join("；")}</p>}
               </div>;
             })}
@@ -1107,6 +1111,26 @@ function playerPhotoUrl(player: Player) {
   if (player.photo_match?.startsWith("wikimedia_") &&
       (!player.photo_credit?.trim() || !player.photo_license?.trim() || !safeUrl(player.photo_file_page))) return null;
   return safeUrl(player.photo_url);
+}
+
+/**
+ * Why some players have no photo. "17 张没有" reads as a failure, but the same
+ * gap means different things: players a source cannot match at all are a
+ * settled answer, and players never reached yet are simply not done.
+ */
+function photoGapNote(part: { available_count?: number; total_count?: number; untried_count?: number;
+  settled_count?: number; no_identity_facts_count?: number }) {
+  const missing = (part.total_count || 0) - (part.available_count || 0);
+  if (missing <= 0) return "";
+  const parts: string[] = [];
+  if (part.untried_count) parts.push(`${part.untried_count} 人待核对`);
+  if (part.settled_count) parts.push(`${part.settled_count} 人来源暂无可用照片`);
+  const blocked = part.no_identity_facts_count
+    ? `；其中 ${part.no_identity_facts_count} 人缺少国籍与出生日期，来源无法核对身份，需先补全阵容资料`
+    : "";
+  // A server that has not sent the breakdown yet still reports the gap; say so
+  // rather than showing nothing under a visible shortfall.
+  return parts.length ? `缺 ${missing} 张：${parts.join("，")}${blocked}` : `还缺 ${missing} 张有来源的照片。`;
 }
 export function PlayerPhoto({ player, allowRetry = false }: { player: Player; allowRetry?: boolean }) {
   const [failed, setFailed] = useState(false);

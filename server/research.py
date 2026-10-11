@@ -19,9 +19,11 @@ from . import ingestion
 from .events import ENTITY_ALIASES, contains, entities, normalized
 from .club_library import RESEARCH_CATALOG, TRUSTED_SOURCE_HOSTS, TEAM_ALIASES
 from .news_sources import (BBC_HOSTS, FEED_HOSTS, additional_sources, community_sources,
+                           domestic_hosts, domestic_sources,
                            feed_published_time, global_feed_mentions_team, readable_publisher_entry,
                            REGIONAL_PUBLISHER_HOSTS, shared_host, TYC_HOSTS, verified_publisher_sources)
 from .research_transport import manual_refresh_scope
+from . import host_routes, transport_choice
 
 
 CATALOG = RESEARCH_CATALOG
@@ -34,6 +36,10 @@ for _host in ("football.london", "espn.co.uk", "goal.com", "eurosport.com", "leq
 # source URL grants nothing here.
 for _source in (*verified_publisher_sources(), *(s for _tid in CATALOG for s in community_sources(_tid))):
     TRUSTED_HOSTS.update(_source.get("allowed_hosts") or ())
+# Domestic channels are declared in a reviewed data file, so their hosts join
+# the same allowlist. Without this `_source_hosts` refuses them outright, since
+# a built-in source must resolve entirely inside the reviewed set.
+TRUSTED_HOSTS |= domestic_hosts()
 TRUSTED_HOSTS |= {_host[4:] for _host in tuple(TRUSTED_HOSTS) if _host.startswith("www.")}
 TOPICS = [
     ("伤病", "伤情", "受伤", "伤势", "缺阵", "injury", "injured", "fitness", "unavailable", "ruled out", "lesión", "lesiones", "lesionado", "lesionados", "lesão", "lesões", "blessure", "blessé", "blessés"),
@@ -84,7 +90,7 @@ def source_catalog(store, team_id):
     sources, urls = [], set()
     team_name = store.get("teams", team_id).get("name", "球队")
     for source in [*CATALOG.get(team_id, []), *additional_sources(team_id),
-                   *verified_publisher_sources(), *community_sources(team_id)]:
+                   *verified_publisher_sources(), *domestic_sources(team_id), *community_sources(team_id)]:
         url = ingestion.normalize_url(source["url"])
         if url in disabled_urls or url in urls:
             continue
@@ -294,13 +300,41 @@ def _first_team_entry(entry):
 
 
 async def _fetch(url, source):
+    """Read one source URL.
+
+    The transport is attached to the source under a private key rather than
+    passed here, because tests replace this function to serve a canned body and
+    a stubbed call shape must keep working. `_fetch_shared` is the only caller
+    and always resolves it first.
+    """
     hosts = _source_hosts(source)
     current = _checked_url(url, hosts)
-    # Arbitrary user sources retain the pinned-IP transport. Known public
-    # publishers may use the user's OS proxy: necessary on networks whose local
-    # DNS cannot reach those publishers. Every redirect remains allowlisted.
-    proxy = getproxies().get(urlsplit(current).scheme)
-    if not source.get("builtin") or not proxy:
+    # `_fetch_shared` resolves this once per request and attaches it; a direct
+    # call resolves it here so both entry points agree on the same rule.
+    transport = source.get("_transport") or transport_choice.transport_for(
+        source, settings=source.get("_settings"), lookup=getproxies)
+    try:
+        result = await _fetch_via(current, source, hosts, transport)
+    except (ingestion.IngestionError, asyncio.TimeoutError) as exc:
+        # Record what this attempt measured so the *next* request for this host
+        # starts from it. Only a failure to reach the host counts: a 403 says
+        # the route works and the publisher said no, and treating that as a
+        # routing fault would move traffic between readers for no reason.
+        #
+        # The correction is deliberately left to the next request rather than
+        # retried here. A retry inside one read would double the network calls
+        # this app makes against a slow publisher, and the second call would go
+        # through `ingestion` rather than `httpx`, so it would escape both the
+        # caller's timeout and any test double in place.
+        host_routes.record_route(source.get("_store"), urlsplit(current).hostname, transport,
+                                 error_kind=ingestion.source_error_details(exc)["code"])
+        raise
+    host_routes.record_route(source.get("_store"), urlsplit(current).hostname, transport)
+    return result
+
+
+async def _fetch_via(current, source, hosts, transport):
+    if transport != transport_choice.PROXY:
         from .research_transport import blocking_request
         body, final_url, content_type = await blocking_request(ingestion.fetch_document, current, allowed_hosts=hosts, timeout=25,
             **({"content_types": ("text/", "xml", "xhtml", "json")} if source.get("builtin") and source.get("_index_json") else {}))
@@ -308,15 +342,17 @@ async def _fetch(url, source):
         return body, final_url, content_type
     if not hosts <= TRUSTED_HOSTS:
         raise ingestion.IngestionError("内置来源域名配置不正确")
+    proxy = transport_choice.configured_proxy(source.get("_settings"), lookup=getproxies)
+    if not proxy:
+        raise ingestion.IngestionError("内置来源域名配置不正确")
     try:
         async with asyncio.timeout(22):
             async with httpx.AsyncClient(proxy=proxy, timeout=httpx.Timeout(15, connect=8), follow_redirects=False, trust_env=False,
-                                         headers={"User-Agent": "Touchline/2.0 (personal football reader)", "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json"}) as client:
+                                         headers={"User-Agent": ingestion.USER_AGENT, "Accept": "text/html,application/rss+xml,application/atom+xml,application/xml,text/xml,application/json"}) as client:
                 for redirect in range(5):
-                    # The OS proxy resolves these fixed publisher names. Local
-                    # DNS can be intercepted on this network; it is not used to
-                    # resolve proxy destinations. Arbitrary source domains never
-                    # reach this branch, even after a redirect.
+                    # Arbitrary user sources do not reach this branch unless
+                    # their owner opted in; a redirect cannot widen that, since
+                    # every hop is re-checked against the same host set.
                     async with client.stream("GET", current) as response:
                         if response.status_code in {301, 302, 303, 307, 308}:
                             if redirect == 4 or not response.headers.get("location"):
@@ -353,11 +389,24 @@ async def _fetch_shared(store, url, source, *, force=False, on_start=None):
     from .research_transport import shared_request
     hosts = _source_hosts(source)
     checked = _checked_url(url, hosts)
-    key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)), bool(source.get("_index_json")))
+    settings = store.transport_settings() if store is not None and hasattr(store, "transport_settings") else None
+    # The transport is part of the identity of a request: the same URL read
+    # through local DNS and through a proxy are different attempts with
+    # different reachability, and sharing one in-flight result between them
+    # would serve a proxy-only success to a reader that asked for the pinned
+    # route (and the reverse).
+    resolved = {**source, "_hosts": tuple(hosts), "_settings": settings, "_store": store}
+    # The route is a property of the host, not of the app: some reviewed
+    # publishers are only reachable through the proxy on this network and some
+    # are only reachable without it. `host_routes` answers per host, and falls
+    # back to the site-wide rule when it has not measured this one.
+    resolved["_transport"] = host_routes.route_for(source, store=store, settings=settings, lookup=getproxies)
+    key = (article_url(checked), source["id"], bool(source.get("builtin")), tuple(sorted(hosts)),
+           bool(source.get("_index_json")), resolved["_transport"])
     async def fetch_once():
         if on_start:
             on_start(datetime.now(timezone.utc))
-        return await _fetch(checked, source)
+        return await _fetch(checked, resolved)
     return await shared_request(store, key, urlsplit(checked).hostname, fetch_once, force=force)
 
 

@@ -1,0 +1,19 @@
+{
+  "reviewed_at": "2026-10-11",
+  "note": "只收录本机实测可读到条目的入口。探测脚本 scripts/probe-news-sources.py 逐个尝试各站点的 JSON、RSS、站点地图与栏目页形态，未产出条目的站点不写入。2026-10-11 的探测中，知情帝、直播吧、新浪体育、腾讯体育、虎扑均未产出可读条目（无订阅入口，或详情页为 JS 渲染且无正文 API），因此未收录。",
+  "channels": [
+    {
+      "id": "domestic_netease_football",
+      "name": "网易体育 · 国际足球",
+      "kind": "html",
+      "url": "https://sports.163.com/gjb/",
+      "allowed_hosts": ["sports.163.com", "www.163.com"],
+      "declaration_url": "https://sports.163.com/gjb/",
+      "reviewed_at": "2026-10-11",
+      "global_feed": true,
+      "shared_index": true,
+      "verify_article_dates": true,
+      "description": "网易体育国际足球公开栏目；列表页不声明发布时间，限定时间窗口时按正文核实发布日期。正文域名与栏目域名不同，两者都在 allowed_hosts 内。"
+    }
+  ]
+}

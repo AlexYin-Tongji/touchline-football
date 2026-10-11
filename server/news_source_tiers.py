@@ -53,6 +53,11 @@ PRESS_SOURCES = (
     ("news_but_football", "But! Football Club", ("butfootballclub.fr",)),
     ("news_maisfutebol", "Maisfutebol", ("maisfutebol.iol.pt",)),
     ("news_vi_nl", "Voetbal International", ("vi.nl",)),
+    # Chinese-language desks, added 2026-10-11 with the channel declarations in
+    # news_channels.json. They are read on networks where the desks above cannot
+    # be reached; registering them keeps a readable source from displaying as
+    # unclassified.
+    ("news_netease", "网易体育", ("163.com", "sports.163.com")),
 )
 
 # Supporter publications. They are community sources whatever the quality of

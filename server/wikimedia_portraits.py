@@ -75,6 +75,21 @@ def _age_seconds(value):
     return (datetime.now(timezone.utc) - datetime.fromisoformat(parsed)).total_seconds() if parsed else float("inf")
 
 
+def _refusal_code(reasons):
+    """Which check refused every article, as a code the caller can act on.
+
+    The in-loop checks all append their own code, and the first one is reported
+    because it is the check the first candidate failed. A withdrawal is the only
+    one that is a statement about the source rather than about identity, so it
+    outranks the rest when a page was withdrawn at all — a reader told "identity
+    could not be confirmed" about a deliberately deleted page would go looking
+    for a roster problem that does not exist.
+    """
+    codes = [code for code, _message in reasons]
+    if "source_withdrawn" in codes:
+        return "source_withdrawn"
+    return codes[0] if codes else "ambiguous_identity"
+
 def _safe_url(value, host, path_prefix):
     if not isinstance(value, str) or len(value) > 2048:
         return ""
@@ -480,7 +495,8 @@ async def resolve_portrait(store, player, team_id, *, force=False):
     name = player.get("name") if isinstance(player, dict) else ""
     birth_date = player.get("birth_date") if isinstance(player, dict) else ""
     if not isinstance(name, str) or not _name(name) or team_id not in TEAM_ALIASES:
-        return {"status": "rejected", "photo_reason": "缺少可核对的球员或俱乐部身份。"}
+        return {"status": "rejected", "photo_reason": "缺少可核对的球员或俱乐部身份。",
+                "retryable": False, "reason_code": "missing_name"}
     key = _portrait_key(player, team_id)
     previous = cached_portrait(store, player, team_id)
     cached = None if force else previous
@@ -496,9 +512,11 @@ async def resolve_portrait(store, player, team_id, *, force=False):
             if _candidate_name(title, birth_date) == _name(name)))
         exact.sort(key=lambda title: ("(" in title, title))
         if not exact:
-            result = {"status": "missing", "photo_reason": "维基百科未找到完整姓名匹配的球员页面。"}
+            result = {"status": "missing", "photo_reason": "维基百科未找到完整姓名匹配的球员页面。",
+                      "retryable": False, "reason_code": "missing_article"}
         elif len(exact) > MAX_ARTICLES:
-            result = {"status": "rejected", "photo_reason": "存在多个同名球员，身份无法消歧。"}
+            result = {"status": "rejected", "photo_reason": "存在多个同名球员，身份无法消歧。",
+                      "retryable": False, "reason_code": "ambiguous_identity"}
         else:
             matched = []
             reasons = []
@@ -507,34 +525,46 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                     "titles": title, "prop": "pageprops|pageimages|extracts", "piprop": "thumbnail|name",
                     "pithumbsize": 300, "exintro": 1, "explaintext": 1}))
                 if _source_withdrawn(article):
-                    reasons.append("百科页面当前不可公开核对。")
+                    reasons.append(("source_withdrawn", "百科页面当前不可公开核对。"))
                     continue
                 if _candidate_name(article.get("title"), birth_date) != _name(name):
-                    reasons.append("百科页面身份与球员完整姓名不一致。")
+                    reasons.append(("ambiguous_identity", "百科页面身份与球员完整姓名不一致。"))
                     continue
                 props = article.get("pageprops") or {}
                 desc = str(props.get("wikibase-shortdesc") or "")
                 extract = str(article.get("extract") or "")
                 if ("disambiguation" in props or not re.search(r"\bfootballer\b|\bfootball player\b", desc, re.I)
                         or not re.search(r"\bfootballer\b|\bfootball player\b", extract[:500], re.I)):
-                    reasons.append("页面未证实主体为足球运动员。")
+                    reasons.append(("ambiguous_identity", "页面未证实主体为足球运动员。"))
                     continue
                 known_birth = _birth_date(extract[:300])
                 if birth_date and known_birth and birth_date != known_birth:
-                    reasons.append("出生日期与已核对阵容不一致。")
+                    reasons.append(("ambiguous_identity", "出生日期与已核对阵容不一致。"))
                     continue
                 club = _current_club(extract, team_id)
                 if club == "other_club":
-                    reasons.append("页面记载的当前俱乐部与阵容不一致。")
+                    reasons.append(("ambiguous_identity", "页面记载的当前俱乐部与阵容不一致。"))
                     continue
                 identity = {}
                 if club != "confirmed" and not await _wikidata_club(store, props.get("wikibase_item"), team_id, birth_date, identity=identity):
-                    reasons.append("无法独立核对当前俱乐部身份。")
+                    reasons.append(("ambiguous_identity", "无法独立核对当前俱乐部身份。"))
                     continue
                 matched.append((article, identity))
             if len(matched) != 1:
-                result = {"status": "rejected", "photo_reason": "存在多个同名现役球员，身份无法消歧。" if matched else
-                          next(iter(reasons), "无法独立核对球员身份。")}
+                if matched:
+                    # More than one article survived every identity check, and
+                    # nothing separates them: an ambiguity, not a missing record.
+                    result = {"status": "rejected", "retryable": False, "reason_code": "ambiguous_identity",
+                              "photo_reason": "存在多个同名现役球员，身份无法消歧。"}
+                else:
+                    # No article survived. The code has to say which check
+                    # refused it, because the three reasons mean different
+                    # things to the caller: a withdrawn page is a source
+                    # verdict, a name mismatch is the wrong person, and the
+                    # rest are identity checks that did not corroborate.
+                    result = {"status": "rejected", "retryable": False,
+                              "reason_code": _refusal_code(reasons),
+                              "photo_reason": reasons[0][1] if reasons else "无法独立核对球员身份。"}
             else:
                 article, identity = matched[0]
                 if identity:
@@ -549,11 +579,13 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                             "unique_article": True, "identity_checked": True, "public": True}}
                 file_name = article.get("pageimage")
                 if not isinstance(file_name, str) or not file_name or not article.get("thumbnail", {}).get("source"):
-                    result = {"status": "missing", "photo_reason": "球员页面没有可核对的自由图片。"}
+                    result = {"status": "missing", "retryable": False, "reason_code": "no_free_image",
+                              "photo_reason": "球员页面没有可核对的自由图片。"}
                 else:
                     license_data = await _commons_license(store, file_name, force=force)
                     if not license_data:
-                        result = {"status": "rejected", "photo_reason": "Commons 未证实图片具有自由许可与署名。"}
+                        result = {"status": "rejected", "retryable": False, "reason_code": "license_not_free",
+                                  "photo_reason": "Commons 未证实图片具有自由许可与署名。"}
                     else:
                         article_url = "https://en.wikipedia.org/wiki/" + quote(article["title"].replace(" ", "_"))
                         result = {**license_data, "status": "completed", "photo_source_url": article_url,

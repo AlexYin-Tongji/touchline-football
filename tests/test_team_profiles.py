@@ -8,11 +8,15 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from server import agent
+from server.club_library import CLUBS
 from server.main import create_app
 from server.seed import seed
 from server.storage import Store
 from server.team_profiles import archive_run_knowledge, knowledge_for_team
 from tests.test_agent import FakeStore, tool_message
+
+
+ROOT = Path(__file__).resolve().parents[1]
 from tests.test_agent_delivery import submission
 
 
@@ -49,7 +53,12 @@ class ProfilePersistenceTests(unittest.TestCase):
             with TestClient(create_app(path)) as client:
                 profile = client.get("/api/teams/arsenal/profile?mode=live").json()
                 self.assertEqual(profile["library"]["knowledge_count"], 0)
-                self.assertEqual(profile["team"]["crest_url"], "/assets/clubs/arsenal.svg")
+                # The shipped crest is whatever the reviewed catalogue says; the
+                # point here is that the endpoint serves that value verbatim and
+                # the file behind it exists.
+                catalogued = next(club["crest_url"] for club in CLUBS if club["id"] == "arsenal")
+                self.assertEqual(profile["team"]["crest_url"], catalogued)
+                self.assertTrue((ROOT / "public" / catalogued.lstrip("/")).is_file())
                 team = client.post("/api/teams", json={"name": "自建球队"}).json()
                 result = client.patch(f"/api/teams/{team['id']}/profile", json={
                     "city": "上海", "description": "我的社区球队。", "founded": 2021,

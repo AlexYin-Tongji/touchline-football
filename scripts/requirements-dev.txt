@@ -1,0 +1,10 @@
+# Development-only tooling for the image asset pipeline.
+#
+# Pillow belongs here and not in requirements.txt: it is used by
+# scripts/fetch-crest-assets.py and scripts/normalize-crests.py, which run on a
+# maintainer's machine and write reviewed files into version control. The
+# running application never opens an image, so shipping Pillow would widen the
+# production image for nothing.
+#
+#   python -m pip install -r scripts/requirements-dev.txt
+Pillow==12.3.0
