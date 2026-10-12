@@ -353,7 +353,7 @@ export function FeedView({
             </div>
           </div>
         )}
-        {preparationError && <div className="notice error" role="alert">消息来源准备未完成：{preparationError}</div>}
+        {preparationError && <div className="notice error" role="alert"><span>消息来源准备未完成：{preparationError}</span></div>}
         <div className="feed-toolbar">
           <div className="filter-tabs">
             {topics.map((item) => (
@@ -371,7 +371,7 @@ export function FeedView({
         </div>
         {error && (
           <div className="notice error" role="alert">
-            {error}
+            <span>{error}</span>
             <button onClick={() => load()}>重试</button>
           </div>
         )}
@@ -448,7 +448,9 @@ export function FeedView({
         )}
         {feed && !items.length && (
           <div className="empty-state feed-empty">
-            <Newspaper size={35} />
+            <div className="empty-icon">
+              <Newspaper size={22} strokeWidth={1.6} />
+            </div>
             <h2>{topic ? "这个分类还没有新消息" : preparation?.status === "running" ? "正在准备球队消息"
               : preparation?.counts?.readable ? "消息来源已就绪"
               : preparation?.status === "failed" ? "消息来源暂时未能读取"
@@ -580,7 +582,7 @@ export function FeedView({
               <>
                 {readError && (
                   <div className="notice error">
-                    {readError}
+                    <span>{readError}</span>
                     <button onClick={() => read(selected)}>重试</button>
                   </div>
                 )}

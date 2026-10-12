@@ -436,7 +436,7 @@ export function TeamCenter({
       </p>}
       {error && (
         <div className="notice error" role="alert">
-          {error}
+          <span>{error}</span>
           <button onClick={load}>重试</button>
         </div>
       )}

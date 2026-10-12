@@ -56,9 +56,8 @@
   font-family: var(--font-serif);
   font-size: var(--t-h2);
   font-weight: 600;
-  /* 中文标题的轻微拉距（0.5px 量级）是排版惯例；
-     上一版的 3px 是西文大写字母的字距，用在中文上会散架。 */
-  letter-spacing: 1px;
+  /* 中文标题只留一点点字距。再拉开，方块字会散。 */
+  letter-spacing: 0.5px;
   line-height: 1.1;
   color: var(--ink);
 }
@@ -73,47 +72,34 @@
 }
 .main-tabs {
   display: flex;
-  justify-content: center;
-  gap: 4px;
+  justify-self: center;
+  width: max-content;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-sunk);
 }
 .main-tabs button {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 15px;
+  padding: 7px 14px;
   font-size: var(--t-body);
   color: var(--muted);
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  transition: color 0.15s;
+  border-radius: 999px;
+  transition: color 0.15s, background 0.15s, box-shadow 0.18s var(--ease-out);
 }
 .main-tabs button:hover {
   color: var(--ink);
 }
-/* 指示条从中心展开，而不是整条直接出现 */
-.main-tabs button::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -2px;
-  height: 2px;
-  background: var(--red);
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 0.26s var(--ease-out);
-}
-.main-tabs button:hover::after {
-  transform: scaleX(0.4);
-}
 .main-tabs button.active {
   color: var(--ink);
   font-weight: 600;
-  border-bottom-color: transparent;
-}
-.main-tabs button.active::after {
-  transform: scaleX(1);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
 }
 .header-end {
   display: flex;
@@ -214,10 +200,14 @@
   }
 }
 .rail-hint {
-  margin: 6px 4px 14px;
+  margin: 8px 4px 12px;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
   font-size: var(--t-body-sm);
   line-height: var(--lh-read);
-  color: var(--faint);
+  color: var(--muted);
 }
 .explore-teams {
   display: flex;
@@ -313,14 +303,17 @@
   min-height: 0;
 }
 
-/* 球队上下文条 */
+/* 球队上下文条：切换、联赛、关注放在同一条里，不再散成三截 */
 .team-context {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 16px;
-  margin-bottom: 26px;
-  border-bottom: var(--rule);
+  gap: 8px 12px;
+  padding: 6px 8px 6px 6px;
+  margin-bottom: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
   flex-wrap: wrap;
 }
 .current-team {
@@ -329,17 +322,14 @@
   gap: 9px;
   padding: 6px 12px 6px 7px;
   border-radius: 999px;
-  background: var(--surface);
-  border: var(--rule);
+  background: var(--paper-sunk);
+  border: 1px solid transparent;
   font-size: var(--t-body);
-  box-shadow: var(--shadow-1);
-  transition: border-color 0.15s, box-shadow 0.2s var(--ease-out),
-    transform 0.2s var(--ease-out);
+  transition: border-color 0.15s, background 0.15s, transform 0.2s var(--ease-out);
 }
 .current-team:hover {
-  border-color: var(--ink);
-  box-shadow: var(--shadow-2);
-  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: var(--paper);
 }
 .current-team strong {
   font-weight: 600;
@@ -504,24 +494,120 @@
   color: var(--faint);
 }
 
-/* 流程控制条 */
+/* 流程控制：左边是状态，右边是一对互斥动作。
+   能点的那一个保持实心；不能点的退成线框，而不是整颗按钮发灰。 */
 .workflow-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 15px 18px;
-  margin-bottom: 24px;
-  border-radius: var(--radius-card);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px 20px;
+  padding: 16px 16px 16px 18px;
+  margin-bottom: 22px;
+  border-radius: 14px;
   background: var(--surface);
-  border: var(--rule);
+  border: 1px solid var(--line);
   border-left: 3px solid var(--line-strong);
-  box-shadow: var(--shadow-1);
-  flex-wrap: wrap;
+  box-shadow: var(--shadow-1), var(--inset-hi);
+}
+.workflow-controls.is-live {
+  border-left-color: var(--red);
+  background: linear-gradient(90deg, var(--red-wash), var(--surface) 148px);
+}
+.workflow-controls.is-done {
+  border-left-color: var(--green);
+}
+.workflow-controls.is-warn {
+  border-left-color: var(--amber);
+}
+.workflow-controls.is-alert {
+  border-left-color: var(--red);
 }
 .workflow-status {
   min-width: 0;
-  flex: 1;
+}
+.workflow-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.workflow-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--paper-sunk);
+  flex-shrink: 0;
+}
+.workflow-controls.is-live .workflow-mark {
+  background: #fff;
+}
+.workflow-glyph {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.workflow-controls.is-idle .workflow-glyph,
+.workflow-controls.is-loading .workflow-glyph {
+  background: var(--faint);
+}
+.workflow-controls.is-done .workflow-glyph {
+  background: var(--green);
+}
+.workflow-controls.is-warn .workflow-glyph {
+  background: var(--amber);
+}
+.workflow-controls.is-alert .workflow-glyph {
+  background: var(--red);
+}
+.workflow-controls.is-stopped .workflow-glyph {
+  background: var(--muted);
+}
+.workflow-copy {
+  min-width: 0;
+}
+.workflow-kicker-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.workflow-kicker {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+}
+.workflow-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--paper-sunk);
+  font-size: var(--t-overline);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.workflow-state.state-live {
+  background: var(--red-wash);
+  color: var(--red-deep);
+}
+.workflow-state.state-done {
+  background: var(--green-wash);
+  color: var(--green);
+}
+.workflow-state.state-warn {
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+.workflow-state.state-alert {
+  background: var(--red-wash);
+  color: var(--red-deep);
 }
 .workflow-status strong {
   display: block;
@@ -530,29 +616,99 @@
   color: var(--ink);
   line-height: var(--lh-ui);
 }
-.workflow-status p {
-  margin: 5px 0 0;
-  font-size: var(--t-body-sm);
+.workflow-meter {
+  height: 4px;
+  margin: 12px 0 0 40px;
+  border-radius: 999px;
+  background: var(--paper-sunk);
+  overflow: hidden;
+}
+.workflow-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width 0.35s var(--ease-out);
+}
+.workflow-controls.is-live .workflow-meter > span {
+  background: var(--red);
+}
+.workflow-controls.is-done .workflow-meter > span {
+  background: var(--green);
+}
+.workflow-controls.is-warn .workflow-meter > span {
+  background: var(--amber);
+}
+.workflow-detail {
+  margin: 8px 0 0 40px;
+  font-size: var(--t-meta);
   color: var(--muted);
   line-height: var(--lh-ui);
 }
-/* 运行中：左侧竖条跟着脉冲，和状态点同一个节奏 */
-.workflow-controls:has(.pulse-dot) {
-  border-left-color: var(--red);
-}
 .workflow-status .workflow-error {
+  margin: 10px 0 0 40px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--amber-wash);
   color: var(--amber);
+  font-size: var(--t-body-sm);
+  line-height: var(--lh-ui);
 }
 .workflow-error .text-button {
   margin-left: 8px;
   color: var(--red);
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.workflow-status .network-verdict-notice,
+.workflow-status .workflow-source-errors {
+  margin-left: 40px;
+}
 .workflow-actions {
   display: flex;
-  gap: 9px;
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 132px;
+}
+.workflow-actions .button {
+  width: 100%;
+  justify-content: flex-start;
+}
+.workflow-actions .button:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--faint);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.workflow-actions .button.primary:disabled {
+  background: transparent;
+  color: var(--faint);
+  border-color: var(--line);
+}
+.workflow-actions .workflow-stop:not(:disabled) {
+  color: var(--red-deep);
+  border-color: #a8232f55;
+  background: var(--red-wash);
+  font-weight: 600;
+}
+.workflow-actions .workflow-stop:hover:not(:disabled) {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+.workflow-actions .button.workflow-busy:disabled,
+.workflow-actions .button.primary.workflow-busy:disabled {
+  opacity: 1;
+  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.workflow-actions .button.workflow-stop.workflow-busy:disabled {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
 }
 
 /* 动态列表 */
@@ -709,8 +865,15 @@
   margin: 0 0 9px;
 }
 .feed-source-gap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--amber-wash);
   font-size: var(--t-label);
+  line-height: var(--lh-ui);
   color: var(--amber);
 }
 .feed-images {
@@ -1176,9 +1339,12 @@
   gap: 8px;
   margin: 0;
   padding: 11px 14px;
-  border-left: 3px solid var(--amber);
+  border: 1px solid #856b3433;
+  border-left-width: 3px;
+  border-left-color: var(--amber);
+  border-radius: var(--radius-card);
   background: var(--amber-wash);
-  color: var(--amber);
+  color: var(--ink-soft);
   font-size: var(--t-body-sm);
   line-height: var(--lh-ui);
 }
@@ -1242,8 +1408,23 @@
 .reader-prompts {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
-  margin-bottom: 15px;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.prompt-chip {
+  background: var(--paper);
+  border-style: dashed;
+  box-shadow: none;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.prompt-chip:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  transform: none;
+  box-shadow: var(--shadow-1);
 }
 .reader-assistant form {
   display: flex;
@@ -1910,9 +2091,15 @@
   margin-top: 8px;
 }
 .workflow-source-errors summary {
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   font-size: var(--t-meta);
-  color: var(--muted);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.workflow-source-errors summary::-webkit-details-marker {
+  display: none;
 }
 .workflow-source-errors .source-gap-notice {
   margin-top: 8px;
@@ -1921,19 +2108,22 @@
    than the single-line row `.source-gap-notice` draws. It uses the same amber
    as an unreadable source: nothing here is an error the reader caused. */
 .network-verdict-notice {
-  padding: 13px 15px;
-  border-left: 3px solid var(--amber);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 12px 14px;
+  border: 1px solid #856b3433;
+  border-left-width: 3px;
+  border-left-color: var(--amber);
+  border-radius: var(--radius-card);
   background: var(--amber-wash);
-  color: var(--amber);
+  color: var(--ink-soft);
   font-size: var(--t-body-sm);
   line-height: var(--lh-ui);
-  margin: 0 0 18px;
+  margin: 10px 0 0;
 }
 .network-verdict-notice strong {
   display: block;
   font-weight: 600;
   margin-bottom: 6px;
+  color: var(--amber);
 }
 .network-verdict-notice ul {
   margin: 0;
@@ -2533,10 +2723,19 @@
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
-  margin: 0 auto 14px;
+  margin: 0 auto 18px;
   width: 100%;
   max-width: 880px;
   flex-shrink: 0;
+}
+.chat-page-heading h1 {
+  margin-bottom: 6px;
+}
+.chat-page-heading p {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-ui);
+  color: var(--muted);
 }
 .assistant-body {
   width: 100%;
@@ -2696,6 +2895,14 @@
   color: var(--paper);
   transform: scale(1.08);
 }
+.skill-grid > button.selected {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-2), inset 3px 0 0 var(--red);
+}
+.skill-grid > button.selected .skill-icon {
+  background: var(--ink);
+  color: var(--paper);
+}
 .conversation-turn {
   margin: 0 0 32px;
   animation: turn-in 0.34s var(--ease-out) backwards;
@@ -2853,14 +3060,43 @@
 .composer-context {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 12px 12px 0;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-sunk);
   min-width: 0;
   font-size: var(--t-label);
-  color: var(--faint);
+  color: var(--ink-soft);
+}
+.chip-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.chip-dismiss:hover {
+  background: var(--surface);
+  color: var(--ink);
 }
 .composer-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  margin: 8px 4px 0;
   font-size: var(--t-meta);
+  line-height: var(--lh-ui);
   color: var(--faint);
+}
+.composer-note span:last-child {
+  color: var(--muted);
 }
 .send-button {
   display: inline-flex;
@@ -2941,22 +3177,59 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 15px;
-  border-radius: var(--radius);
-  border-left: 3px solid var(--amber);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #856b3433;
+  border-left-width: 3px;
+  border-left-color: var(--amber);
+  border-radius: var(--radius-card);
   background: var(--amber-wash);
-  color: var(--amber);
+  color: var(--ink-soft);
   font-size: var(--t-body-sm);
   line-height: var(--lh-ui);
   flex-wrap: wrap;
 }
+.model-recovery strong {
+  display: block;
+  color: var(--ink);
+  font-size: var(--t-body);
+}
+.model-recovery p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
 .model-connect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #a8232f33;
+  border-left-width: 3px;
+  border-radius: var(--radius-card);
+  background: var(--red-wash);
+  font-size: var(--t-body-sm);
+  line-height: var(--lh-ui);
+  color: var(--red-deep);
+}
+.model-connect > span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: var(--t-body-sm);
+  gap: 8px;
+  min-width: 0;
+}
+.model-connect button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
   color: var(--red);
-  font-weight: 500;
 }
 
 /* 对话记录：列表项是无类名 button，容器是 .chat-history；
@@ -3646,10 +3919,13 @@
   gap: 16px;
 }
 .picker-intro {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
   font-size: var(--t-body-sm);
   color: var(--muted);
-  line-height: var(--lh-read);
-  margin: 0;
+  line-height: var(--lh-ui);
 }
 .team-picker .filter-tabs {
   flex-wrap: wrap;
@@ -3688,8 +3964,9 @@
   transform: translateY(-2px);
 }
 .picker-team.selected {
-  border-color: var(--green);
-  background: var(--green-wash);
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-2), inset 0 0 0 1px var(--ink);
 }
 .picker-team .crest {
   transition: transform 0.28s var(--ease-spring);
@@ -3924,17 +4201,32 @@
   }
   .brand > span:last-child {
     font-size: var(--t-h4);
-    letter-spacing: 2px;
+    letter-spacing: 0.5px;
   }
-  .main-tabs button span {
-    display: inline;
-    font-size: var(--t-overline);
-    line-height: 1.2;
+  .workflow-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workflow-actions {
+    flex-direction: row;
+    min-width: 0;
+  }
+  .workflow-actions .button {
+    flex: 1;
+  }
+  .workflow-meter,
+  .workflow-detail,
+  .workflow-status .workflow-error,
+  .workflow-status .network-verdict-notice,
+  .workflow-status .workflow-source-errors {
+    margin-left: 0;
   }
   .main-tabs button {
-    flex-direction: column;
-    gap: 3px;
-    padding: 9px 8px;
+    gap: 4px;
+    padding: 6px 9px;
+  }
+  .main-tabs button span {
+    font-size: var(--t-overline);
+    line-height: 1.2;
   }
   .workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -4114,7 +4406,6 @@
 }
 @media (max-width: 480px) {
   .workflow-controls {
-    flex-direction: column;
     align-items: stretch;
   }
   .workflow-actions {

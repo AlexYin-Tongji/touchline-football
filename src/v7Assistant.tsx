@@ -609,6 +609,7 @@ export function Assistant({
             问助手
             <span className="heading-dot" />
           </h1>
+          <p>就这支球队提问，回答会附上来源。</p>
         </div>
         <div className="chat-top-actions">
           <button
@@ -833,7 +834,7 @@ export function Assistant({
         <div className="composer-area">
           {error && (
             <div className="notice error" role="alert">
-              {error}
+              <span>{error}</span>
               <button aria-label="关闭错误提示" onClick={() => setError("")}>
                 <X size={15} />
               </button>
@@ -855,6 +856,7 @@ export function Assistant({
                 </span>
                 <button
                   type="button"
+                  className="chip-dismiss"
                   aria-label="取消已选任务"
                   onClick={() => {
                     setSkill("auto");
@@ -977,10 +979,14 @@ export function Assistant({
             </div>
           </form>
           <p className="composer-note">
-            {conversationId
-              ? "对话自动保存；本次对话继续使用当前模型。"
-              : "新对话不读取其他会话。助手会查阅来源再回答。"}
-            Enter 发送，Shift + Enter 换行。
+            <span>
+              {pending
+                ? "正在回答。停止后，已写出的内容会保留。"
+                : conversationId
+                  ? "对话自动保存；本次对话继续使用当前模型。"
+                  : "新对话不读取其他会话。助手会查阅来源再回答。"}
+            </span>
+            <span>{pending ? "点击停止结束这一轮。" : "Enter 发送，Shift + Enter 换行。"}</span>
           </p>
         </div>
       </div>
@@ -1005,7 +1011,7 @@ export function Assistant({
             </label>
             {historyError && (
               <div className="notice error">
-                {historyError}
+                <span>{historyError}</span>
                 <button onClick={() => loadHistory()}>重试</button>
               </div>
             )}

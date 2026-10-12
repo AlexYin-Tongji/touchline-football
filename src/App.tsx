@@ -54,7 +54,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [followBusy, setFollowBusy] = useState(false);
   const [prompt, setPrompt] = useState<AssistantPrompt | null>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ text: string; tone: "success" | "error" } | null>(null);
   const [assistantTeam, setAssistantTeam] = useState(page === "assistant" ? teamId : "");
   const [modelRevision, setModelRevision] = useState(0);
   const followLock = useRef(false);
@@ -136,7 +136,7 @@ export default function App() {
   }, [load]);
   useEffect(() => {
     if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 4000);
+    const timer = window.setTimeout(() => setNotice(null), notice.tone === "error" ? 6400 : 4200);
     return () => clearTimeout(timer);
   }, [notice]);
   const teams = data?.teams || [];
@@ -167,13 +167,14 @@ export default function App() {
           : previous,
       );
       await load();
-      setNotice(
-        selected
+      setNotice({
+        text: selected
           ? `已取消关注${target.name}`
           : `已关注${target.name}，它会出现在我的球队中`,
-      );
+        tone: "success",
+      });
     } catch (err) {
-      setNotice(errorText(err));
+      setNotice({ text: errorText(err), tone: "error" });
     } finally {
       setFollowBusy(false);
       followLock.current = false;
@@ -394,13 +395,13 @@ export default function App() {
         </Modal>
       )}
       {notice && (
-        <div className="toast" role="status">
-          <Check size={16} />
-          {notice}
+        <div className={`toast toast-${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
+          {notice.tone === "error" ? <CircleAlert size={16} /> : <Check size={16} />}
+          <span>{notice.text}</span>
           <button
             className="icon-button"
             aria-label="关闭通知"
-            onClick={() => setNotice("")}
+            onClick={() => setNotice(null)}
           >
             <X size={15} />
           </button>

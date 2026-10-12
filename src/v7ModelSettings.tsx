@@ -297,7 +297,7 @@ export function ModelSettings({
       {message && (
         <div className="notice success" role="status">
           <CheckCircle2 size={17} />
-          {message}
+          <span>{message}</span>
         </div>
       )}
       {!state && !error ? (

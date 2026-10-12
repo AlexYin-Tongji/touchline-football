@@ -179,7 +179,8 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const requestError = error?.target === target ? error.message : "";
   const ready = !!current || !!requestError;
   const progress = current?.progress;
-  const showProgress = progress && (progress.completed + progress.failed + progress.remaining > 0);
+  const progressTotal = progress ? progress.completed + progress.failed + progress.remaining : 0;
+  const showProgress = !!progress && progressTotal > 0;
   const collection = current && current.status !== "idle" && current.status !== "stopped" ? current.collection : null;
   // Source collection can fail before a report is counted. The backend clears
   // this error at each new cycle; idle/stopped records may retain older errors.
@@ -187,13 +188,53 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
     ? current.last_error || "" : "";
   const sourceErrors = current && current.status !== "idle" && current.status !== "stopped"
     ? current.source_errors || [] : [];
+  const status = current?.status;
+  const tone = action || status === "running" || status === "stopping" ? "live"
+    : !current && requestError ? "alert"
+    : !current ? "loading"
+    : status === "completed" ? "done"
+    : status === "partial" || status === "interrupted" ? "warn"
+    : status === "failed" || status === "blocked" ? "alert"
+    : status === "stopped" ? "stopped"
+    : "idle";
+  const stateLabel = action === "stop" || status === "stopping" ? "正在结束"
+    : tone === "loading" ? "读取中"
+    : tone === "live" ? "进行中"
+    : tone === "done" ? "已完成"
+    : tone === "warn" ? (status === "interrupted" ? "已中断" : "部分完成")
+    : tone === "alert" ? (status === "blocked" ? "无法继续" : !current ? "未能读取" : "未能完成")
+    : tone === "stopped" ? "已结束"
+    : "待更新";
+  const headline = action === "start" ? "正在启动…" : action === "stop" ? "正在结束…" :
+    current?.message || (current ? messages[current.status] : requestError ? "暂时无法读取跟进状态。" : "正在读取跟进状态…");
+  const subject = kind === "news" ? "更新动态" : "更新资料";
   return (
-    <section className="workflow-controls" aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"}>
+    <section className={`workflow-controls is-${tone}`} aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"} aria-busy={tone === "live"}>
       <div className="workflow-status" role="status" aria-live="polite">
-        <strong>{action === "start" ? "正在启动…" : action === "stop" ? "正在结束…" :
-          current?.message || (current ? messages[current.status] : requestError ? "暂时无法读取跟进状态。" : "正在读取跟进状态…")}</strong>
-        {collection && <p>本轮来源：{collection.available_sources} / {collection.source_count} 个索引可用，发现 {collection.relevant_count} 条本队消息，{collection.window_count} 条在近期范围；尝试读取 {collection.read_attempted} 条正文，取得 {collection.readable_count} 条。</p>}
-        {showProgress && <p>{kind === "news" ? "中文整理" : "本轮资料"}：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
+        <div className="workflow-lead">
+          <span className="workflow-mark" aria-hidden="true">
+            {tone === "live" ? <span className="pulse-dot" /> : <span className="workflow-glyph" />}
+          </span>
+          <div className="workflow-copy">
+            <div className="workflow-kicker-row">
+              <span className="workflow-kicker">{subject}</span>
+              <span className={`workflow-state state-${tone}`}>{stateLabel}</span>
+            </div>
+            <strong>{headline}</strong>
+          </div>
+        </div>
+        {showProgress && progress && <div
+          className="workflow-meter"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progressTotal}
+          aria-valuenow={progress.completed}
+          aria-label={kind === "news" ? "中文整理进度" : "资料更新进度"}
+        >
+          <span style={{ width: `${Math.round((progress.completed / progressTotal) * 100)}%` }} />
+        </div>}
+        {collection && <p className="workflow-detail">本轮来源：{collection.available_sources} / {collection.source_count} 个索引可用，发现 {collection.relevant_count} 条本队消息，{collection.window_count} 条在近期范围；尝试读取 {collection.read_attempted} 条正文，取得 {collection.readable_count} 条。</p>}
+        {showProgress && progress && <p className="workflow-detail">{kind === "news" ? "中文整理" : "本轮资料"}：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
         {(requestError || failure) && <p className="workflow-error" role="alert">
           {requestError || failure}
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&
@@ -205,12 +246,26 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
           <SourceGapNotice gaps={sourceErrors} />
         </details>}
       </div>
-      <div className="workflow-actions">
-        <button className="button primary" disabled={!ready || active || !!action} onClick={() => control("start")}>
-          {action === "start" ? <LoaderCircle size={15} className="spin" /> : <Play size={15} />}启动
+      <div className="workflow-actions" role="group" aria-label="更新操作">
+        <button
+          className={`button primary${action === "start" ? " workflow-busy" : ""}`}
+          disabled={!ready || active || !!action}
+          aria-busy={action === "start"}
+          title={active ? "这一轮还在进行，结束后可以再次启动。" : "开始这一轮更新。完成的内容会陆续显示。"}
+          onClick={() => control("start")}
+        >
+          {action === "start" ? <LoaderCircle size={15} className="spin" /> : <Play size={15} />}
+          {action === "start" ? "正在启动" : "启动更新"}
         </button>
-        <button className="button" disabled={!ready || !active || !!action || current?.status === "stopping"} onClick={() => control("stop")}>
-          {action === "stop" ? <LoaderCircle size={15} className="spin" /> : <Square size={15} />}结束
+        <button
+          className={`button workflow-stop${action === "stop" ? " workflow-busy" : ""}`}
+          disabled={!ready || !active || !!action || current?.status === "stopping"}
+          aria-busy={action === "stop"}
+          title={active ? "结束当前更新。已经整理好的内容会保留。" : "当前没有进行中的更新。"}
+          onClick={() => control("stop")}
+        >
+          {action === "stop" ? <LoaderCircle size={15} className="spin" /> : <Square size={15} />}
+          {action === "stop" ? "正在结束" : "结束更新"}
         </button>
       </div>
     </section>

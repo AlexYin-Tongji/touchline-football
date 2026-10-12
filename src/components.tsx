@@ -428,7 +428,7 @@ export function EvidenceDetail({ item, onAsk }: { item: Evidence; onAsk?: (quest
         <div><Sparkles size={18} /><strong>和助手一起读</strong></div>
         <p>以这篇资料为依据，解释背景、核对疑点，或聊聊对球队的影响。</p>
         <div className="reader-prompts">
-          {["用中文梳理这篇报道的事实、背景与尚不确定的部分。", "这篇报道对球队有什么影响？请区分事实和你的判断。"].map((prompt, index) => <button key={prompt} className="button compact" onClick={() => onAsk(prompt, item)}>{index === 0 ? "中文导读" : "分析球队影响"}<ArrowUpRight size={14} /></button>)}
+          {["用中文梳理这篇报道的事实、背景与尚不确定的部分。", "这篇报道对球队有什么影响？请区分事实和你的判断。"].map((prompt, index) => <button key={prompt} className="button compact prompt-chip" onClick={() => onAsk(prompt, item)}>{index === 0 ? "中文导读" : "分析球队影响"}<ArrowUpRight size={14} /></button>)}
         </div>
         <form onSubmit={e => { e.preventDefault(); if (followup.trim()) onAsk(followup.trim(), item); }}>
           <label className="sr-only" htmlFor={`article-question-${item.id}`}>对这篇报道的疑问</label>

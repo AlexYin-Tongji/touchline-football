@@ -466,56 +466,164 @@ time,
   gap: 9px;
 }
 
-/* ---- 提示条 ---- */
+/* ---- 提示条 ----
+   同一套提示：图标或状态点、正文、可选动作。
+   多行内容放进内部 div，不要和单行提示抢同一条横排。 */
 .notice,
 .warning-notice,
-.error-notice,
-.source-gap-notice {
+.error-notice {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 14px;
-  border-left: 3px solid var(--line-strong);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--paper-sunk);
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
   font-size: var(--t-body-sm);
   line-height: var(--lh-ui);
-  color: var(--muted);
-  margin: 0 0 18px;
+  color: var(--ink-soft);
+}
+.notice > svg,
+.warning-notice > svg,
+.error-notice > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.notice > span,
+.notice > div,
+.warning-notice > span,
+.error-notice > span {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notice p,
+.warning-notice p,
+.error-notice p {
+  margin: 0;
+}
+.notice h2,
+.error-notice h2 {
+  margin: 0 0 4px;
+  font-size: var(--t-h5);
+  line-height: var(--lh-tight);
+}
+.notice details {
+  margin-top: 8px;
+}
+.notice summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
 }
 .notice.error,
 .error-notice {
+  border-color: #a8232f33;
   border-left-color: var(--red);
   background: var(--red-wash);
   color: var(--red-deep);
 }
-.warning-notice,
-.source-gap-notice {
+.warning-notice {
+  border-color: #856b3433;
   border-left-color: var(--amber);
   background: var(--amber-wash);
-  color: var(--amber);
+  color: var(--ink-soft);
 }
 .notice.success {
+  border-color: #27634833;
   border-left-color: var(--green);
   background: var(--green-wash);
   color: var(--green);
 }
-.notice button {
+.notice button:not(.button) {
   margin-left: auto;
-  font-size: var(--t-body-sm);
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  font-size: var(--t-label);
   font-weight: 600;
   color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.notice button:not(.button):hover:not(:disabled) {
+  background: #ffffffb3;
+}
+.notice > .button {
+  margin-top: 4px;
+}
+.source-gap-notice {
+  display: block;
+  padding: 12px 14px;
+  margin: 8px 0 0;
+  border: 1px solid #856b3433;
+  border-radius: var(--radius-card);
+  background: var(--amber-wash);
+  color: var(--ink-soft);
+  font-size: var(--t-body-sm);
+  line-height: var(--lh-ui);
+}
+.source-gap-notice strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--amber);
+  font-weight: 600;
+}
+.source-gap-notice ul {
+  margin: 0;
+  padding-left: 1.15em;
+}
+.source-gap-notice li {
+  margin: 3px 0;
+}
+.source-gap-notice li span {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* ---- 空状态 ---- */
 .empty-state {
-  padding: 52px 26px;
+  padding: 40px 24px;
   text-align: center;
-  border: var(--rule);
+  border: 1px dashed var(--line-strong);
   border-radius: var(--radius-card);
   background: var(--surface);
+}
+.empty-state > svg {
+  display: block;
+  margin: 0 auto 12px;
+  color: var(--faint);
+}
+.empty-state.compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--paper-sunk);
+  box-shadow: none;
+}
+.empty-state.compact > svg {
+  margin: 0;
+  flex-shrink: 0;
+}
+.empty-state.compact p,
+.empty-state.compact h3 {
+  margin: 0;
+}
+.empty-state > .button {
+  margin-top: 16px;
 }
 .empty-icon {
   display: flex;
@@ -564,13 +672,25 @@ time,
   font-size: var(--t-body-sm);
   color: var(--muted);
 }
-.page-loading,
-.history-loading {
+.page-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  padding: 40px 0;
+  gap: 10px;
+  min-height: 168px;
+  padding: 36px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  font-size: var(--t-body-sm);
+  color: var(--muted);
+}
+.history-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 2px;
   font-size: var(--t-body-sm);
   color: var(--muted);
 }
@@ -790,11 +910,11 @@ time,
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: var(--rule);
   position: sticky;
   top: 0;
-  background: var(--surface);
+  background: var(--paper);
   z-index: 3;
 }
 .modal-heading h2 {
@@ -803,7 +923,7 @@ time,
   margin: 0;
 }
 .modal-body {
-  padding: 20px 24px;
+  padding: 18px 20px 22px;
 }
 
 /* ---- Markdown 正文 ---- */
@@ -902,7 +1022,8 @@ time,
   color: var(--amber);
 }
 
-/* ---- 底部提示 ---- */
+/* ---- 底部提示 ----
+   成功与失败分开：失败不再套用对勾。 */
 .toast {
   position: fixed;
   left: 50%;
@@ -911,13 +1032,35 @@ time,
      两者写在同一个 transform 里会互相覆盖。 */
   translate: -50% 0;
   z-index: 90;
-  padding: 12px 20px;
-  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 10px 8px 10px 14px;
+  border-radius: 999px;
   background: var(--ink);
   color: #fff;
   font-size: var(--t-body-sm);
-  box-shadow: var(--shadow-3);
+  line-height: var(--lh-ui);
+  box-shadow: var(--shadow-4);
   animation: toast-in 0.3s var(--ease-spring);
+}
+.toast > span {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+}
+.toast .icon-button {
+  width: 28px;
+  height: 28px;
+  color: #ffffffd0;
+}
+.toast .icon-button:hover {
+  background: #ffffff22;
+  color: #fff;
+}
+.toast-error {
+  background: var(--red-deep);
 }
 @keyframes toast-in {
   from {
