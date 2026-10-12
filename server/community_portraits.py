@@ -31,9 +31,18 @@ API_PREFIX = "/api/v1/json/3/"
 ACCEPTED_HOSTS = frozenset({HOST, "thesportsdb.com"})
 IMAGE_HOSTS = frozenset({"r2.thesportsdb.com", "www.thesportsdb.com"})
 MAX_JSON_BYTES = 512 * 1024
-SUCCESS_SECONDS = 7 * 86400
 # A missing name and an ambiguous name are durable answers about this roster
-# entry; a throttle or transport fault is not, so it expires quickly.
+# entry; a throttle or transport fault is not, so it expires quickly. The two
+# used to share one window, which meant a *verdict* and a *completion* aged out
+# together and a checked photo was re-asked on the same clock as a refusal.
+SUCCESS_SECONDS = 7 * 86400
+# A completion carries its own evidence — name, country, birth date, publisher
+# id — and that evidence is re-derived on every read, so it does not go stale
+# the way a verdict does. Wikimedia already draws this line: its completed
+# result is held for 30 days while its verdicts expire in one. Holding a
+# community completion for a week made every checked portrait a candidate for
+# re-acquisition, which is the failure this constant exists to stop.
+COMPLETED_SECONDS = 30 * 86400
 RETRY_SECONDS = 900
 # The free tier throttles bursts. Space requests out and retry a 429 once.
 # The publisher documents 30 requests/minute for the public tier. All teams in
@@ -148,6 +157,16 @@ def portrait_key(player, team_id, *, generation=2):
     return f"community_portrait_v{generation}_" + sha256(identity.encode("utf-8")).hexdigest()[:24]
 
 
+def _window_seconds(status):
+    """How long a stored answer of this kind may be reused.
+
+    A completion and a verdict age on different clocks: the completion's
+    evidence is re-checked on every read, while a verdict is the source's own
+    statement about a player and is only re-asked after a shorter window.
+    """
+    return COMPLETED_SECONDS if status == "completed" else SUCCESS_SECONDS
+
+
 def cached_portrait(store, player, team_id):
     """Reuse completions only when their saved identity evidence still agrees.
 
@@ -156,20 +175,47 @@ def cached_portrait(store, player, team_id):
     not save name/country/birthday evidence, so they need a fresh lookup.
     """
     cached = store.get_meta(portrait_key(player, team_id), {})
-    if cached.get("status") in {"completed", "missing", "ambiguous"} and _age_seconds(cached.get("fetched_at")) < SUCCESS_SECONDS:
+    if (cached.get("status") in {"completed", "missing", "ambiguous"}
+            and _age_seconds(cached.get("fetched_at")) < _window_seconds(cached.get("status"))):
         return cached if cached["status"] != "completed" or _completion_matches(cached, player) else None
     if cached.get("status") == "unavailable" and _age_seconds(cached.get("last_attempt")) < RETRY_SECONDS:
         previous = cached.get("last_success")
         if (isinstance(previous, dict) and previous.get("status") == "completed"
-                and _age_seconds(previous.get("fetched_at")) < SUCCESS_SECONDS
+                and _age_seconds(previous.get("fetched_at")) < COMPLETED_SECONDS
                 and _completion_matches(previous, player)):
             return previous
         return cached
     legacy = store.get_meta(portrait_key(player, team_id, generation=1), {})
-    if (legacy.get("status") == "completed" and _age_seconds(legacy.get("fetched_at")) < SUCCESS_SECONDS
+    if (legacy.get("status") == "completed" and _age_seconds(legacy.get("fetched_at")) < COMPLETED_SECONDS
             and _completion_matches(legacy, player)):
         return legacy
     return None
+
+
+def current_proof(store, player, team_id):
+    """Whether a photo already on the row is still owed to *this* roster entry.
+
+    This is deliberately weaker than ``cached_portrait`` and answers a
+    different question. ``cached_portrait`` decides whether a stored answer may
+    be *reused*; this decides whether a photo the row already carries must be
+    *withdrawn*. The two were the same question, and that is what made an
+    expired cache entry look like a refuted identity: the row's photo was
+    cleared and re-acquired on a seven-day clock, so a checked portrait of a
+    famous player — the ones with the most cache churn — disappeared first.
+
+    A row keeps its photo when a stored completion still validates against it,
+    whether or not that entry is inside its reuse window; the evidence, not the
+    clock, is what decides. When *no* entry survives validation the row is not
+    given the benefit of the doubt from its own fields: a row that merely looks
+    self-consistent could belong to a roster entry whose birth date has since
+    changed, and the photo would be for the previous person. That is the case
+    ``_completion_matches`` exists to refuse, and it must refuse it here too.
+    """
+    for generation in (2, 1):
+        entry = store.get_meta(portrait_key(player, team_id, generation=generation), {})
+        if entry.get("status") == "completed" and _completion_matches(entry, player):
+            return True
+    return False
 
 
 def _completion_matches(cached, player):
@@ -442,6 +488,39 @@ def _unique_match(payload, name, nationality, birth_date=""):
     return None, "missing", ""
 
 
+def namesake_shadowed(payload, name, birth_date=""):
+    """Whether the source answered with a namesake and hid this player behind it.
+
+    The public search endpoint returns at most one record per query, and it does
+    not order by relevance — measured 2026-10-12, ``searchplayers.php?p=Reece
+    James`` returns the Sheffield Wednesday player born 1993-11-07 and never the
+    Chelsea one born 1999-12-08, at whom the query was aimed. A second player of
+    the same name is not merely unpicked by the checker; it is not in the
+    response at all.
+
+    That makes this a different fact from "the source does not hold this
+    player", and the difference is actionable. Nothing about the roster or the
+    request will change the answer, so it must not be retried — but it is also
+    not a durable refusal of the player, so it must not be recorded as one. A
+    higher authorisation tier or another source can still reach them, and that
+    is what the reader has to be told.
+
+    The test is deliberately narrow: the record must carry the roster's exact
+    spelling AND state a birth date that disagrees by more than a year. A
+    shared year is the publisher's own imprecision, which the matching tiers
+    already accept; only a whole-year gap is a different person.
+    """
+    records = payload.get("player")
+    if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+        return False
+    record = records[0]
+    if normalized(record.get("strPlayer")) != normalized(name):
+        return False
+    if not str(birth_date or "") or not _publisher_born(record):
+        return False
+    return _birth_verdict(birth_date, record) == "conflict"
+
+
 def _surname_match(payload, name, birth_date=""):
     """The one record whose surname matches and whose birth date agrees exactly.
 
@@ -581,6 +660,7 @@ async def resolve_portrait(store, player, team_id, *, force=False):
         payload = await _search(store, name)
         record, verdict, matched_by = _unique_match(payload, name, player.get("nationality"),
                                                     player.get("birth_date") or "")
+        id_bound_settled = False
         if verdict != "completed":
             # Before accepting a name-based refusal, ask the one question the
             # name tiers cannot answer: does any hit state the athlete id the
@@ -590,11 +670,25 @@ async def resolve_portrait(store, player, team_id, *, force=False):
             bound = await _espn_bound_match(store, payload, (player or {}).get("provider_id"))
             if bound is not None:
                 record, verdict, matched_by = bound, "completed", MATCH_ESPN_PROVIDER_ID
-        if verdict == "missing":
-            # The exact spelling found nothing. One extra paced request on the
-            # surname reaches the publisher's own spelling of the same player,
-            # and is attempted only when the roster states a birth date for the
-            # date check to confirm it with.
+                id_bound_settled = True
+        # The surname route is the only second door onto the same player, and
+        # two different refusals are worth opening it for:
+        #
+        # * the exact spelling found nobody, so the publisher may spell it
+        #   differently ("Branco Boomen" for "Branco van den Boomen");
+        # * the exact spelling found a *different person* — the shape the free
+        #   search tier produces when a namesake occupies the single slot it
+        #   returns, which leaves this player's record absent from the response
+        #   entirely and the surname query returning a different set.
+        #
+        # Both are gated on the roster stating a birth date, because the date
+        # check is what makes a partial name safe. An "ambiguous" refusal with
+        # several exact matches is left alone: another request returns the same
+        # list, not a new one. A player the first result set already settled by
+        # id is not asked about again — the second door only exists for the
+        # players the first one could not answer.
+        shadowed = namesake_shadowed(payload, name, player.get("birth_date") or "")
+        if not id_bound_settled and (verdict == "missing" or shadowed):
             surname = _surname(name)
             if surname and len(surname) >= MIN_SURNAME_LENGTH and player.get("birth_date"):
                 by_surname = await _search(store, surname)
@@ -602,6 +696,14 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                     by_surname, name, player.get("birth_date") or "")
                 if fallback_verdict == "completed":
                     record, verdict, matched_by = found, fallback_verdict, fallback_match
+                else:
+                    # Ask the id-bound question of *this* result set too. What
+                    # the full-name query could not complete — "the record
+                    # under this name is someone else" — leaves the roster's
+                    # own athlete id as the one fact still able to settle it.
+                    bound = await _espn_bound_match(store, by_surname, (player or {}).get("provider_id"))
+                    if bound is not None:
+                        record, verdict, matched_by = bound, "completed", MATCH_ESPN_PROVIDER_ID
         if verdict != "completed":
             result = {"status": verdict, "photo_reason": {
                 "missing": "社区球员库里没有完整姓名匹配的现役球员。",
@@ -609,6 +711,18 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                 "unavailable": "社区球员库返回的资料无法识别。",
             }[verdict], "retryable": verdict == "unavailable",
                 "reason_code": "community_" + verdict}
+            # A refusal the source reached by naming a *different person* is not
+            # the same answer as one where it holds nobody by that name. The
+            # verdict itself is left alone — it is the source's own statement
+            # about this roster entry — and the extra fact is carried beside it,
+            # because it decides whether asking again is even meaningful: the
+            # public endpoint returns one record per query and the surviving
+            # namesake is what stands in the way, so no further request against
+            # this search will reach them. A different source still can.
+            if namesake_shadowed(payload, name, player.get("birth_date") or ""):
+                result.update(
+                    namesake_blocked=True, retryable=False,
+                    photo_reason="社区球员库只返回了一名同名球员，其出生日期与本人不符，因此未采用其照片，需改用其他来源。")
         else:
             image = _safe_image_url(record.get("strCutout")) or _safe_image_url(record.get("strThumb"))
             profile = f"https://{HOST}/player/{record.get('idPlayer')}"

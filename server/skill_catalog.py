@@ -1,4 +1,15 @@
-"""Three discoverable skills, with compatible task-specific workflow routing."""
+"""Three discoverable skills, with compatible task-specific workflow routing.
+
+A skill is a tree, not a file. The top of each tree is the perspective the task
+was started from; below it sit the directions a question can take, and the
+caller loads the one it needs. Loading is what keeps the tool surface honest —
+a task that declared the directions it needs does not have to carry the
+instructions for the ones it does not.
+
+The tree is data, not prose, so a direction can be asserted about: ``TOPICS``
+is the only place a topic's file is named, and ``load_topic`` is the only way
+one is read. A path is never built from model input.
+"""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -24,6 +35,60 @@ WORKFLOWS = {
     "tactics_explainer": ("football-assistant", "tactics.md"),
 }
 
+# The directions each skill's tree offers, and the file behind each. A topic id
+# is what a caller asks for; the path is what gets read. Two levels are enough
+# for the questions this product answers — a direction and its branches — so the
+# id is dotted ("squad.images") rather than a chain of calls.
+#
+# `tool_capabilities` narrows what a topic may use. It is the topic's own
+# declaration of the work it does, and the tool surface is built from it, so a
+# topic that only talks about photos cannot call the article reader. A topic
+# without one inherits its skill's set.
+TOPICS = {
+    "team-information": {
+        "squad": {"path": "references/squad.md",
+                  "description": "球员方向：分信息与图像两条，按问题选一条。"},
+        "squad.info": {"path": "references/squad/info.md",
+                       "description": "球员事实字段：国籍、出生日期、位置、号码、统计。"},
+        "squad.images": {"path": "references/squad/images.md",
+                         "description": "球员照片：缺口、来源、许可、重试与验收。"},
+        "team": {"path": "references/team.md",
+                 "description": "俱乐部背景、赛程、积分榜与避剧透边界。"},
+        "data": {"path": "references/data.md",
+                 "description": "胜负、进失球、近期表现与样本范围。"},
+        "scope": {"path": "references/data-scope.md",
+                  "description": "数据范围与维护：快照状态、部分维护、统计口径。"},
+    },
+    "team-news": {
+        "directions": {"path": "references/directions.md",
+                       "description": "两个方向的差别与共同边界。"},
+        "briefing": {"path": "references/briefing.md",
+                     "description": "近况简报：一段时间内的多个事件。"},
+        "news-writing": {"path": "references/news-writing.md",
+                         "description": "新闻写作：围绕一个事件写连贯正稿。"},
+    },
+}
+
+
+def topics(skill):
+    """The directions a skill's tree offers, for the catalogue and the prompt."""
+    return {name: dict(value) for name, value in (TOPICS.get(skill) or {}).items()}
+
+
+def resolve_topic(skill, topic):
+    """The path behind a topic id, refusing anything not in this skill's tree.
+
+    The stored path is relative to the skill's own folder, because that is where
+    a direction lives. ``_document`` reads from the skills root, so the folder is
+    joined here — from the registry's own key, never from the caller's text.
+    """
+    if skill not in PRIMARY_SKILLS:
+        raise ValueError("未知技能。")
+    entry = (TOPICS.get(skill) or {}).get(str(topic))
+    if entry is None:
+        raise ValueError("未知工作方向。")
+    return f"{skill}/{entry['path']}"
+
 
 def resolve_workflow(skill, workflow=None):
     selected = PRIMARY_SKILLS[skill][1] if skill in PRIMARY_SKILLS else skill
@@ -36,7 +101,7 @@ def resolve_workflow(skill, workflow=None):
     return selected
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=64)
 def _document(relative):
     # Paths come only from this registry. No model-provided path is interpolated.
     text = (SKILL_ROOT / relative).read_text(encoding="utf-8")
@@ -59,7 +124,8 @@ def _document(relative):
 
 
 def skill_metadata():
-    return [{"id": name, "name": title, "description": _document(name + "/SKILL.md")[0]["description"]}
+    return [{"id": name, "name": title, "description": _document(name + "/SKILL.md")[0]["description"],
+             "topics": [{"id": topic, "description": entry["description"]} for topic, entry in topics(name).items()]}
             for name, (title, _) in PRIMARY_SKILLS.items()]
 
 
@@ -78,3 +144,14 @@ def load_workflow(skill, workflow=None):
     if folder != "football-assistant":
         sections.append(_document("reader_protocol.md")[1])
     return "\n\n".join(sections)
+
+
+def load_topic(skill, topic):
+    """One direction's instructions, on their own.
+
+    The skill's own file is not repeated: the caller already holds it, and a
+    direction is a branch of it rather than a second procedure. What is
+    returned is only the part that applies to the question being answered.
+    """
+    path = resolve_topic(skill, topic)
+    return {"topic": str(topic), "skill": str(skill), "instructions": _document(path)[1]}

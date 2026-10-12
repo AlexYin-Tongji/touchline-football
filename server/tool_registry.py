@@ -60,6 +60,58 @@ WORKFLOW_CAPABILITIES = {
     "tactics_explainer": ASK_WORK,
 }
 
+# What a loaded direction narrows to. A topic is a branch of a skill, so it may
+# only ever subtract from that skill's set — never add. The image direction is
+# the clearest case: its whole job is the photo queue and a batch of lookups, so
+# it carries no evidence reader and no news discovery, and those tools are not
+# offered while it is the loaded direction.
+#
+# ``exposes`` is the one thing a topic may *add back*, and it is not a widening
+# of the capability set: it names tools the skill already holds by capability but
+# that are withheld from conversations by default. ``fetch_player_photos`` is the
+# only such tool. It is background maintenance — thirty to ninety seconds of
+# network work — so it is kept out of an ordinary conversation's surface; loading
+# the image direction is the task saying that is exactly what it came to do. The
+# run's own scope still decides permission afterwards, and nothing here can
+# override it.
+#
+# A topic with no entry keeps its skill's set and exposes nothing extra.
+TOPIC_CAPABILITIES = {
+    "team-information:squad.images": {
+        "capabilities": frozenset({IDENTITY, TEAM, PERSON, SKILL, OUTPUT}),
+        "exposes": ("fetch_player_photos",),
+    },
+    "team-information:squad.info": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT})},
+    "team-information:team": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, DELEGATE, OUTPUT})},
+    "team-information:data": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT})},
+    "team-information:scope": {"capabilities": TEAM_WORK},
+    "team-information:squad": {"capabilities": TEAM_WORK},
+}
+
+
+def topic_declared(skill, topic):
+    """What a loaded direction narrows to, or None when it declares nothing.
+
+    ``None`` means "keep the skill's set": a direction that has not declared its
+    own narrowing is not a claim that it needs less.
+    """
+    return TOPIC_CAPABILITIES.get(f"{skill}:{topic}")
+
+
+def topic_exposes(skill, topic):
+    """Background tools a loaded direction asks to have offered, if any.
+
+    Kept separate from the capability set so that opening one of these can never
+    be read as widening what the task may do — the capability set is still the
+    intersection, and this is only about whether an already-relevant tool is
+    advertised.
+    """
+    entry = topic_declared(skill, topic) or {}
+    return tuple(entry.get("exposes") or ())
+
 # Tool name -> the kinds of work it does. Kept beside the registry rather than
 # inside each schema so a tool's purpose is readable in one place.
 TOOL_CAPABILITIES = {

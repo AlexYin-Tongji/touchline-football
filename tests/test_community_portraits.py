@@ -413,3 +413,114 @@ class EspnBoundTierTests(unittest.IsolatedAsyncioTestCase):
         result, lookups = await self.resolve(many, {}, player)
         self.assertEqual(lookups, [])
         self.assertFalse(result.get("photo_url"))
+
+
+class NamesakeBlockedTests(unittest.IsolatedAsyncioTestCase):
+    """A same-named stranger in the only slot is its own answer.
+
+    Measured 2026-10-12: the public search endpoint returns one record per
+    query and does not order by relevance, so ``p=Reece James`` returns the
+    Sheffield Wednesday player born 1993-11-07 and never the Chelsea one born
+    1999-12-08. The refusal is right; what matters is that it is reported as
+    "blocked by a namesake" rather than as "no such player", because only the
+    first tells the reader that a different source could still help.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "portraits.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    async def resolve(self, payload, player):
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=payload)):
+            return await community_portraits.resolve_portrait(self.store, player, "chelsea", force=True)
+
+    async def test_a_whole_year_gap_is_reported_as_a_namesake(self):
+        player = {"provider_id": "189007", "name": "Reece James", "nationality": "英格兰",
+                  "birth_date": "1999-12-08"}
+        result = await self.resolve(search(record("Reece James", "England", dateBorn="1993-11-07")), player)
+        self.assertNotEqual(result["status"], "completed")
+        self.assertFalse(result.get("photo_url"))
+        self.assertTrue(result.get("namesake_blocked"))
+        # Not retryable: no further request against this search can reach them.
+        self.assertFalse(result["retryable"])
+
+    async def test_the_verdict_itself_is_left_as_the_source_stated_it(self):
+        # The extra fact is carried beside the verdict, not in place of it: the
+        # status and code still say what the source said about this roster entry.
+        player = {"provider_id": "189007", "name": "Reece James", "nationality": "英格兰",
+                  "birth_date": "1999-12-08"}
+        result = await self.resolve(search(record("Reece James", "England", dateBorn="1993-11-07")), player)
+        self.assertIn(result["reason_code"], {"community_ambiguous", "community_missing"})
+
+    async def test_a_shared_birth_year_is_not_reported_as_a_namesake(self):
+        # The publisher's own imprecision, which the matching tiers accept.
+        player = {"provider_id": "1", "name": "Kai Havertz", "nationality": "德国",
+                  "birth_date": "1997-10-23"}
+        result = await self.resolve(search(record("Kai Havertz", "Germany", dateBorn="1997-06-06")), player)
+        self.assertEqual(result["status"], "completed")
+        self.assertNotIn("namesake_blocked", result)
+
+    async def test_a_different_spelling_is_not_a_namesake_shadow(self):
+        # This route reaches a different record only by surname; the shadow test
+        # is about the exact name the caller searched.
+        player = {"provider_id": "1", "name": "Branco van den Boomen", "nationality": "荷兰",
+                  "birth_date": "1995-07-21"}
+        result = await self.resolve(search(record("Someone Else", "Netherlands", dateBorn="1993-01-01")), player)
+        self.assertNotIn("namesake_blocked", result)
+
+    async def test_a_roster_without_a_birth_date_cannot_claim_a_shadow(self):
+        # Without a stated date there is nothing to contradict, and the refusal
+        # keeps its ordinary wording.
+        player = {"provider_id": "1", "name": "Reece James", "nationality": "英格兰", "birth_date": ""}
+        result = await self.resolve(search(record("Reece James", "England", dateBorn="1993-11-07")), player)
+        self.assertNotIn("namesake_blocked", result)
+
+
+class RetainedProofTests(unittest.IsolatedAsyncioTestCase):
+    """A checked photo survives an expired cache and a roster-shaped refusal.
+
+    The row used to be cleared whenever the reuse window had closed, which read
+    an expired entry as a refuted identity. These pin the two halves of the fix:
+    what must be kept, and what may still be withdrawn.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "retained.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    async def photo(self, player=None):
+        player = player or PLAYER
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value=search(record("Kai Havertz", "Germany")))):
+            return await community_portraits.resolve_portrait(self.store, player, "arsenal")
+
+    async def test_an_expired_completion_still_proves_the_row(self):
+        player = {**PLAYER, "birth_date": "1999-06-11"}
+        photo = await self.photo(player)
+        self.assertEqual(photo["status"], "completed")
+        row = {**player, **photo}
+        # Age the entry past the reuse window without touching the evidence.
+        key = community_portraits.portrait_key(player, "arsenal")
+        stored = self.store.get_meta(key, {})
+        stored["fetched_at"] = "2020-01-01T00:00:00+00:00"
+        self.store.set_meta(key, stored)
+        self.assertTrue(community_portraits.current_proof(self.store, row, "arsenal"))
+
+    async def test_a_contradicted_row_keeps_no_proof(self):
+        player = {**PLAYER, "birth_date": "1999-06-11"}
+        photo = await self.photo(player)
+        row = {**player, **photo}
+        # The same photo, but the roster entry now says a different person.
+        moved = {**row, "birth_date": "1990-01-01"}
+        self.assertFalse(community_portraits.current_proof(self.store, moved, "arsenal"))
+
+    async def test_a_fieldless_row_keeps_no_proof(self):
+        self.assertFalse(community_portraits.current_proof(
+            self.store, {"provider_id": "9", "name": "Nobody", "photo_url": ""}, "arsenal"))

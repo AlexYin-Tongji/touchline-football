@@ -586,7 +586,7 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         _record_component(store, key, "portraits", summary)
         photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license", "photo_restrictions", "photo_updated_at", "photo_match")}
                   for player in current.get("roster", []) if player.get("photo_url")]
-        missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason", "retryable", "reason_code")}
+        missing = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_reason", "retryable", "reason_code", "namesake_blocked")}
                    for player in current.get("roster", []) if not player.get("photo_url")]
         return {**summary, "team_id": team_id, "season_id": season["id"], "photos": photos, "missing": missing,
                 "available_count": len(photos), "total_count": len(current.get("roster", []))}

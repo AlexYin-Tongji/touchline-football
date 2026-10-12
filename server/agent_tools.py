@@ -45,7 +45,7 @@ TOOL_DEFINITIONS = [
     {"name": "discover_news", "description": "【先看候选时用】列出当前球队可用来源里的新闻标题，不读正文、快。当你还不知道有什么消息、想先看标题决定读哪篇时用它；也可用 category 只看某类。返回的候选只有标题和摘要，不能引用；挑中后必须 read_article 读原文。想看内容就直接用 refresh_team_sources，不必先 discover。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_article", "description": "【按候选读原文】把一个 discover_news 返回的 candidate_id 读成可引用原文。只能读已发现的候选，不能输入任意网址。读完的内容成为本轮证据，可交给 submit_answer 引用。", "parameters": {"type": "object", "properties": {"candidate_id": {"type": "string", "maxLength": 120}}, "required": ["candidate_id"], "additionalProperties": False}},
     {"name": "refresh_team_sources", "description": "【取本轮素材的主力】围绕一个问题，从该队全部来源（官网、媒体订阅、球迷社区）发现并直接读取原文，一次拿到可引用证据。日常问题、要写报道、要了解最近发生了什么，优先用这个。limit 是读取篇数，默认读取量由证据决定；要更全就调大 limit。结果里的 evidence_ids 必须再 read_evidence 才能引用。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, "required": ["query"], "additionalProperties": False}},
-    {"name": "use_skill", "description": "按需加载球队动态、球队信息或问答助手规程，workflow可选专项流程。不会改变球队、联网、避剧透或比赛授权；已有规程不必重复加载。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": list(PRIMARY_SKILLS)}, "workflow": {"type": "string", "enum": list(WORKFLOWS), "maxLength": 40}}, "required": ["skill"], "additionalProperties": False}},
+    {"name": "use_skill", "description": "按需加载球队动态、球队信息或问答助手规程；team-information 还可用 topic 加载一个工作方向（squad=球员、squad.info=球员资料、squad.images=球员图像、team=球队、data=数据、scope=数据范围）。不会改变球队、联网、避剧透或比赛授权；已有规程不必重复加载。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": list(PRIMARY_SKILLS)}, "workflow": {"type": "string", "enum": list(WORKFLOWS), "maxLength": 40}, "topic": {"type": "string", "maxLength": 40}}, "required": ["skill"], "additionalProperties": False}},
     {"name": "submit_answer", "description": "阅读原文并完成研究后，单独调用此工具提交唯一最终答复。提交通过即结束，无需再写文字。正文不得写思考过程、工具预算或引用括号；引用仅填evidence_ids。", "parameters": {
         "type": "object", "properties": {
             "status": {"type": "string", "enum": ["complete", "insufficient"]},
@@ -76,8 +76,8 @@ TOOL_DEFINITIONS = [
 # triggers one stalls with nothing to show for it.
 BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data")
 TOOL_DEFINITIONS.extend([
-    {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
-    {"name": "photo_queue", "description": "查看当前球队还剩哪些球员没有照片，以及每人为什么还没拿到：从未核对、来源已否决、还是缺少可核对的身份信息。只读，不联网，不返回图片地址或身份依据。补图前先用它看清缺口。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 120}}, "additionalProperties": False}},
+    {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。每条缺图带 reason_code 与 retryable；namesake_blocked 表示来源只返回了同名他人，重试无效，应改用其他来源。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
+    {"name": "photo_queue", "description": "查看当前球队还剩哪些球员没有照片，以及每人为什么还没拿到：从未核对、来源已否决、缺少可核对的身份信息，还是被同名球员挡住。只读，不联网，不返回图片地址或身份依据。补图前先用它看清缺口；namesake_blocked 的人不要对同一来源重试。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 120}}, "additionalProperties": False}},
     {"name": "plan_photo_batch", "description": "在补图前指定本轮先核对哪一批球员及先后顺序（最多 12 人）。只能从 photo_queue 已列出的未核对球员中选择；它决定先问谁，不能新增球员、不能提供或更改照片与身份依据。省略则按原有顺序推进。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 12}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
@@ -337,6 +337,10 @@ class LocalTools:
         self.verification_enabled = self.mode == "live" and not run.get("internal_agent") and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
+        # The directions loaded from a skill's tree, by topic id, and the file
+        # each resolved to. Kept so the tool surface can be rebuilt from what
+        # was actually asked for, and so a repeat load costs nothing.
+        self.topics_used = {}
         self.allow_network = self.mode == "live" and run.get("allow_network", True) is True
         self.network_queries = 0
         self.article_reads = 0
@@ -585,10 +589,17 @@ class LocalTools:
         # background photo tools, which are otherwise withheld because they are
         # the team page's job and the slowest thing in the set.
         orchestrated = set(self.run.get("tool_allowlist") or ()) if self.run.get("internal_agent") else set()
-        # Background maintenance stays callable but is not offered: it is the
-        # team page's job, not a conversation's, and it is the slowest thing in
-        # the tool set.
-        excluded.update(set(BACKGROUND_TOOL_NAMES) - orchestrated)
+        # A loaded direction may ask for a background tool back — the image
+        # direction exists to run a photo batch, so withholding the tool that
+        # runs one would make its instructions unrunnable — and that is the only
+        # way they reach a conversation. This is applied at the end of the
+        # exclusion chain on purpose: scope (demo mode, no network, a fixed
+        # article) and permission come first and are never overridden here,
+        # because this is a relevance decision about an otherwise-withheld tool,
+        # not a widening of what the task may do.
+        from .tool_registry import topic_exposes
+        self.exposed_background = {name for key in self.topics_used
+                                   for name in topic_exposes(*key.split(":", 1))}
         if self.skill != "news_report" or not isinstance(self.news_draft, dict):
             excluded.add("revise_news")
         if self.mode != "live" or self.match or self.run.get("report_id"):
@@ -605,6 +616,12 @@ class LocalTools:
             excluded.add("query_structured_sources")
         if not self.run.get("conversation_id") or self.run.get("internal_agent"):
             excluded.add("conversation_history")
+        # Background maintenance stays callable but is not offered: it is the
+        # team page's job, not a conversation's, and it is the slowest thing in
+        # the tool set. Applied after every scope rule so that a loaded
+        # direction can only restore a tool the *relevance* rule withheld, never
+        # one the run's own scope did.
+        excluded.update((set(BACKGROUND_TOOL_NAMES) - orchestrated) - self.exposed_background)
         tools = openai_tools(self.skill)
         if self.delegation:
             tools.extend({"type": "function", "function": copy.deepcopy(tool)} for tool in self.delegation.definitions)
@@ -614,11 +631,20 @@ class LocalTools:
         # tool that cannot work here out of the prompt entirely, instead of
         # offering it and answering with an error — which is what every stored
         # read_article call did.
-        from .tool_registry import select, declared
+        from .tool_registry import select, declared, topic_declared
         try:
             capabilities = declared(self.skill)
         except Exception:
             capabilities = None
+        # A loaded direction may narrow what this task sees. It can only ever
+        # subtract: the narrowing is intersected with the skill's own set, so a
+        # topic cannot widen its reach by declaring more than the skill holds.
+        for key in self.topics_used:
+            skill_id, _, topic_id = key.partition(":")
+            entry = topic_declared(skill_id, topic_id) or {}
+            narrower = entry.get("capabilities")
+            if narrower is not None and capabilities is not None:
+                capabilities = frozenset(capabilities) & frozenset(narrower)
         if capabilities is not None:
             tools = select(tools, capabilities, allowed=allowed, excluded=excluded)
         return [tool for tool in tools if tool["function"]["name"] not in excluded
@@ -997,6 +1023,30 @@ class LocalTools:
                     "possible_shared_origin": copies,
                     "notice": "对照相同人物、具体说法与发布时间，分别列一致、冲突和缺口。不同域名不等于独立消息源；本工具不裁定真伪，不将更晚采集等同于更新报道。"}
         if name == "use_skill":
+            if arguments.get("topic"):
+                # A direction is a branch of a skill the task already works
+                # from, so it never changes what the task is: it narrows which
+                # part of the tree it is reading.
+                try:
+                    from .skill_catalog import load_topic, resolve_topic, PRIMARY_SKILLS
+                    skill_id = arguments["skill"]
+                    if skill_id not in PRIMARY_SKILLS:
+                        raise ValueError("未知技能。")
+                    path = resolve_topic(skill_id, arguments["topic"])
+                except ValueError as exc:
+                    raise ToolError(str(exc)) from None
+                key = f"{skill_id}:{arguments['topic']}"
+                if key in self.skills_used:
+                    return {"skill": skill_id, "topic": arguments["topic"], "already_loaded": True,
+                            "instructions": "", "scope_unchanged": True,
+                            "notice": "本任务已加载该工作方向，继续使用已有说明即可。"}
+                if not self.skill_loader:
+                    raise ToolError("本次任务没有配置技能加载器。")
+                loaded = load_topic(skill_id, arguments["topic"])
+                self.topics_used[key] = path
+                self.skills_used.append(key)
+                return {**loaded, "scope_unchanged": True,
+                        "notice": "这是系统维护的本地工作方向，仅补充流程；原有范围、权限和预算保持不变。"}
             try:
                 selected = resolve_workflow(arguments["skill"], arguments.get("workflow"))
             except ValueError as exc:

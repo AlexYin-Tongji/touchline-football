@@ -542,3 +542,78 @@ class SquadPageRegistryTests(unittest.TestCase):
         self.assertGreaterEqual(len(gap), 20)
         self.assertFalse(gap & set(self.record["verified"]), "同一支球队不能既已验证又记为缺失")
         self.assertTrue(self.record["no_page_in_static_html"]["_comment"])
+
+
+class NamesakeFlagTests(unittest.IsolatedAsyncioTestCase):
+    """The namesake flag is carried to the row, and cleared with the photo.
+
+    ``namesake_blocked`` is the one field in ``PLAYER_PHOTO_FIELDS`` that is not
+    a photo address. It is managed with the photo fields because it has to be
+    cleared by exactly the events that clear a photo: a row that ends up with a
+    picture, or with no picture for a different reason, must not keep claiming a
+    same-named stranger stood in the way.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "namesake.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    def test_the_flag_is_a_managed_photo_field(self):
+        self.assertIn("namesake_blocked", team_portraits.PLAYER_PHOTO_FIELDS)
+        # And it is the only one that is not photo metadata, which is what the
+        # dedicated tuple records.
+        self.assertNotIn("namesake_blocked", team_portraits.PHOTO_METADATA_FIELDS)
+        self.assertEqual(set(team_portraits.PHOTO_METADATA_FIELDS),
+                         set(team_portraits.PLAYER_PHOTO_FIELDS) - {"namesake_blocked"})
+
+    def test_a_stronger_source_clears_the_flag_with_the_photo_it_replaces(self):
+        row = {"provider_id": "1", "name": "Reece James",
+               "photo_url": "", "photo_reason": "被同名球员挡住",
+               "namesake_blocked": True, "reason_code": "community_namesake_blocked",
+               "retryable": False, "photo_match": ""}
+        applied = team_portraits._apply_photo(row, {
+            "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/x.png",
+            "photo_credit": "credits", "photo_source_url": "https://www.thesportsdb.com/player/1",
+            "photo_file_page": "https://www.thesportsdb.com/player/1",
+            "photo_license": "licence", "photo_match": "community_name_and_birthdate",
+            "fetched_at": "2026-10-12T00:00:00+00:00"})
+        self.assertTrue(applied)
+        self.assertNotIn("namesake_blocked", row)
+        self.assertNotIn("photo_reason", row)
+
+
+class RetainedPhotoThroughReplayTests(unittest.IsolatedAsyncioTestCase):
+    """A checked community photo survives a roster replay after its window."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "replay.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    async def test_an_expired_completion_is_not_treated_as_a_refuted_identity(self):
+        from server import community_portraits
+        player = {"provider_id": "1", "name": "Kai Havertz", "number": "29",
+                  "nationality": "德国", "birth_date": "1999-06-11", "photo_url": ""}
+        cutout = "https://r2.thesportsdb.com/images/media/player/cutout/abc123.png"
+        record = {"idPlayer": "34169226", "strPlayer": "Kai Havertz", "strNationality": "Germany",
+                  "strSport": "Soccer", "strStatus": "Active", "strCutout": cutout}
+        with patch.object(community_portraits, "_search", new=AsyncMock(return_value={"player": [record]})):
+            photo = await community_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(photo["status"], "completed")
+        # Age the cache entry well past the reuse window; the evidence is intact.
+        key = community_portraits.portrait_key(player, "arsenal")
+        stored = self.store.get_meta(key, {})
+        stored["fetched_at"] = "2020-01-01T00:00:00+00:00"
+        self.store.set_meta(key, stored)
+        replayed = team_portraits.apply_cached_portraits(
+            self.store, {"team_id": "arsenal", "roster": [{**player, **photo}]})
+        row = replayed["roster"][0]
+        self.assertEqual(row.get("photo_url"), cutout)
+        self.assertNotEqual(row.get("reason_code"), "identity_revalidation")

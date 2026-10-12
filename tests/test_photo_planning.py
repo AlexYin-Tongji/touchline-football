@@ -7,11 +7,14 @@ leaves the refresh exactly as it was.
 """
 import asyncio
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from server import photo_planning, team_portraits
 from server.model_config import AgentFailure, MODEL_ROLES, role_selection
+from server.storage import Store
 from tests.support import IsolatedAppCase
 
 
@@ -226,3 +229,53 @@ class PhotoQueueTests(IsolatedAppCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NamesakeQueueTests(unittest.TestCase):
+    """The queue has to distinguish "blocked by a namesake" from "no record".
+
+    Both are settled against the community source, and neither is worth
+    retrying against it. They differ in what the caller should do next: a
+    namesake block means another source can still answer, while an absent
+    record means this player is simply not in the catalogue.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "queue.sqlite3")
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    def snapshot(self, rows):
+        return {"team_id": "chelsea", "season_id": "PL-2026", "roster": rows}
+
+    def test_a_namesake_row_is_settled_and_named_as_such(self):
+        report = team_portraits.photo_queue(self.store, self.snapshot([
+            {"provider_id": "189007", "name": "Reece James", "photo_url": "",
+             "reason_code": "community_ambiguous", "retryable": False, "namesake_blocked": True},
+        ]))
+        self.assertEqual(report["settled_count"], 1)
+        self.assertEqual(report["untried_count"], 0)
+        entry = report["settled"][0]
+        self.assertTrue(entry["namesake_blocked"])
+        self.assertEqual(entry["reason_code"], "community_namesake_blocked")
+
+    def test_an_ordinary_ambiguity_keeps_its_own_code(self):
+        report = team_portraits.photo_queue(self.store, self.snapshot([
+            {"provider_id": "1", "name": "Two Namesakes", "photo_url": "",
+             "reason_code": "community_ambiguous", "retryable": False},
+        ]))
+        entry = report["settled"][0]
+        self.assertNotIn("namesake_blocked", entry)
+        self.assertEqual(entry["reason_code"], "community_ambiguous")
+
+    def test_the_queue_still_carries_no_photo_address(self):
+        report = team_portraits.photo_queue(self.store, self.snapshot([
+            {"provider_id": "1", "name": "X", "photo_url": "",
+             "reason_code": "community_ambiguous", "retryable": False, "namesake_blocked": True},
+        ]))
+        blob = json.dumps(report)
+        self.assertNotIn("http", blob)
+        self.assertNotIn("photo_url", blob)

@@ -84,7 +84,13 @@ def batch_limit(remaining_seconds, *, ceiling=PLAYER_PAGE_LIMIT):
     return max(1, min(ceiling, int(remaining_seconds // BATCH_SECONDS_PER_PLAYER)))
 PLAYER_PHOTO_FIELDS = ("photo_url", "photo_credit", "photo_source_url", "photo_updated_at", "photo_match",
                        "photo_file_page", "photo_license", "photo_restrictions", "photo_reason",
-                       "retryable", "reason_code")
+                       "retryable", "reason_code", "namesake_blocked")
+# The one field above that is not a photo: it says the source answered with a
+# same-named stranger. It belongs in this tuple because it must be cleared by
+# exactly the same events that clear a photo — a row that ends up with someone
+# else's picture, or with no picture and a different reason, must not keep
+# claiming a namesake blocked it.
+PHOTO_METADATA_FIELDS = tuple(field for field in PLAYER_PHOTO_FIELDS if field != "namesake_blocked")
 # A photo carrying one of these matches was checked against the roster's own
 # name AND number, so a later refresh may re-derive or replace it.
 REFRESHABLE_PHOTO_MATCHES = frozenset({"exact_name_and_number", "wikimedia_verified_club",
@@ -238,15 +244,72 @@ def _community_failure(player, photo, preferred=None):
     return community_reason
 
 
+def _source_refutes_photo(photo):
+    """Whether a non-photo answer is a verdict the source actually reached.
+
+    The row used to be cleared for any answer that was not a transport failure,
+    which grouped two different things together:
+
+    * the source was never asked anything about this player's face — either the
+      request never got an answer (a timeout, a throttle, an outage), or the
+      roster entry lacked the name or the country/birth date the lookup needs,
+      so ``resolve_portrait`` returned before spending a request at all. Neither
+      says anything about the photo already on the row;
+    * the source was asked and answered about this player — it holds nobody by
+      that name, it cannot separate the candidates, or it refused the image.
+
+    Only the second kind is a verdict, and a verdict reached while re-checking
+    a player the caller named *by id* may take the verified photo off the row:
+    the caller asked for that player specifically, so a fresh answer speaking to
+    that player is evidence. A transport fault is not, which is why it is
+    excluded here as well as in the calling branch — a source that went quiet
+    must never be able to revoke a photo it proved while it was reachable.
+    """
+    if photo.get("status") == "unavailable":
+        return False
+    return str(photo.get("reason_code") or "") not in {"missing_name", "missing_nationality"}
+
+
 def _recheck_community_photos(store, players, team_id):
-    """A roster's old image cannot bypass the current cache identity check."""
-    from .community_portraits import cached_portrait
+    """A roster's old image cannot bypass the current cache identity check.
+
+    A stale cache entry is not evidence against the photo, which is the
+    distinction this function used to miss: anything the reuse window had
+    closed was treated as a refuted identity, so the row's photo was cleared
+    and re-acquired on a seven-day clock. A validated or self-consistent photo
+    is now kept, and only a completion that no longer proves this roster entry
+    is withdrawn.
+
+    What still withdraws it, and must, is a *newer* verdict from the same
+    source: a cached ``missing`` or ``ambiguous`` reaching past the completion
+    the photo rests on is the source contradicting itself, and the photo does
+    not get to outlive that.
+    """
+    from .community_portraits import cached_portrait, current_proof, portrait_key, _age_seconds
     for player in players:
         if player.get("photo_match") not in COMMUNITY_PHOTO_MATCHES:
             continue
         cached = cached_portrait(store, player, team_id)
         if cached and cached.get("status") == "completed":
             _apply_photo(player, cached)
+            continue
+        stored = store.get_meta(portrait_key(player, team_id), {})
+        verdict_is_newer = (stored.get("status") in {"missing", "ambiguous"}
+                            and _age_seconds(stored.get("fetched_at")) < _age_seconds(player.get("photo_updated_at")))
+        if verdict_is_newer:
+            for field in PLAYER_PHOTO_FIELDS:
+                player.pop(field, None)
+            player.update(photo_url="", photo_credit="",
+                          photo_reason=stored.get("photo_reason") or "照片身份校验已更新，需要重新核对社区照片。",
+                          retryable=bool(stored.get("retryable")),
+                          reason_code=stored.get("reason_code") or "identity_revalidation")
+        elif current_proof(store, player, team_id):
+            # Keep the verified photo and drop only the stale reason left on
+            # the row. The photo is still the one a source proved; nothing has
+            # said otherwise.
+            player.pop("photo_reason", None)
+            player.pop("retryable", None)
+            player.pop("reason_code", None)
         else:
             for field in PLAYER_PHOTO_FIELDS:
                 player.pop(field, None)
@@ -574,6 +637,16 @@ def photo_queue(store, snapshot, *, limit=60):
         if row.get("photo_url"):
             continue
         reason = row.get("reason_code") or "not_yet_resolved"
+        # A namesake block is carried as its own fact rather than folded into
+        # the reason code, because the code is still the source's own verdict
+        # about this roster entry. It matters here for a different reason than
+        # it does in the acceptance report: a player blocked by a namesake is
+        # not retryable against this source, but they are also not unreachable
+        # — another source can still answer, and the caller has to be able to
+        # tell those two apart before deciding whether to act.
+        if row.get("namesake_blocked"):
+            entry["namesake_blocked"] = True
+            reason = "community_namesake_blocked"
         entry["reason_code"] = reason
         if reason == "not_yet_resolved" or row.get("retryable"):
             untried.append(entry)
@@ -932,27 +1005,42 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         cached = cached_community(store, row, team_id)
         return bool(cached) and cached.get("status") in {"missing", "ambiguous"}
 
-    community_rows = [row for row in community_ordered if (not row.get("photo_url") or
-                      force and explicit_selection and row.get("photo_match") in COMMUNITY_PHOTO_MATCHES)
-                      and (force or not community_settled(row))]
+    def community_force_player(row):
+        """``force`` means "re-ask this source", and only for named players.
+
+        The community branch read ``force`` as "ignore the cache", so a whole-team
+        refresh re-asked the publisher about every unresolved player and skipped
+        every cached answer — including the checked ones. Wikimedia's branch has
+        always drawn the narrower line: a whole-team refresh fills and continues,
+        while only an explicitly named player is re-derived. Both sources sit
+        behind one ``force`` argument, so they now read it the same way.
+        """
+        return force and explicit_selection and row.get("photo_match") in COMMUNITY_PHOTO_MATCHES
+
+    community_rows = [row for row in community_ordered if (not row.get("photo_url") or community_force_player(row))
+                      and (community_force_player(row) or not community_settled(row))]
     attempted = 0
     processed = []
     community_unavailable = False
     for row in community_rows[:community_limit]:
         processed.append(row)
-        cached = None if force else cached_community(store, row, team_id)
+        cached = None if community_force_player(row) else cached_community(store, row, team_id)
         if cached:
             photo = cached
         else:
             attempted += 1
-            photo = await resolve_community(store, row, team_id, force=force)
+            photo = await resolve_community(store, row, team_id, force=community_force_player(row))
         if photo.get("status") == "completed" and photo.get("photo_url"):
             _apply_photo(row, photo)
             errors.pop(row["provider_id"], None)
             held_photo_failures.discard(row["provider_id"])
-        elif photo.get("status") != "unavailable" and force and explicit_selection and row.get("photo_match") in COMMUNITY_PHOTO_MATCHES:
-            # A fresh identity/deletion verdict invalidates this source; a
-            # transport failure alone does not invalidate a current proof.
+        elif community_force_player(row) and _source_refutes_photo(photo):
+            # Only a verdict *about this face* may withdraw a photo the row
+            # already carries. This branch used to fire on anything that was
+            # not a transport failure, so a lookup the source answered with
+            # "the roster has no birth date" or "more than one candidate" —
+            # neither of which says anything about the picture on the row —
+            # still cleared a verified photo.
             for field in PLAYER_PHOTO_FIELDS:
                 row.pop(field, None)
             row.update(photo_url="", photo_credit="", photo_reason=photo.get("photo_reason") or "社区照片未通过身份核对。",

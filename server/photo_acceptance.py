@@ -51,6 +51,17 @@ SOURCE_GAP_REASONS = frozenset({
     "community_missing", "missing_article", "no_free_image",
 })
 
+# Reasons where the source answered with a *different person who shares the
+# name*. This is a gap in what the source will return, not a refusal of the
+# player and not a fault in the request, so retrying the same query is
+# pointless — but it is worth reporting separately from "no record", because a
+# different source or a higher authorisation tier can still reach them. Kept
+# out of ``retryable`` (nothing about a retry would change the answer) and out
+# of ``source_gaps`` (the source does hold the player; it will not return them
+# beside the namesake it already chose).
+NAMESAKE_CODE = "community_namesake_blocked"
+NAMESAKE_REASONS = frozenset({NAMESAKE_CODE})
+
 # Reasons where the source holds more than one candidate and cannot say which is
 # this player. A retry could resolve it if the source's data changes, so it is
 # not settled, but a roster fact would also help — it is kept apart so neither
@@ -73,9 +84,15 @@ SETTLED_REASONS = frozenset({
 FIX_ROUTE = "fix_route"          # the transport failed; ask again
 FIX_ROSTER = "fix_roster"        # the roster lacks the facts a source needs
 FIX_SOURCE = "fix_source"        # the sources hold no such player
+FIX_NAMESAKE = "fix_namesake"    # a same-named stranger occupies the only slot
 FIX_AMBIGUOUS = "fix_ambiguous"  # more than one candidate, none separable
 FIX_NOTHING = "fix_nothing"      # the sources have answered; stop asking
 FIX_UNKNOWN = "fix_unknown"      # never attempted
+
+# The kinds of gap, in the order they are reported. One tuple so the breakdown
+# dictionary, the message and the tests cannot drift apart.
+GAP_KINDS = (FIX_ROUTE, FIX_ROSTER, FIX_SOURCE, FIX_NAMESAKE,
+             FIX_AMBIGUOUS, FIX_NOTHING, FIX_UNKNOWN)
 
 # Coverage below this share, with everything else settled, is reported as a
 # shortfall rather than as an irreducible gap.
@@ -93,6 +110,8 @@ def classify(reason_code):
         return FIX_ROSTER
     if code in SOURCE_GAP_REASONS:
         return FIX_SOURCE
+    if code in NAMESAKE_REASONS:
+        return FIX_NAMESAKE
     if code in AMBIGUOUS_REASONS:
         return FIX_AMBIGUOUS
     if code in SETTLED_REASONS:
@@ -104,6 +123,13 @@ def classify(reason_code):
 
 
 def _row_reason(row):
+    # A row the source answered with a same-named stranger carries the fact as
+    # its own flag rather than as a reason code, because the code is still the
+    # source's own verdict about this roster entry ("ambiguous", "missing") and
+    # overwriting it would lose what the source actually said. The flag is what
+    # the *approach* has to follow, so it is read first here.
+    if row.get("namesake_blocked"):
+        return NAMESAKE_CODE
     return row.get("reason_code") or ("not_yet_resolved" if row.get("retryable") else "")
 
 
@@ -119,7 +145,7 @@ def assess(roster):
     total = len(rows)
     with_photo = [row for row in rows if row.get("photo_url")]
     missing = [row for row in rows if not row.get("photo_url")]
-    breakdown = {kind: [] for kind in (FIX_ROUTE, FIX_ROSTER, FIX_SOURCE, FIX_AMBIGUOUS, FIX_NOTHING, FIX_UNKNOWN)}
+    breakdown = {kind: [] for kind in GAP_KINDS}
     for row in missing:
         breakdown[classify(_row_reason(row))].append({
             "player_id": str(row.get("provider_id") or row.get("id") or ""),
@@ -141,6 +167,7 @@ def assess(roster):
         "retryable": breakdown[FIX_ROUTE],
         "needs_roster_facts": breakdown[FIX_ROSTER],
         "source_gaps": breakdown[FIX_SOURCE],
+        "namesake_blocked": breakdown[FIX_NAMESAKE],
         "ambiguous": breakdown[FIX_AMBIGUOUS],
         "settled": breakdown[FIX_NOTHING],
         "unattempted": breakdown[FIX_UNKNOWN],
@@ -177,6 +204,8 @@ def summarize(report, previous=None):
         parts.append(f"{counts[FIX_ROUTE]} 名球员的照片来源本轮未读取成功")
     if counts.get(FIX_AMBIGUOUS):
         parts.append(f"{counts[FIX_AMBIGUOUS]} 名球员在来源中存在多个同名候选")
+    if counts.get(FIX_NAMESAKE):
+        parts.append(f"{counts[FIX_NAMESAKE]} 名球员在现有来源中被同名球员挡住，需换来源")
     if counts.get(FIX_SOURCE):
         parts.append(f"{counts[FIX_SOURCE]} 名球员在现有来源中没有记录")
     if counts.get(FIX_ROSTER):
