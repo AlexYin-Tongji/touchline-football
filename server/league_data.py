@@ -76,18 +76,67 @@ async def fetch_json(url):
         raise IngestionError("比赛数据暂不可读，请稍后重试。") from None
 
 
-def season_context(store, league_id, year=None):
-    league = store.get("leagues", league_id)
+class ReadView:
+    """One open of the shared collections, reused across a single render.
+
+    ``league_view`` is called once per league by the picker, and each call used
+    to re-read all of ``league_matches`` and all of ``league_memberships`` —
+    five leagues meant ten full scans and their JSON decodes for one page load.
+    ``season_context`` inside it did the same for ``seasons``. This holds the
+    rows for the life of one endpoint call.
+
+    Deliberately not a store-level cache: nothing is attached to the store, so
+    a write landing mid-render is seen by the next request exactly as before.
+    """
+
+    __slots__ = ("_store", "_leagues", "_seasons", "_memberships_by_season", "_matches_by_season", "_teams")
+
+    def __init__(self, store):
+        self._store = store
+        self._leagues = self._seasons = self._teams = None
+        self._memberships_by_season = {}
+        self._matches_by_season = {}
+
+    def league(self, league_id):
+        if self._leagues is None:
+            self._leagues = {row["id"]: row for row in self._store.list("leagues") if row.get("id")}
+        return self._leagues.get(league_id)
+
+    def team(self, team_id):
+        if self._teams is None:
+            self._teams = {row["id"]: row for row in self._store.list("teams") if row.get("id")}
+        return self._teams.get(team_id)
+
+    def seasons_of(self, league_id):
+        if self._seasons is None:
+            self._seasons = self._store.list("seasons")
+        return [item for item in self._seasons if item.get("league_id") == league_id]
+
+    def memberships(self, season_id):
+        if season_id not in self._memberships_by_season:
+            self._memberships_by_season[season_id] = [m for m in self._store.list("league_memberships")
+                                                      if m.get("season_id") == season_id]
+        return self._memberships_by_season[season_id]
+
+    def matches(self, season_id):
+        if season_id not in self._matches_by_season:
+            self._matches_by_season[season_id] = [r for r in self._store.list("league_matches")
+                                                  if r.get("season_id") == season_id]
+        return self._matches_by_season[season_id]
+
+
+def season_context(store, league_id, year=None, *, view=None):
+    view = view or ReadView(store)
+    league = view.league(league_id)
     if not league:
         raise IngestionError("联赛不存在。")
-    seasons = [item for item in store.list("seasons") if item["league_id"] == league_id]
+    seasons = view.seasons_of(league_id)
     candidates = ([s for s in seasons if s["season_start_year"] == year] if year is not None
                   else sorted(seasons, key=lambda s: s["season_start_year"], reverse=True))
     if not candidates:
         raise IngestionError("这个赛季尚未建立可核对的参赛球队目录。")
-    members = store.list("league_memberships")
     for season in candidates:
-        mapping = {str(m["provider_team_id"]): m["team_id"] for m in members if m["season_id"] == season["id"]}
+        mapping = {str(m["provider_team_id"]): m["team_id"] for m in view.memberships(season["id"])}
         if len(mapping) == league["expected_team_count"]:
             return league, season, mapping
     raise IngestionError("该联赛的赛季球队目录不完整，暂不导入比赛。")
@@ -546,15 +595,16 @@ async def sync_team(store, team_id, *, force=False):
     return {"matches_updated": count, "evidence_added": 0, "lineups_updated": 0, "synced_at": result.get("last_sync"), "errors": result.get("errors", []), "provider": "ESPN", "cached": result.get("cached", False)}
 
 
-def league_view(store, league_id, year=None):
-    league, season, mapping = season_context(store, league_id, year)
+def league_view(store, league_id, year=None, *, view=None):
+    view = view or ReadView(store)
+    league, season, mapping = season_context(store, league_id, year, view=view)
     status = store.get_meta(_sync_key(season["id"]), {})
-    all_records = [r for r in store.list("league_matches") if r["season_id"] == season["id"]]
+    all_records = view.matches(season["id"])
     snapshot_ids = set(status.get("snapshot_match_ids", [r["id"] for r in all_records]))
     records = [r for r in all_records if r["id"] in snapshot_ids]
     table = store.get("standings", season["id"]) or {}
     protected = store.settings().get("spoiler_free", True)
-    teams = [store.get("teams", team_id) for team_id in mapping.values()]
+    teams = [view.team(team_id) for team_id in mapping.values()]
     teams = [t for t in teams if t]
     fixtures = []
     for row in sorted(records, key=lambda r: r.get("kickoff") or "9999"):

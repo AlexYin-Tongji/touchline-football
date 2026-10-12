@@ -110,6 +110,13 @@ class RoleAssignments(StrictModel):
     chat: SelectInput | None = None
     team: SelectInput | None = None
     verify: SelectInput | None = None
+    # ``photos`` is declared here because the settings page offers it and
+    # ``profiles_view`` reports it. It was missing, so the one assignment a
+    # reader could make from that page — the batch order for a photo pass —
+    # was rejected by this schema as an unknown field before it ever reached
+    # ``assign_roles``. The role's own rule is unchanged: it is still never
+    # inherited from the active model, so leaving it unset costs nothing.
+    photos: SelectInput | None = None
 
 
 class RolesInput(StrictModel):

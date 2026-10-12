@@ -20,7 +20,12 @@ from .player_names import with_reading
 ROSTER_CACHE_SECONDS = 86400
 RETRY_SECONDS = 60
 CORE_PARTS = ("roster", "schedule", "standings")
-MAINTENANCE_PARTS = (*CORE_PARTS, "portraits")
+# ``profile`` is asked for, never picked up on its own. The core three are
+# refreshed whenever a page is opened because they are what the page is; a
+# club's founding year and nickname are read once and then never change, so
+# folding them into the automatic sweep would spend a Wikidata lookup on every
+# reader who opens a club to look at the squad list.
+MAINTENANCE_PARTS = (*CORE_PARTS, "portraits", "profile")
 POSITIONS = {
     "G": ("门将", "GK"), "GK": ("门将", "GK"), "D": ("后卫", "DF"),
     "DF": ("后卫", "DF"), "M": ("中场", "MF"), "MF": ("中场", "MF"),
@@ -76,12 +81,92 @@ def _text(value, maximum=150):
     return " ".join(value.split())[:maximum] if isinstance(value, str) else ""
 
 
-def team_season_context(store, team_id, year=None):
-    team = store.get("teams", team_id)
+class _ReadView:
+    """One open of the shared collections, reused across a single render.
+
+    A team page used to re-read the whole of ``league_matches`` three times and
+    ``league_memberships`` twice, then ask for one team record per fixture and
+    per standings row. Every one of those is a full table scan plus a JSON
+    decode of the same rows, and they all happen on the read path a 5-second
+    poll hammers. This holds the rows for the life of one call instead.
+
+    It is deliberately not a general cache: nothing is stored on the store, and
+    the instance dies with the request, so a write that lands mid-render is
+    picked up by the next one exactly as before.
+    """
+
+    __slots__ = ("_store", "_teams", "_leagues", "_seasons", "_members", "_by_team", "_matches")
+
+    def __init__(self, store):
+        self._store = store
+        self._teams = self._leagues = self._seasons = None
+        # Two indexes over the same collection. They are kept apart rather than
+        # sharing one dict because a season id and a team id are both plain
+        # strings, and "these never collide in practice" is not a guarantee.
+        self._members = {}
+        self._by_team = {}
+        self._matches = {}
+
+    def team(self, team_id):
+        if self._teams is None:
+            self._teams = {row["id"]: row for row in self._store.list("teams") if row.get("id")}
+        return self._teams.get(team_id)
+
+    def league(self, league_id):
+        if self._leagues is None:
+            self._leagues = {row["id"]: row for row in self._store.list("leagues") if row.get("id")}
+        return self._leagues.get(league_id)
+
+    def seasons_of(self, league_id):
+        if self._seasons is None:
+            self._seasons = self._store.list("seasons")
+        return [row for row in self._seasons if row.get("league_id") == league_id]
+
+    def memberships(self, season_id):
+        if season_id not in self._members:
+            self._members[season_id] = [row for row in self._store.list("league_memberships")
+                                        if row.get("season_id") == season_id]
+        return self._members[season_id]
+
+    def team_memberships(self, team_id):
+        if team_id not in self._by_team:
+            self._by_team[team_id] = [row for row in self._store.list("league_memberships")
+                                      if row.get("team_id") == team_id]
+        return self._by_team[team_id]
+
+    def matches(self, season_id):
+        if season_id not in self._matches:
+            self._matches[season_id] = [row for row in self._store.list("league_matches")
+                                        if row.get("season_id") == season_id]
+        return self._matches[season_id]
+
+    def match_by_id(self, match_id):
+        """One fixture by id, from the seasons already open or a direct lookup.
+
+        ``_team_matches`` may be asked for fixtures outside the current season
+        (a snapshot recorded a continental tie), and those live in a season
+        this view has not opened. That falls back to a single indexed read
+        rather than pulling the whole collection in.
+        """
+        for rows in self._matches.values():
+            found = next((row for row in rows if row.get("id") == match_id), None)
+            if found:
+                return found
+        return self._store.get("league_matches", match_id)
+
+    def all_matches(self):
+        if self._all_matches is None:
+            self._all_matches = self._store.list("league_matches")
+        return self._all_matches
+
+
+def team_season_context(store, team_id, year=None, *, view=None):
+    view = view or _ReadView(store)
+    team = view.team(team_id)
     if not team:
         raise IngestionError("球队不存在。")
-    members = [m for m in store.list("league_memberships") if m.get("team_id") == team_id
-               and (year is None or m.get("season_start_year") == year)]
+    members = [m for m in view.team_memberships(team_id)
+               if year is None or m.get("season_start_year") == year]
     if not members:
         raise IngestionError("这支球队还没有可核对的联赛赛季资料。")
     for member in sorted(members, key=lambda m: m["season_start_year"], reverse=True):
@@ -102,16 +187,15 @@ def _snapshot_id(team_id, season_id):
     return f"squad-{season_id}-{team_id}"
 
 
-def next_kickoff(store, team_id, season_id):
+def next_kickoff(store, team_id, season_id, *, view=None):
     """The next match still to be played, used to date a squad list properly.
 
     A squad list changes most in the hours before kickoff, so a flat daily cache
     is at its least appropriate exactly when it matters most.
     """
+    view = view or _ReadView(store)
     stamps = []
-    for record in store.list("league_matches"):
-        if record.get("season_id") != season_id:
-            continue
+    for record in view.matches(season_id):
         if team_id not in {record.get("home_team_id"), record.get("away_team_id")}:
             continue
         kickoff = published_time(record.get("kickoff"))
@@ -130,7 +214,7 @@ def _is_future(stamp):
     return parsed > datetime.now(timezone.utc)
 
 
-def roster_ttl(store, team_id, season_id, *, now=None):
+def roster_ttl(store, team_id, season_id, *, now=None, view=None):
     """How long a stored squad list stays worth showing without a fresh look.
 
     Three clocks compose: the transfer window, the twelve hours around kickoff,
@@ -139,11 +223,11 @@ def roster_ttl(store, team_id, season_id, *, now=None):
     deadline day, and a single daily constant cannot express that.
     """
     from . import provenance
-    kickoff = next_kickoff(store, team_id, season_id)
+    kickoff = next_kickoff(store, team_id, season_id, view=view)
     return provenance.ttl_for("roster", kickoff=kickoff, now=now)
 
 
-def transfer_window_note(store, team_id, season_id, *, now=None):
+def transfer_window_note(store, team_id, season_id, *, now=None, view=None):
     """A short explanation of the current clock, for the reader.
 
     Without this the interface can only say "updated 4 hours ago", which does
@@ -151,7 +235,7 @@ def transfer_window_note(store, team_id, season_id, *, now=None):
     """
     from . import provenance
     moment = now or datetime.now(timezone.utc)
-    kickoff = next_kickoff(store, team_id, season_id)
+    kickoff = next_kickoff(store, team_id, season_id, view=view)
     ttl = provenance.ttl_for("roster", kickoff=kickoff, now=moment)
     if ttl <= provenance.MATCH_DAY_TTL:
         return "比赛临近，阵容按两小时刷新。"
@@ -283,24 +367,40 @@ def _tally(matches):
     return result
 
 
-def _team_matches(store, team_id, season_id, sync_status):
+def _team_matches(store, team_id, season_id, sync_status, *, view=None):
+    view = view or _ReadView(store)
     ids = sync_status.get("snapshot_match_ids")
     snapshot_ids = set(ids) if isinstance(ids, list) else None
-    records = [r for r in store.list("league_matches") if (r.get("season_id") == season_id or snapshot_ids is not None and r["id"] in snapshot_ids)
-               and team_id in {r.get("home_team_id"), r.get("away_team_id")}
-               and (snapshot_ids is None or r["id"] in snapshot_ids)]
+    # This season's fixtures, plus anything a snapshot named by id. The two
+    # halves are a union and not an either/or: a named id may sit in another
+    # season (a continental tie is stored outside the domestic season), and a
+    # fixture in this season that the snapshot did *not* name must stay out —
+    # that exclusion is what stops a reduced snapshot from reintroducing a
+    # fixture the source has since withdrawn.
+    records = [r for r in view.matches(season_id) if team_id in {r.get("home_team_id"), r.get("away_team_id")}]
+    if snapshot_ids is not None:
+        records = [r for r in records if r["id"] in snapshot_ids]
+        seen = {r["id"] for r in records}
+        for match_id in snapshot_ids - seen:
+            record = view.match_by_id(match_id)
+            if record and team_id in {record.get("home_team_id"), record.get("away_team_id")}:
+                records.append(record)
+    # A club name and a competition name are needed per fixture. Asking the
+    # store once per row made a 38-game season 38 separate lookups; the two
+    # collections are read once and indexed instead.
     output = []
     for record in sorted(records, key=lambda r: r.get("kickoff") or "9999"):
         home = record["home_team_id"] == team_id
         opponent_id = record["away_team_id"] if home else record["home_team_id"]
-        opponent = store.get("teams", opponent_id) or {}
+        opponent = view.team(opponent_id) or {}
         gf, ga = (record.get("home_score"), record.get("away_score")) if home else (record.get("away_score"), record.get("home_score"))
         gf, ga = _number(gf, integer=True), _number(ga, integer=True)
         if record.get("status") != "finished" or gf is None or ga is None:
             gf, ga = None, None
+        competition_id = record.get("league_id") or season_id.rsplit("-", 1)[0]
         output.append({"id": record["id"], "opponent_id": opponent_id, "opponent": opponent.get("name") or (record.get("away_team") if home else record.get("home_team")),
-                       "competition_id": record.get("league_id") or season_id.rsplit("-", 1)[0],
-                       "competition": record.get("competition") or (store.get("leagues", record.get("league_id") or season_id.rsplit("-", 1)[0]) or {}).get("name", ""),
+                       "competition_id": competition_id,
+                       "competition": record.get("competition") or (view.league(competition_id) or {}).get("name", ""),
                        "opponent_crest_url": opponent.get("crest_url", ""), "venue": "home" if home else "away",
                        "kickoff": record.get("kickoff"), "kickoff_date": record.get("kickoff_date"),
                        "kickoff_confirmed": bool(record.get("kickoff_confirmed")), "status": record.get("status"),
@@ -339,17 +439,18 @@ def _validated_parts(parts):
     if parts is None:
         return None
     if not isinstance(parts, (list, tuple)) or not parts or any(not isinstance(part, str) or part not in MAINTENANCE_PARTS for part in parts):
-        raise IngestionError("资料部分只能选择 roster、schedule、standings 或 portraits。")
+        raise IngestionError("资料部分只能选择 roster、schedule、standings、portraits 或 profile。")
     return tuple(dict.fromkeys(parts))
 
 
 def center_view(store, team_id, year=None, *, reveal=False):
-    team = store.get("teams", team_id)
+    view = _ReadView(store)
+    team = view.team(team_id)
     if not team:
         raise IngestionError("球队不存在。")
     protected = store.settings().get("spoiler_free", True) and not reveal
     try:
-        _, league, season, _ = team_season_context(store, team_id, year)
+        _, league, season, _ = team_season_context(store, team_id, year, view=view)
     except IngestionError as exc:
         return {"team": team, "league": None, "season": None, "roster_season": None, "latest_season": None,
                 "roster_fallback": False,
@@ -365,7 +466,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     status = store.get_meta(_status_key(team_id, season["id"]), {})
     league_status = store.get_meta("league_sync_" + season["id"], {})
     recent_status = store.get_meta(league_data.team_schedule_key(season["id"], team_id), {})
-    matches = _team_matches(store, team_id, season["id"], recent_status if "snapshot_match_ids" in recent_status else league_status)
+    matches = _team_matches(store, team_id, season["id"], recent_status if "snapshot_match_ids" in recent_status else league_status, view=view)
     domestic_matches = [m for m in matches if m["competition_id"] == league["id"]]
     finished = [m for m in domestic_matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
     from .team_portraits import apply_cached_portraits
@@ -373,7 +474,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     roster = [with_reading(row) for row in visible_snapshot.get("roster", [])]
     roster_season = ({"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]}
                      if roster else None)
-    latest = max((s for s in store.list("seasons") if s.get("league_id") == league["id"]),
+    latest = max(view.seasons_of(league["id"]),
                  key=lambda s: s["season_start_year"], default=season)
     latest_season = {"id": latest["id"], "label": latest["label"], "start_year": latest["season_start_year"]}
     roster_fallback = False
@@ -384,11 +485,11 @@ def center_view(store, team_id, year=None, *, reveal=False):
             roster_fallback = True
     table = store.get("standings", season["id"]) or {}
     standing = next((r for r in table.get("rows", []) if r.get("team_id") == team_id), None)
-    standings = [{**copy.deepcopy(row), "team_name": (store.get("teams", row.get("team_id")) or {}).get("name") or row.get("team_id"),
+    standings = [{**copy.deepcopy(row), "team_name": (view.team(row.get("team_id")) or {}).get("name") or row.get("team_id"),
                   "is_current": row.get("team_id") == team_id} for row in sorted(table.get("rows", []), key=lambda r: r.get("rank", 999))]
     incomplete_results = bool(standing and standing.get("played", 0) > len(finished))
     expected_matches = 2 * (league["expected_team_count"] - 1)
-    opponent_ids = {m["team_id"] for m in store.list("league_memberships") if m.get("season_id") == season["id"] and m.get("team_id") != team_id}
+    opponent_ids = {m["team_id"] for m in view.memberships(season["id"]) if m.get("team_id") != team_id}
     required_pairs = {(opponent, venue) for opponent in opponent_ids for venue in ("home", "away")}
     has_full_schedule = len(domestic_matches) == expected_matches and {(m["opponent_id"], m["venue"]) for m in domestic_matches} == required_pairs
     coverage = {"matches": len(domestic_matches), "all_matches": len(matches), "continental_matches": len(matches) - len(domestic_matches),
@@ -444,7 +545,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     photo_times = [player.get("photo_updated_at") or snapshot.get("fetched_at") for player in roster if player.get("photo_url")]
     components = {
         "roster": _component_status(snapshot.get("fetched_at"), roster_ttl(store, team_id, season["id"],
-                                                                           now=snapshot.get("fetched_at")),
+                                                                           now=snapshot.get("fetched_at"), view=view),
                                     roster, part_states.get("roster")),
         "schedule": _component_status(schedule_time, league_data.CACHE_SECONDS, matches, schedule_state,
                                       incomplete=not has_full_schedule or (incomplete_results and not protected)),
@@ -459,6 +560,23 @@ def center_view(store, team_id, year=None, *, reveal=False):
         community_unavailable=portraits_state.get("community_unavailable", False),
         continuation_ready=portraits_state.get("continuation_ready") is True,
         retry_seconds=_portrait_retry_seconds(portraits_state))
+    # The club's own record and its badge. Both are reported from what the record
+    # and the released assets already say, which is why neither needs a source
+    # check to answer: the question is "is this stated", not "is this true".
+    from . import club_profile
+    profile_missing = club_profile.missing_fields(team)
+    profile_state = part_states.get("profile", {})
+    components["profile"] = {
+        **_component_status(team.get("profile_updated_at"), club_profile.RECHECK_SECONDS,
+                            not profile_missing, profile_state, incomplete=bool(profile_missing)),
+        "missing_fields": list(profile_missing),
+        "fields": {field: team.get(field) for field in club_profile.FIELDS},
+        "source": (team.get("background_sources") or {}).get("wikidata"),
+        "crest": club_profile.crest_state(team),
+        "note": (profile_state.get("note") or
+                 ("球队资料已完整。" if not profile_missing
+                  else "缺少：" + "、".join(club_profile.FIELD_LABELS[field] for field in profile_missing))),
+    }
     # Why the rest are missing. "17 张没有" reads as a failure; the same gap is
     # ordinary when most of it is players not reached yet, or players a source
     # cannot match at all.
@@ -510,7 +628,14 @@ def team_context_payload(store, team_id, year=None, *, reveal=False):
     return {key: view[key] for key in ("season", "roster_season", "latest_season", "roster_fallback", "roster", "standings", "standings_hidden", "stats", "sources", "updated_at", "roster_updated_at", "refresh_status", "errors", "stale", "components", "coverage")} | {
         "recent_matches": past, "upcoming_matches": upcoming,
         "team_results_updated_at": view.get("team_results_updated_at"),
-        "data_policy": "比分、积分和阵容来自明确赛季的结构化来源。资料更新时间不代表事件发生时间；缺失数据不可补造。球员简介为国籍、位置、年龄、号码字段组合，不含战术评价。"}
+        # What the club's own record states, so a task can see what is missing
+        # and ask for exactly that. Without it the only way to learn whether a
+        # founding year was ever filled would be to maintain the record and see.
+        "club_profile": {**{field: view.get("team", {}).get(field) for field in ("founded", "stadium", "nickname")},
+                         "source": (view.get("team", {}).get("background_sources") or {}).get("wikidata"),
+                         "crest": (view.get("components", {}).get("profile") or {}).get("crest"),
+                         "component": view.get("components", {}).get("profile")},
+        "data_policy": "比分、积分和阵容来自明确赛季的结构化来源。资料更新时间不代表事件发生时间；缺失数据不可补造。球员简介为国籍、位置、年龄、号码字段组合，不含战术评价。球队的创立年份、主场与昵称来自维基数据（CC0），模型只能申请补充，不能自己写入。"}
 
 
 def _record_component(store, key, part, patch):
@@ -560,15 +685,40 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         return {"status": "unavailable", "available_count": 0, "total_count": 0, "photos": [],
                 "errors": ["请先取得这个球队和赛季的可核对阵容，再补充球员照片。"]}
     _record_component(store, key, "portraits", {"status": "running", "last_attempt": now(), "errors": []})
+    # Photos the pass has already checked are written as they land, so a pass
+    # cut short by its wall-clock bound keeps what it earned. It used to write
+    # once at the end, which meant a timeout discarded every photo fetched in
+    # that pass — the reader saw "still missing" and started the same batch
+    # over, which is what "it takes several runs" actually was.
+    #
+    # The guard must answer "has anybody else written since my last save", and
+    # it cannot hold a reference to the working copy to do it: that copy is
+    # mutated in place, so it changes under the guard's feet. What is held
+    # instead is the store's own deep copy of the last body this pass wrote.
+    written = {"stored": snapshot}
+
+    def keep(snapshot_in_progress):
+        """Persist progress; False means another writer owns the roster now."""
+        if store.get("team_snapshots", snapshot_id) != written["stored"]:
+            return False
+        written["stored"] = store.put("team_snapshots", snapshot_in_progress)
+        return True
+
     try:
         updated, summary = await enrich_player_photos(store, snapshot,
                                                        player_ids=player_ids, force=force,
-                                                       order=order, deadline=deadline)        # The network wait must never resurrect a replaced roster or alter a
+                                                       order=order, deadline=deadline,
+                                                       on_progress=keep)
+        # The network wait must never resurrect a replaced roster or alter a
         # freshly corrected membership. Photos attach only to this exact view.
-        if store.get("team_snapshots", snapshot_id) != snapshot:
+        # `written` carries the store's copy of the last body this pass put
+        # down, so the test is "has anyone else written since" rather than
+        # "does the store still equal the snapshot we started from" — the
+        # latter is false as soon as this pass saves its own progress.
+        if store.get("team_snapshots", snapshot_id) != written["stored"]:
             summary = {"status": "interrupted", "errors": ["阵容已在照片获取期间更新，请按新阵容重新核对照片。"]}
         else:
-            store.put("team_snapshots", updated)
+            written["stored"] = store.put("team_snapshots", updated)
         _record_component(store, key, "portraits", summary)
         current = store.get("team_snapshots", snapshot_id) or {}
         # Judge the pass in code, not by asking anything paid. This is the
@@ -665,6 +815,25 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None, d
             decision_id = decisions.begin(store, team_id, center_view(store, team_id, year, reveal=True),
                                           parts=selected, trigger="manual", reason="按请求更新已过时或缺失的球队资料。")
         started = now()
+
+        async def sync_profile():
+            """Fill the club's own record, then persist it only if it changed.
+
+            The write goes through the same ``teams`` record the interface
+            edits, so a value written here is visible, editable and reversible
+            exactly like one typed by hand.
+            """
+            from . import club_profile
+            team_record = store.get("teams", team_id) or {}
+            collected = await club_profile.collect(store, team_record)
+            if collected.get("written"):
+                updated = collected["team"]
+                updated["profile_updated_at"] = now()
+                updated["profile_origin"] = "wikidata"
+                store.put("teams", updated)
+            summary = collected.get("summary") or {}
+            return {**summary, "updated_at": now() if collected.get("written") else None}
+
         store.set_meta(key, {**prior, "status": "running", "started_at": started, "errors": []})
         operations = {
             "roster": lambda: sync_roster(store, team_id, season["season_start_year"], force=force or "roster" in (requested or ())
@@ -673,6 +842,10 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None, d
             # All teams in a league share one independently cached table.
             "standings": lambda: league_data.sync_standings(store, league["id"], season["season_start_year"], force=force),
             "portraits": lambda: fetch_player_photos(store, team_id, year, force=force),
+            # A club's founding year and nickname are collected, never derived:
+            # the model may ask for them and report the outcome, and cannot
+            # write them itself.
+            "profile": sync_profile,
         }
         async def refresh(part):
             _record_component(store, key, part, {"status": "running", "last_attempt": started, "errors": []})

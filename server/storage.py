@@ -234,14 +234,24 @@ class Store:
             values.append(team_id)
         with self.lock:
             rows = self._db.execute("SELECT body FROM documents WHERE " + " AND ".join(conditions) + " ORDER BY rowid", values).fetchall()
+        # Decode outside the lock. `json.loads` was doing megabytes of work while
+        # holding the one lock every request shares — the decisions collection
+        # alone is 5.3 MB across 167 rows, which measured as 57 ms of pure
+        # parsing. Nothing here touches the connection or `_bodies`, so only the
+        # short hydrate step below needs the lock back.
+        decoded = [json.loads(row[0]) for row in rows]
         with self.lock:
-            return [self._hydrate(collection, json.loads(row[0])) for row in rows]
+            return [self._hydrate(collection, item) for item in decoded]
 
     def get(self, collection: str, id: str):
         self._collection(collection)
         with self.lock:
             row = self._db.execute("SELECT body FROM documents WHERE collection=? AND id=?", (collection, id)).fetchone()
-            return self._hydrate(collection, json.loads(row[0])) if row else None
+        if not row:
+            return None
+        decoded = json.loads(row[0])
+        with self.lock:
+            return self._hydrate(collection, decoded)
 
     def count(self, collection: str, mode: str | None = None):
         self._collection(collection)

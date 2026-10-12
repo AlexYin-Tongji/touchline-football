@@ -162,6 +162,43 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.get_meta('team_portraits_v1_barcelona')['status'], 'completed')
         self.assertEqual((await self.client.get('/api/workflows/team/barcelona')).json()['status'], 'completed')
 
+    async def test_a_pass_cut_short_keeps_the_photos_it_already_checked(self):
+        """A bounded pass must bank what it earned instead of losing the batch.
+
+        The pass runs under a wall-clock bound, so being stopped partway is
+        normal. It used to write its results once at the end, which meant a
+        timeout discarded every photo fetched in that run: the interface still
+        showed the player as missing and the next start repeated the same work.
+        """
+        roster = self.store.get('team_snapshots', self.snapshot_id)['roster']
+        checked_id = roster[0]['provider_id']
+        second = {**roster[0], 'provider_id': '999', 'id': 'espn-player-999',
+                  'name': 'Second Player', 'photo_url': ''}
+        self.store.put('team_snapshots', {**self.store.get('team_snapshots', self.snapshot_id),
+                                          'roster': [roster[0], second]})
+        checked = []
+
+        async def first_then_cancelled(store, player, team_id, **kwargs):
+            if player['provider_id'] == '999':
+                raise asyncio.CancelledError
+            checked.append(player['provider_id'])
+            return {'status': 'completed', 'photo_url': 'https://example.test/p.jpg',
+                    'photo_credit': 'Wikimedia', 'photo_license': 'CC BY-SA 4.0',
+                    'photo_source_url': 'https://en.wikipedia.org/wiki/A',
+                    'photo_file_page': 'https://commons.wikimedia.org/wiki/File:A.jpg',
+                    'photo_match': 'wikimedia_verified_club'}
+
+        community = patch.object(community_portraits, 'resolve_portrait', new=AsyncMock(
+            return_value={'status': 'missing', 'retryable': False, 'reason_code': 'community_missing'}))
+        with community, patch.object(wikimedia_portraits, 'resolve_portrait', new=first_then_cancelled):
+            with self.assertRaises(asyncio.CancelledError):
+                await team_center.fetch_player_photos(self.store, 'arsenal')
+        # The first player's photo was checked and paid for, so it is on disk
+        # even though the pass never reached its final write.
+        self.assertEqual(checked, [checked_id])
+        stored = self.store.get('team_snapshots', self.snapshot_id)['roster']
+        self.assertTrue(next(row for row in stored if row['provider_id'] == checked_id).get('photo_url'))
+
     async def test_manual_start_retries_recent_official_failure_through_default_photo_phase(self):
         await self.official_retry(explicit_part=False)
 

@@ -18,13 +18,14 @@ description: 查询、维护并解释当前球队有来源的阵容、球员、�
 | 某球员是谁、位置、号码、统计 | 球员 → 资料 | [球员资料](references/squad/info.md) |
 | 球员照片、缺图、照片来源与许可 | 球员 → 图像 | [球员图像](references/squad/images.md) |
 | 俱乐部、赛程、积分榜、避剧透 | 球队 | [球队](references/team.md) |
+| 球队创立年份、主场、昵称、队徽状态 | 球队资料 | [球队资料](references/club.md) |
 | 胜负、进失球、近期表现与样本范围 | 数据 | [数据](references/data.md) |
 
 球员方向先看[球员](references/squad.md)确认是哪一类，再进到具体那份。
 
 ## 维护按部分进行
 
-`maintain_team_data(parts=...)` 的部分包括 `roster`（阵容）、`schedule`（联赛及有参赛证据的欧战赛程）、`standings`（完整联赛积分榜）和 `portraits`（照片）。未指定时由工具选择缺失或需重试的核心部分。
+`maintain_team_data(parts=...)` 的部分包括 `roster`（阵容）、`schedule`（联赛及有参赛证据的欧战赛程）、`standings`（完整联赛积分榜）、`portraits`（照片）和 `profile`（球队自身的创立年份、主场、昵称）。未指定时由工具选择缺失或需重试的核心部分；`portraits` 与 `profile` 是按需的，只在你确认缺项后才传。
 
 **各部分可以分别成功并保存。** 某部分失败不丢弃其他成功资料；失败时解释仍有效的旧快照并保留其原始更新时间。缺一张照片不应触发整套阵容与赛程的重复更新，也不要重复催促同一失败来源。
 

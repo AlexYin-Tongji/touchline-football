@@ -54,6 +54,8 @@ TOPICS = {
                          "description": "球员照片：缺口、来源、许可、重试与验收。"},
         "team": {"path": "references/team.md",
                  "description": "俱乐部背景、赛程、积分榜与避剧透边界。"},
+        "club": {"path": "references/club.md",
+                 "description": "球队自身资料：创立年份、主场、昵称与队徽状态。"},
         "data": {"path": "references/data.md",
                  "description": "胜负、进失球、近期表现与样本范围。"},
         "scope": {"path": "references/data-scope.md",

@@ -868,11 +868,15 @@ def create_app(db_path=None, *, collection_enabled=None):
 
     @app.get("/api/leagues")
     async def get_leagues(season_start_year: int | None = Query(None, ge=2000, le=2100)):
-        from .league_data import league_view
+        from .league_data import ReadView, league_view
+        # One view for the whole response. Each league used to re-read every
+        # season, membership and fixture row on its own, so this endpoint cost
+        # five scans of each collection instead of one.
+        view = ReadView(store)
         seasons = store.list("seasons")
         available = sorted({(s["season_start_year"], s["label"]) for s in seasons}, reverse=True)
         return {"available_seasons": [{"season_start_year": y, "label": label} for y, label in available],
-                "leagues": [league_view(store, league["id"], season_start_year) for league in store.list("leagues")]}
+                "leagues": [league_view(store, league["id"], season_start_year, view=view) for league in store.list("leagues")]}
 
     @app.post("/api/leagues/sync", status_code=202)
     async def sync_all_leagues(payload: LeagueSyncInput = LeagueSyncInput()):

@@ -883,7 +883,8 @@ def _apply_directory(snapshot, directory):
     return snapshot
 
 
-async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False, order=None, deadline=None):
+async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False, order=None, deadline=None,
+                               on_progress=None):
     """Return a copied snapshot and bounded progress, without changing roster facts.
 
     ``order`` is a caller-supplied priority over the same roster — the model's
@@ -891,6 +892,12 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
     else: the photo fields on a row are still written only by ``_apply_photo``
     from a source that proved the identity. ``deadline`` is a monotonic time
     within which this pass must finish, used to size the batch.
+
+    ``on_progress`` is called with the working snapshot after each player is
+    resolved. The pass runs under a wall-clock bound and the caller decides what
+    to keep, so a pass that is cancelled partway through would otherwise lose
+    every photo it had already checked — the work happened, the network was
+    paid for, and only the write was missing.
     """
     result = copy.deepcopy(snapshot)
     roster = result.get("roster", [])
@@ -934,7 +941,7 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
                     row.pop(field, None)
     snapshot, summary = await _enrich_wikimedia_photos(store, result, selected, before, force=force,
                                                       explicit_selection=player_ids is not None or order is not None,
-                                                      deadline=deadline)
+                                                      deadline=deadline, on_progress=on_progress)
     # A selected lookup can discover a Commons withdrawal shared by an
     # unselected old portrait. Clear it before returning the full snapshot.
     _recheck_wikimedia_photos(store, snapshot["roster"], snapshot.get("team_id"))
@@ -949,7 +956,8 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
     return snapshot, summary
 
 
-async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection, deadline=None):
+async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection, deadline=None,
+                                   on_progress=None):
     """Fill portraits from the sources, strongest-first, one source per player.
 
     Order is by measured coverage and cost (see ``PHOTO_SOURCE_ORDER``): the
@@ -1055,8 +1063,16 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             errors[row["provider_id"]] = f"球员 {row['provider_id']}：{reason}"
             if row.get("photo_url"):
                 held_photo_failures.add(row["provider_id"])
+            # Bank this row before stopping the source, for the same reason as
+            # the Wikimedia branch below: the host's failure is cached, so the
+            # rest of the queue would fail without being asked, and only this
+            # write keeps what the pass already earned.
+            if on_progress:
+                on_progress(snapshot)
             if not cached:
                 break
+        if on_progress:
+            on_progress(snapshot)
     if not explicit_selection and processed:
         last = selected.index(processed[-1])
         store.set_meta(community_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
@@ -1145,9 +1161,18 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             row.setdefault("retryable", bool(photo.get("retryable", True)))
             if row.get("photo_url") and row.get("photo_match") == "wikimedia_verified_club":
                 held_photo_failures.add(row["provider_id"])
-            # A transport failure says nothing about the remaining players.
-            # Stop this source for the pass and let an independent source try.
+            # Bank this row before giving up on the source. A transport failure
+            # says nothing about the remaining players, but the coordinator
+            # caches a host failure for FAILURE_COOLDOWN_SECONDS, so every
+            # remaining player would be answered from that cached error without
+            # touching the network. Stopping here is therefore not what throws
+            # work away — carrying on would only turn one real fault into N
+            # reported ones. What preserves the work is this write.
+            if on_progress:
+                on_progress(snapshot)
             break
+        if on_progress:
+            on_progress(snapshot)
     if not explicit_selection and requested:
         last = selected.index(requested[-1])
         store.set_meta(cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})

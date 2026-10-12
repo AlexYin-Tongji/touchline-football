@@ -270,6 +270,42 @@ async def _club_qid_matches(store, ids, team_id):
     return len(matched) == 1
 
 
+async def _wikidata_label(store, qid, *, identity):
+    """Read the published Chinese name from an entity we already trust.
+
+    This is deliberately separate from ``_wikidata_club``. Both used to live in
+    one call whose result only counted when the club claim was re-proved from
+    Wikidata — so a player whose article says in its first sentence that he
+    plays for the club in question, which is the *most* conclusive evidence
+    available, skipped the call entirely and lost the label with it. Measured on
+    the stored cache: 15 of 16 completed portraits had no Chinese name for
+    exactly this reason.
+
+    What makes the label trustworthy here is not the club claim. It is the
+    identity checks that already ran on the article before this point — the
+    exact full name, the birth date, and the occupation — all matched against
+    the same roster row this label is attached to. The club is a second,
+    independent confirmation and is used as such when it is available; it is
+    not a precondition for reading a name off an entity those checks identified.
+    """
+    if not re.fullmatch(r"Q[1-9]\d{0,11}", str(qid)):
+        return False
+    response = await request_json(store, WIKIDATA, {"action": "wbgetentities", "format": "json",
+                                                 "ids": qid, "props": "labels", "languages": "zh-hans|zh"})
+    entity = response.get("entities", {}).get(qid, {})
+    if (not isinstance(entity, dict) or entity.get("id", qid) != qid
+            or any(flag in entity for flag in ("missing", "invalid", "suppressed"))
+            or any(entity.get(flag) is True for flag in ("private", "deleted", "restricted"))):
+        return False
+    labels = entity.get("labels") if isinstance(entity.get("labels"), dict) else {}
+    for language in ("zh-hans", "zh"):
+        label = labels.get(language, {})
+        if isinstance(label, dict) and label.get("language") == language and cjk_label(label.get("value")):
+            identity.update(qid=qid, label=label["value"], language=language)
+            return True
+    return False
+
+
 async def _wikidata_club(store, qid, team_id, birth_date, *, identity=None):
     if not re.fullmatch(r"Q[1-9]\d{0,11}", str(qid)):
         return False
@@ -546,10 +582,16 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                     reasons.append(("ambiguous_identity", "页面记载的当前俱乐部与阵容不一致。"))
                     continue
                 identity = {}
-                if club != "confirmed" and not await _wikidata_club(store, props.get("wikibase_item"), team_id, birth_date, identity=identity):
+                qid = props.get("wikibase_item")
+                # The label is read later, once exactly one article has
+                # survived — see the `len(matched) == 1` branch below. Asking
+                # here would spend a request on every candidate that is about
+                # to be refused for another reason, and a refused candidate's
+                # name is not a name this row may use anyway.
+                if club != "confirmed" and not await _wikidata_club(store, qid, team_id, birth_date, identity=identity):
                     reasons.append(("ambiguous_identity", "无法独立核对当前俱乐部身份。"))
                     continue
-                matched.append((article, identity))
+                matched.append((article, identity, qid))
             if len(matched) != 1:
                 if matched:
                     # More than one article survived every identity check, and
@@ -566,7 +608,15 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                               "reason_code": _refusal_code(reasons),
                               "photo_reason": reasons[0][1] if reasons else "无法独立核对球员身份。"}
             else:
-                article, identity = matched[0]
+                article, identity, qid = matched[0]
+                # One article survived every identity check: the exact full
+                # name, the birth date, and the occupation. That is what makes
+                # the entity's own label safe to read — not the club claim.
+                # ``_wikidata_club`` already fetched it when it ran, so this
+                # only costs a request on the path where the article's first
+                # sentence settled the club and the claim was never consulted.
+                if not identity:
+                    await _wikidata_label(store, qid, identity=identity)
                 if identity:
                     name_reading = {"name_status": "verified", "name_zh": identity["label"],
                         "name_zh_source": "Wikidata 中文标签", "name_zh_source_url": "https://www.wikidata.org/wiki/" + identity["qid"],

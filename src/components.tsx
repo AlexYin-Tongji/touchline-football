@@ -224,6 +224,12 @@ export function Crest({
         <img
           src={asset}
           alt={`${label}队徽`}
+          // The picker renders one of these per catalogued club, and a club
+          // list is the one place they all appear at once. Without this the
+          // browser decodes every crest up front, including the ones far below
+          // the fold — the same reason PlayerPhoto and Photo carry it.
+          loading="lazy"
+          decoding="async"
           onError={() => setFailed(true)}
         />
       ) : (

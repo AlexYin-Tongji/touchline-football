@@ -56,12 +56,20 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
                             return_value={"status": status, "photo_reason": "社区球员库没有这名球员的可展示照片。",
                                           "retryable": False, "reason_code": "community_" + status})
 
+    def label_reply(self, label="马丁·厄德高"):
+        """The entity's own labels, as ``_wikidata_label`` asks for them."""
+        return {"entities": {"Q16902219": {
+            "id": "Q16902219",
+            "labels": {"zh-hans": {"language": "zh-hans", "value": label}}}}}
+
     def replies(self, articles=None, license_result=None):
         articles = articles if articles is not None else [page()]
         license_result = license_result if license_result is not None else commons()
         async def answer(store, host, params):
             if params.get("list") == "search":
                 return {"query": {"search": [{"title": a["query"]["pages"]["1"]["title"]} for a in articles]}}
+            if host == "www.wikidata.org":
+                return self.label_reply()
             if host == "commons.wikimedia.org":
                 return license_result
             title = params.get("titles")
@@ -81,8 +89,13 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         async def answer(store, host, params):
             if host == "www.wikidata.org":
                 if params.get("ids") == "Q16902219":
-                    self.assertEqual(params["props"], "claims|labels")
-                    self.assertEqual(params["languages"], "zh-hans|zh")
+                    # Two callers reach this entity: the club check asks for
+                    # claims and labels together, while a player whose article
+                    # already settled the club is asked only for the label.
+                    if params.get("props") == "claims|labels":
+                        self.assertEqual(params["languages"], "zh-hans|zh")
+                    else:
+                        self.assertEqual(params["props"], "labels")
                     return {"entities": {"Q16902219": entity}}
                 return {"entities": {"Q9617": {"labels": {"en": {"value": "Arsenal F.C."}}}}}
             if params.get("list") == "search":
@@ -187,7 +200,10 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["photo_restrictions"], "personality")
         self.assertEqual(result["photo_file_page"], "https://commons.wikimedia.org/wiki/File:Martin.jpg")
         self.assertEqual(result, again)
-        self.assertEqual(fetch.call_count, 3)
+        # search, article, the entity's label (the article's first sentence
+        # already settled the club) and the Commons licence. The second call is
+        # answered from cache.
+        self.assertEqual(fetch.call_count, 4)
 
     async def test_namesake_other_current_club_is_rejected_even_if_history_names_target(self):
         wrong = page("Emiliano Martínez", club="Chelsea", birthday="2 September 1992")
@@ -212,7 +228,10 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(record=record), patch.object(wikimedia_portraits, "request_json", side_effect=self.replies([candidate])) as fetch:
                 result = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal")
                 self.assertFalse(result.get("photo_url"))
-                self.assertLessEqual(fetch.call_count, 2)
+                # At most search, article and the entity label: the point of
+                # this test is that none of these three reaches Commons.
+                self.assertLessEqual(fetch.call_count, 3)
+                self.assertFalse(any(call.args[1] == "commons.wikimedia.org" for call in fetch.call_args_list))
 
     async def test_nonfree_or_unavailable_license_fails_closed(self):
         for license_result in (commons("CC BY-NC 4.0"), {"query": {"pages": {"2": {"title": "File:Martin.jpg"}}}}):
@@ -229,7 +248,9 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             updated = await wikimedia_portraits.resolve_portrait(self.store, self.player, "arsenal", force=True)
         self.assertEqual(updated["status"], "rejected")
         self.assertFalse(updated.get("photo_url"))
-        self.assertEqual(fetch.call_count, 3)
+        # search, article, label, licence — the forced pass re-asks the source
+        # rather than replaying the cached verdict.
+        self.assertEqual(fetch.call_count, 4)
 
     async def test_article_redirect_to_other_person_and_file_title_punctuation_mismatch_fail_closed(self):
         wrong_article = page("Different Player")

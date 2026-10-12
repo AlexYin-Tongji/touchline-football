@@ -116,10 +116,17 @@ interface CenterData {
   };
   updated_at?: string;
   roster_updated_at?: string;
+  // 后端 center_view 返回的三个分项时间戳，用作"资料真的变了"的指纹。
+  // updated_at 是它们的最大值，所以它本身不能当指纹：只要有任何一项
+  // 变动，它每次轮询都会被当成新版本。
+  fixtures_updated_at?: string;
+  team_results_updated_at?: string;
+  team_schedule_updated_at?: string;
+  standings_updated_at?: string;
   refresh_status?: string | { status?: string };
   errors?: string[];
   sources?: SourceLink[];
-  components?: Partial<Record<"roster" | "schedule" | "standings" | "portraits", {
+  components?: Partial<Record<"roster" | "schedule" | "standings" | "portraits" | "profile", {
     status: string;
     updated_at: string | null;
     stale: boolean;
@@ -130,11 +137,15 @@ interface CenterData {
     untried_count?: number;
     settled_count?: number;
     no_identity_facts_count?: number;
+    missing_fields?: string[];
+    fields?: Record<string, string | number | null | undefined>;
+    note?: string;
+    crest?: { status: string; url: string; local_asset: boolean; source_url: string; attribution: string; missing: string[]; note: string };
   }>>;
   coverage?: { matches: number; expected_matches: number | null; has_full_schedule: boolean; results_complete: boolean | null; basis: string };
   preparation?: { status: string; message: string; counts?: { players?: number; photos?: number } };
 }
-const componentNames = { roster: "球员阵容", schedule: "比赛赛程", standings: "积分榜", portraits: "球员照片" };
+const componentNames = { roster: "球员阵容", schedule: "比赛赛程", standings: "积分榜", portraits: "球员照片", profile: "球队资料" };
 const componentStatuses: Record<string, string> = {
   missing: "等待收录", fresh: "已更新", stale: "待更新", running: "更新中", partial: "部分收录", failed: "更新未完成", unavailable: "来源暂无资料",
 };
@@ -265,13 +276,16 @@ export function TeamCenter({
     // Preparation is tied to opening a club, independent of tabs or reveal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.id]);
+  // 轮询节奏只看"有没有在跑"，所以依赖一个稳定的布尔值，而不是
+  // components 对象本身——每次响应都会重建它，那样定时器会被不停地
+  // 清掉重设，永远等不到下一次触发。
+  const busy = center?.preparation?.status === "running" ||
+    Object.values(center?.components || {}).some((item) => item?.status === "running");
   useEffect(() => {
     const refreshVisible = () => {
       if (document.visibilityState === "visible" && !reading.current) void load();
     };
-    const preparing = center?.preparation?.status === "running" ||
-      Object.values(center?.components || {}).some((item) => item?.status === "running");
-    const timer = window.setInterval(refreshVisible, preparing ? 5000 : 60000);
+    const timer = window.setInterval(refreshVisible, busy ? 5000 : 60000);
     document.addEventListener("visibilitychange", refreshVisible);
     window.addEventListener("online", refreshVisible);
     return () => {
@@ -279,7 +293,7 @@ export function TeamCenter({
       document.removeEventListener("visibilitychange", refreshVisible);
       window.removeEventListener("online", refreshVisible);
     };
-  }, [load, center?.preparation?.status, center?.components]);
+  }, [load, busy]);
   const workflowChanged = useCallback(() => {
     void load();
   }, [load]);
@@ -420,6 +434,8 @@ export function TeamCenter({
                 <span className={`data-state data-state-${part.status}`}>{componentStatuses[part.status] || part.status}</span>
                 <small>{key === "portraits" && part.total_count != null ? `${part.available_count || 0} / ${part.total_count} 张有来源照片` : part.updated_at ? `更新于${friendlyTime(part.updated_at)}` : "尚无有效快照"}</small>
                 {key === "portraits" && photoGapNote(part) && <small>{photoGapNote(part)}</small>}
+                {key === "profile" && <small>{part.note}</small>}
+                {key === "profile" && part.crest && <small>{part.crest.note}</small>}
                 {!!part.errors?.length && <p>{part.errors.join("；")}</p>}
               </div>;
             })}
@@ -427,7 +443,8 @@ export function TeamCenter({
         </details>
       )}
       <DecisionHistory teamId={team.id} version={[
-        center?.updated_at, center?.components?.portraits?.updated_at, center?.refresh_status,
+        center?.roster_updated_at, center?.fixtures_updated_at, center?.standings_updated_at,
+        center?.refresh_status,
       ].join("|")} />
       {center?.coverage && <p className="team-coverage">
         本赛季联赛已收录 {center.coverage.matches}{center.coverage.expected_matches != null ? ` / ${center.coverage.expected_matches}` : ""} 场赛程。
