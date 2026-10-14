@@ -57,7 +57,7 @@ WORKFLOW_CAPABILITIES = {
     # because the work is the same work read from the other end: the blocks
     # refresh what the team-information skill reads.
     "team_refresh": TEAM_WORK,
-    # Panel 「更新/补全」. Same work as a maintenance pass, read as five leaves
+    # Panel 「更新/补全」. Same work as a maintenance pass, read as six leaves
     # instead of the six team_refresh blocks. Not an alias of team_refresh.
     "team": TEAM_WORK,
     "ask": ASK_WORK,
@@ -152,6 +152,10 @@ TOPIC_CAPABILITIES = {
     "team:squad.info": {
         "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, OUTPUT}),
         "exposes": ("maintain_team_data",)},
+    # Translation is the leaf itself. It does not look names up, so it does not
+    # get maintain_team_data (that part still searches Wikidata) or the photo tools.
+    "team:squad.names": {
+        "capabilities": frozenset({IDENTITY, TEAM, PERSON, SKILL, OUTPUT})},
     "team:squad.images": {
         "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, OUTPUT}),
         "exposes": ("fetch_player_photos", "review_maintenance")},

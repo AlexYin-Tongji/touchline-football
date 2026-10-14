@@ -24,7 +24,7 @@ SKILL_ROOT = Path(__file__).resolve().parents[1] / "agent_skills"
 PRIMARY_SKILLS = {
     "team-maintenance": ("球队维护", "team_refresh"),
     # Panel 「更新/补全」 only. A separate tree from team-maintenance: the parent
-    # loads this skill and dispatches the five leaves below. It does not replace
+    # loads this skill and dispatches the six leaves below. It does not replace
     # team_refresh, which other entry points still run.
     "team": ("球队中心更新", "team"),
     "team-news": ("球队动态", "team_brief"),
@@ -61,7 +61,9 @@ TOPICS = {
         "club.crest": {"path": "references/club-crest.md",
                        "description": "俱乐部资料与队徽状态。队徽只核对本地资产，不下载。"},
         "squad.info": {"path": "references/squad-info.md",
-                       "description": "阵容，以及缺口需要时的球员姓名。"},
+                       "description": "阵容快照：名单、位置、号码、出生日期与归属。"},
+        "squad.names": {"path": "references/squad-names.md",
+                        "description": "球员中文名：把英文显示名译成大陆读法，按 provider_id 写回，不查外部姓名来源。"},
         "squad.images": {"path": "references/squad-images.md",
                          "description": "球员照片：缺口、同名遮挡、批次与验收。"},
         "schedule.standings": {"path": "references/schedule-standings.md",
@@ -119,6 +121,7 @@ TOPICS = {
 PANEL_LEAVES = (
     "club.crest",
     "squad.info",
+    "squad.names",
     "squad.images",
     "schedule.standings",
     "stats.charts",
@@ -135,12 +138,26 @@ PANEL_REASON_CODES = {
     "STALE": True,
     "SOURCE_UNAVAILABLE": True,
     "RATE_LIMITED": True,
+    "MODEL_FAILED": True,
     "NAMESAKE_BLOCKED": False,
     "CREST_MISSING": False,
     "INCOMPLETE_SCHEDULE": True,
     "SAMPLE_INSUFFICIENT": False,
     "SCOPE_DENIED": False,
     "INTERRUPTED": False,
+}
+
+# Player-level flags for one leaf, where they differ from the shared table.
+# Shared MISSING means "this leaf has no snapshot yet" and stays retryable.
+# On squad.names the same code on a player means there is no English display
+# name to translate, and that gap is terminal. MODEL_FAILED is the model call
+# itself failing. INTERRUPTED matches the shared round stop.
+PANEL_LEAF_REASON_CODES = {
+    "squad.names": {
+        "MISSING": False,
+        "MODEL_FAILED": True,
+        "INTERRUPTED": False,
+    },
 }
 
 

@@ -1,25 +1,28 @@
 """Panel workflow for team-center refresh.
 
 The top-level skill is ``team``. It reads one gap snapshot and dispatches the
-five leaves from the panel skill: ``club.crest``, ``squad.info``,
-``squad.images``, ``schedule.standings``, then ``stats.charts``. The first four
-may run together. Charts run only after this round's schedule attempt, or from
-a schedule cache that is already valid. No model run is created: the leaves
-record the same skill, topic and tool contract, and the data plane writes only
-through the existing maintenance tools.
+six leaves from the panel skill: ``club.crest``, ``squad.info``,
+``squad.names``, ``squad.images``, ``schedule.standings``, then ``stats.charts``.
+Crest, roster, photos and the schedule may run together. Chinese names wait
+until roster identity keys exist, and may then run beside photos. Charts run
+only after this round's schedule attempt, or from a schedule cache that is
+already valid. No model run is created here: ``squad.names`` records the
+translation contract (English display name in, ``provider_id`` out, no source
+lookup) and the other leaves still write only through the existing maintenance
+tools.
 """
 from __future__ import annotations
 
 import asyncio
 
-from .skill_catalog import PANEL_LEAVES, PANEL_REASON_CODES
+from .skill_catalog import PANEL_LEAF_REASON_CODES, PANEL_LEAVES, PANEL_REASON_CODES
 
 WORKFLOW = "team"
 LEAVES = PANEL_LEAVES
 REASON_CODES = PANEL_REASON_CODES
 
 _PRIORITY = (
-    "RATE_LIMITED", "SOURCE_UNAVAILABLE", "INTERRUPTED", "INCOMPLETE_SCHEDULE",
+    "RATE_LIMITED", "SOURCE_UNAVAILABLE", "MODEL_FAILED", "INTERRUPTED", "INCOMPLETE_SCHEDULE",
     "STALE", "MISSING", "NAMESAKE_BLOCKED", "CREST_MISSING",
     "SAMPLE_INSUFFICIENT", "SCOPE_DENIED",
 )
@@ -27,6 +30,7 @@ _BAD_ATTEMPT = {"failed", "unavailable", "interrupted"}
 _CHILD_TOOLS = {
     "club.crest": ("get_team_data", "maintain_team_data", "read_evidence", "use_skill", "submit_answer"),
     "squad.info": ("get_team_data", "maintain_team_data", "read_evidence", "use_skill", "submit_answer"),
+    "squad.names": ("get_team_data", "use_skill", "submit_answer"),
     "squad.images": ("get_team_data", "maintain_team_data", "read_evidence", "use_skill", "submit_answer",
                      "photo_queue", "plan_photo_batch", "fetch_player_photos"),
     "schedule.standings": ("get_team_data", "maintain_team_data", "read_evidence", "use_skill", "submit_answer"),
@@ -147,6 +151,7 @@ def assess(store, team_id, *, reveal=True):
     leaves = [
         _crest_leaf(view),
         _info_leaf(view),
+        _names_leaf(view),
         _images_leaf(view),
         _schedule_leaf(view),
         _charts_leaf(view),
@@ -214,11 +219,11 @@ async def run_panel(manager, entry, first):
         if leaf["id"] == "stats.charts":
             leaf["depends_on"] = ["schedule.standings"]
             leaf["parallel"] = False
-        elif leaf["id"] == "squad.images" and "squad.info" in spawned:
+        elif leaf["id"] in {"squad.images", "squad.names"} and "squad.info" in spawned:
             leaf["depends_on"] = ["squad.info"]
     data_parts = []
     for leaf in leaves:
-        if leaf["id"] not in spawned or leaf["id"] in {"stats.charts", "squad.images"}:
+        if leaf["id"] not in spawned or leaf["id"] in {"stats.charts", "squad.images", "squad.names"}:
             continue
         for part in leaf.get("maintain_parts") or []:
             if part not in data_parts:
@@ -350,8 +355,9 @@ def _transport(errors):
     return "SOURCE_UNAVAILABLE"
 
 
-def _gap(reason, *, detail, part=None):
-    row = {"reason_code": reason, "retryable": REASON_CODES[reason], "detail": detail}
+def _gap(reason, *, detail, part=None, retryable=None):
+    flag = REASON_CODES[reason] if retryable is None else bool(retryable)
+    row = {"reason_code": reason, "retryable": flag, "detail": detail}
     if part:
         row["part"] = part
     return row
@@ -475,6 +481,66 @@ def _info_leaf(view):
     return _leaf("squad.info", filled=filled, gaps=gaps, summary=summary,
                  updated_at=component.get("updated_at"), maintain_parts=parts,
                  extra={"name_gaps": name_gaps, "identity_gaps": identity_gaps})
+
+
+def _names_leaf(view):
+    """Chinese display names. Translation itself is not run in this pass.
+
+    A row is done when ``name_zh`` is non-empty. A suspicious reading is still
+    done: this leaf does not judge the translation. A row with no English name
+    is ``MISSING`` and is not retried. A recorded model failure is
+    ``MODEL_FAILED`` and is retried. Anything else with an English name and no
+    Chinese name keeps the leaf open. The leaf does not start before every
+    roster row has a ``provider_id``.
+    """
+    roster = [row for row in (view.get("roster") or []) if isinstance(row, dict)]
+    component = _component(view, "roster")
+    flags = PANEL_LEAF_REASON_CODES["squad.names"]
+    waiting = _leaf(
+        "squad.names", filled=False, gaps=[],
+        summary="尚无名单或身份键，中文名随阵容补齐后再译。",
+        updated_at=component.get("updated_at"), maintain_parts=[],
+        extra={"depends_on": ["squad.info"], "parallel": False,
+               "named_count": 0, "roster_count": len(roster), "player_gaps": []})
+    if not roster or any(not _identity(row) for row in roster):
+        return waiting
+    player_gaps = []
+    pending = 0
+    for row in roster:
+        provider_id = _identity(row)
+        english = str(row.get("name") or "").strip()
+        chinese = str(row.get("name_zh") or "").strip()
+        if chinese:
+            continue
+        code = str(row.get("name_zh_reason_code") or "")
+        if not english:
+            player_gaps.append({"provider_id": provider_id, "reason_code": "MISSING",
+                                "retryable": flags["MISSING"], "detail": "没有英文名可译。"})
+            continue
+        if code == "MODEL_FAILED":
+            player_gaps.append({"provider_id": provider_id, "reason_code": "MODEL_FAILED",
+                                "retryable": flags["MODEL_FAILED"], "detail": "中文名翻译没有完成。"})
+            continue
+        if code == "INTERRUPTED":
+            player_gaps.append({"provider_id": provider_id, "reason_code": "INTERRUPTED",
+                                "retryable": flags["INTERRUPTED"], "detail": "翻译被中断。"})
+            continue
+        pending += 1
+        player_gaps.append({"provider_id": provider_id, "reason_code": None,
+                            "retryable": True, "detail": "待从英文显示名译成大陆中文名。"})
+    gaps = []
+    if pending:
+        gaps.append(_gap("MISSING", detail=f"还有 {pending} 名球员待译成中文名。"))
+    for player in player_gaps:
+        if player["reason_code"] in flags:
+            gaps.append(_gap(player["reason_code"], detail=player["detail"], retryable=player["retryable"]))
+    named = len(roster) - len(player_gaps)
+    filled = not any(gap["retryable"] for gap in gaps)
+    summary = "每名球员都有中文名，或只剩不可重试的缺口。" if filled else "还有球员的中文名待译。"
+    return _leaf("squad.names", filled=filled, gaps=gaps, summary=summary,
+                 updated_at=component.get("updated_at"), maintain_parts=[],
+                 extra={"depends_on": [], "parallel": True, "named_count": named,
+                        "roster_count": len(roster), "player_gaps": player_gaps})
 
 
 def _images_leaf(view):
@@ -616,7 +682,7 @@ def _mark_spawned(leaves, spawned):
         leaf["parallel"] = leaf["id"] != "stats.charts"
         if leaf["id"] == "stats.charts":
             leaf["depends_on"] = ["schedule.standings"]
-        elif leaf["id"] == "squad.images" and info_spawned:
+        elif leaf["id"] in {"squad.images", "squad.names"} and info_spawned:
             leaf["depends_on"] = ["squad.info"]
 
 
