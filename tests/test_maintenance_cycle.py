@@ -112,7 +112,9 @@ class MaintenanceCycleRoutingTests(unittest.IsolatedAsyncioTestCase):
 
         manager = WorkflowManager(store)
         with patch.object(agent, "request_completion", new=provider):
-            manager.start("team", "arsenal")
+            # No parts is the panel refresh. An explicit list still uses the
+            # maintenance agent when a team model is configured.
+            manager.start("team", "arsenal", parts=["roster", "schedule", "standings"])
             await manager.tasks[("team", "arsenal")].task
         self.assertIn("球队维护", seen.get("system", ""), "the root must receive the maintenance skill")
         self.assertIn("maintain_team_data", seen.get("tools", set()))
@@ -172,7 +174,7 @@ class MaintenanceCycleRoutingTests(unittest.IsolatedAsyncioTestCase):
 
         manager = WorkflowManager(store)
         with patch.object(agent, "request_completion", new=provider):
-            manager.start("team", "arsenal")
+            manager.start("team", "arsenal", parts=["roster"])
             await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 20)
         run = [row for row in store.list("runs") if row.get("skill") == "team_refresh"][0]
         self.assertEqual(run["status"], "completed")

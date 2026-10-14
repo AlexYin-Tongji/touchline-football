@@ -450,6 +450,13 @@ def _validated_parts(parts):
     return tuple(dict.fromkeys(parts))
 
 
+def _attach_chart_blocks(result):
+    """Chart numbers beside the existing charts, without changing that shape."""
+    from .team_panel import chart_blocks
+    result["chart_blocks"] = chart_blocks(result)
+    return result
+
+
 def center_view(store, team_id, year=None, *, reveal=False):
     view = _ReadView(store)
     team = view.team(team_id)
@@ -459,14 +466,14 @@ def center_view(store, team_id, year=None, *, reveal=False):
     try:
         _, league, season, _ = team_season_context(store, team_id, year, view=view)
     except IngestionError as exc:
-        return {"team": team, "league": None, "season": None, "roster_season": None, "latest_season": None,
+        return _attach_chart_blocks({"team": team, "league": None, "season": None, "roster_season": None, "latest_season": None,
                 "roster_fallback": False,
                 "roster": [], "matches": [],
                 "standings": [], "standings_hidden": protected,
                 "stats": {"hidden": protected}, "charts": {}, "updated_at": None, "roster_updated_at": None,
                 "refresh_status": "unavailable", "errors": [str(exc)], "sources": [], "stale": True,
                 "components": {part: _component_status(None, 0, False, {"status": "unavailable", "errors": [str(exc)]}) for part in MAINTENANCE_PARTS},
-                "coverage": {"matches": 0, "expected_matches": None, "has_full_schedule": False, "results_complete": None, "basis": "未确认联赛赛季。"}}
+                "coverage": {"matches": 0, "expected_matches": None, "has_full_schedule": False, "results_complete": None, "basis": "未确认联赛赛季。"}})
     snapshot = store.get("team_snapshots", _snapshot_id(team_id, season["id"])) or {}
     if snapshot and (snapshot.get("team_id") != team_id or snapshot.get("season_id") != season["id"]):
         snapshot = {}
@@ -622,7 +629,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
             pass
     timestamps = [x for x in (snapshot.get("fetched_at"), schedule_time, table.get("fetched_at")) if x]
     errors = list(dict.fromkeys(error for part in CORE_PARTS for error in components[part]["errors"]))
-    return {"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
+    return _attach_chart_blocks({"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
             "roster_season": roster_season, "latest_season": latest_season, "roster_fallback": roster_fallback,
             "roster": roster, "roster_count": len(roster), "matches": matches, "stats": stats, "charts": charts,
             "standings": [] if protected else standings, "standings_hidden": protected,
@@ -633,7 +640,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
             "standings_updated_at": table.get("fetched_at"), "refresh_status": status.get("status", "idle"),
             "errors": errors, "sources": sources, "part_sources": part_sources,
             "components": components, "coverage": coverage,
-            "stale": any(components[part]["stale"] for part in CORE_PARTS)}
+            "stale": any(components[part]["stale"] for part in CORE_PARTS)})
 
 
 def team_context_payload(store, team_id, year=None, *, reveal=False):

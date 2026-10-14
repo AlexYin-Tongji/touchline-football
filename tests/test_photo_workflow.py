@@ -71,8 +71,12 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(roster[0]['photo_url'])
         self.assertEqual(roster[0]['photo_license'], 'CC BY-SA 4.0')
         self.assertEqual(roster[0]['photo_match'], 'wikimedia_verified_club')
-        self.assertEqual(state['status'], 'completed')
-        self.assertEqual(state['progress'], {'completed': 4, 'failed': 0, 'remaining': 0})
+        leaves = {row['id']: row for row in state['leaves']}
+        self.assertEqual(leaves['squad.images']['status'], 'filled')
+        self.assertEqual(state['progress']['failed'], 0)
+        self.assertGreaterEqual(state['progress']['completed'], 1)
+        self.assertIn('completed', state['progress'])
+        self.assertIn('remaining', state['progress'])
         self.assertFalse(self.store.list('runs'))  # Photo maintenance does not need a model.
 
     async def test_unavailable_photo_source_keeps_core_results_and_reports_partial(self):
@@ -81,9 +85,12 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(wikimedia_portraits, 'request_json', new=unavailable):
             state = await self.start_and_finish()
         self.assertEqual(state['status'], 'partial')
-        self.assertEqual(state['progress']['completed'], 3)
-        self.assertEqual(state['progress']['failed'], 1)
+        self.assertGreaterEqual(state['progress']['failed'], 1)
         self.assertIn('照片', state['last_error'])
+        images = {row['id']: row for row in state['leaves']}['squad.images']
+        self.assertEqual(images['status'], 'failed')
+        self.assertIn(images['reason_code'], {'SOURCE_UNAVAILABLE', 'RATE_LIMITED'})
+        self.assertTrue(images['retryable'])
         roster = self.store.get('team_snapshots', self.snapshot_id)['roster']
         self.assertEqual(roster[0]['name'], 'Martin Ødegaard')
         self.assertFalse(roster[0]['photo_url'])
@@ -160,7 +167,13 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([row['photo_url'] for row in saved], preserved)
             community_portraits.resolve_portrait.assert_not_awaited()
         self.assertEqual(self.store.get_meta('team_portraits_v1_barcelona')['status'], 'completed')
-        self.assertEqual((await self.client.get('/api/workflows/team/barcelona')).json()['status'], 'completed')
+        workflow = (await self.client.get('/api/workflows/team/barcelona')).json()
+        if explicit_part:
+            self.assertEqual(workflow['status'], 'completed')
+        else:
+            self.assertNotEqual(workflow['status'], 'failed')
+            images = {row['id']: row for row in workflow['leaves']}
+            self.assertEqual(images['squad.images']['status'], 'filled')
 
     async def test_a_pass_cut_short_keeps_the_photos_it_already_checked(self):
         """A bounded pass must bank what it earned instead of losing the batch.

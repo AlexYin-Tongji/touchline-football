@@ -906,6 +906,19 @@ def create_app(db_path=None, *, collection_enabled=None):
     async def collection_status():
         return collection_scheduler.status()
 
+    @app.get("/api/teams/{team_id}/panel")
+    async def team_panel_status(team_id: Identifier):
+        from .team_panel import panel_payload
+        team_exists(team_id)
+        return panel_payload(store, workflows, team_id)
+
+    @app.get("/api/teams/{team_id}/charts")
+    async def team_charts(team_id: Identifier, reveal: bool = False):
+        from .team_center import center_view
+        from .team_panel import chart_blocks
+        team_exists(team_id)
+        return chart_blocks(center_view(store, team_id, reveal=reveal))
+
     @app.post("/api/teams/{team_id}/maintain", status_code=202)
     async def maintain_team_center(team_id: Identifier, payload: TeamMaintenanceInput = TeamMaintenanceInput()):
         team_exists(team_id)

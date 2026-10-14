@@ -92,8 +92,17 @@ class DiscoveryOutcomeTests(unittest.IsolatedAsyncioTestCase):
             try:
                 manager.start("team", "arsenal")
                 await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 1)
-                self.assertEqual(manager.status("team", "arsenal")["progress"],
-                                 {"completed": 0, "failed": 3, "remaining": 0})
+                state = manager.status("team", "arsenal")
+                progress = state["progress"]
+                # Roster and schedule/standings are two leaves. A failed attempt is
+                # 未完成, not 待处理. Crest was not in the failed payload, so it stays open.
+                self.assertEqual(progress["completed"], 0)
+                self.assertEqual(progress["failed"], 2)
+                self.assertEqual(progress["remaining"], 1)
+                leaves = {row["id"]: row for row in state["leaves"]}
+                self.assertEqual(leaves["squad.info"]["status"], "failed")
+                self.assertEqual(leaves["schedule.standings"]["status"], "failed")
+                self.assertNotEqual(leaves["club.crest"]["status"], "failed")
             finally:
                 await manager.close()
 
