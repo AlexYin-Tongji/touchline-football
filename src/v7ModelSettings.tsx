@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Check,
   CheckCircle2,
@@ -119,7 +119,7 @@ const presets = [
   },
 ];
 
-export function ModelSettings({
+export const ModelSettings = memo(function ModelSettings({
   onChanged,
 }: {
   onChanged: () => Promise<void>;
@@ -263,8 +263,14 @@ export function ModelSettings({
         `默认模型已设为 ${model.name || model.id}。单独分配的功能模型保持不变。`,
       );
     });
-  const filtered = models.filter((item) =>
-    `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase()),
+  const needle = query.trim().toLowerCase();
+  const filtered = useMemo(
+    () => models.filter((item) => `${item.id} ${item.name}`.toLowerCase().includes(needle)),
+    [models, needle],
+  );
+  const selectedModelIds = useMemo(
+    () => new Set(draft.models.map((item) => item.id)),
+    [draft.models],
   );
   const savedModels =
     state?.providers.find((provider) => provider.id === editing)?.models || [];
@@ -664,9 +670,7 @@ export function ModelSettings({
                             <label key={model.id}>
                               <input
                                 type="checkbox"
-                                checked={draft.models.some(
-                                  (item) => item.id === model.id,
-                                )}
+                                checked={selectedModelIds.has(model.id)}
                                 onChange={(event) =>
                                   setDraft({
                                     ...draft,
@@ -836,4 +840,4 @@ export function ModelSettings({
       )}
     </div>
   );
-}
+});

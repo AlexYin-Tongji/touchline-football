@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -194,16 +194,23 @@ export function SourceGapNotice({ gaps }: { gaps?: SourceGap[] }) {
     </div>
   );
 }
-export function Crest({
+export const Crest = memo(function Crest({
   team,
   name,
   small = false,
+  defer = false,
 }: {
   team?: Team;
   name?: string;
   small?: boolean;
+  // The team picker mounts one crest per club. Decoding every badge during
+  // open freezes the dialog, so rows below the first screen wait until they
+  // are near the visible panel. Other call sites keep the immediate image.
+  defer?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(!defer);
+  const host = useRef<HTMLSpanElement>(null);
   const label = team?.name || name || "球队";
   // Every catalogued club ships a local crest and crest_url is always set, so
   // there is no name-matching fallback here: a club we cannot resolve gets its
@@ -214,13 +221,38 @@ export function Crest({
     ? configuredAsset
     : safeUrl(configuredAsset);
   useEffect(() => setFailed(false), [asset]);
+  useEffect(() => {
+    if (!defer) {
+      setReady(true);
+      return;
+    }
+    const node = host.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setReady(true);
+      return;
+    }
+    const root = node.closest(".modal-panel");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setReady(true);
+        observer.disconnect();
+      },
+      { root: root instanceof Element ? root : null, rootMargin: "180px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [defer]);
+  const hasImage = !!asset && !failed;
+  const showImage = hasImage && ready;
   return (
     <span
-      className={`crest ${small ? "small" : ""} ${asset && !failed ? "crest-image" : "crest-fallback"}`}
+      ref={host}
+      className={`crest ${small ? "small" : ""} ${hasImage ? "crest-image" : "crest-fallback"}`}
       style={{ background: team?.color || "#758b79" }}
-      title={`${label}${asset && !failed ? "队徽" : " · 暂无队徽"}`}
+      title={`${label}${hasImage ? "队徽" : " · 暂无队徽"}`}
     >
-      {asset && !failed ? (
+      {showImage ? (
         <img
           src={asset}
           alt={`${label}队徽`}
@@ -232,14 +264,14 @@ export function Crest({
           decoding="async"
           onError={() => setFailed(true)}
         />
-      ) : (
+      ) : defer && asset && !failed ? null : (
         (team?.name || name || team?.short_name || team?.english_name || "队")
           .slice(0, 1)
           .toUpperCase()
       )}
     </span>
   );
-}
+});
 export function Empty({
   title,
   children,

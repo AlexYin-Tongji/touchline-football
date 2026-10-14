@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -228,7 +228,7 @@ function useTilt<T extends HTMLElement>(max = 4.5) {
   return ref;
 }
 
-export function TeamCenter({
+export const TeamCenter = memo(function TeamCenter({
   team,
   data,
   ask,
@@ -1200,7 +1200,7 @@ export function TeamCenter({
       )}
     </div>
   );
-}
+});
 
 function playerPhotoUrl(player: Player) {
   if (!safeUrl(player.photo_source_url)) return null;
