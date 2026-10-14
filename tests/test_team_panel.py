@@ -299,6 +299,39 @@ class PanelDataTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_a_configured_team_model_does_not_replace_the_panel(self):
+        from server import agent
+        self.store.put("model_profiles", {"id": "alpha", "name": "Alpha", "base_url": "https://alpha.example/v1",
+                                          "protocol": "chat_completions",
+                                          "models": [{"id": "one", "name": "One"}]})
+        self.store.set_meta("model_roles", {"team": {"provider_id": "alpha", "model": "one"}})
+        called = []
+
+        async def provider(*args, **kwargs):
+            called.append(True)
+            return {"role": "assistant", "content": ""}
+
+        async def maintain(*args, **kwargs):
+            return {"status": "completed", "components": {}}
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            self.assertTrue(manager._team_agent_configured())
+            try:
+                with patch.object(agent, "request_completion", new=provider), \
+                     patch("server.team_center.maintain_team", new=maintain), \
+                     patch("server.team_center.sync_portraits", new=maintain):
+                    manager.start("team", "arsenal")
+                    await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 2)
+                state = manager.status("team", "arsenal")
+                self.assertEqual(called, [])
+                self.assertEqual([row["id"] for row in state["leaves"]], list(skill_catalog.PANEL_LEAVES))
+                self.assertFalse(any(row.get("skill") == "team_refresh" for row in self.store.list("runs")))
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
+
     def test_team_refresh_decisions_stay_a_separate_kind(self):
         view = team_center.center_view(self.store, "arsenal", reveal=True)
         identity = begin(self.store, "arsenal", view, parts=("roster",), trigger="manual", reason="核对阵容")
