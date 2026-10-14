@@ -1893,10 +1893,6 @@
   font-size: var(--t-meta);
   font-variant-numeric: tabular-nums;
 }
-.player-original-name {
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
 .source-published {
   font-size: var(--t-overline);
   font-weight: 400;
@@ -2084,15 +2080,14 @@
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-/* The source spelling sits under the reading, in full rather than truncated:
-   it is the name the player is searched and quoted by, so it has to stay
-   readable even when the card is narrow. */
-.player-name-source {
+/* 中文名贴在英文名下方，用次要字色。没有 name_zh 时不渲染，避免空行。 */
+.player-name-zh {
   display: block;
+  margin: 0;
   font-size: var(--t-meta);
   font-weight: 400;
   line-height: 1.5;
-  color: var(--faint);
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 .player-card-info p {
