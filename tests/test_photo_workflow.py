@@ -238,15 +238,18 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         second = self.store.get_meta(key, None)
         self.assertEqual(second['attempts'], 2)
 
-    async def test_the_budget_eventually_stops_a_pass_that_keeps_gaining(self):
-        # Every pass gains a photo, so the "no progress" stop never fires; only
-        # the budget ends the loop.
+    async def test_a_gaining_pass_is_not_stopped_after_a_few_rounds(self):
+        # The old ceiling was three attempts, so a squad larger than one batch
+        # stopped while photos were still retryable. The backstop is now 100,
+        # and a pass that still has actionable gaps continues.
         from server.team_center import _photo_acceptance_key
         from server import photo_acceptance
         roster = self.store.get('team_snapshots', self.snapshot_id)['roster']
         key = _photo_acceptance_key('arsenal', self.store.get('team_snapshots', self.snapshot_id)['season_id'])
-        report = photo_acceptance.assess([{**roster[0], 'photo_url': 'https://example.test/p.jpg'}])
-        self.assertFalse(photo_acceptance.should_continue(report, attempts=3, max_attempts=3))
+        report = photo_acceptance.assess([{**roster[0], 'reason_code': 'timeout', 'retryable': True}])
+        self.assertGreaterEqual(photo_acceptance.MAX_PHOTO_ROUNDS, 100)
+        self.assertTrue(photo_acceptance.should_continue(report, attempts=3))
+        self.assertFalse(photo_acceptance.should_continue(report, attempts=photo_acceptance.MAX_PHOTO_ROUNDS))
         self.store.set_meta(key, {**report, 'attempts': 3})
         self.assertEqual(self.store.get_meta(key)['attempts'], 3)
 

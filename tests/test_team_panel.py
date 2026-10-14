@@ -41,6 +41,10 @@ class PanelContractTests(unittest.TestCase):
             self.assertTrue(set(names) <= parent, leaf)
             self.assertNotIn("review_maintenance", names)
         self.assertIn("fetch_player_photos", team_panel.child_tools("squad.images"))
+        names = team_panel.child_tools("squad.names")
+        self.assertEqual(names, ["get_team_data", "use_skill", "submit_answer"])
+        self.assertNotIn("maintain_team_data", names)
+        self.assertNotIn("fetch_player_photos", names)
         charts = team_panel.child_tools("stats.charts")
         self.assertNotIn("maintain_team_data", charts)
         self.assertNotIn("fetch_player_photos", charts)
@@ -82,6 +86,19 @@ class PanelDataTests(unittest.TestCase):
                           reason_code="community_namesake_blocked", photo_reason="来源只返回了同名他人。")
         self.store.put("team_snapshots", snapshot)
         return snapshot
+
+    def use_untranslated_names(self):
+        """Roster rows the name table does not know, so a model write is required."""
+        from server.squad_names import storage_key
+        self.store.set_meta(storage_key("arsenal", SEASON["id"]), {"players": {}})
+        snapshot = self.store.get("team_snapshots", "squad-PL-2026-arsenal")
+        labels = {"101": "Example Player", "102": "Keeper"}
+        for row in snapshot.get("roster") or []:
+            row["name"] = labels.get(row.get("provider_id"), row.get("name"))
+            for field in ("name_zh", "name_zh_source", "name_zh_source_url", "name_zh_checked_at",
+                          "name_zh_identity", "name_zh_reason_code", "name_zh_retryable"):
+                row.pop(field, None)
+        self.store.put("team_snapshots", snapshot)
 
     def save_profile(self):
         self.store.put("teams", {**self.store.get("teams", "arsenal"), "founded": 1886, "stadium": "酋长球场",
@@ -180,56 +197,6 @@ class PanelDataTests(unittest.TestCase):
         self.assertTrue(any(row["name"] == "Zzq Qqx" and row["field"] == "name_zh" for row in leaf["name_gaps"]))
         self.assertNotIn("位置", json.dumps(leaf["gaps"], ensure_ascii=False))
         self.assertNotIn("号码", json.dumps(leaf["gaps"], ensure_ascii=False))
-
-    def test_chinese_names_follow_the_roster_and_do_not_look_names_up(self):
-        waiting = team_panel._names_leaf({"roster": [], "components": {}})
-        self.assertFalse(waiting["actionable"])
-        self.assertEqual(waiting["depends_on"], ["squad.info"])
-        self.assertNotIn("maintain_team_data", waiting["tools"])
-
-        blocked = team_panel._names_leaf({"roster": [{"name": "Zzq Qqx"}], "components": {"roster": {"status": "fresh"}}})
-        self.assertFalse(blocked["actionable"])
-        self.assertEqual(blocked["depends_on"], ["squad.info"])
-
-        pending = team_panel._names_leaf({"roster": [
-            {"provider_id": "9", "name": "Zzq Qqx"},
-        ], "components": {"roster": {"status": "fresh"}}})
-        self.assertEqual(pending["status"], "gap")
-        self.assertTrue(pending["actionable"])
-        self.assertTrue(pending["retryable"])
-        self.assertEqual(pending["depends_on"], [])
-        self.assertTrue(pending["parallel"])
-        self.assertEqual(pending["player_gaps"][0]["provider_id"], "9")
-
-        terminal = team_panel._names_leaf({"roster": [
-            {"provider_id": "9", "name": ""},
-            {"provider_id": "8", "name": "Kept", "name_zh": "可疑译名"},
-        ], "components": {"roster": {"status": "fresh"}}})
-        self.assertEqual(terminal["status"], "filled")
-        self.assertFalse(terminal["actionable"])
-        self.assertFalse(terminal["retryable"])
-        self.assertEqual(terminal["reason_code"], "MISSING")
-        self.assertEqual(terminal["player_gaps"], [{
-            "provider_id": "9", "reason_code": "MISSING", "retryable": False, "detail": "没有英文名可译。",
-        }])
-
-        failed = team_panel._names_leaf({"roster": [
-            {"provider_id": "9", "name": "Zzq Qqx", "name_zh_reason_code": "MODEL_FAILED"},
-        ], "components": {"roster": {"status": "fresh"}}})
-        self.assertEqual(failed["reason_code"], "MODEL_FAILED")
-        self.assertTrue(failed["retryable"])
-        self.assertTrue(failed["actionable"])
-
-        self.save_roster(photos=False)
-        assessed = team_panel.assess(self.store, "arsenal")
-        self.assertEqual([row["id"] for row in assessed["leaves"]], list(skill_catalog.PANEL_LEAVES))
-        names = next(row for row in assessed["leaves"] if row["id"] == "squad.names")
-        images = next(row for row in assessed["leaves"] if row["id"] == "squad.images")
-        self.assertTrue(names["actionable"])
-        self.assertTrue(images["actionable"])
-        self.assertEqual(names["depends_on"], [])
-        self.assertTrue(names["parallel"])
-        self.assertEqual(names["maintain_parts"], [])
 
     def test_name_gaps_do_not_keep_a_valid_roster_open(self):
         snapshot = self.save_roster()
@@ -397,6 +364,250 @@ class PanelDataTests(unittest.TestCase):
         view = team_center.center_view(self.store, "arsenal", reveal=True)
         identity = begin(self.store, "arsenal", view, parts=("roster",), trigger="manual", reason="核对阵容")
         self.assertEqual(self.store.get("decisions", identity)["kind"], "team_refresh")
+
+    def test_leaf_order_is_crest_info_names_images_schedule_charts(self):
+        self.fresh_club()
+        assessed = team_panel.assess(self.store, "arsenal")
+        self.assertEqual([row["id"] for row in assessed["leaves"]], [
+            "club.crest", "squad.info", "squad.names", "squad.images",
+            "schedule.standings", "stats.charts"])
+        names = next(row for row in assessed["leaves"] if row["id"] == "squad.names")
+        images = next(row for row in assessed["leaves"] if row["id"] == "squad.images")
+        self.assertEqual(names["status"], "filled")
+        self.assertEqual(names["depends_on"], [])
+        self.assertEqual(images["depends_on"], [])
+        self.assertTrue(names["parallel"])
+        self.assertTrue(images["parallel"])
+
+    def test_chinese_names_follow_the_roster_and_do_not_look_names_up(self):
+        waiting = team_panel._names_leaf({"roster": [], "components": {}})
+        self.assertFalse(waiting["actionable"])
+        self.assertEqual(waiting["depends_on"], ["squad.info"])
+        self.assertFalse(waiting["parallel"])
+        self.assertNotIn("maintain_team_data", waiting["tools"])
+
+        blocked = team_panel._names_leaf({"roster": [{"name": "Zzq Qqx"}], "components": {"roster": {"status": "fresh"}}})
+        self.assertFalse(blocked["actionable"])
+        self.assertEqual(blocked["depends_on"], ["squad.info"])
+
+        pending = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": "Zzq Qqx"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(pending["status"], "gap")
+        self.assertTrue(pending["actionable"])
+        self.assertTrue(pending["retryable"])
+        self.assertEqual(pending["depends_on"], [])
+        self.assertTrue(pending["parallel"])
+        self.assertEqual(pending["player_gaps"][0]["provider_id"], "9")
+
+        terminal = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": ""},
+            {"provider_id": "8", "name": "Kept", "name_zh": "可疑译名"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(terminal["status"], "filled")
+        self.assertFalse(terminal["actionable"])
+        self.assertFalse(terminal["retryable"])
+        self.assertEqual(terminal["reason_code"], "MISSING")
+        self.assertEqual(terminal["player_gaps"], [{
+            "provider_id": "9", "reason_code": "MISSING", "retryable": False, "detail": "没有英文名可译。",
+        }])
+
+        failed = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": "Zzq Qqx", "name_zh_reason_code": "MODEL_FAILED"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(failed["reason_code"], "MODEL_FAILED")
+        self.assertTrue(failed["retryable"])
+        self.assertTrue(failed["actionable"])
+
+        self.save_roster(photos=False)
+        assessed = team_panel.assess(self.store, "arsenal")
+        self.assertEqual([row["id"] for row in assessed["leaves"]], list(skill_catalog.PANEL_LEAVES))
+        names = next(row for row in assessed["leaves"] if row["id"] == "squad.names")
+        images = next(row for row in assessed["leaves"] if row["id"] == "squad.images")
+        self.assertTrue(names["actionable"])
+        self.assertTrue(images["actionable"])
+        self.assertEqual(names["depends_on"], [])
+        self.assertTrue(names["parallel"])
+        self.assertEqual(names["maintain_parts"], [])
+
+    def test_a_missing_english_name_is_not_retried(self):
+        self.fresh_club()
+        snapshot = self.store.get("team_snapshots", "squad-PL-2026-arsenal")
+        snapshot["roster"].append({"provider_id": "404", "id": "espn-player-404", "name": "  "})
+        self.store.put("team_snapshots", snapshot)
+        leaf = next(row for row in team_panel.assess(self.store, "arsenal")["leaves"] if row["id"] == "squad.names")
+        self.assertEqual(leaf["status"], "filled")
+        self.assertEqual(leaf["reason_code"], "MISSING")
+        self.assertFalse(leaf["retryable"])
+        self.assertFalse(leaf["actionable"])
+        self.assertEqual(leaf["player_gaps"], [{
+            "provider_id": "404", "reason_code": "MISSING", "retryable": False, "detail": "没有英文名可译。",
+        }])
+
+    def test_a_model_translation_is_written_back_by_provider_id(self):
+        self.fresh_club()
+        self.use_untranslated_names()
+        self.store.put("model_profiles", {"id": "alpha", "name": "Alpha", "base_url": "https://alpha.example/v1",
+                                          "protocol": "chat_completions",
+                                          "models": [{"id": "one", "name": "One"}]})
+        self.store.set_meta("model_roles", {"team": {"provider_id": "alpha", "model": "one"}})
+        seen = {}
+
+        async def provider(config, messages, timeout, **kwargs):
+            seen["players"] = json.loads(messages[1]["content"])["players"]
+            return {"tool_calls": [{"function": {"name": "submit_squad_names", "arguments": json.dumps({
+                "names": [{"provider_id": "101", "name_zh": "示例球员"},
+                          {"provider_id": "999", "name_zh": "不在名单"},
+                          {"provider_id": "102", "name_zh": "门将"}]})}}]}
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            try:
+                with patch("server.squad_names.request_completion", new=provider), \
+                     patch("server.team_center.maintain_team", side_effect=AssertionError("译名不应重取阵容")), \
+                     patch("server.team_center.sync_portraits", side_effect=AssertionError("本轮不应补图")):
+                    manager.start("team", "arsenal")
+                    await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 2)
+                state = manager.status("team", "arsenal")
+                leaf = next(row for row in state["leaves"] if row["id"] == "squad.names")
+                self.assertEqual(leaf["status"], "filled")
+                self.assertEqual(state["panel"]["order"], list(skill_catalog.PANEL_LEAVES))
+                self.assertEqual(state["panel"]["spawned"], ["squad.names"])
+                roster = {row["provider_id"]: row for row in team_center.center_view(self.store, "arsenal", reveal=True)["roster"]}
+                self.assertEqual(roster["101"]["name_zh"], "示例球员")
+                self.assertEqual(roster["102"]["name_zh"], "门将")
+                self.assertEqual(roster["101"]["name_zh_source"], "模型译名")
+                self.assertEqual(roster["101"]["name"], "Example Player")
+                self.assertEqual({row["provider_id"] for row in seen["players"]}, {"101", "102"})
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
+
+    def test_a_missing_model_is_model_failed_and_retryable(self):
+        self.fresh_club()
+        self.use_untranslated_names()
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            try:
+                with patch("server.squad_names.request_completion", side_effect=AssertionError("没有模型时不应请求")):
+                    manager.start("team", "arsenal")
+                    await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 2)
+                leaf = next(row for row in manager.status("team", "arsenal")["leaves"] if row["id"] == "squad.names")
+                self.assertEqual(leaf["status"], "gap")
+                self.assertEqual(leaf["reason_code"], "MODEL_FAILED")
+                self.assertTrue(leaf["retryable"])
+                self.assertTrue(leaf["actionable"] is False or leaf["status"] == "gap")
+                roster = team_center.center_view(self.store, "arsenal", reveal=True)["roster"]
+                self.assertTrue(all(not row.get("name_zh") for row in roster))
+                self.assertTrue(all(row.get("name_zh_reason_code") == "MODEL_FAILED" for row in roster))
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
+
+    def test_names_wait_for_a_roster_rewrite_then_photos_can_run_with_them(self):
+        self.fresh_club()
+        self.use_untranslated_names()
+        snapshot = self.store.get("team_snapshots", "squad-PL-2026-arsenal")
+        snapshot["fetched_at"] = "2000-01-01T00:00:00+00:00"
+        snapshot["roster"][1].update(photo_url="", retryable=True, reason_code="timeout")
+        self.store.put("team_snapshots", snapshot)
+        order = []
+
+        async def maintain(store, team_id, **kwargs):
+            order.append("maintain")
+            self.assertIn("roster", kwargs.get("parts") or [])
+            current = store.get("team_snapshots", snapshot["id"])
+            current["fetched_at"] = now()
+            store.put("team_snapshots", current)
+            return {"components": {"roster": {"status": "completed"}}}
+
+        async def translate(store, team_id, **kwargs):
+            order.append("names")
+            return {"status": "completed"}
+
+        async def photos(store, team_id, **kwargs):
+            order.append("photos")
+            return {"status": "completed", "components": {}}
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            try:
+                with patch("server.team_center.maintain_team", new=maintain), \
+                     patch("server.squad_names.translate_roster", new=translate), \
+                     patch("server.team_center.sync_portraits", new=photos):
+                    manager.start("team", "arsenal")
+                    await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 2)
+                self.assertEqual(order, ["maintain", "names", "photos"])
+                spawned = manager.status("team", "arsenal")["panel"]["spawned"]
+                self.assertLess(spawned.index("squad.info"), spawned.index("squad.names"))
+                self.assertLess(spawned.index("squad.names"), spawned.index("squad.images"))
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
+
+    def test_names_and_photos_start_together_when_the_roster_is_unchanged(self):
+        self.fresh_club()
+        self.use_untranslated_names()
+        snapshot = self.store.get("team_snapshots", "squad-PL-2026-arsenal")
+        snapshot["roster"][1].update(photo_url="", retryable=True, reason_code="timeout")
+        self.store.put("team_snapshots", snapshot)
+        started = []
+        release = asyncio.Event()
+
+        async def hang(label):
+            async def inner(*args, **kwargs):
+                started.append(label)
+                await release.wait()
+                return {"status": "completed", "components": {}}
+            return inner
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            try:
+                with patch("server.squad_names.translate_roster", new=await hang("names")), \
+                     patch("server.team_center.sync_portraits", new=await hang("photos")), \
+                     patch("server.team_center.maintain_team", side_effect=AssertionError("阵容未过期，不应重取")):
+                    manager.start("team", "arsenal")
+                    for _ in range(40):
+                        if {"names", "photos"} <= set(started):
+                            break
+                        await asyncio.sleep(0.05)
+                    self.assertEqual(set(started), {"names", "photos"})
+                    release.set()
+                    await asyncio.wait_for(manager.tasks[("team", "arsenal")].task, 2)
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
+
+    def test_cancelling_a_translation_marks_names_interrupted(self):
+        self.fresh_club()
+        self.use_untranslated_names()
+        entered = asyncio.Event()
+
+        async def hang(*args, **kwargs):
+            entered.set()
+            await asyncio.Event().wait()
+
+        async def run():
+            manager = WorkflowManager(self.store)
+            try:
+                with patch("server.squad_names.translate_roster", new=hang):
+                    manager.start("team", "arsenal")
+                    await asyncio.wait_for(entered.wait(), 2)
+                    stopped = await manager.stop("team", "arsenal")
+                names = next(row for row in stopped["leaves"] if row["id"] == "squad.names")
+                self.assertEqual(names["status"], "interrupted")
+                self.assertEqual(names["reason_code"], "INTERRUPTED")
+                self.assertFalse(names["retryable"])
+            finally:
+                await manager.close()
+
+        asyncio.run(run())
 
 
 class PanelRouteTests(unittest.IsolatedAsyncioTestCase):

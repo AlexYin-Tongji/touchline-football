@@ -357,6 +357,8 @@ async def sync_roster(store, team_id, year=None, *, force=False):
     # portrait lookups run separately under TeamMaintenanceManager.
     from .team_portraits import apply_cached_portraits
     snapshot = apply_cached_portraits(store, snapshot)
+    from .squad_names import apply_stored_names
+    snapshot = apply_stored_names(store, snapshot)
     store.put("team_snapshots", snapshot)
     return {"cached": False, "updated_at": snapshot["fetched_at"], "players": len(snapshot["roster"])}
 
@@ -487,6 +489,8 @@ def center_view(store, team_id, year=None, *, reveal=False):
     visible_snapshot = apply_cached_portraits(store, copy.deepcopy(snapshot))
     roster = [with_reading(row, source_reading=team_names_for(store, row, team_id), team_id=team_id)
               for row in visible_snapshot.get("roster", [])]
+    from .squad_names import attach_model_names
+    attach_model_names(store, team_id, season["id"], roster)
     roster_season = ({"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]}
                      if roster else None)
     latest = max(view.seasons_of(league["id"]),
@@ -827,12 +831,10 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         from . import photo_acceptance
         acceptance = photo_acceptance.assess(current.get("roster"))
         previous = store.get_meta(_photo_acceptance_key(team_id, season["id"]), None)
-        # The attempt count is what makes ``should_continue``'s budget real. It
-        # was a parameter no production caller passed, so the only stop that ever
-        # fired was "no progress" — which means a pass that gained exactly one
-        # photo each time would run for as long as the reader kept opening the
-        # team. The count lives beside the last verdict and advances once per
-        # pass, which is the unit the budget is written in.
+        # The attempt count is the round backstop in ``should_continue``. A pass
+        # that gains nothing still continues while ``actionable_count`` is above
+        # zero; the count only stops an unattended loop at the round ceiling.
+        # It lives beside the last verdict and advances once per pass.
         attempts = int((previous or {}).get("attempts") or 0) + 1 if previous else 1
         summary.update(acceptance=acceptance,
                        acceptance_note=photo_acceptance.summarize(acceptance, previous),

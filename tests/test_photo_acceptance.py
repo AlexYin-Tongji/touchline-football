@@ -148,20 +148,24 @@ class ContinuationTests(unittest.TestCase):
         report = photo_acceptance.assess([row("A", reason_code="timeout")])
         self.assertTrue(photo_acceptance.should_continue(report))
 
-    def test_a_pass_that_gained_nothing_and_cleared_nothing_stops(self):
-        # Same coverage, same outstanding work: the next pass would repeat it.
+    def test_a_flat_pass_continues_while_a_gap_is_still_retryable(self):
+        # One batch cannot cover a squad. No new photo is not a reason to stop
+        # while actionable_count is still above zero.
         before = photo_acceptance.assess([row("A", reason_code="timeout")])
         after = photo_acceptance.assess([row("A", reason_code="timeout")])
-        self.assertFalse(photo_acceptance.should_continue(after, before))
+        self.assertTrue(photo_acceptance.should_continue(after, before, attempts=2))
 
     def test_a_pass_that_gained_a_photo_continues(self):
         before = photo_acceptance.assess([row("A", reason_code="timeout"), row("B", reason_code="timeout")])
         after = photo_acceptance.assess([row("A", photo_url="https://x/a.png"), row("B", reason_code="timeout")])
         self.assertTrue(photo_acceptance.should_continue(after, before))
 
-    def test_the_attempt_budget_is_a_hard_stop(self):
+    def test_the_round_ceiling_is_at_least_one_hundred(self):
         report = photo_acceptance.assess([row("A", reason_code="timeout")])
-        self.assertTrue(photo_acceptance.should_continue(report, attempts=0, max_attempts=3))
+        self.assertGreaterEqual(photo_acceptance.MAX_PHOTO_ROUNDS, 100)
+        self.assertTrue(photo_acceptance.should_continue(report, attempts=3))
+        self.assertTrue(photo_acceptance.should_continue(report, attempts=99))
+        self.assertFalse(photo_acceptance.should_continue(report, attempts=photo_acceptance.MAX_PHOTO_ROUNDS))
         self.assertFalse(photo_acceptance.should_continue(report, attempts=3, max_attempts=3))
 
 

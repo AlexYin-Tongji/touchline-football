@@ -217,25 +217,24 @@ def summarize(report, previous=None):
     return "；".join(parts) + "。"
 
 
-def should_continue(report, previous=None, *, attempts=0, max_attempts=3):
-    """Whether another pass is worth starting, as a code decision.
+# A squad does not fit in one batch. The loop keeps going while a gap is still
+# retryable. 100 rounds is only a backstop for an unattended run; a flat round
+# is not a reason to stop.
+MAX_PHOTO_ROUNDS = 100
 
-    Three separate stops, each for a different reason:
 
-    * nothing actionable is left, so every remaining gap is an answer rather
-      than a failure
-    * the previous pass gained nothing, so the route or the source — not the
-      batch order — is what stands in the way
-    * the attempt budget is spent, so an unattended loop cannot run forever
+def should_continue(report, previous=None, *, attempts=0, max_attempts=MAX_PHOTO_ROUNDS):
+    """Whether another photo pass should start.
+
+    The ordinary stop is ``actionable_count == 0``: nothing left that a retry
+    could reach. One batch cannot cover a squad, so a pass that gains nothing
+    still continues while retryable gaps remain. ``previous`` is accepted so
+    callers can keep passing the last verdict; it does not end the loop.
+    ``max_attempts`` is the round backstop. The default is 100, not a handful
+    of passes.
     """
     if not report.get("actionable_count"):
         return False
-    if attempts >= max_attempts:
+    if max_attempts is not None and attempts >= max_attempts:
         return False
-    if isinstance(previous, dict) and "with_photo" in previous:
-        if (report.get("with_photo", 0) <= previous["with_photo"]
-                and report.get("actionable_count", 0) >= previous.get("actionable_count", 0)):
-            # No gain, and as much still outstanding as before: another pass
-            # over the same players would repeat the same failures.
-            return False
     return True
