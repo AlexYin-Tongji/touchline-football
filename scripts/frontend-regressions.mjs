@@ -739,6 +739,7 @@ test("roster search finds Chinese and accented source names and resets for a dif
   const roster = [
     { id: "joan", name: "Joan García", name_zh: "霍安·加西亚", position: "门将", position_group: "GK" },
     { id: "pedri", name: "Pedri", name_zh: "佩德里", position: "中场", position_group: "MF" },
+    { id: "youth", name: "Academy Player", position: "前锋", position_group: "FW" },
   ];
   const center = { team, roster, matches: [], stats: {}, sources: [] };
   const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, () => Promise.resolve(center));
@@ -746,11 +747,20 @@ test("roster search finds Chinese and accented source names and resets for a dif
   button(host, "球员阵容").props.onClick();
   await host.flush();
   const search = () => nodes(host.tree, node => node.type === "input" && node.props.type === "search")[0];
+  assert.equal(search().props["aria-label"], "搜索球员");
   search().props.onChange({ target: { value: "garcia" } });
   await host.flush();
   const found = nodes(host.tree, node => node.props?.className === "player-card");
   assert.equal(found.length, 1);
-  assert.match(text(found[0]), /霍安·加西亚Joan García/);
+  assert.match(text(found[0]), /Joan García霍安·加西亚/);
+  assert.equal(text(nodes(found[0], node => node.props?.className === "player-name-zh")[0]), "霍安·加西亚");
+  button(host, "了解球员").props.onClick();
+  await host.flush();
+  const modal = nodes(host.tree, node => node.type === "Modal")[0];
+  assert.equal(modal.props.title, "Joan García");
+  assert.equal(text(nodes(modal, node => node.props?.className === "player-name-zh")[0]), "霍安·加西亚");
+  modal.props.onClose();
+  await host.flush();
   search().props.onChange({ target: { value: "佩德里" } });
   await host.flush();
   assert.equal(nodes(host.tree, node => node.props?.className === "player-card").length, 1);
@@ -760,7 +770,17 @@ test("roster search finds Chinese and accented source names and resets for a dif
   assert.doesNotMatch(text(host.tree), /还没有可读的阵容资料/);
   button(host, "查看全部球员").props.onClick();
   await host.flush();
-  assert.equal(nodes(host.tree, node => node.props?.className === "player-card").length, 2);
+  const cards = nodes(host.tree, node => node.props?.className === "player-card");
+  assert.equal(cards.length, 3);
+  const youth = cards.find(card => text(card).includes("Academy Player"));
+  assert.equal(nodes(youth, node => node.props?.className === "player-name-zh").length, 0);
+  youth.props.onClick();
+  await host.flush();
+  const youthModal = nodes(host.tree, node => node.type === "Modal")[0];
+  assert.equal(youthModal.props.title, "Academy Player");
+  assert.equal(nodes(youthModal, node => node.props?.className === "player-name-zh").length, 0);
+  youthModal.props.onClose();
+  await host.flush();
   search().props.onChange({ target: { value: "佩德里" } });
   await host.flush();
   host.rerender({ team: { id: "barcelona", name: "巴塞罗那" } });

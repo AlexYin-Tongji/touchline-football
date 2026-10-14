@@ -932,8 +932,8 @@ export const TeamCenter = memo(function TeamCenter({
                 </div>
                 <div className="player-card-info">
                   <h3>
-                    {item.name_zh || item.name}
-                    {item.name_zh && <small className="player-name-source">{item.name}</small>}
+                    {item.name}
+                    {chineseReading(item) && <small className="player-name-zh">{chineseReading(item)}</small>}
                   </h3>
                   <p>
                     {[item.nationality, item.age ? `${item.age} 岁` : ""]
@@ -1094,7 +1094,7 @@ export const TeamCenter = memo(function TeamCenter({
         </footer>
       )}
       {player && (
-        <Modal title={player.name_zh || player.name} onClose={() => setPlayer(null)}>
+        <Modal title={player.name} onClose={() => setPlayer(null)}>
           <div className="player-detail">
             <div className="player-detail-hero">
               <div className="player-detail-photo">
@@ -1104,7 +1104,7 @@ export const TeamCenter = memo(function TeamCenter({
                 <PlayerPhoto player={player} allowRetry />
               </div>
               <div className="player-detail-intro">
-                {player.name_zh && <p className="player-original-name">{player.name}</p>}
+                {chineseReading(player) && <p className="player-name-zh">{chineseReading(player)}</p>}
                 <span className="pill">
                   {player.position} · {team.name}
                 </span>
@@ -1129,7 +1129,7 @@ export const TeamCenter = memo(function TeamCenter({
             )}
             <dl>
               {[
-                ["中文名", player.name_zh],
+                ["中文名", chineseReading(player)],
                 ["国籍", player.nationality],
                 ["年龄", player.age ? `${player.age} 岁` : undefined],
                 [
@@ -1169,7 +1169,7 @@ export const TeamCenter = memo(function TeamCenter({
             <Sources
               sources={[
                 { name: "球员资料", url: player.source_url },
-                ...(player.name_zh && safeUrl(player.name_zh_source_url)
+                ...(chineseReading(player) && safeUrl(player.name_zh_source_url)
                   ? [{ name: `中文名${player.name_zh_source ? ` · ${player.name_zh_source}` : "来源"}`, url: player.name_zh_source_url }]
                   : []),
                 ...(player.photo_file_page || player.photo_source_url
@@ -1201,6 +1201,11 @@ export const TeamCenter = memo(function TeamCenter({
     </div>
   );
 });
+
+function chineseReading(player: Pick<Player, "name_zh">) {
+  const reading = player.name_zh?.trim();
+  return reading || undefined;
+}
 
 function playerPhotoUrl(player: Player) {
   if (!safeUrl(player.photo_source_url)) return null;
