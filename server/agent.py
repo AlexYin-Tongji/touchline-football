@@ -33,6 +33,7 @@ SKILLS = {
     "news_report": ("中文新闻报告", "主动阅读收录原文，整理成有导语、完整叙事、背景、影响和可追溯来源的中文报告。"),
     "team_maintenance": ("球队资料", "查阅与更新球队阵容、球员图像、日程和数据，按来源更新时间解释变化。"),
     "team_refresh": ("球队维护", "一次启动按块核对并更新阵容、赛程、积分、照片、球队资料与球员中文名。"),
+    "team": ("球队中心更新", "球队中心「更新/补全」按缺口派发叶子并汇总；不替代球队维护。"),
 }
 CAPABILITIES = {"tools": [{"name": tool["name"], "description": tool["description"]} for tool in [*TOOL_DEFINITIONS, *DELEGATION_TOOLS]],
                 "skills": skill_metadata(),

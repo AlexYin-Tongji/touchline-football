@@ -67,12 +67,19 @@ class OperationDeliveryTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ToolError, "实际内容|至少需要一项"):
             self.attempt("news_report", {**operation_submission(), "title": "球队资料更新情况说明"})
 
-    def test_only_the_maintenance_workflow_is_an_operation(self):
+    def test_only_maintenance_and_the_panel_workflow_are_operations(self):
         self.assertTrue(operation_delivery("team_refresh"))
+        self.assertTrue(operation_delivery("team"))
         for skill in ("ask", "news_report", "team_brief", "team_maintenance",
                       "match_preview", "match_review", "transfer_check"):
             with self.subTest(skill=skill):
                 self.assertFalse(operation_delivery(skill))
+
+    def test_a_panel_leaf_delivers_an_outcome_without_quoting_anything(self):
+        local, result = self.attempt("team", operation_submission())
+        self.assertTrue(result["submitted"])
+        self.assertEqual(result["facts_count"], 0)
+        self.assertEqual(local.submission["evidence_ids"], [])
 
 
 class SubAgentVerificationTests(unittest.IsolatedAsyncioTestCase):
