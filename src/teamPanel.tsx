@@ -7,6 +7,7 @@ import type { WorkflowState } from "./WorkflowControls";
 export type SkillId =
   | "club.crest"
   | "squad.info"
+  | "squad.names"
   | "squad.images"
   | "schedule.standings"
   | "stats.charts";
@@ -63,6 +64,7 @@ export type PanelWorkflowState = WorkflowState & {
 const SKILL_LABELS: Record<SkillId, string> = {
   "club.crest": "队徽与资料",
   "squad.info": "阵容",
+  "squad.names": "中文名",
   "squad.images": "照片",
   "schedule.standings": "赛程/积分",
   "stats.charts": "数据图",
@@ -71,13 +73,14 @@ const SKILL_LABELS: Record<SkillId, string> = {
 const SKILL_ORDER: SkillId[] = [
   "club.crest",
   "squad.info",
+  "squad.names",
   "squad.images",
   "schedule.standings",
   "stats.charts",
 ];
 
 const GAP_CODES = new Set([
-  "MISSING", "STALE", "INCOMPLETE_SCHEDULE", "SOURCE_UNAVAILABLE", "RATE_LIMITED",
+  "MISSING", "STALE", "INCOMPLETE_SCHEDULE", "SOURCE_UNAVAILABLE", "RATE_LIMITED", "MODEL_FAILED",
 ]);
 const FAIL_CODES = new Set([
   "NAMESAKE_BLOCKED", "CREST_MISSING", "SAMPLE_INSUFFICIENT", "SCOPE_DENIED", "INTERRUPTED",
@@ -178,6 +181,7 @@ export function deriveSkillRows(
   return [
     pack("club.crest", profile?.status, crestMissing ? "CREST_MISSING" : undefined, profile?.note),
     pack("squad.info", comps.roster?.status, undefined),
+    pack("squad.names", undefined, undefined),
     pack(
       "squad.images",
       comps.portraits?.status,
@@ -340,7 +344,7 @@ export function TeamHeroActions({
   const summary = state?.panel?.summary
     || state?.message
     || progressLine
-    || (running ? "正在按多级 skill 补全球队资料" : "点更新后按五级 skill 补全资料");
+    || (running ? "正在按多级 skill 补全球队资料" : "点更新后按六级 skill 补全资料");
 
   return (
     <>

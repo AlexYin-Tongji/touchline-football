@@ -13,23 +13,25 @@ description: 球队中心面板「更新/补全」的编排：读取缺口快照
 
 用 `get_team_data` 读当前快照：俱乐部资料与队徽状态、阵容、照片验收、赛程、积分榜。快照是现状，不是待办清单。
 
-只派下面这五种里**缺失、过期，或原因码 `retryable` 为真**的叶子。已经拿满、以及不可重试的终态，不要再派。
+只派下面这六种里**缺失、过期，或原因码 `retryable` 为真**的叶子。已经拿满、以及不可重试的终态，不要再派。
 
 | 顺序 | 叶子 | 子任务加载 |
 | --- | --- | --- |
 | 1 | `club.crest` | `use_skill(skill="team", topic="club.crest")` |
 | 2 | `squad.info` | `use_skill(skill="team", topic="squad.info")` |
-| 3 | `squad.images` | `use_skill(skill="team", topic="squad.images")` |
-| 4 | `schedule.standings` | `use_skill(skill="team", topic="schedule.standings")` |
-| 5 | `stats.charts` | `use_skill(skill="team", topic="stats.charts")` |
+| 3 | `squad.names` | `use_skill(skill="team", topic="squad.names")` |
+| 4 | `squad.images` | `use_skill(skill="team", topic="squad.images")` |
+| 5 | `schedule.standings` | `use_skill(skill="team", topic="schedule.standings")` |
+| 6 | `stats.charts` | `use_skill(skill="team", topic="stats.charts")` |
 
-前四片彼此独立，可以并行。`stats.charts` 必须等本轮赛程结果，或确认已有仍有效的赛程缓存之后再派。没有可用样本时，图表叶子返回 `SAMPLE_INSUFFICIENT`，禁止编造胜平负、进失球或任何图表数字。
+`club.crest`、`squad.info`、`squad.images`、`schedule.standings` 可以并行。`squad.names` 不得早于阵容：本轮要等 `squad.info` 写出带 `provider_id` 的名单，或确认快照里身份键已经齐。条件满足后可以和 `squad.images` 并行。`stats.charts` 必须等本轮赛程结果，或确认已有仍有效的赛程缓存之后再派。没有可用样本时，图表叶子返回 `SAMPLE_INSUFFICIENT`，禁止编造胜平负、进失球或任何图表数字。
 
 ## 怎么派
 
 每个叶子一个 `spawn_agent`。`skill` 传 `team`。`task` 只写这一个叶子要交付什么。`context` 只放该叶子的缺口与原因码。`tools` 只给该叶子要用的工具：
 
 - `club.crest`、`squad.info`、`schedule.standings`：`get_team_data`、`maintain_team_data`、`read_evidence`、`use_skill`、`submit_answer`
+- `squad.names`：只有 `get_team_data`、`use_skill`、`submit_answer`。不要给 `maintain_team_data` 或 `fetch_player_photos`。中文名由这一片的模型翻译，不查姓名来源。
 - `squad.images`：再加上 `photo_queue`、`plan_photo_batch`、`fetch_player_photos`、`review_maintenance`
 - `stats.charts`：只有 `get_team_data`、`use_skill`、`submit_answer`。不要给它 `maintain_team_data` 或 `fetch_player_photos`
 
@@ -37,7 +39,9 @@ description: 球队中心面板「更新/补全」的编排：读取缺口快照
 
 ## 汇总与停止
 
-收回各叶子的结果后再交付。汇总两件事：哪些叶子拿满了，哪些带着原因码失败。原因码只用这组，并带上 `retryable`：`MISSING`、`STALE`、`SOURCE_UNAVAILABLE`、`RATE_LIMITED`、`NAMESAKE_BLOCKED`、`CREST_MISSING`、`INCOMPLETE_SCHEDULE`、`SAMPLE_INSUFFICIENT`、`SCOPE_DENIED`、`INTERRUPTED`。
+收回各叶子的结果后再交付。汇总两件事：哪些叶子拿满了，哪些带着原因码失败。原因码只用这组，并带上 `retryable`：`MISSING`、`STALE`、`SOURCE_UNAVAILABLE`、`RATE_LIMITED`、`MODEL_FAILED`、`NAMESAKE_BLOCKED`、`CREST_MISSING`、`INCOMPLETE_SCHEDULE`、`SAMPLE_INSUFFICIENT`、`SCOPE_DENIED`、`INTERRUPTED`。
+
+`squad.names` 在球员身上的 `MISSING` 表示没有英文名可译，`retryable=false`。不要按共享表里「叶子还没有快照」的 `true` 再派这些人。`MODEL_FAILED` 才再派。译名可疑不拦写回。
 
 本轮在下列任一条件停止，不要为了凑齐再开一轮：
 

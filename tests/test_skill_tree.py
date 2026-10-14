@@ -128,7 +128,7 @@ class SkillTreeTests(unittest.TestCase):
 
     def test_panel_leaves_and_reason_codes_are_registered_in_order(self):
         self.assertEqual(skill_catalog.PANEL_LEAVES, (
-            "club.crest", "squad.info", "squad.images", "schedule.standings", "stats.charts"))
+            "club.crest", "squad.info", "squad.names", "squad.images", "schedule.standings", "stats.charts"))
         self.assertEqual(tuple(skill_catalog.topics("team")), skill_catalog.PANEL_LEAVES)
         catalogue = {row["id"]: row for row in skill_catalog.skill_metadata()}
         self.assertEqual([row["id"] for row in catalogue["team"]["topics"]],
@@ -138,6 +138,7 @@ class SkillTreeTests(unittest.TestCase):
             "STALE": True,
             "SOURCE_UNAVAILABLE": True,
             "RATE_LIMITED": True,
+            "MODEL_FAILED": True,
             "NAMESAKE_BLOCKED": False,
             "CREST_MISSING": False,
             "INCOMPLETE_SCHEDULE": True,
@@ -188,6 +189,25 @@ class SkillTreeTests(unittest.TestCase):
             self.assertIn(f"| {code} | {flag} |", text)
         self.assertIn("actionable_count == 0", text)
         self.assertIn("`INTERRUPTED`", text)
+        names_at = skill_catalog.PANEL_LEAVES.index("squad.names")
+        self.assertLess(skill_catalog.PANEL_LEAVES.index("squad.info"), names_at)
+        self.assertLess(names_at, skill_catalog.PANEL_LEAVES.index("squad.images"))
+        loaded = skill_catalog.load_topic("team", "squad.names")
+        self.assertEqual(loaded["topic"], "squad.names")
+        self.assertTrue(loaded["instructions"])
+        self.assertEqual(skill_catalog.PANEL_LEAF_REASON_CODES["squad.names"], {
+            "MISSING": False,
+            "MODEL_FAILED": True,
+            "INTERRUPTED": False,
+        })
+        self.assertIn("| MISSING | false |", text)
+        declared = tool_registry.topic_declared("team", "squad.names")
+        self.assertIsNotNone(declared)
+        self.assertNotIn("maintain_team_data", tool_registry.topic_exposes("team", "squad.names"))
+        self.assertNotIn("fetch_player_photos", tool_registry.topic_exposes("team", "squad.names"))
+        self.assertTrue(skill_catalog.resolve_topic("team-maintenance", "names").endswith("names.md"))
+        with self.assertRaises(ValueError):
+            skill_catalog.resolve_topic("team-maintenance", "squad.names")
 
 
 if __name__ == "__main__":

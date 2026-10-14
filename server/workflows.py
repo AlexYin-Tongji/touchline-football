@@ -416,7 +416,7 @@ class WorkflowManager:
 
     async def _team_cycle(self, entry, first):
         # An explicit parts list is the legacy maintenance call. The panel
-        # start sends no parts and runs the five-leaf snapshot instead.
+        # start sends no parts and runs the six-leaf snapshot instead.
         if entry.parts is None:
             from .team_panel import run_panel
             await run_panel(self, entry, first)

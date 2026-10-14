@@ -1,4 +1,4 @@
-"""Panel workflow: five leaves, reason codes, partial saves and chart samples."""
+"""Panel workflow: six leaves, reason codes, partial saves and chart samples."""
 import asyncio
 import json
 import tempfile
@@ -22,9 +22,10 @@ class PanelContractTests(unittest.TestCase):
     def test_reason_codes_match_the_panel_table(self):
         codes = skill_catalog.PANEL_REASON_CODES
         self.assertEqual(set(codes), {
-            "MISSING", "STALE", "SOURCE_UNAVAILABLE", "RATE_LIMITED", "NAMESAKE_BLOCKED",
+            "MISSING", "STALE", "SOURCE_UNAVAILABLE", "RATE_LIMITED", "MODEL_FAILED", "NAMESAKE_BLOCKED",
             "CREST_MISSING", "INCOMPLETE_SCHEDULE", "SAMPLE_INSUFFICIENT", "SCOPE_DENIED", "INTERRUPTED",
         })
+        self.assertTrue(codes["MODEL_FAILED"])
         for code in ("CREST_MISSING", "NAMESAKE_BLOCKED", "SAMPLE_INSUFFICIENT", "SCOPE_DENIED", "INTERRUPTED"):
             self.assertFalse(codes[code], code)
         self.assertTrue(codes["INCOMPLETE_SCHEDULE"])
@@ -43,6 +44,10 @@ class PanelContractTests(unittest.TestCase):
         charts = team_panel.child_tools("stats.charts")
         self.assertNotIn("maintain_team_data", charts)
         self.assertNotIn("fetch_player_photos", charts)
+        names = team_panel.child_tools("squad.names")
+        self.assertEqual(names, ["get_team_data", "use_skill", "submit_answer"])
+        self.assertNotIn("maintain_team_data", names)
+        self.assertNotIn("fetch_player_photos", names)
         declared = tool_registry.topic_declared("team", "stats.charts")["capabilities"]
         self.assertTrue(set(declared) <= set(tool_registry.declared("team")))
 
@@ -94,7 +99,13 @@ class PanelDataTests(unittest.TestCase):
 
     def fresh_club(self):
         self.save_profile()
-        self.save_roster()
+        snapshot = self.save_roster()
+        # Readings the shipped table already holds, so the names leaf is full
+        # without a model call. The source spelling stays the identity.
+        by_id = {row["provider_id"]: row for row in snapshot["roster"]}
+        by_id["101"]["name"] = "Bukayo Saka"
+        by_id["102"]["name"] = "Martin Odegaard"
+        self.store.put("team_snapshots", snapshot)
         self.store.put("league_matches", fixture())
         self.store.put("league_matches", fixture("m2", home=False, score=(1, 1), day=11))
         self.save_table()
@@ -169,6 +180,56 @@ class PanelDataTests(unittest.TestCase):
         self.assertTrue(any(row["name"] == "Zzq Qqx" and row["field"] == "name_zh" for row in leaf["name_gaps"]))
         self.assertNotIn("位置", json.dumps(leaf["gaps"], ensure_ascii=False))
         self.assertNotIn("号码", json.dumps(leaf["gaps"], ensure_ascii=False))
+
+    def test_chinese_names_follow_the_roster_and_do_not_look_names_up(self):
+        waiting = team_panel._names_leaf({"roster": [], "components": {}})
+        self.assertFalse(waiting["actionable"])
+        self.assertEqual(waiting["depends_on"], ["squad.info"])
+        self.assertNotIn("maintain_team_data", waiting["tools"])
+
+        blocked = team_panel._names_leaf({"roster": [{"name": "Zzq Qqx"}], "components": {"roster": {"status": "fresh"}}})
+        self.assertFalse(blocked["actionable"])
+        self.assertEqual(blocked["depends_on"], ["squad.info"])
+
+        pending = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": "Zzq Qqx"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(pending["status"], "gap")
+        self.assertTrue(pending["actionable"])
+        self.assertTrue(pending["retryable"])
+        self.assertEqual(pending["depends_on"], [])
+        self.assertTrue(pending["parallel"])
+        self.assertEqual(pending["player_gaps"][0]["provider_id"], "9")
+
+        terminal = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": ""},
+            {"provider_id": "8", "name": "Kept", "name_zh": "可疑译名"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(terminal["status"], "filled")
+        self.assertFalse(terminal["actionable"])
+        self.assertFalse(terminal["retryable"])
+        self.assertEqual(terminal["reason_code"], "MISSING")
+        self.assertEqual(terminal["player_gaps"], [{
+            "provider_id": "9", "reason_code": "MISSING", "retryable": False, "detail": "没有英文名可译。",
+        }])
+
+        failed = team_panel._names_leaf({"roster": [
+            {"provider_id": "9", "name": "Zzq Qqx", "name_zh_reason_code": "MODEL_FAILED"},
+        ], "components": {"roster": {"status": "fresh"}}})
+        self.assertEqual(failed["reason_code"], "MODEL_FAILED")
+        self.assertTrue(failed["retryable"])
+        self.assertTrue(failed["actionable"])
+
+        self.save_roster(photos=False)
+        assessed = team_panel.assess(self.store, "arsenal")
+        self.assertEqual([row["id"] for row in assessed["leaves"]], list(skill_catalog.PANEL_LEAVES))
+        names = next(row for row in assessed["leaves"] if row["id"] == "squad.names")
+        images = next(row for row in assessed["leaves"] if row["id"] == "squad.images")
+        self.assertTrue(names["actionable"])
+        self.assertTrue(images["actionable"])
+        self.assertEqual(names["depends_on"], [])
+        self.assertTrue(names["parallel"])
+        self.assertEqual(names["maintain_parts"], [])
 
     def test_name_gaps_do_not_keep_a_valid_roster_open(self):
         snapshot = self.save_roster()
