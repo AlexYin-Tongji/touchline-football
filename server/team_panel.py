@@ -4,12 +4,12 @@ The top-level skill is ``team``. It reads one gap snapshot and dispatches the
 six leaves from the panel skill: ``club.crest``, ``squad.info``,
 ``squad.names``, ``squad.images``, ``schedule.standings``, then ``stats.charts``.
 Crest, roster, photos and the schedule may run together. Chinese names wait
-until roster identity keys exist, and may then run beside photos. Charts run
+until every roster row has a ``provider_id``. When this round rewrites the
+roster, names run after that write and may then run beside photos. Charts run
 only after this round's schedule attempt, or from a schedule cache that is
-already valid. No model run is created here: ``squad.names`` records the
-translation contract (English display name in, ``provider_id`` out, no source
-lookup) and the other leaves still write only through the existing maintenance
-tools.
+already valid. ``squad.names`` asks the team model to translate English display
+names and writes ``name_zh`` back by ``provider_id``. It does not look up a
+name source and does not call ``maintain_team_data``.
 """
 from __future__ import annotations
 
@@ -211,6 +211,13 @@ async def run_panel(manager, entry, first):
     if (schedule["id"] in spawned or schedule.get("status") == "filled") and charts.get("status") != "filled":
         if charts["id"] not in spawned:
             spawned.append(charts["id"])
+    # Identity keys are not on the snapshot yet. This round's roster write is
+    # what makes a translation possible, so names follow info instead of waiting
+    # for another click. A roster that already has keys leaves names actionable
+    # on its own, and it can run beside photos.
+    if "squad.info" in spawned and "squad.names" not in spawned:
+        spawned.append("squad.names")
+    spawned.sort(key=lambda leaf_id: LEAVES.index(leaf_id))
     for leaf in leaves:
         if leaf["id"] in spawned:
             leaf["status"] = "running"
@@ -231,9 +238,12 @@ async def run_panel(manager, entry, first):
     _publish(manager, entry, leaves, message="正在按缺项补全球队资料。",
              summary="正在按缺项补全球队资料。", early_stop=False, spawned=spawned, phase="maintaining")
     images_wanted = "squad.images" in spawned
+    names_wanted = "squad.names" in spawned
     outcome = {"components": {}}
     photos = None
+    names_result = None
     photos_ran = False
+    names_ran = False
     try:
         async def maintain(context):
             async with manager.team_slots:
@@ -243,6 +253,10 @@ async def run_panel(manager, entry, first):
         async def portraits(context):
             return await asyncio.wait_for(
                 team_center.sync_portraits(store, entry.team_id, force=first, budget_seconds=150), 180)
+
+        async def translate(context):
+            from .squad_names import translate_roster
+            return await translate_roster(store, entry.team_id)
 
         async def run_maintain():
             try:
@@ -261,29 +275,69 @@ async def run_panel(manager, entry, first):
             except Exception:
                 return {"status": "failed", "errors": ["球员照片来源暂时无法读取"]}
 
-        if data_parts and images_wanted and "roster" not in data_parts:
-            maintain_task = asyncio.create_task(run_maintain())
-            photo_task = asyncio.create_task(run_photos())
+        async def run_names():
             try:
-                outcome, photos = await asyncio.gather(maintain_task, photo_task)
+                return await manager._unit(entry, translate, {"team_id": entry.team_id, "part": "names"})
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return {"status": "failed", "errors": ["译名模型暂不可用"]}
+
+        async def side_work():
+            jobs = []
+            labels = []
+            if names_wanted:
+                jobs.append(asyncio.create_task(run_names()))
+                labels.append("names")
+            if images_wanted:
+                jobs.append(asyncio.create_task(run_photos()))
+                labels.append("photos")
+            if not jobs:
+                return None, None
+            try:
+                done = await asyncio.gather(*jobs)
+            except asyncio.CancelledError:
+                for job in jobs:
+                    job.cancel()
+                await asyncio.gather(*jobs, return_exceptions=True)
+                raise
+            translated = pictured = None
+            for label, value in zip(labels, done):
+                if label == "names":
+                    translated = value
+                else:
+                    pictured = value
+            return translated, pictured
+
+        roster_rewritten = "roster" in data_parts
+        if data_parts and not roster_rewritten and (names_wanted or images_wanted):
+            maintain_task = asyncio.create_task(run_maintain())
+            side_task = asyncio.create_task(side_work())
+            try:
+                outcome, side = await asyncio.gather(maintain_task, side_task)
             except asyncio.CancelledError:
                 maintain_task.cancel()
-                photo_task.cancel()
-                await asyncio.gather(maintain_task, photo_task, return_exceptions=True)
+                side_task.cancel()
+                await asyncio.gather(maintain_task, side_task, return_exceptions=True)
                 raise
-            photos_ran = True
+            names_result, photos = side
+            names_ran = names_wanted
+            photos_ran = images_wanted
         elif data_parts:
             outcome = await run_maintain()
-            if images_wanted:
-                photos = await run_photos()
-                photos_ran = True
-        elif images_wanted:
-            photos = await run_photos()
-            photos_ran = True
+            if names_wanted or images_wanted:
+                names_result, photos = await side_work()
+                names_ran = names_wanted
+                photos_ran = images_wanted
+        elif names_wanted or images_wanted:
+            names_result, photos = await side_work()
+            names_ran = names_wanted
+            photos_ran = images_wanted
         final = assess(store, entry.team_id, reveal=True)
         settled = final["leaves"]
         _apply_outcome(settled, outcome if isinstance(outcome, dict) else {}, data_parts,
-                       photos if isinstance(photos, dict) else None, photos_ran)
+                       photos if isinstance(photos, dict) else None, photos_ran,
+                       names_result if isinstance(names_result, dict) else None, names_ran)
         _mark_spawned(settled, spawned)
         note = _photo_note(photos) if photos_ran else None
         notes = []
@@ -370,7 +424,7 @@ def _primary(gaps):
     return chosen["reason_code"], bool(chosen["retryable"])
 
 
-def _leaf(leaf_id, *, filled, gaps, summary, updated_at, maintain_parts, extra=None):
+def _leaf(leaf_id, *, filled, gaps, summary, updated_at, maintain_parts, extra=None, depends_on=None):
     reason, retryable = _primary(gaps)
     actionable = any(gap.get("retryable") for gap in gaps)
     if filled and not actionable:
@@ -391,7 +445,7 @@ def _leaf(leaf_id, *, filled, gaps, summary, updated_at, maintain_parts, extra=N
         "updated_at": updated_at,
         "tools": child_tools(leaf_id),
         "parallel": leaf_id != "stats.charts",
-        "depends_on": ["schedule.standings"] if leaf_id == "stats.charts" else [],
+        "depends_on": ["schedule.standings"] if leaf_id == "stats.charts" else list(depends_on or []),
         "spawned": False,
         "maintain_parts": list(maintain_parts or []),
     }
@@ -484,7 +538,7 @@ def _info_leaf(view):
 
 
 def _names_leaf(view):
-    """Chinese display names. Translation itself is not run in this pass.
+    """Chinese display names, translated by the team model and stored by id.
 
     A row is done when ``name_zh`` is non-empty. A suspicious reading is still
     done: this leaf does not judge the translation. A row with no English name
@@ -686,7 +740,7 @@ def _mark_spawned(leaves, spawned):
             leaf["depends_on"] = ["squad.info"]
 
 
-def _apply_outcome(leaves, outcome, attempted, photos, photos_ran):
+def _apply_outcome(leaves, outcome, attempted, photos, photos_ran, names_result=None, names_ran=False):
     components = outcome.get("components") if isinstance(outcome.get("components"), dict) else {}
     by_id = {leaf["id"]: leaf for leaf in leaves}
 
@@ -706,6 +760,14 @@ def _apply_outcome(leaves, outcome, attempted, photos, photos_ran):
     if photos_ran and isinstance(photos, dict) and photos.get("status") in _BAD_ATTEMPT:
         if by_id["squad.images"].get("status") != "filled":
             _override(by_id["squad.images"], photos)
+    if names_ran and isinstance(names_result, dict) and names_result.get("status") in _BAD_ATTEMPT:
+        leaf = by_id["squad.names"]
+        if leaf.get("status") != "filled":
+            if names_result.get("status") == "interrupted":
+                _override(leaf, names_result)
+            else:
+                leaf.update(status="gap", reason_code="MODEL_FAILED", retryable=True, actionable=True,
+                            summary="译名模型暂不可用。")
 
 
 def _override(leaf, component):
@@ -746,7 +808,8 @@ def _publish(manager, entry, leaves, *, message, summary, early_stop, spawned, p
     manager.update(entry, phase=phase, message=message, progress=progress, leaves=public,
                    actionable_count=_actionable_count(public),
                    panel={"workflow": WORKFLOW, "summary": summary, "early_stop": early_stop,
-                          "spawned": list(spawned), "serial": ["stats.charts"]},
+                          "spawned": list(spawned), "order": list(LEAVES),
+                          "serial": ["stats.charts"]},
                    last_error=last_error)
 
 
