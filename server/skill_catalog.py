@@ -1,5 +1,8 @@
 """Discoverable skills, with compatible task-specific workflow routing.
 
+``team`` is the panel refresh tree. The team page dispatches it. It does not
+replace ``team-maintenance`` or ``team_refresh``.
+
 A skill is a tree, not a file. The top of each tree is the perspective the task
 was started from; below it sit the directions a question can take, and the
 caller loads the one it needs. Loading is what keeps the tool surface honest —
@@ -229,7 +232,9 @@ def load_workflow(skill, workflow=None):
     # like a filled-in form, so it applies to the news and team-information
     # skills only. A question keeps the SKILL.md boundaries, which already
     # carry the read-before-cite rule.
-    if folder != "football-assistant":
+    # The panel skill is an operations checklist, not a news draft. The shared
+    # reader protocol fixes a submission shape only a report has.
+    if folder not in {"football-assistant", "team"}:
         sections.append(_document("reader_protocol.md")[1])
     return "\n\n".join(sections)
 

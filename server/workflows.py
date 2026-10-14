@@ -96,7 +96,18 @@ class WorkflowManager:
                    "finished_at": None, "updated_at": None, "next_run_at": None, "revision": 0,
                    "progress": {"completed": 0, "failed": 0, "remaining": 0},
                    "memory": {"summary": "尚未启动。", "next_steps": [], "completed_count": 0}}
-        return copy.deepcopy({**default, **self.store.get_meta(state_key(kind, team_id), {})})
+        state = copy.deepcopy({**default, **self.store.get_meta(state_key(kind, team_id), {})})
+        if kind == "team":
+            state.setdefault("leaves", [])
+            state.setdefault("actionable_count", None)
+            state.setdefault("panel", None)
+            progress = dict(state.get("progress") or {})
+            progress.setdefault("completed", 0)
+            progress.setdefault("failed", 0)
+            progress.setdefault("remaining", 0)
+            progress.setdefault("settled", 0)
+            state["progress"] = progress
+        return state
 
     def update(self, entry, **values):
         state = self.status(entry.kind, entry.team_id)
@@ -153,7 +164,8 @@ class WorkflowManager:
                      message="正在接续已保存的工作。", started_at=now(), finished_at=None,
                      next_run_at=None, last_error=None, source_errors=[], updated_at=now(),
                      collection=None,
-                     progress={"completed": 0, "failed": 0, "remaining": 0})
+                     progress={"completed": 0, "failed": 0, "remaining": 0, **({"settled": 0} if kind == "team" else {})},
+                     **({"leaves": [], "actionable_count": None, "panel": None} if kind == "team" else {}))
         self.store.set_meta(state_key(kind, team_id), state)
         self.tasks[key] = entry
         entry.task = asyncio.create_task(self._run_once(entry))
@@ -223,6 +235,8 @@ class WorkflowManager:
             note = (f"本次完成 {progress['completed']} 项，部分工作未完成，可手动重试。" if outcome == "partial"
                     else "本次未能完成，点击启动可重试。" if outcome == "failed"
                     else f"本次更新已完成，共完成 {progress['completed']} 项。")
+            if entry.kind == "team" and (state.get("panel") or {}).get("summary"):
+                note = state["panel"]["summary"]
             if collected and not progress["completed"] and not progress["failed"] and not progress["remaining"]:
                 note = ({"no_matches": "已检查消息来源，暂未发现本队可整理的新消息。",
                          "outside_window": "已检查消息来源，暂未发现近 7 天可整理的新消息。",
@@ -401,6 +415,15 @@ class WorkflowManager:
                     last_error=note or ("部分球队资料暂未更新，仍可查看上次有效资料。" if bad else None))
 
     async def _team_cycle(self, entry, first):
+        # An explicit parts list is the legacy maintenance call. The panel
+        # start sends no parts and runs the five-leaf snapshot instead.
+        if entry.parts is None:
+            from .team_panel import run_panel
+            await run_panel(self, entry, first)
+            return
+        await self._team_cycle_targeted(entry, first)
+
+    async def _team_cycle_targeted(self, entry, first):
         from .team_center import maintain_team, center_view, sync_portraits
         if self._team_agent_configured():
             await self._team_agent_cycle(entry, first)

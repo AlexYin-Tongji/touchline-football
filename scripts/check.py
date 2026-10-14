@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FAST = (
     "test_agent", "test_agent_delivery", "test_agent_v2", "test_provider", "test_anthropic_provider",
     "test_verification", "test_reader_tools", "test_tool_reliability", "test_model_harness", "test_agent_runtime", "test_agent_delegation",
-    "test_runtime_optimization", "test_research_concurrency", "test_team_refresh_parts", "test_report_concurrency",
+    "test_runtime_optimization", "test_research_concurrency", "test_team_refresh_parts", "test_team_panel", "test_report_concurrency",
     "test_skills_tools_quality", "test_news_sources", "test_verification_efficiency",
     "test_club_profile", "test_team_portraits", "test_photo_acceptance", "test_photo_review",
     "test_wikimedia_portraits", "test_player_names",

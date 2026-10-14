@@ -14,15 +14,15 @@ from tests.test_news_reports import manuscript
 
 class SkillAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
     def test_primary_skills_and_legacy_workflows_remain_loadable(self):
-        # team-maintenance is the entrypoint a UI-triggered refresh runs from;
-        # it sits beside the three query skills rather than inside them, because
-        # a maintenance run is a different task from answering a question.
+        # team-maintenance is the maintenance entrypoint. team is the panel
+        # refresh, registered beside it rather than inside the question skills.
         self.assertEqual({s["id"] for s in agent.CAPABILITIES["skills"]},
                          {"team-maintenance", "team", "team-news", "team-information", "football-assistant"})
         for mode in agent.SKILLS:
             self.assertTrue(agent.load_skill(mode).strip())
         for name in ("team-maintenance", "team", "team-news", "team-information", "football-assistant"):
             self.assertTrue(agent.load_skill(name).strip())
+        self.assertIn("球队中心", agent.load_skill("team"))
 
     def test_skill_workflow_selection_keeps_match_and_network_boundaries(self):
         store = FakeStore()
