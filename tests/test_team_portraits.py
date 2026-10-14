@@ -457,14 +457,19 @@ class PhotoSourcePrecedenceTests(unittest.IsolatedAsyncioTestCase):
         """The declared order matches the numbers it was derived from."""
         self.assertEqual(team_portraits.PHOTO_SOURCE_ORDER,
                          ("exact_name_and_number",
+                          "wikidata_espn_provider_id",
                           "community_espn_provider_id",
                           "community_name_and_nationality", "community_name_and_birthdate",
                           "community_name_and_birth_year", "community_surname_and_birthdate",
                           "wikimedia_verified_club", "espn_directory_provider_id",
                           "espn_provider_id"))
-        # The club's own directory outranks everything; the community tiers all
-        # come from one publisher, so they share a rank and outrank the weaker
-        # fallbacks that used to be tried before them.
+        # The club's own directory outranks everything. The id-anchored Commons
+        # file outranks the community tiers, which still share one rank and
+        # outrank the Wikipedia name search.
+        self.assertLess(team_portraits.photo_source_rank("exact_name_and_number"),
+                        team_portraits.photo_source_rank("wikidata_espn_provider_id"))
+        self.assertLess(team_portraits.photo_source_rank("wikidata_espn_provider_id"),
+                        team_portraits.photo_source_rank("community_name_and_nationality"))
         self.assertLess(team_portraits.photo_source_rank("exact_name_and_number"),
                         team_portraits.photo_source_rank("wikimedia_verified_club"))
         for match in community_portraits.COMMUNITY_PHOTO_MATCHES:
@@ -584,6 +589,33 @@ class NamesakeFlagTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(applied)
         self.assertNotIn("namesake_blocked", row)
         self.assertNotIn("photo_reason", row)
+
+    async def test_a_community_namesake_is_copied_onto_the_row(self):
+        from server import community_portraits, photo_acceptance, wikidata_portraits, wikimedia_portraits
+        from server.ingestion import now
+        player = {"provider_id": "189007", "name": "Reece James", "nationality": "英格兰",
+                  "birth_date": "1999-12-08", "photo_url": ""}
+        blocked = {"status": "ambiguous", "photo_reason": "社区球员库只返回了一名同名球员。",
+                   "retryable": False, "reason_code": "community_ambiguous", "namesake_blocked": True,
+                   "fetched_at": now()}
+        self.store.set_meta(community_portraits.portrait_key(player, "chelsea"), blocked)
+        with patch.object(team_portraits, "_enrich_espn_directory", new=AsyncMock(return_value={"attempted_count": 0, "errors": []})), \
+                patch.object(wikidata_portraits, "resolve_portrait", new=AsyncMock(
+                    return_value={"status": "missing", "reason_code": "wikidata_no_espn_id", "retryable": False})), \
+                patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))) as community, \
+                patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(
+                    return_value={"status": "missing", "reason_code": "missing_article", "retryable": False,
+                                  "photo_reason": "维基百科未找到完整姓名匹配的球员页面。"})):
+            result, summary = await team_portraits.enrich_player_photos(
+                self.store, {"team_id": "chelsea", "roster": [player]})
+        self.assertEqual(community.await_count, 0)
+        self.assertEqual(summary["community_attempted_count"], 0)
+        row = result["roster"][0]
+        self.assertTrue(row.get("namesake_blocked"))
+        self.assertFalse(row.get("photo_url"))
+        report = photo_acceptance.assess(result["roster"])
+        self.assertEqual(report["counts"][photo_acceptance.FIX_NAMESAKE], 1)
+        self.assertEqual(report["actionable_count"], 0)
 
 
 class RetainedPhotoThroughReplayTests(unittest.IsolatedAsyncioTestCase):

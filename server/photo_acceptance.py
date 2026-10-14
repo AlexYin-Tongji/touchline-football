@@ -48,7 +48,10 @@ ROSTER_REASONS = frozenset({
 # people. Recorded apart from the roster gaps so the reader is not told to fix
 # something that is not broken.
 SOURCE_GAP_REASONS = frozenset({
-    "community_missing", "missing_article", "no_free_image",
+    "community_missing", "community_no_image", "missing_article", "no_free_image",
+    # The id-anchored Wikidata lookup was asked and holds no such ESPN id.
+    # Retrying the same statement does not create the entity.
+    "wikidata_no_espn_id",
 })
 
 # Reasons where the source answered with a *different person who shares the
@@ -78,6 +81,9 @@ AMBIGUOUS_REASONS = frozenset({
 SETTLED_REASONS = frozenset({
     "license_not_free", "source_withdrawn",
     "rejected", "community_rejected",
+    # The ESPN id points at an entity whose stated birth date is a different
+    # person. Asking the same statement again will not change that.
+    "wikidata_birth_conflict",
 })
 
 # How a gap should be approached on the next pass.

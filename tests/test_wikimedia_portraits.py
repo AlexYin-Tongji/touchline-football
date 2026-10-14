@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from server import community_portraits, team_portraits, wikimedia_portraits
+from server import community_portraits, team_portraits, wikidata_portraits, wikimedia_portraits
 from server.ingestion import now
 from server.storage import Store
 
@@ -39,6 +39,15 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
                                side_effect=AssertionError("community source must not be contacted"))
         offline.start()
         self.addCleanup(offline.stop)
+        # The default pass asks Wikidata before Wikimedia. These tests are about
+        # the verified-club page, so the id-anchored lookup answers "no entity"
+        # without a network call unless a test replaces it.
+        async def wikidata_missing(store, player, **kwargs):
+            return {"status": "missing", "retryable": False, "reason_code": "wikidata_no_espn_id",
+                    "photo_reason": "维基数据没有与该球员编号唯一对应的条目。"}
+        anchored = patch.object(wikidata_portraits, "resolve_portrait", new=wikidata_missing)
+        anchored.start()
+        self.addCleanup(anchored.stop)
 
     def tearDown(self):
         self.store.close()
@@ -339,13 +348,7 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary["status"], "missing")
 
     async def test_community_source_outage_stops_early_and_independent_fallback_recovers(self):
-        """The community source is read first; its outage must not end the pass.
-
-        The measured order puts the community publisher first because it answers
-        for more players and costs a fraction of the Wikimedia lookups. That
-        makes Wikimedia the *independent fallback*: when the community source is
-        unavailable, the players it could not answer still have somewhere to go,
-        and one outage must not be recorded as "these players have no photo".
+        """Name search is not on the pass; the verified-club page still answers.
 
         The stub writes the cache entry the real resolver writes, because a
         source's own cache is what the read path consults: a stub that only
@@ -354,7 +357,6 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         """
         squad = {"team_id": "arsenal", "roster": [{"provider_id": str(i), "name": f"Player {i}",
                     "nationality": "英格兰", "photo_url": ""} for i in (1, 2)]}
-        unavailable = {"status": "unavailable", "retryable": True, "photo_reason": "社区球员库暂不可达"}
         photo = {"status": "completed", "photo_url": "https://thumb.wikimedia.org/wikipedia/commons/a.png",
                  "photo_credit": "Author", "photo_source_url": "https://en.wikipedia.org/wiki/Player",
                  "photo_file_page": "https://commons.wikimedia.org/wiki/File:A.png",
@@ -366,11 +368,13 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             result = dict(photo, last_attempt=now())
             store.set_meta(wikimedia_portraits._portrait_key(player, team_id), result)
             return result
-        with patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=unavailable)) as primary, \
+        with patch.object(community_portraits, "resolve_portrait", new=AsyncMock(
+                side_effect=AssertionError("name search"))) as primary, \
              patch.object(wikimedia_portraits, "resolve_portrait", side_effect=resolved) as fallback:
             result, summary = await team_portraits.enrich_player_photos(self.store, squad)
-        self.assertEqual(primary.await_count, 1, "the first outage stops the rest of this source's batch")
-        self.assertEqual(fallback.await_count, 2, "the independent source still answers both players")
+        self.assertEqual(primary.await_count, 0)
+        self.assertEqual(summary["community_attempted_count"], 0)
+        self.assertEqual(fallback.await_count, 2, "the verified-club page still answers both players")
         self.assertEqual(summary["selected_available_count"], 2)
         self.assertEqual(summary["errors"], [])
         for row in result["roster"]:
@@ -380,36 +384,33 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(row["photo_license"] and row["photo_file_page"])
 
     async def test_outage_fallback_is_bounded_and_advances_its_own_cursor(self):
-        """Each source keeps its own bound and its own cursor.
+        """The id-bound batch keeps its own cursor when the club page is down.
 
-        The community publisher is asked first, so its batch is the one bounded
-        by COMMUNITY_PAGE_LIMIT and whose cursor advances across passes. The
-        Wikimedia half now runs only for the players left over, and its outage
-        must not stall the community source's next batch.
+        Name search is not asked. Wikidata's batch is the one bounded by
+        COMMUNITY_PAGE_LIMIT, and a Wikimedia outage must not freeze it.
         """
         size = team_portraits.COMMUNITY_PAGE_LIMIT * 2 + 1
         squad = {"team_id": "arsenal", "season_id": "PL-2026", "roster": [
             {"provider_id": str(i), "name": f"Player {i}", "photo_url": ""} for i in range(1, size + 1)]}
-        async def missing(store, row, team_id, **kwargs):
-            result = {"status": "missing", "fetched_at": now(), "photo_reason": "社区库里没有这名球员。"}
-            store.set_meta(community_portraits.portrait_key(row, team_id), result)
-            return result
+        async def missing(store, row, **kwargs):
+            return {"status": "missing", "fetched_at": now(), "photo_reason": "维基数据没有与该球员编号唯一对应的条目。",
+                    "reason_code": "wikidata_no_espn_id", "retryable": False}
         async def unavailable(store, row, team_id, **kwargs):
             result = {"status": "unavailable", "last_attempt": now(), "photo_reason": "维基媒体稍后重试", "retryable": True}
             store.set_meta(wikimedia_portraits._portrait_key(row, team_id), result)
             return result
-        with patch.object(community_portraits, "resolve_portrait", side_effect=missing) as primary, \
+        with patch.object(wikidata_portraits, "resolve_portrait", side_effect=missing) as primary, \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))), \
              patch.object(wikimedia_portraits, "resolve_portrait", side_effect=unavailable) as fallback:
             first, one = await team_portraits.enrich_player_photos(self.store, squad)
             _, two = await team_portraits.enrich_player_photos(self.store, first)
-        self.assertEqual(one["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
-        self.assertEqual(two["community_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
-        self.assertTrue(one["continuation_ready"], "an independent Wikimedia outage must not stall the healthy source's next batch")
+        self.assertEqual(one["community_attempted_count"], 0)
+        self.assertEqual(one["wikidata_espn_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
+        self.assertEqual(two["wikidata_espn_attempted_count"], team_portraits.COMMUNITY_PAGE_LIMIT)
+        self.assertTrue(one["continuation_ready"], "a Wikimedia outage must not stall the id-bound batch")
         self.assertTrue(two["continuation_ready"])
         self.assertEqual([call.args[1]["provider_id"] for call in primary.call_args_list],
                          [str(i) for i in range(1, size)])
-        # The fallback still runs, bounded by its own limit, for the players the
-        # first source could not answer.
         self.assertGreaterEqual(fallback.await_count, 1)
         self.assertLessEqual(fallback.await_count, 2 * team_portraits.PLAYER_PAGE_LIMIT)
 
@@ -424,17 +425,17 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         one source is down when two are.
         """
         row = {"provider_id": "1", "name": "Kai Havertz", "nationality": "德国", "photo_url": ""}
-        primary_gap = {"status": "unavailable", "photo_reason": "社区球员库连接失败，稍后重试。",
+        primary_gap = {"status": "unavailable", "photo_reason": "维基数据暂时不可达，稍后自动重试。",
                        "reason_code": "connection_error", "retryable": True, "last_attempt": now()}
         fallback_gap = {"status": "unavailable", "photo_reason": "维基媒体请求过于频繁，稍后重试。",
                         "reason_code": "http_rate_limited", "retryable": True, "last_attempt": now()}
-        async def primary(store, player, team_id, **kwargs):
-            store.set_meta(community_portraits.portrait_key(player, team_id), primary_gap)
+        async def primary(store, player, **kwargs):
             return primary_gap
         async def fallback(store, player, team_id, **kwargs):
             store.set_meta(wikimedia_portraits._portrait_key(player, team_id), fallback_gap)
             return fallback_gap
-        with patch.object(community_portraits, "resolve_portrait", side_effect=primary), \
+        with patch.object(wikidata_portraits, "resolve_portrait", side_effect=primary), \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))), \
              patch.object(wikimedia_portraits, "resolve_portrait", side_effect=fallback):
             result, summary = await team_portraits.enrich_player_photos(self.store, {"team_id": "arsenal", "roster": [row]})
         self.assertEqual(summary["status"], "failed")
@@ -442,16 +443,17 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         # The source consulted first leads, because that is the one whose limit
         # stopped the batch; the second source's wording is appended, not
         # swapped in.
-        self.assertIn("TheSportsDB", summary["errors"][0])
+        self.assertNotIn("TheSportsDB", summary["errors"][0])
         self.assertIn(primary_gap["photo_reason"], summary["errors"][0])
         self.assertIn(fallback_gap["photo_reason"], summary["errors"][0])
         player = result["roster"][0]
         self.assertFalse(player["photo_url"])
         self.assertEqual(player["reason_code"], "connection_error")
         self.assertTrue(player["retryable"])
-        # Both sources were asked and both failed, so the row says so.
+        # Both id-bound sources were asked and both failed, so the row says so.
         self.assertIn("维基媒体照片来源", player["photo_reason"])
-        self.assertIn("TheSportsDB 社区照片来源", player["photo_reason"])
+        self.assertIn("维基数据照片来源", player["photo_reason"])
+        self.assertNotIn("TheSportsDB", player["photo_reason"])
         self.assertIn(primary_gap["photo_reason"], player["photo_reason"])
         self.assertIn(fallback_gap["photo_reason"], player["photo_reason"])
         # A later read rebuilds the row from whichever source holds a cached
@@ -461,19 +463,20 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             self.store, {"team_id": "arsenal", "roster": [dict(row)]})["roster"][0]
         self.assertFalse(replay["photo_url"])
         self.assertTrue(replay["reason_code"])
-        self.assertIn("照片来源", replay["photo_reason"])
+        self.assertIn(fallback_gap["photo_reason"], replay["photo_reason"])
 
     async def test_an_attempted_but_unavailable_source_does_not_mark_a_batch_ready(self):
         squad = {"team_id": "arsenal", "roster": [
             {"provider_id": str(index), "name": f"Player {index}", "nationality": "德国", "photo_url": ""}
             for index in range(1, 15)]}
         gap = {"status": "unavailable", "photo_reason": "暂时不可达", "retryable": True}
-        with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)), \
-             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)):
+        with patch.object(wikidata_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)), \
+             patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value=gap)), \
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))):
             _, summary = await team_portraits.enrich_player_photos(self.store, squad)
-        self.assertEqual(summary["community_attempted_count"], 1)
-        self.assertGreater(summary["community_remaining_count"], 0)
-        self.assertTrue(summary["community_unavailable"])
+        self.assertEqual(summary["community_attempted_count"], 0)
+        self.assertEqual(summary["wikidata_espn_attempted_count"], 1)
+        self.assertTrue(summary["wikidata_espn_unavailable"])
         self.assertFalse(summary["continuation_ready"])
 
     async def test_old_roster_community_photo_cannot_bypass_new_identity_check(self):
@@ -488,9 +491,9 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(replay["roster"][0]["photo_url"])
         self.assertEqual(replay["roster"][0]["reason_code"], "identity_revalidation")
         with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
-             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "ambiguous"})) as fallback:
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))) as fallback:
             result, _ = await team_portraits.enrich_player_photos(self.store, squad)
-        self.assertEqual(fallback.await_count, 1)
+        self.assertEqual(fallback.await_count, 0)
         self.assertFalse(result["roster"][0]["photo_url"])
         self.assertTrue(squad["roster"][0]["photo_url"], "the caller's old snapshot remains untouched")
         self.assertEqual(self.store.get_meta(legacy_key), old_photo)
@@ -501,10 +504,10 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             photo = await community_portraits.resolve_portrait(self.store, PLAYER, "arsenal")
         squad = {"team_id": "arsenal", "roster": [{**PLAYER, **photo}]}
         with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
-             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "ambiguous"})) as fallback:
+             patch.object(community_portraits, "resolve_portrait", new=AsyncMock(side_effect=AssertionError("name search"))) as fallback:
             result, _ = await team_portraits.enrich_player_photos(self.store, squad, player_ids=["1"], force=True)
-        self.assertEqual(fallback.await_count, 1)
-        self.assertFalse(result["roster"][0]["photo_url"])
+        self.assertEqual(fallback.await_count, 0, "an explicit retry does not reopen the retired name search")
+        self.assertEqual(result["roster"][0]["photo_url"], photo["photo_url"])
 
     async def test_whole_team_retry_keeps_current_checked_community_and_wikimedia_caches(self):
         from tests.test_community_portraits import PLAYER, record, search
@@ -528,11 +531,11 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
             community = await community_portraits.resolve_portrait(self.store, PLAYER, "arsenal")
         squad = {"team_id": "arsenal", "roster": [{**PLAYER, **community}]}
         with patch.object(wikimedia_portraits, "resolve_portrait", new=AsyncMock(return_value={"status": "missing"})), \
-             patch.object(community_portraits, "_search", new=AsyncMock(side_effect=ConnectionError("offline"))):
+             patch.object(community_portraits, "_search", new=AsyncMock(side_effect=AssertionError("name search"))):
             result, summary = await team_portraits.enrich_player_photos(self.store, squad, player_ids=["1"], force=True)
         self.assertEqual(result["roster"][0]["photo_url"], community["photo_url"])
-        self.assertEqual(summary["status"], "partial")
-        self.assertIn("TheSportsDB", summary["errors"][0])
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(summary["errors"], [])
         replay = team_portraits.apply_cached_portraits(self.store, result)
         self.assertEqual(replay["roster"][0]["photo_url"], community["photo_url"])
         with patch.object(wikimedia_portraits, "request_json", side_effect=self.replies()):

@@ -91,9 +91,11 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         # than as a permanent verdict about this player.
         self.assertIn('重试', roster[0]['photo_reason'])
         self.assertTrue(roster[0].get('retryable'))
-        self.assertEqual(roster[0].get('reason_code'), 'connection_error')
+        # The patched call is HTTP 429. The id-bound source records that throttle.
+        self.assertEqual(roster[0].get('reason_code'), 'http_rate_limited')
         self.assertIn('维基媒体', roster[0]['photo_reason'])
-        self.assertIn('TheSportsDB', roster[0]['photo_reason'])
+        self.assertIn('维基数据', roster[0]['photo_reason'])
+        self.assertNotIn('TheSportsDB', roster[0]['photo_reason'])
 
     async def test_stop_during_photo_fetch_keeps_roster_and_cleans_up_work(self):
         entered = asyncio.Event()

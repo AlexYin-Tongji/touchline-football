@@ -30,7 +30,8 @@ class ClassificationTests(unittest.TestCase):
         # This is the distinction the old loop could not make: "no record" and
         # "request failed" both looked like a gap. Retrying the first forever is
         # the behaviour that burned paced requests for no new answer.
-        for code in ("community_missing", "missing_article", "no_free_image"):
+        for code in ("community_missing", "community_no_image", "missing_article", "no_free_image",
+                     "wikidata_no_espn_id"):
             with self.subTest(code=code):
                 self.assertEqual(photo_acceptance.classify(code), photo_acceptance.FIX_SOURCE)
 
@@ -40,7 +41,8 @@ class ClassificationTests(unittest.TestCase):
                 self.assertEqual(photo_acceptance.classify(code), photo_acceptance.FIX_AMBIGUOUS)
 
     def test_a_durable_refusal_is_settled(self):
-        for code in ("license_not_free", "source_withdrawn", "rejected", "community_rejected"):
+        for code in ("license_not_free", "source_withdrawn", "rejected", "community_rejected",
+                     "wikidata_birth_conflict"):
             with self.subTest(code=code):
                 self.assertEqual(photo_acceptance.classify(code), photo_acceptance.FIX_NOTHING)
 
@@ -70,6 +72,22 @@ class AssessmentTests(unittest.TestCase):
         self.assertFalse(report["accepted"])
         self.assertEqual(report["actionable_count"], 1)
         self.assertEqual(report["retryable"][0]["name"], "B")
+
+    def test_a_community_record_with_no_image_is_not_a_route_failure(self):
+        # The source answered. The file is absent. Treating that as a transport
+        # failure kept the pass "unaccepted" and invited another identical ask.
+        report = photo_acceptance.assess([row("A", reason_code="community_no_image", retryable=False)])
+        self.assertEqual(report["actionable_count"], 0)
+        self.assertEqual(report["counts"][photo_acceptance.FIX_SOURCE], 1)
+        self.assertTrue(report["accepted"])
+
+    def test_a_namesake_flag_is_not_reported_as_an_ambiguous_retry(self):
+        report = photo_acceptance.assess([row(
+            "Reece James", reason_code="community_ambiguous", retryable=False, namesake_blocked=True)])
+        self.assertEqual(report["counts"][photo_acceptance.FIX_NAMESAKE], 1)
+        self.assertEqual(report["counts"][photo_acceptance.FIX_AMBIGUOUS], 0)
+        self.assertEqual(report["actionable_count"], 0)
+        self.assertEqual(photo_acceptance.shortfall(report, threshold=1.0), [])
 
     def test_a_source_gap_alone_does_not_make_the_squad_unaccepted(self):
         # Nothing failed and nothing is retryable; the database simply does not
