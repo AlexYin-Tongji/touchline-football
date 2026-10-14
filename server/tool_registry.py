@@ -57,6 +57,9 @@ WORKFLOW_CAPABILITIES = {
     # because the work is the same work read from the other end: the blocks
     # refresh what the team-information skill reads.
     "team_refresh": TEAM_WORK,
+    # Panel 「更新/补全」. Same work as a maintenance pass, read as five leaves
+    # instead of the six team_refresh blocks. Not an alias of team_refresh.
+    "team": TEAM_WORK,
     "ask": ASK_WORK,
     "match_preview": MATCH_WORK,
     "match_review": MATCH_WORK,
@@ -137,6 +140,26 @@ TOPIC_CAPABILITIES = {
     "team-maintenance:names": {
         "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT}),
         "exposes": ("maintain_team_data", "review_maintenance")},
+
+    # --- team: panel leaves ----------------------------------------------------
+    # The parent holds TEAM_WORK and delegates. A leaf only subtracts. Leaves
+    # that call maintain_team_data or fetch_player_photos keep EVIDENCE, because
+    # spawn_agent refuses those tools on a child that cannot read what they
+    # return. stats.charts does not fetch; it only reads samples already stored.
+    "team:club.crest": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team:squad.info": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team:squad.images": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, OUTPUT}),
+        "exposes": ("fetch_player_photos", "review_maintenance")},
+    "team:schedule.standings": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team:stats.charts": {
+        "capabilities": frozenset({IDENTITY, TEAM, SKILL, OUTPUT})},
 }
 
 
@@ -176,6 +199,10 @@ def topic_exposes(skill, topic):
 # them — and nothing here can override that.
 WORKFLOW_EXPOSES = {
     "team_refresh": ("maintain_team_data", "fetch_player_photos", "review_maintenance"),
+    # The panel parent decides which leaves to spawn before any topic is loaded,
+    # and a child can only receive tools the parent holds. Scope still removes
+    # these afterwards. Per-leaf narrowing is the topic table above.
+    "team": ("maintain_team_data", "fetch_player_photos", "review_maintenance"),
 }
 
 

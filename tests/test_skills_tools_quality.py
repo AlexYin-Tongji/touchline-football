@@ -18,10 +18,10 @@ class SkillAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
         # it sits beside the three query skills rather than inside them, because
         # a maintenance run is a different task from answering a question.
         self.assertEqual({s["id"] for s in agent.CAPABILITIES["skills"]},
-                         {"team-maintenance", "team-news", "team-information", "football-assistant"})
+                         {"team-maintenance", "team", "team-news", "team-information", "football-assistant"})
         for mode in agent.SKILLS:
             self.assertTrue(agent.load_skill(mode).strip())
-        for name in ("team-maintenance", "team-news", "team-information", "football-assistant"):
+        for name in ("team-maintenance", "team", "team-news", "team-information", "football-assistant"):
             self.assertTrue(agent.load_skill(name).strip())
 
     def test_skill_workflow_selection_keeps_match_and_network_boundaries(self):

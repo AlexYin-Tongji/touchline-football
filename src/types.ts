@@ -3,6 +3,7 @@ export type Page =
   "home" | "matches" | "tracking" | "chat" | "sources" | "settings";
 export type Skill =
   | "team-maintenance"
+  | "team"
   | "team-news"
   | "team-information"
   | "football-assistant"

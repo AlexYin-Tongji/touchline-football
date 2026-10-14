@@ -223,10 +223,11 @@ def clean_delivery_text(text):
 # because "完成" was gated on facts that this task can never have.
 #
 # So the shape of the delivery follows the kind of work, and this constant names
-# the one workflow allowed to deliver an operation report. Everything else keeps
-# the evidence rule exactly as it was, including every child of every other
-# skill — the exception is a property of the task, not of being a sub-agent.
-OPERATION_SKILLS = frozenset({"team_refresh"})
+# the workflows allowed to deliver an operation report. team_refresh is the
+# six-block maintenance pass. team is the panel 「更新/补全」 tree. Everything
+# else keeps the evidence rule exactly as it was — the exception is a property
+# of the task, not of being a sub-agent.
+OPERATION_SKILLS = frozenset({"team_refresh", "team"})
 
 
 def operation_delivery(skill):

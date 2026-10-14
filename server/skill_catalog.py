@@ -1,4 +1,4 @@
-"""Three discoverable skills, with compatible task-specific workflow routing.
+"""Discoverable skills, with compatible task-specific workflow routing.
 
 A skill is a tree, not a file. The top of each tree is the perspective the task
 was started from; below it sit the directions a question can take, and the
@@ -20,6 +20,10 @@ import re
 SKILL_ROOT = Path(__file__).resolve().parents[1] / "agent_skills"
 PRIMARY_SKILLS = {
     "team-maintenance": ("球队维护", "team_refresh"),
+    # Panel 「更新/补全」 only. A separate tree from team-maintenance: the parent
+    # loads this skill and dispatches the five leaves below. It does not replace
+    # team_refresh, which other entry points still run.
+    "team": ("球队中心更新", "team"),
     "team-news": ("球队动态", "team_brief"),
     "team-information": ("球队信息", "team_maintenance"),
     "football-assistant": ("问答助手", "ask"),
@@ -29,6 +33,7 @@ WORKFLOWS = {
     "team_brief": ("team-news", "briefing.md"),
     "team_maintenance": ("team-information", "data-scope.md"),
     "team_refresh": ("team-maintenance", None),
+    "team": ("team", None),
     "ask": ("football-assistant", None),
     "match_preview": ("football-assistant", "preview.md"),
     "match_review": ("football-assistant", "review.md"),
@@ -47,6 +52,20 @@ WORKFLOWS = {
 # topic that only talks about photos cannot call the article reader. A topic
 # without one inherits its skill's set.
 TOPICS = {
+    # Panel orchestration leaves, in PANEL_LEAVES order. One topic per child:
+    # the parent loads only the top-level skill and the child loads its leaf.
+    "team": {
+        "club.crest": {"path": "references/club-crest.md",
+                       "description": "俱乐部资料与队徽状态。队徽只核对本地资产，不下载。"},
+        "squad.info": {"path": "references/squad-info.md",
+                       "description": "阵容，以及缺口需要时的球员姓名。"},
+        "squad.images": {"path": "references/squad-images.md",
+                         "description": "球员照片：缺口、同名遮挡、批次与验收。"},
+        "schedule.standings": {"path": "references/schedule-standings.md",
+                               "description": "赛程与所属联赛积分榜。"},
+        "stats.charts": {"path": "references/stats-charts.md",
+                         "description": "用赛程样本计算图表；样本不足则空态，不编造。"},
+    },
     # The blocks a maintenance run is made of. One topic per block, because a
     # block is what gets handed to a sub-agent: the tree says how many there
     # are, and the run's structure follows the tree rather than a list in code.
@@ -90,6 +109,35 @@ TOPICS = {
         "news-writing": {"path": "references/news-writing.md",
                          "description": "新闻写作：围绕一个事件写连贯正稿。"},
     },
+}
+
+# Fixed spawn order for the panel workflow. Charts stay last: they read schedule
+# samples (or a still-valid cached schedule) and do not fetch their own.
+PANEL_LEAVES = (
+    "club.crest",
+    "squad.info",
+    "squad.images",
+    "schedule.standings",
+    "stats.charts",
+)
+if tuple(TOPICS["team"]) != PANEL_LEAVES:
+    raise RuntimeError("panel leaves drifted from TOPICS['team']")
+
+# Shared gap reasons. The bool is whether this round may spawn that leaf again
+# for the same reason. A later snapshot is a new decision, not a retry of a
+# terminal code. CREST_MISSING is terminal because a crest is a shipped local
+# asset, not a download. SAMPLE_INSUFFICIENT is the charts empty state.
+PANEL_REASON_CODES = {
+    "MISSING": True,
+    "STALE": True,
+    "SOURCE_UNAVAILABLE": True,
+    "RATE_LIMITED": True,
+    "NAMESAKE_BLOCKED": False,
+    "CREST_MISSING": False,
+    "INCOMPLETE_SCHEDULE": True,
+    "SAMPLE_INSUFFICIENT": False,
+    "SCOPE_DENIED": False,
+    "INTERRUPTED": False,
 }
 
 
