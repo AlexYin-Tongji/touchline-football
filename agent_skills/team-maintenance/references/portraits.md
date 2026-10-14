@@ -26,9 +26,9 @@
 | 来源已明确拒绝 | `rejected`、`license_not_free`、`source_withdrawn` | 不要重试 |
 | 尚未核对 | `not_yet_resolved`、空 | 值得推进 |
 
-**整年出生日期不符的同名者必须继续拒绝。** 这类球员（全库 53 人）的照片来源里只返回了一个同名陌生人，挂上去就是发布陌生人的脸。`namesake_blocked` 就是在说这件事：不要试图"让模型判断一下"，也不要换个拼法再问同一个搜索。
+**整年出生日期不符的同名者必须继续拒绝。** `namesake_blocked` 就是在说这件事：不要试图让模型改判，也不要换个拼法再问同一个搜索。
 
-**但它不等于"这个人拿不到照片"。** 工具会自己再用姓氏走第二条路，并用阵容已有的运动员编号交叉确认。
+**免费社区库的姓名搜索已经退出默认核对。** `fetch_player_photos` 现在走编号能对上的来源：已复核的官网目录、阵容载荷里的 ESPN 头像、维基数据 P3681，然后才是维基媒体的俱乐部核验页。它不会发出 `searchplayers.php`。同名遮挡要换上述路径，而不是再搜一次姓名。没有身份证明就留空。代理换源的原型在 `server/portrait_agent.py`，尚未接到对话工具表；模型不提供照片地址。
 
 ## 一批一批推进
 
@@ -57,7 +57,7 @@
 
 每个拿到照片的球员带 `photo_credit`、`photo_license`、`photo_source_url`、`photo_file_page`。**这些必须随图保留**：社区来源的照片是未声明开放许可的转载图，保留署名与来源是使用条件；缺少这些字段的照片不会渲染。
 
-`photo_match` 说明这张图凭什么确认是这个人，强弱不同：`community_espn_provider_id`（编号一致，最强）、`community_name_and_birthdate`、`community_name_and_birth_year`（仅同一年，弱）、`community_surname_and_birthdate`、`exact_name_and_number`、`wikimedia_verified_club`（自由许可）。
+`photo_match` 说明这张图凭什么确认是这个人。新核对的顺序是 `exact_name_and_number`（官网姓名加号码）、`wikidata_espn_provider_id`（ESPN 编号与 P3681 一致，许可已核对）、阵容载荷上的 `espn_provider_id`。`wikimedia_verified_club` 仍从姓名进入，再核对出生日期和俱乐部。`community_*` 是旧姓名搜索留下的记录，默认流程不再新取。
 
 ## 不要做的事
 

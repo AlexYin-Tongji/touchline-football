@@ -1,4 +1,11 @@
-"""Community portrait lookup with name + nationality identity checks.
+"""Community portrait lookup kept for tests and for photos already stored.
+
+The default photo pass does not call this module. Free name search is the
+failed path: one unsorted hit, no reverse lookup by ESPN id. ``resolve_portrait``
+remains so existing unit tests can still describe the old matcher. Do not wire
+it back into ``enrich_player_photos``.
+
+Community portrait lookup with name + nationality identity checks.
 
 TheSportsDB publishes a free JSON API with player portraits. Its `strTeam`
 field is not reliable — a squad-mate of the same nationality can be listed
@@ -8,8 +15,8 @@ photo. A portrait is accepted only when the searched name resolves to exactly
 one record AND that record's nationality agrees with the checked roster entry.
 Two independent facts must line up before an unlicensed image is shown.
 
-Wikimedia remains the preferred source: it carries a verified free licence.
-This provider runs afterwards and only fills players still without a photo.
+Wikimedia remains a stronger source when its licence checks pass. This
+resolver is not on the default pass.
 """
 from __future__ import annotations
 

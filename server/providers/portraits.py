@@ -52,30 +52,26 @@ def _portrait_claims(store, result, source_id, *, team_id, fetched):
      "domains": (".thesportsdb.com",), "reviewed_at": "2026-09-24"},
     {Capability.PERSON, Capability.IMAGE},
     cost=Cost.LIGHT, latency=Latency.SLOW,
-    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定；照片按姓名加国籍两票确认。",
+    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定。姓名搜索已退出默认照片核对；本提供者不再发出检索。",
 )
 class TheSportsDbProvider(BaseProvider):
-    """Community portraits, and the club value with its relation made explicit."""
+    """Community club value, with portrait name-search retired.
+
+    The club claim stays: it records an unstated relation and does not decide
+    identity. Portrait lookup by name is the failed path, and the free API
+    cannot be asked for an ESPN id, so ``portrait`` returns a gap and does
+    not call the publisher.
+    """
 
     min_interval = 1.1
 
     async def portrait(self, player, team_id, *, force=False):
-        from ..community_portraits import resolve_portrait
         if self.store is None:
             raise ProviderError("读取照片需要存储。", code="no_store")
-        await self.pacing.wait()
-        try:
-            result = await resolve_portrait(self.store, player, team_id, force=force)
-        except Exception as exc:
-            # A throttle says nothing about this player, so it is reported as a
-            # retryable gap rather than as "this player has no photo".
-            return self.unavailable(Capability.IMAGE, str(exc) or "社区球员库暂时不可达。", retryable=True)
-        item, reason = _portrait_claims(self.store, result, self.source.id, team_id=team_id,
-                                        fetched=(result or {}).get("fetched_at"))
-        if item is None:
-            return self.envelope(Capability.IMAGE, gaps=[{"source_id": self.source.id, "message": reason,
-                                                          "retryable": bool((result or {}).get("retryable"))}])
-        return self.envelope(Capability.IMAGE, items=[item])
+        return self.unavailable(
+            Capability.IMAGE,
+            "免费社区库不能按球员编号反查，姓名搜索已退出，本提供者不会发出检索。",
+            retryable=False)
 
     def club(self, record, *, fetched_at=None):
         """The publisher's club value, with the relation deliberately unstated.

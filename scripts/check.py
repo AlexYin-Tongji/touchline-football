@@ -18,7 +18,7 @@ FAST = (
     "test_runtime_optimization", "test_research_concurrency", "test_team_refresh_parts", "test_team_panel", "test_report_concurrency",
     "test_skills_tools_quality", "test_news_sources", "test_verification_efficiency",
     "test_club_profile", "test_team_portraits", "test_photo_acceptance", "test_photo_review",
-    "test_wikimedia_portraits", "test_player_names",
+    "test_wikimedia_portraits", "test_wikidata_portraits", "test_portrait_agent", "test_player_names",
     "test_workflows", "test_report_workflows",
 )
 

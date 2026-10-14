@@ -227,6 +227,10 @@ def _merge_kept_source(summary, kept):
 # is tried first, and a source that answers less often must not overwrite it.
 PHOTO_SOURCE_ORDER = (
     "exact_name_and_number",          # the club's own directory, name + number
+    # Same ESPN id as the roster, plus a Commons file whose licence was checked.
+    # Stronger than the community tiers: those still depend on a truncated name
+    # search, and their images are unlicensed reposts.
+    "wikidata_espn_provider_id",
     # The community tiers, strongest evidence first. All of them are one source,
     # so they share a rank: only a re-derivation by the same source may replace
     # one, which is what a manual retry asks for.
@@ -239,7 +243,12 @@ PHOTO_SOURCE_ORDER = (
     "espn_directory_provider_id",     # ESPN's own player page, id-bound
     "espn_provider_id",               # rides on the roster payload, id-bound
 )
-PHOTO_SOURCE_RANK = {match: (rank if match not in COMMUNITY_PHOTO_MATCHES else 1)
+# Community tiers share one rank — the position of the first of them — so a
+# later tier cannot outrank an earlier one from the same publisher. Sources
+# placed ahead of that position, including the id-anchored Commons file, stay
+# strictly stronger.
+_COMMUNITY_RANK = PHOTO_SOURCE_ORDER.index("community_espn_provider_id")
+PHOTO_SOURCE_RANK = {match: (_COMMUNITY_RANK if match in COMMUNITY_PHOTO_MATCHES else rank)
                      for rank, match in enumerate(PHOTO_SOURCE_ORDER)}
 
 
@@ -266,6 +275,20 @@ def photo_outranks(incoming, current):
     if current_rank is None:
         return True
     return incoming_rank <= current_rank
+
+
+def _copy_namesake(player, photo):
+    """Keep a namesake block on the row, and drop it when this answer isn't one.
+
+    The community resolver carries ``namesake_blocked`` beside its own reason
+    code. Copying only the code made the row look like an ordinary ambiguous
+    name, which the planner will offer to retry. The flag is what says the
+    truncated search returned a different person.
+    """
+    if photo.get("namesake_blocked"):
+        player["namesake_blocked"] = True
+    else:
+        player.pop("namesake_blocked", None)
 
 
 def _community_failure(player, photo, preferred=None):
@@ -339,6 +362,9 @@ def _recheck_community_photos(store, players, team_id):
                           photo_reason=stored.get("photo_reason") or "照片身份校验已更新，需要重新核对社区照片。",
                           retryable=bool(stored.get("retryable")),
                           reason_code=stored.get("reason_code") or "identity_revalidation")
+            # The flag lives beside the reason code. Dropping only the code made
+            # a namesake block look like an ordinary ambiguous name.
+            _copy_namesake(player, stored)
         elif current_proof(store, player, team_id):
             # Keep the verified photo and drop only the stale reason left on
             # the row. The photo is still the one a source proved; nothing has
@@ -352,6 +378,21 @@ def _recheck_community_photos(store, players, team_id):
             player.update(photo_url="", photo_credit="",
                           photo_reason="照片身份校验已更新，需要重新核对社区照片。",
                           retryable=True, reason_code="identity_revalidation")
+
+
+def _recheck_wikidata_photos(store, players):
+    """A Wikidata photo stays only while its ESPN id still proves this row."""
+    from .wikidata_portraits import current_proof
+    for player in players:
+        if player.get("photo_match") != "wikidata_espn_provider_id":
+            continue
+        if current_proof(store, player):
+            continue
+        for field in PLAYER_PHOTO_FIELDS:
+            player.pop(field, None)
+        player.update(photo_url="", photo_credit="",
+                      photo_reason="照片身份校验已更新，需要重新核对维基数据照片。",
+                      retryable=True, reason_code="identity_revalidation")
 
 
 def _recheck_wikimedia_photos(store, players, team_id):
@@ -595,10 +636,12 @@ async def enrich_portraits(store, snapshot, *, force=False):
 def apply_cached_portraits(store, snapshot):
     """Reuse checked cards without making a core roster fetch wait on HTML."""
     from .community_portraits import cached_portrait as cached_community
+    from .wikidata_portraits import cached_portrait as cached_wikidata
     from .wikimedia_portraits import cached_portrait
 
     _recheck_espn_photos(snapshot.get("roster", []))
     _recheck_community_photos(store, snapshot.get("roster", []), snapshot.get("team_id"))
+    _recheck_wikidata_photos(store, snapshot.get("roster", []))
     _recheck_wikimedia_photos(store, snapshot.get("roster", []), snapshot.get("team_id"))
     snapshot = _apply_espn_directory(snapshot, _espn_directory_with_revocations(store,
         store.get_meta("espn_portraits_v1_" + snapshot.get("team_id", ""), {}),
@@ -606,6 +649,11 @@ def apply_cached_portraits(store, snapshot):
     snapshot = _apply_directory(snapshot, store.get_meta("team_portraits_v1_" + snapshot.get("team_id", ""), {}))
     for player in snapshot.get("roster", []):
         _apply_cached_reading(store, player, snapshot.get("team_id"))
+        wikidata = cached_wikidata(store, player)
+        if wikidata and wikidata.get("status") == "completed" and wikidata.get("photo_url"):
+            # Outranks a community cutout and an ESPN roster headshot. A club
+            # directory photo, already applied above, outranks this one.
+            _apply_photo(player, wikidata)
         if player.get("photo_url"):
             continue
         cached = cached_portrait(store, player, snapshot.get("team_id"))
@@ -628,6 +676,7 @@ def apply_cached_portraits(store, snapshot):
             player["photo_reason"] = verdict["photo_reason"]
             player["retryable"] = bool(verdict.get("retryable"))
             player["reason_code"] = verdict.get("reason_code") or "rejected"
+            _copy_namesake(player, community or {})
         elif not player.get("photo_reason"):
             # Neither source holds a verdict: both caches expired, or neither has
             # been asked yet. Say that rather than leaving a placeholder with no
@@ -961,6 +1010,7 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
     # selection asks to revalidate a still-current checked photo.
     _recheck_espn_photos(selected)
     _recheck_community_photos(store, selected, result.get("team_id"))
+    _recheck_wikidata_photos(store, selected)
     _recheck_wikimedia_photos(store, roster, result.get("team_id"))
     espn = await _enrich_espn_directory(store, result, selected, force=force)
     # Match against the entire roster so selecting one of two same-named players
@@ -994,17 +1044,19 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
 
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection, deadline=None,
                                    on_progress=None):
-    """Fill portraits from the sources, strongest-first, one source per player.
+    """Fill portraits from identity-bound sources, then a verified club page.
 
-    Order is by measured coverage and cost (see ``PHOTO_SOURCE_ORDER``): the
-    community publisher is asked first and Wikimedia only for the players it
-    did not settle, so the expensive source is never asked about a player that
-    already has a picture. A source cannot replace a stronger source's result,
-    which is what makes "one authority per player" hold rather than being a
-    matter of which loop happened to run last.
+    Free TheSportsDB name search is not part of this pass. Measured on the
+    2026 Arsenal, Chelsea and Manchester City squads, that search attached
+    faces from a single unsorted hit, including records whose ``idESPN``
+    disagrees with the roster. A photo already stored from that source can
+    still be shown by ``apply_cached_portraits`` until a later migration drops
+    name-tier rows. This pass asks Wikidata by the roster's ESPN id, then
+    Wikimedia's verified-club check for whoever is still without a picture.
+    A weaker source cannot replace a stronger one.
     """
     from .wikimedia_portraits import cached_portrait as cached_wikimedia, resolve_portrait
-    from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
+    from .wikidata_portraits import MATCH_ESPN_PROVIDER_ID, cached_portrait as cached_wikidata, resolve_portrait as resolve_wikidata
 
     roster = snapshot["roster"]
     team_id = snapshot["team_id"]
@@ -1033,93 +1085,56 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     def force_player(row):
         return force and (explicit_selection or not (row.get("photo_url") and checked_wikimedia(row)))
 
-    # The community database is read first, and Wikimedia only for the players
-    # it could not answer. The measured reason is coverage and cost: the
-    # community publisher has a record for 86% of players and a picture for 73%
-    # of those at roughly half a minute per club, while Wikimedia answers for
-    # 11% and takes nearly three minutes. Running the cheaper, higher-yield
-    # source first means the expensive one is asked only about the remainder,
-    # which is both faster and the only way "one source per player" can hold.
-    #
-    # Full name + nationality are checked independently by the community source,
-    # so its own cursor advances outside the Wikimedia batch.
-    community_cursor_key = f"community_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
-    community_offset = (0 if explicit_selection or not selected else
-                        int(store.get_meta(community_cursor_key, {}).get("next", 0)) % len(selected))
-    community_ordered = selected[community_offset:] + selected[:community_offset]
-
-    def community_settled(row):
-        cached = cached_community(store, row, team_id)
-        return bool(cached) and cached.get("status") in {"missing", "ambiguous"}
-
-    def community_force_player(row):
-        """``force`` means "re-ask this source", and only for named players.
-
-        The community branch read ``force`` as "ignore the cache", so a whole-team
-        refresh re-asked the publisher about every unresolved player and skipped
-        every cached answer — including the checked ones. Wikimedia's branch has
-        always drawn the narrower line: a whole-team refresh fills and continues,
-        while only an explicitly named player is re-derived. Both sources sit
-        behind one ``force`` argument, so they now read it the same way.
-        """
-        return force and explicit_selection and row.get("photo_match") in COMMUNITY_PHOTO_MATCHES
-
-    community_rows = [row for row in community_ordered if (not row.get("photo_url") or community_force_player(row))
-                      and (community_force_player(row) or not community_settled(row))]
-    attempted = 0
-    processed = []
-    community_unavailable = False
-    for row in community_rows[:community_limit]:
-        processed.append(row)
-        cached = None if community_force_player(row) else cached_community(store, row, team_id)
-        if cached:
-            photo = cached
+    # Id-anchored Commons portraits do not use the free name search. Cached
+    # answers are free; fresh lookups share the batch cap so one pass cannot
+    # walk the whole squad at Wikimedia's pace. A miss is not written onto the
+    # row — the verified-club page still gets to answer. A transport failure is
+    # written, because it is a fact about this attempt rather than a verdict
+    # that the player has no portrait.
+    wikidata_cursor_key = f"wikidata_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
+    wikidata_offset = (0 if explicit_selection or not selected else
+                       int(store.get_meta(wikidata_cursor_key, {}).get("next", 0)) % len(selected))
+    wikidata_ordered = selected[wikidata_offset:] + selected[:wikidata_offset]
+    wikidata_attempted = 0
+    wikidata_unavailable = False
+    wikidata_processed = []
+    wikidata_candidates = [row for row in wikidata_ordered
+                           if not row.get("photo_url") or (force and explicit_selection
+                                                           and row.get("photo_match") == MATCH_ESPN_PROVIDER_ID)]
+    for row in wikidata_candidates:
+        if wikidata_attempted >= community_limit:
+            break
+        refreshing = force and explicit_selection and row.get("photo_match") == MATCH_ESPN_PROVIDER_ID
+        cached_id = None if refreshing else cached_wikidata(store, row)
+        if cached_id:
+            photo = cached_id
         else:
-            attempted += 1
-            photo = await resolve_community(store, row, team_id, force=community_force_player(row))
+            if deadline is not None and deadline - time.monotonic() < 12:
+                break
+            wikidata_attempted += 1
+            photo = await resolve_wikidata(store, row, force=refreshing)
+        wikidata_processed.append(row)
         if photo.get("status") == "completed" and photo.get("photo_url"):
-            if not _apply_photo(row, photo):
-                _record_kept_source(kept_source, row, photo)
-            errors.pop(row["provider_id"], None)
-            held_photo_failures.discard(row["provider_id"])
-        elif community_force_player(row) and _source_refutes_photo(photo):
-            # Only a verdict *about this face* may withdraw a photo the row
-            # already carries. This branch used to fire on anything that was
-            # not a transport failure, so a lookup the source answered with
-            # "the roster has no birth date" or "more than one candidate" —
-            # neither of which says anything about the picture on the row —
-            # still cleared a verified photo.
-            for field in PLAYER_PHOTO_FIELDS:
-                row.pop(field, None)
-            row.update(photo_url="", photo_credit="", photo_reason=photo.get("photo_reason") or "社区照片未通过身份核对。",
-                       retryable=bool(photo.get("retryable")), reason_code=photo.get("reason_code") or "community_rejected")
-        elif not row.get("photo_reason"):
-            row["photo_reason"] = photo.get("photo_reason") or "球员照片未通过身份核对。"
-            row["retryable"] = bool(photo.get("retryable"))
-            row["reason_code"] = photo.get("reason_code") or "rejected"
-        if photo.get("status") == "unavailable":
-            community_unavailable = True
-            reason = _community_failure(row, photo)
+            _apply_photo(row, photo)
+        elif photo.get("status") == "unavailable" and not cached_id:
+            wikidata_unavailable = True
+            reason = "维基数据照片来源：" + (photo.get("photo_reason") or "维基数据暂时不可达，稍后自动重试。")
+            row["photo_reason"] = reason
+            row["retryable"] = bool(photo.get("retryable", True))
+            row["reason_code"] = photo.get("reason_code") or "source_unavailable"
             errors[row["provider_id"]] = f"球员 {row['provider_id']}：{reason}"
-            if row.get("photo_url"):
-                held_photo_failures.add(row["provider_id"])
-            # Bank this row before stopping the source, for the same reason as
-            # the Wikimedia branch below: the host's failure is cached, so the
-            # rest of the queue would fail without being asked, and only this
-            # write keeps what the pass already earned.
             if on_progress:
                 on_progress(snapshot)
-            if not cached:
-                break
-        if on_progress:
+            break
+        if on_progress and photo.get("status") == "completed":
             on_progress(snapshot)
-    if not explicit_selection and processed:
-        last = selected.index(processed[-1])
-        store.set_meta(community_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
+    if not explicit_selection and wikidata_processed:
+        last = selected.index(wikidata_processed[-1])
+        store.set_meta(wikidata_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
 
-    # Wikimedia now only looks at players the community source did not settle
-    # with a picture. Reusing its checked cache first is what keeps an outage of
-    # the other source from sending the whole squad here.
+    # Free name search is not called. Wikimedia looks at players still without
+    # a picture after the id-anchored pass. Reusing its checked cache first
+    # keeps an outage of the other source from sending the whole squad here.
     for row in ordered:
         _apply_cached_reading(store, row, team_id)
         # An explicit forced selection is the caller saying "check these players
@@ -1219,6 +1234,22 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         store.set_meta(cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
     errors = [message for identity, message in errors.items()
               if identity in held_photo_failures or not next(row for row in selected if row["provider_id"] == identity).get("photo_url")]
+    # A namesake verdict already in the community cache is a fact about this
+    # roster entry. The default pass does not ask that publisher again, but it
+    # still has to show the block so the planner does not treat the row as an
+    # ordinary miss. It does not attach the old name-search photo.
+    from .community_portraits import cached_portrait as cached_community
+    for row in selected:
+        if row.get("photo_url"):
+            continue
+        cached_name = cached_community(store, row, team_id)
+        if not cached_name or not cached_name.get("namesake_blocked"):
+            continue
+        _copy_namesake(row, cached_name)
+        row.setdefault("reason_code", cached_name.get("reason_code") or "community_ambiguous")
+        row.setdefault("retryable", False)
+        if not row.get("photo_reason"):
+            row["photo_reason"] = cached_name.get("photo_reason") or "社区球员库只返回了一名同名球员。"
     for row in selected:
         if not row.get("photo_url") and not row.get("photo_reason"):
             row.update(photo_reason="照片来源尚未给出结论，下次更新会继续核对。",
@@ -1226,11 +1257,14 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     available = sum(bool(row.get("photo_url")) for row in roster)
     selected_available = sum(bool(row.get("photo_url")) for row in selected)
     wikimedia_remaining = sum(not row.get("photo_url") for row in candidates[len(requested):])
-    community_remaining = sum(not row.get("photo_url") for row in community_rows[len(processed):])
+    wikidata_remaining = sum(not row.get("photo_url") for row in wikidata_candidates[len(wikidata_processed):])
+    # ``and`` binds tighter than ``or``. Parentheses keep an unavailable source
+    # from reading as "the other source still has a batch ready".
+    wikimedia_settled = any(photo.get("status") in {"completed", "missing", "rejected"} for photo in responses)
+    wikimedia_down = any(photo.get("status") == "unavailable" for photo in responses)
     continuation_ready = bool(
-        community_remaining and processed and not community_unavailable
-        or wikimedia_remaining and any(photo.get("status") in {"completed", "missing", "rejected"} for photo in responses)
-        and not any(photo.get("status") == "unavailable" for photo in responses))
+        (wikidata_remaining and wikidata_processed and not wikidata_unavailable)
+        or (wikimedia_remaining and wikimedia_settled and not wikimedia_down))
     status = ("completed" if selected_available == len(selected) and not errors else
               "partial" if selected_available or continuation_ready else "failed" if errors else "missing")
     return snapshot, _merge_kept_source({"status": status,
@@ -1242,8 +1276,13 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         # A fallback success finishes this player's photo work too: do not
         # report them as still queued in the preferred source's old batch.
         "remaining_count": wikimedia_remaining,
-        "community_attempted_count": attempted,
-        "community_unavailable": community_unavailable,
-        "community_remaining_count": community_remaining,
+        # Name search is retired on this pass. The counters stay so a reader of
+        # an older summary shape still sees an explicit zero rather than a hole.
+        "community_attempted_count": 0,
+        "wikidata_espn_attempted_count": wikidata_attempted,
+        "wikidata_espn_unavailable": wikidata_unavailable,
+        "wikidata_remaining_count": wikidata_remaining,
+        "community_unavailable": False,
+        "community_remaining_count": 0,
         "continuation_ready": continuation_ready,
         "errors": errors, "updated_at": now()}, kept_source)

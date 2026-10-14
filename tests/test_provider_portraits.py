@@ -92,18 +92,24 @@ class GapTests(unittest.TestCase):
         self.assertTrue(answer.gaps)
         self.assertFalse(answer.ok)
 
-    def test_a_transport_fault_is_marked_retryable(self):
+    def test_retired_name_search_does_not_call_the_publisher(self):
         provider = TheSportsDbProvider(store=self.store)
         import asyncio
+        called = False
 
         async def boom(*args, **kwargs):
+            nonlocal called
+            called = True
             raise RuntimeError("限流")
         import server.community_portraits as community
         saved = community.resolve_portrait
         community.resolve_portrait = boom
         self.addCleanup(setattr, community, "resolve_portrait", saved)
         answer = asyncio.run(provider.portrait({"name": "Someone", "nationality": "英格兰"}, "arsenal"))
-        self.assertTrue(answer.gaps[0]["retryable"])
+        self.assertFalse(called)
+        self.assertFalse(answer.ok)
+        self.assertFalse(answer.gaps[0]["retryable"])
+        self.assertIn("姓名搜索", answer.gaps[0]["message"])
 
 
 class RegistrationShapeTests(unittest.TestCase):
