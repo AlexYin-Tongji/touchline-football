@@ -13,3 +13,9 @@
 - 日常用 `python scripts/check.py --suite fast`，局部修改用 `--module test_模块名`。交付必须跑 `python scripts/check.py --suite full`（包含全部 unittest）、`npm run test:ui`、`npm run build`。界面改动还须验桌面与窄屏。新增测试优先复用 `tests/support.py`，保留安全/事实/取消边界，避免同义用例和源码文本断言。
 - 自动化测试使用临时数据库和本地/mock模型，不调用真实付费模型或修改用户数据。真实联网/模型验收应限量、明确区分测试资料与真实资料。
 - `agent_skills/` 是应用自身的工作规程，不会扩大工具的数据权限、比赛范围或联网权限。
+
+## Cursor Cloud specific instructions
+
+- 基础镜像已有 Python 3.12 与 Node.js 22，但没有 `python` 命令和 `venv`。安装阶段用 `sudo apt-get install -y python3.12-venv python-is-python3`，然后执行 `python3 -m venv --copies .venv`、`.venv/bin/python -m pip install -r requirements.txt -c requirements.lock.txt`、`npm ci`、`npm run build`。`--copies` 必须保留：Linux 默认符号链接会让 `scripts/check.py` 误判已经在用项目解释器，从而找不到已安装依赖。
+- 默认入口是 `http://127.0.0.1:9080/`。启动：`.venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 9080`。`npm run dev` 把 `/api` 代理到同一端口。
+- `python scripts/check.py` 会改用项目 `.venv`。快速检查与 `npm run test:ui` 不需要模型密钥，也不会改用户的 `data/`。`dist/` 与 `src/generated/` 由构建生成，已被 Git 忽略。
