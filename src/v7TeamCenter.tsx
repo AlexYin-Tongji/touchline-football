@@ -13,8 +13,8 @@ import {
   Users,
 } from "lucide-react";
 import { api, errorText } from "./api";
-import { WorkflowControls } from "./WorkflowControls";
 import { DecisionHistory } from "./DecisionHistory";
+import { TeamHeroActions } from "./teamPanel";
 import { Crest, Modal, safeUrl, Spinner } from "./components";
 import { findClub } from "./clubCatalog";
 import { Sources, friendlyTime, type SourceLink } from "./v7Shared";
@@ -114,6 +114,27 @@ interface CenterData {
     results?: { label: string; value: number }[];
     home_away?: ({ label: string } & SeasonStats)[];
   };
+  /** PR #4 panel charts: null blocks mean SAMPLE_INSUFFICIENT / SCOPE_DENIED empty state. */
+  chart_blocks?: {
+    status?: string;
+    reason_code?: string | null;
+    retryable?: boolean;
+    sample?: {
+      played?: number;
+      from?: string | null;
+      to?: string | null;
+      season_id?: string | null;
+      competition?: string | null;
+      scope?: string | null;
+      sources?: { name?: string; url?: string }[];
+    } | null;
+    results?: { won?: number; drawn?: number; lost?: number; played?: number } | null;
+    goals?: { goals_for?: number; goals_against?: number; played?: number } | null;
+    home_away?: {
+      home?: SeasonStats & { goals_for?: number; goals_against?: number };
+      away?: SeasonStats & { goals_for?: number; goals_against?: number };
+    } | null;
+  } | null;
   updated_at?: string;
   roster_updated_at?: string;
   // 后端 center_view 返回的三个分项时间戳，用作"资料真的变了"的指纹。
@@ -226,6 +247,7 @@ export function TeamCenter({
   const [matchTab, setMatchTab] = useState("upcoming");
   const [matchLimit, setMatchLimit] = useState(8);
   const [revealedTeam, setRevealedTeam] = useState<string | null>(null);
+  const [fillOpen, setFillOpen] = useState(false);
   const reveal = revealedTeam === team.id;
   const heroRef = useTilt<HTMLElement>();
   const active = useRef(team.id);
@@ -260,6 +282,7 @@ export function TeamCenter({
     setPlayerQuery("");
     setPlayer(null);
     setRevealedTeam(null);
+    setFillOpen(false);
   }, [team.id]);
   useEffect(() => {
     void load();
@@ -327,6 +350,37 @@ export function TeamCenter({
     1,
     ...goals.flatMap((item) => [item.goals_for, item.goals_against]),
   );
+  const blocks = center?.chart_blocks;
+  const blockEmpty = !!blocks && (blocks.results == null || blocks.status === "empty");
+  const blockReady = !!blocks && blocks.status === "ready" && !!blocks.results;
+  const resultBars = blockReady
+    ? [
+        { label: "胜", value: blocks!.results!.won || 0 },
+        { label: "平", value: blocks!.results!.drawn || 0 },
+        { label: "负", value: blocks!.results!.lost || 0 },
+      ]
+    : !blocks && center?.charts?.results?.length
+      ? center.charts.results
+      : !blocks && season
+        ? [
+            { label: "胜", value: season.won || 0 },
+            { label: "平", value: season.drawn || 0 },
+            { label: "负", value: season.lost || 0 },
+          ]
+        : [];
+  const resultTotal = resultBars.reduce((sum, item) => sum + (item.value || 0), 0);
+  const chartSampleNote = blocks?.sample?.scope
+    ? `样本范围：${blocks.sample.scope}${blocks.sample.played != null ? ` · ${blocks.sample.played} 场` : ""}`
+    : blocks?.reason_code === "SAMPLE_INSUFFICIENT"
+      ? "样本不足"
+      : blocks?.reason_code === "SCOPE_DENIED"
+        ? "避剧透下不展示图表数字"
+        : "样本范围：已收录完整比分的联赛场次";
+  const homeBlock = blocks?.home_away?.home;
+  const awayBlock = blocks?.home_away?.away;
+  const showHomeAway = blockReady
+    ? !!(homeBlock || awayBlock)
+    : !blocks && !!season?.played;
   return (
     <div className="team-center">
       <section className="club-hero" ref={heroRef}>
@@ -370,8 +424,15 @@ export function TeamCenter({
             </a>
           )}
         </div>
+        <TeamHeroActions
+          teamId={team.id}
+          updatedAt={center?.updated_at}
+          center={center}
+          onChanged={workflowChanged}
+          fillOpen={fillOpen}
+          onToggleFill={() => setFillOpen((value) => !value)}
+        />
       </section>
-      <WorkflowControls kind="team" teamId={team.id} onChange={workflowChanged} />
       {center?.preparation?.status === "running" && (
         <div className="material-status" role="status"><Spinner /> 正在准备这支球队的名单、照片和比赛资料。</div>
       )}
@@ -423,27 +484,6 @@ export function TeamCenter({
               : "等待资料同步"}
           </small>
         </div>
-      )}
-      {center?.components && (
-        <details className="team-data-status">
-          <summary>资料更新情况<span>{Object.values(center.components).some((part) => part?.status === "running") ? "正在补充资料" : "查看各项来源状态"}</span></summary>
-          <div className="data-component-grid">
-            {(Object.keys(componentNames) as (keyof typeof componentNames)[]).map((key) => {
-              const part = center.components?.[key];
-              if (!part) return null;
-              return <div key={key}>
-                <strong>{componentNames[key]}</strong>
-                <span className={`data-state data-state-${part.status}`}>{componentStatuses[part.status] || part.status}</span>
-                <small>{key === "portraits" && part.total_count != null ? `${part.available_count || 0} / ${part.total_count} 张有来源照片` : part.updated_at ? `更新于${friendlyTime(part.updated_at)}` : "尚无有效快照"}</small>
-                {key === "portraits" && photoGapNote(part) && <small>{photoGapNote(part)}</small>}
-                {key === "portraits" && !!part.review_note && <small>{part.review_note}</small>}
-                {key === "profile" && <small>{part.note}</small>}
-                {key === "profile" && part.crest && <small>{part.crest.note}</small>}
-                {!!part.errors?.length && <p>{part.errors.join("；")}</p>}
-              </div>;
-            })}
-          </div>
-        </details>
       )}
       <DecisionHistory teamId={team.id} version={[
         center?.roster_updated_at, center?.fixtures_updated_at, center?.standings_updated_at,
@@ -638,13 +678,46 @@ export function TeamCenter({
             )}
           </section>
           {!center?.stats.hidden && (
-            <div className="charts-grid">
+            <div className="charts-grid charts-grid-three">
+              <section className="panel results-panel">
+                <div className="section-heading">
+                  <h2>胜平负</h2>
+                  <span>联赛样本</span>
+                </div>
+                {!blockEmpty && resultTotal > 0 ? (
+                  <>
+                    <div
+                      className="performance-track results-track"
+                      role="img"
+                      aria-label={resultBars.map((item) => `${item.label}${item.value}`).join(" ")}
+                    >
+                      {resultBars.map((item) => (
+                        <i
+                          key={item.label}
+                          className={`result-${item.label === "胜" ? "W" : item.label === "平" ? "D" : "L"}`}
+                          style={{ width: `${(item.value / resultTotal) * 100}%` }}
+                        />
+                      ))}
+                    </div>
+                    <div className="chart-legend results-legend">
+                      {resultBars.map((item) => (
+                        <span key={item.label}>{item.label} {item.value}</span>
+                      ))}
+                    </div>
+                    <p className="chart-basis-note">{chartSampleNote}</p>
+                  </>
+                ) : (
+                  <div className="chart-empty chart-empty-dashed">
+                    <p>{blocks?.reason_code === "SCOPE_DENIED" ? "避剧透未展示" : "样本不足"}</p>
+                  </div>
+                )}
+              </section>
               <section className="panel goals-panel">
                 <div className="section-heading">
                   <h2>进球与防守</h2>
                   <span>最近 {goals.length || "—"} 场联赛</span>
                 </div>
-                {goals.length ? (
+                {(blocks ? blocks.goals != null : true) && goals.length ? (
                   <>
                     <div className="chart-legend">
                       <span>
@@ -692,9 +765,8 @@ export function TeamCenter({
                     </div>
                   </>
                 ) : (
-                  <div className="chart-empty">
-                    <Trophy size={25} />
-                    <p>有了正式比赛数据，表现就会在这里呈现。</p>
+                  <div className="chart-empty chart-empty-dashed">
+                    <p>样本不足</p>
                   </div>
                 )}
               </section>
@@ -703,11 +775,11 @@ export function TeamCenter({
                   <h2>主客场表现</h2>
                   <span>联赛数据</span>
                 </div>
-                {season?.played ? (
+                {showHomeAway ? (
                   <>
                     {[
-                      { label: "主场", value: center?.stats.home },
-                      { label: "客场", value: center?.stats.away },
+                      { label: "主场", value: blockReady ? homeBlock : center?.stats.home },
+                      { label: "客场", value: blockReady ? awayBlock : center?.stats.away },
                     ].map((item) => {
                       const played = item.value?.played || 0;
                       return (
@@ -752,27 +824,31 @@ export function TeamCenter({
                     })}
                     <div className="goals-total">
                       <div>
-                        <strong>{numberOrDash(season.goals_for)}</strong>
+                        <strong>{numberOrDash(blockReady ? blocks?.goals?.goals_for : season?.goals_for)}</strong>
                         <span>总进球</span>
                       </div>
                       <div>
-                        <strong>{numberOrDash(season.goals_against)}</strong>
+                        <strong>{numberOrDash(blockReady ? blocks?.goals?.goals_against : season?.goals_against)}</strong>
                         <span>总失球</span>
                       </div>
                       <div>
                         <strong>
-                          {season.goals_for !== undefined &&
-                          season.goals_against !== undefined
-                            ? season.goals_for - season.goals_against
+                          {(blockReady ? blocks?.goals?.goals_for : season?.goals_for) !== undefined &&
+                          (blockReady ? blocks?.goals?.goals_against : season?.goals_against) !== undefined
+                            ? (blockReady ? (blocks!.goals!.goals_for || 0) : (season!.goals_for || 0)) -
+                              (blockReady ? (blocks!.goals!.goals_against || 0) : (season!.goals_against || 0))
                             : "—"}
                         </strong>
                         <span>净胜球</span>
                       </div>
                     </div>
+                    {blockReady && chartSampleNote && (
+                      <p className="chart-basis-note">{chartSampleNote}</p>
+                    )}
                   </>
                 ) : (
-                  <div className="chart-empty">
-                    <p>暂无主客场统计。</p>
+                  <div className="chart-empty chart-empty-dashed">
+                    <p>样本不足</p>
                   </div>
                 )}
               </section>
@@ -796,8 +872,8 @@ export function TeamCenter({
               <Sparkles size={22} />
             </span>
             <div>
-              <strong>数字背后的比赛，交给助手来读。</strong>
-              <p>从阵容到战术，深入了解这支球队。</p>
+              <strong>需要解读时再问助手</strong>
+              <p>球队栏主路径是上方「更新 / 补全」，不是聊天。</p>
             </div>
             <ArrowRight size={20} />
           </button>

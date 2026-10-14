@@ -563,17 +563,23 @@ test("team center prepares public data once and preserves players while workflow
     matches: [], stats: {}, sources: [] };
   const host = component("v7TeamCenter.tsx", "TeamCenter", { team, data: { ...data, teams: [team] }, ask() {} }, (path, method) => {
     calls.push([path, method]);
+    if (path.startsWith("/workflows/")) {
+      return Promise.resolve(workflowState({ kind: "team", status: "idle", message: "点击启动，更新一次资料。", leaves: [] }));
+    }
     if (method === "POST") return prepared.promise;
-    return calls.filter(([, method]) => method === "GET").length === 1 ? Promise.resolve(center) : next.promise;
+    const centerGets = calls.filter(([p, m]) => m === "GET" && p.includes("/center")).length;
+    return centerGets === 1 ? Promise.resolve(center) : next.promise;
   });
   await host.flush();
   assert.equal(nodes(host.tree, node => node.type === "DecisionHistory")[0].props.teamId, team.id);
+  assert.ok(nodes(host.tree, node => node.type === "TeamHeroActions")[0], "panel fill control is the team primary path");
+  assert.match(text(host.tree), /更新 \/ 补全/);
   button(host, "球员阵容").props.onClick();
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
   assert.equal(button(host, "更新阵容"), undefined);
   assert.equal(nodes(host.tree, node => node.props?.["aria-label"] === "更新球队资料").length, 0);
-  nodes(host.tree, node => node.type === "WorkflowControls")[0].props.onChange(workflowState({ kind: "team", status: "stopped" }));
+  nodes(host.tree, node => node.type === "TeamHeroActions")[0].props.onChanged();
   await host.flush();
   assert.match(text(host.tree), /已有球员/, "pending reads do not clear an existing snapshot");
   next.resolve(center);
@@ -581,7 +587,7 @@ test("team center prepares public data once and preserves players while workflow
   await host.flush();
   assert.match(text(host.tree), /已有球员/);
   assert.deepEqual(calls.filter(([, method]) => method === "POST"), [["/teams/arsenal/prepare", "POST"]]);
-  assert.ok(calls.filter(([, method]) => method === "GET").every(([path]) => path === "/teams/arsenal/center"));
+  assert.ok(calls.filter(([path, method]) => method === "GET" && path.includes("/center")).every(([path]) => path === "/teams/arsenal/center"));
   host.unmount();
 });
 
