@@ -117,6 +117,10 @@ class RoleAssignments(StrictModel):
     # ``assign_roles``. The role's own rule is unchanged: it is still never
     # inherited from the active model, so leaving it unset costs nothing.
     photos: SelectInput | None = None
+    # Same reason ``photos`` is declared: the settings page offers it, so a
+    # schema that omits it rejects the assignment as an unknown field before it
+    # reaches ``assign_roles``.
+    review: SelectInput | None = None
 
 
 class RolesInput(StrictModel):
@@ -127,8 +131,11 @@ class RolesInput(StrictModel):
 # active model. Verification is a different judgement from writing, and photo
 # planning is a paid background call: a reader who configured a chat model did
 # not ask for either to start happening on a team page they merely opened.
-NEVER_INHERITED_ROLES = frozenset({"verify", "photos"})
-MODEL_ROLES = ("feed", "chat", "team", "verify", "photos")
+NEVER_INHERITED_ROLES = frozenset({"verify", "photos", "review"})
+# ``review`` is the judgement role: it rules on the residue the rules
+# cannot settle (ambiguous candidates, unattributable gaps) and is never
+# inherited from the active chat model, because it runs on a refresh.
+MODEL_ROLES = ("feed", "chat", "team", "verify", "photos", "review")
 
 
 def role_selection(store, role):

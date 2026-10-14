@@ -16,12 +16,17 @@ from .club_library import TEAM_ALIASES
 from .ingestion import IngestionError, now, published_time, source_error_details
 from .news_sources import AMBIGUOUS_GLOBAL_ALIASES, OTHER_CLUB_IDENTITIES, global_feed_mentions_team
 from .research_transport import blocking_request, shared_request, fetch_reviewed_portrait_document as fetch_document
-from .player_names import checked_wikidata_reading, cjk_label
+from .player_names import checked_wikidata_reading, cjk_label, to_simplified
 
 WIKIPEDIA = "en.wikipedia.org"
+WIKIPEDIA_ZH = "zh.wikipedia.org"
 WIKIDATA = "www.wikidata.org"
 COMMONS = "commons.wikimedia.org"
-HOSTS = frozenset({WIKIPEDIA, WIKIDATA, COMMONS})
+# The endpoints ``request_json`` will talk to. The Mainland-convention reading of
+# a player's name lives in the Chinese Wikipedia article title, so that host is
+# reachable through the same pinned path as the others; which of them a given
+# caller may use is decided by the caller, not by widening this set further.
+HOSTS = frozenset({WIKIPEDIA, WIKIPEDIA_ZH, WIKIDATA, COMMONS})
 SUCCESS_SECONDS = 86400
 # A completed result is a licensed photo of a real person, not a perishable
 # reading. While it was held to the same 24h as a verdict, every roster rebuild
@@ -300,9 +305,20 @@ async def _wikidata_label(store, qid, *, identity):
     labels = entity.get("labels") if isinstance(entity.get("labels"), dict) else {}
     for language in ("zh-hans", "zh"):
         label = labels.get(language, {})
-        if isinstance(label, dict) and label.get("language") == language and cjk_label(label.get("value")):
-            identity.update(qid=qid, label=label["value"], language=language)
-            return True
+        if not isinstance(label, dict) or label.get("language") != language:
+            continue
+        published = label.get("value")
+        if not cjk_label(published):
+            continue
+        # ``zh-hans`` is simplified by definition. A ``zh`` label is whatever the
+        # community wrote and is frequently Traditional (米高·奧利斯); normalise it
+        # through the Unihan one-to-one map, and keep the published form in the
+        # proof so the row can be re-checked without trusting this conversion.
+        simplified = to_simplified(published)
+        if not cjk_label(simplified):
+            continue
+        identity.update(qid=qid, label=simplified, published_label=published, language=language)
+        return True
     return False
 
 
@@ -339,10 +355,17 @@ async def _wikidata_club(store, qid, team_id, birth_date, *, identity=None):
         labels = entity.get("labels") if isinstance(entity.get("labels"), dict) else {}
         for language in ("zh-hans", "zh"):
             label = labels.get(language, {})
-            if isinstance(label, dict) and label.get("language") == language and cjk_label(label.get("value")):
-                identity.update(qid=qid, label=label["value"], language=language,
-                                club_qids=sorted(active or undated))
-                break
+            if not isinstance(label, dict) or label.get("language") != language:
+                continue
+            published = label.get("value")
+            if not cjk_label(published):
+                continue
+            simplified = to_simplified(published)
+            if not cjk_label(simplified):
+                continue
+            identity.update(qid=qid, label=simplified, published_label=published, language=language,
+                            club_qids=sorted(active or undated))
+            break
     return matched
 
 
@@ -621,7 +644,8 @@ async def resolve_portrait(store, player, team_id, *, force=False):
                     name_reading = {"name_status": "verified", "name_zh": identity["label"],
                         "name_zh_source": "Wikidata 中文标签", "name_zh_source_url": "https://www.wikidata.org/wiki/" + identity["qid"],
                         "name_zh_checked_at": now(), "name_zh_identity": {
-                            **identity, "method": "wikidata_existing_identity_check", "name": name,
+                            **identity, "label": identity.get("published_label", identity["label"]),
+                            "method": "wikidata_existing_identity_check", "name": name,
                             "team_id": team_id, "roster_birth_date": birth_date or "",
                             "provider_id": str(player.get("provider_id") or ""),
                             "article_title": article["title"],

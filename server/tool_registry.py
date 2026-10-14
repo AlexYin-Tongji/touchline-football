@@ -52,6 +52,11 @@ WORKFLOW_CAPABILITIES = {
     "news_report": NEWS_WORK,
     "team_brief": NEWS_WORK,
     "team_maintenance": TEAM_WORK,
+    # A maintenance run is a tree of blocks, so its default set is TEAM_WORK and
+    # each block narrows from it below. It is TEAM_WORK rather than a new set
+    # because the work is the same work read from the other end: the blocks
+    # refresh what the team-information skill reads.
+    "team_refresh": TEAM_WORK,
     "ask": ASK_WORK,
     "match_preview": MATCH_WORK,
     "match_review": MATCH_WORK,
@@ -79,7 +84,14 @@ WORKFLOW_CAPABILITIES = {
 TOPIC_CAPABILITIES = {
     "team-information:squad.images": {
         "capabilities": frozenset({IDENTITY, TEAM, PERSON, SKILL, OUTPUT}),
-        "exposes": ("fetch_player_photos",),
+        "exposes": ("fetch_player_photos", "review_maintenance"),
+    },
+    # The review direction reads no article: its work is the local queues, the
+    # club record and one paid judgement round over the residue code could not
+    # settle. Narrower than the image direction, which also runs the fetch.
+    "team-information:squad.review": {
+        "capabilities": frozenset({IDENTITY, TEAM, PERSON, SKILL, OUTPUT}),
+        "exposes": ("review_maintenance",),
     },
     "team-information:squad.info": {
         "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT})},
@@ -89,6 +101,42 @@ TOPIC_CAPABILITIES = {
         "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT})},
     "team-information:scope": {"capabilities": TEAM_WORK},
     "team-information:squad": {"capabilities": TEAM_WORK},
+
+    # --- team-maintenance: one entry per block ---------------------------------
+    # These are the blocks a maintenance run is split into. Unlike an ordinary
+    # conversation's direction, a block *is* the work, so it has to keep the
+    # tools that do it rather than narrow to a description of it.
+    #
+    # Every block keeps EVIDENCE on purpose. ``spawn_agent`` refuses a child
+    # whose tool set includes a composite reader (maintain_team_data,
+    # fetch_player_photos) without read_evidence, because those tools read
+    # original text and the child would have no way to cite it. Narrowing
+    # EVIDENCE away would make a block unable to hand its own tool to a child.
+    #
+    # ``fetch_player_photos`` and ``maintain_team_data`` are background tools,
+    # withheld from ordinary conversations and restored only by ``exposes`` —
+    # that is the mechanism that lets a block actually run its own batch.
+    "team-maintenance:roster": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team-maintenance:schedule": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team-maintenance:standings": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team-maintenance:profile": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("maintain_team_data",)},
+    "team-maintenance:portraits": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("fetch_player_photos", "review_maintenance")},
+    # The names block reads no article either — its work is one lookup per
+    # player plus the same paid-judgement residue the review direction handles —
+    # but it still keeps EVIDENCE so a child can be handed the tool at all.
+    "team-maintenance:names": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, DELEGATE, OUTPUT}),
+        "exposes": ("maintain_team_data", "review_maintenance")},
 }
 
 
@@ -111,6 +159,29 @@ def topic_exposes(skill, topic):
     """
     entry = topic_declared(skill, topic) or {}
     return tuple(entry.get("exposes") or ())
+
+
+# A workflow that *is* the maintenance pass, rather than a conversation about
+# one, needs the background tools before it has loaded any direction. The topic
+# mechanism above cannot help it: the root reads the skill, decides which blocks
+# are stale, and only then hands them out — so at the moment it is assembling
+# its tool surface, no topic is loaded yet, and the tools it must delegate are
+# still withheld. A sub-agent can only be given tools its parent holds, so
+# withholding them at the root means the whole tree has nothing to run.
+#
+# The same justification the image direction uses applies here and is stronger:
+# a maintenance run exists to run these batches, so a tool that runs one is not
+# an extra capability, it is the task itself. Scope still decides permission
+# afterwards — demo mode, no network, a fixed article or match all still remove
+# them — and nothing here can override that.
+WORKFLOW_EXPOSES = {
+    "team_refresh": ("maintain_team_data", "fetch_player_photos", "review_maintenance"),
+}
+
+
+def workflow_exposes(workflow):
+    """Background tools a workflow asks to have offered before any topic loads."""
+    return tuple(WORKFLOW_EXPOSES.get(str(workflow)) or ())
 
 # Tool name -> the kinds of work it does. Kept beside the registry rather than
 # inside each schema so a tool's purpose is readable in one place.
@@ -140,6 +211,10 @@ TOOL_CAPABILITIES = {
     # asking for a batch.
     "photo_queue": (TEAM, PERSON),
     "plan_photo_batch": (PERSON,),
+    # Local read costs nothing. The judgement round behind it is a paid role, and
+    # it spans people (names, roster facts) and the club record (fields, crest),
+    # so it carries both capabilities rather than only PERSON.
+    "review_maintenance": (PERSON, TEAM),
     "conversation_history": (IDENTITY,),
     "use_skill": (SKILL,),
     "submit_answer": (OUTPUT,),

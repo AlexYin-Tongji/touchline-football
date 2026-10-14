@@ -135,3 +135,61 @@ class LookupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TraditionalLabelTests(unittest.TestCase):
+    """A ``zh`` label may be Traditional; only the map decides what may change."""
+
+    def row(self, **overrides):
+        row = {"name": "Michael Olise", "team_id": "bayern", "provider_id": "9"}
+        row.update(overrides)
+        return row
+
+    def candidate(self, row, label, published=None, language="zh"):
+        return {"name_zh": label, "name_zh_source": "Wikidata 中文标签",
+                "name_zh_source_url": "https://www.wikidata.org/wiki/Q62050484",
+                "name_zh_checked_at": now(),
+                "name_zh_identity": {"qid": "Q62050484", "method": "wikidata_existing_identity_check",
+                    "name": row["name"], "team_id": row["team_id"], "provider_id": row["provider_id"],
+                    "roster_birth_date": "", "label": published if published is not None else label,
+                    "language": language, "identity_checked": True, "unique_article": True, "public": True}}
+
+    def test_a_traditional_label_is_normalised_to_simplified(self):
+        # The real label on Q62050484 is 米高·奧利斯: 米高 is the Hong Kong reading
+        # and is not an error, so the only thing that may change is the script.
+        self.assertEqual(player_names.to_simplified("米高·奧利斯"), "米高·奥利斯")
+        self.assertEqual(player_names.to_simplified("孔拉德·萊梅爾"), "孔拉德·莱梅尔")
+
+    def test_an_already_simplified_label_passes_through_unchanged(self):
+        for label in ("贾迈勒·穆西亚拉", "马丁·厄德高", "米高·奥利斯"):
+            self.assertEqual(player_names.to_simplified(label), label)
+        self.assertEqual(player_names.to_simplified(""), "")
+
+    def test_characters_valid_in_both_scripts_are_never_rewritten(self):
+        # 著/裡/復 are the same character in modern simplified prose; converting
+        # them would corrupt a name rather than normalise it.
+        for char in ("著", "裡", "復", "乾"):
+            self.assertNotIn(char, player_names._TRADITIONAL_TO_SIMPLIFIED)
+
+    def test_a_converted_reading_from_a_traditional_published_label_verifies(self):
+        # The row carries the simplified reading; the proof carries what Wikidata
+        # published. Re-running the map must reproduce the stored reading.
+        row = self.row()
+        candidate = self.candidate(row, "米高·奥利斯", published="米高·奧利斯")
+        checked = player_names.checked_wikidata_reading(candidate, row, team_id="bayern")
+        self.assertIsNotNone(checked)
+        self.assertEqual(checked["name_zh"], "米高·奥利斯")
+
+    def test_a_reading_the_published_label_cannot_produce_is_refused(self):
+        # A reading that claims to be the simplification of a published form must
+        # actually be one: 奧利斯 does not reduce to 索利斯.
+        row = self.row()
+        candidate = self.candidate(row, "米高·索利斯", published="米高·奧利斯")
+        self.assertIsNone(player_names.checked_wikidata_reading(candidate, row, team_id="bayern"))
+
+    def test_a_reading_that_keeps_a_resolvable_traditional_character_is_refused(self):
+        # Storing 萊梅爾 while the map resolves 萊→莱 and 爾→尔 would publish
+        # 繁體 under a simplified heading; the pair must agree or be dropped.
+        row = self.row()
+        candidate = self.candidate(row, "孔拉德·萊梅爾", published="孔拉德·萊梅爾")
+        self.assertIsNone(player_names.checked_wikidata_reading(candidate, row, team_id="bayern"))

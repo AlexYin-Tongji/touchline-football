@@ -179,6 +179,42 @@ def _apply_photo(player, photo):
     return True
 
 
+def _record_kept_source(summary, player, photo):
+    """Note a source that answered with a picture and was outranked anyway.
+
+    This is the case the return value of ``_apply_photo`` exists to expose. A
+    weaker source deriving a perfectly good photo for a row ESPN already answered
+    is *correctly* refused — but the caller used to discard the refusal, so the
+    pass reported the same numbers whether the lookup was refused for this reason
+    or never returned anything at all. "Kept the stronger source" and "the source
+    had nothing" are different facts about the run, and only one of them means
+    the work is settled.
+
+    Recorded as a count plus the source names, never as a per-player list: the
+    reader needs to know the pass behaved, not which rows were skipped, and a
+    player id here would be an identity claim this function has not verified.
+    """
+    current = photo_source_rank(player.get("photo_match"))
+    incoming = photo_source_rank(photo.get("photo_match"))
+    # Lower rank wins, the same direction ``photo_outranks`` uses. A source that
+    # would have been written is not a refusal, and an unranked one is not a
+    # comparison this can make.
+    if incoming is None or current is None or incoming <= current:
+        return
+    summary["kept_stronger_source_count"] = summary.get("kept_stronger_source_count", 0) + 1
+    pairs = summary.setdefault("kept_stronger_source", [])
+    pair = {"kept": player.get("photo_match"), "skipped": photo.get("photo_match")}
+    if pair not in pairs:
+        pairs.append(pair)
+
+
+def _merge_kept_source(summary, kept):
+    """Fold the accumulator into the pass summary, if it recorded anything."""
+    if kept.get("kept_stronger_source_count"):
+        summary.update(kept)
+    return summary
+
+
 # Which source a player's portrait comes from, strongest first. This is the one
 # place the order is decided, so acquiring a photo and replacing one already on
 # the row cannot disagree about which source wins.
@@ -972,6 +1008,9 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
 
     roster = snapshot["roster"]
     team_id = snapshot["team_id"]
+    # Refusals where a source did answer, kept for the pass summary. See
+    # ``_record_kept_source`` for why these are counted rather than dropped.
+    kept_source = {}
     # The batch is sized against the time this pass actually has. A fixed
     # ceiling is what produced truncated batches: the phase budget expires
     # mid-player and the whole pass reports as interrupted, which reads as
@@ -1039,7 +1078,8 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
             attempted += 1
             photo = await resolve_community(store, row, team_id, force=community_force_player(row))
         if photo.get("status") == "completed" and photo.get("photo_url"):
-            _apply_photo(row, photo)
+            if not _apply_photo(row, photo):
+                _record_kept_source(kept_source, row, photo)
             errors.pop(row["provider_id"], None)
             held_photo_failures.discard(row["provider_id"])
         elif community_force_player(row) and _source_refutes_photo(photo):
@@ -1096,7 +1136,8 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         cached_count += 1
         if cached.get("status") == "completed" and all(cached.get(field) for field in
                 ("photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license")):
-            _apply_photo(row, cached)
+            if not _apply_photo(row, cached):
+                _record_kept_source(kept_source, row, cached)
         else:
             if row.get("photo_match") == "wikimedia_verified_club":
                 for field in PLAYER_PHOTO_FIELDS:
@@ -1192,7 +1233,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         and not any(photo.get("status") == "unavailable" for photo in responses))
     status = ("completed" if selected_available == len(selected) and not errors else
               "partial" if selected_available or continuation_ready else "failed" if errors else "missing")
-    return snapshot, {"status": status,
+    return snapshot, _merge_kept_source({"status": status,
         "updated_count": sum(tuple(row.get(key) for key in PLAYER_PHOTO_FIELDS) != before[row["provider_id"]]
                              for row in selected),
         "available_count": available, "total_count": len(roster), "selected_count": len(selected),
@@ -1205,4 +1246,4 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         "community_unavailable": community_unavailable,
         "community_remaining_count": community_remaining,
         "continuation_ready": continuation_ready,
-        "errors": errors, "updated_at": now()}
+        "errors": errors, "updated_at": now()}, kept_source)

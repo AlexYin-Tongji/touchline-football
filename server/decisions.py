@@ -21,6 +21,20 @@ FIELDS = {
     "portraits": ("id",),
 }
 TERMINAL = {"completed", "partial", "failed", "interrupted", "checked", "deferred"}
+# How many finished records one team keeps. Each row carries two full before/after
+# observation sets and measures about 26 KB, so this is a size decision, not a
+# history-length preference: at the old unbounded rate a single club had reached
+# 64 rows, and every read of the collection decoded all of it.
+#
+# The cap is per team, because that is the axis a reader asks along — the
+# decision log on a team page is that club's history, and one busy club must not
+# push another club's records out.
+#
+# It is set to the largest page the history API will serve (``le=`` on
+# ``/api/teams/{id}/decisions``), because a smaller cap would make that ceiling a
+# lie: a caller asking for 50 would silently receive fewer. The reader shows five
+# of them; the rest is headroom for a caller that asks for more.
+RETAIN_PER_TEAM = 50
 
 
 def _now():
@@ -138,7 +152,52 @@ def finish(store, identity, view=None, outcome=None):
                           "checked": "资料仍在时效内，本轮没有重新读取来源。",
                           "deferred": "已有任务或重试间隔尚未结束，本轮未重复请求。"}[row["status"]]
         store.put("decisions", row)
+        _trim(store, row.get("team_id"))
         return row
+
+
+def _trim(store, team_id, *, keep=RETAIN_PER_TEAM):
+    """Drop a team's oldest *finished* records beyond the cap.
+
+    Called from ``finish`` for the row just written, so the collection cannot
+    grow without bound no matter which caller finishes a cycle. Only terminal
+    records are candidates: a running row is the row ``finish`` itself is about
+    to update, and deleting it would erase a decision that has not been recorded
+    yet. The list query already orders newest-first, so anything past the cap is
+    the oldest.
+
+    Rows are deleted inside the same transaction as the write that triggered the
+    trim, which is what makes the bound hold under concurrent writers: two
+    finishers cannot each see a full list and leave one over the cap.
+    """
+    if not team_id:
+        return 0
+    # No lock of our own: this runs inside ``finish``'s transaction, which
+    # already holds the store's re-entrant lock, and ``_commit`` inside a
+    # transaction is a no-op by design. Adding either here would only obscure
+    # which transaction the deletes belong to.
+    rows = store._db.execute(
+        "SELECT id, body FROM documents WHERE collection='decisions' "
+        "AND json_extract(body, '$.team_id')=? ORDER BY rowid DESC",
+        (team_id,)).fetchall()
+    stale = [identity for identity, body in rows[max(1, int(keep)):]
+             if _terminal_body(body)]
+    if not stale:
+        return 0
+    store._db.executemany("DELETE FROM documents WHERE collection='decisions' AND id=?",
+                          [(identity,) for identity in stale])
+    store._commit()
+    return len(stale)
+
+
+def _terminal_body(body):
+    """Whether a stored row's status is finished, without trusting the decode."""
+    try:
+        return json.loads(body).get("status") in TERMINAL
+    except (TypeError, ValueError):
+        # An unreadable body is not a record this module can vouch for; treating
+        # it as retained keeps the trim from deleting something it cannot read.
+        return False
 
 
 def _rows(store, team_id, *, limit):
@@ -169,6 +228,18 @@ def history(store, team_id, *, limit=20, reveal=False):
 
 
 def recover(store):
-    for row in store.list("decisions"):
-        if row.get("status") not in TERMINAL:
-            finish(store, row["id"], outcome={"status": "interrupted"})
+    """Close out records left running by a crash, without reading the archive.
+
+    ``store.list`` decodes every row in the collection — on a real database that
+    was megabytes of JSON parsed to find the handful that were still running.
+    The terminal statuses are known, so the unfinished ones can be selected in
+    SQL and only those decoded.
+    """
+    placeholders = ",".join("?" for _ in TERMINAL)
+    with store.lock:
+        rows = store._db.execute(
+            "SELECT id FROM documents WHERE collection='decisions' "
+            f"AND json_extract(body, '$.status') NOT IN ({placeholders})",
+            tuple(sorted(TERMINAL))).fetchall()
+    for (identity,) in rows:
+        finish(store, identity, outcome={"status": "interrupted"})

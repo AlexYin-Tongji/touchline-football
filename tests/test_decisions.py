@@ -120,3 +120,109 @@ class DecisionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetentionTests(unittest.TestCase):
+    """The collection is bounded per team, and the bound holds under writers."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.store = Store(Path(self.directory.name) / "retention.sqlite3")
+        self.addCleanup(lambda: self.store.close())
+
+    def cycle(self, team_id="arsenal", number="7"):
+        identifier = decisions.begin(self.store, team_id, view(number), parts=["roster"],
+                                     trigger="automatic", reason="重新读取来源。")
+        decisions.finish(self.store, identifier, view(number), {"status": "completed"})
+        return identifier
+
+    def rows(self, team_id="arsenal"):
+        return [row for row in self.store.list("decisions") if row.get("team_id") == team_id]
+
+    def test_finished_records_are_capped_per_team(self):
+        # Each row carries two full observation sets at roughly 27 KB, so an
+        # unbounded log is a size problem, not a history preference.
+        for index in range(decisions.RETAIN_PER_TEAM + 6):
+            self.cycle(number=str(index % 10))
+        self.assertEqual(len(self.rows()), decisions.RETAIN_PER_TEAM)
+
+    def test_the_newest_records_are_the_ones_kept(self):
+        newest = None
+        for index in range(decisions.RETAIN_PER_TEAM + 3):
+            newest = self.cycle(number=str(index % 10))
+        kept = {row["id"] for row in self.rows()}
+        self.assertIn(newest, kept)
+        self.assertEqual(len(kept), decisions.RETAIN_PER_TEAM)
+
+    def test_one_busy_club_does_not_push_out_another(self):
+        # The cap is per team because that is the axis the reader asks along:
+        # the log on a team page is that club's history.
+        quiet = [self.cycle("liverpool", "9") for _ in range(3)]
+        for index in range(decisions.RETAIN_PER_TEAM + 5):
+            self.cycle("arsenal", str(index % 10))
+        self.assertEqual({row["id"] for row in self.rows("liverpool")}, set(quiet))
+        self.assertEqual(len(self.rows("arsenal")), decisions.RETAIN_PER_TEAM)
+
+    def test_a_running_record_is_never_trimmed(self):
+        # Deleting an unfinished row would erase a decision that has not been
+        # recorded yet, so only terminal rows are candidates.
+        running = decisions.begin(self.store, "arsenal", view(), parts=["roster"],
+                                  trigger="manual", reason="进行中。")
+        self.cycle("arsenal", "8")
+        self.assertIsNotNone(self.store.get("decisions", running))
+        self.assertEqual(self.store.get("decisions", running)["status"], "running")
+
+    def test_recovery_reads_only_the_unfinished_rows(self):
+        # recover() used to decode the whole collection to find a handful of
+        # running rows; the unfinished ones are selected in SQL instead.
+        self.cycle()
+        running = decisions.begin(self.store, "arsenal", view(), parts=["roster"],
+                                  trigger="manual", reason="进行中。")
+        decisions.recover(self.store)
+        self.assertEqual(self.store.get("decisions", running)["status"], "interrupted")
+
+    def test_recovery_leaves_finished_records_alone(self):
+        done = self.cycle()
+        before = self.store.get("decisions", done)
+        decisions.recover(self.store)
+        self.assertEqual(self.store.get("decisions", done), before)
+
+
+class RetentionCeilingTests(unittest.TestCase):
+    """The cap and the API's page ceiling must not drift apart."""
+
+    def test_the_history_ceiling_equals_the_retention_cap(self):
+        # A page larger than what the store keeps would promise history it no
+        # longer holds; the endpoint reads this constant rather than restating it.
+        from server.main import DECISION_HISTORY_MAX
+        self.assertEqual(DECISION_HISTORY_MAX, decisions.RETAIN_PER_TEAM)
+
+    def test_the_reader_default_is_within_the_cap(self):
+        # The team page asks for the newest few; the cap must not be below that.
+        from server.main import DECISION_HISTORY_MAX
+        self.assertLessEqual(20, DECISION_HISTORY_MAX)
+        self.assertGreaterEqual(DECISION_HISTORY_MAX, decisions.RETAIN_PER_TEAM)
+
+    async def test_the_api_serves_a_full_page_at_its_declared_ceiling(self):
+        # The end-to-end version of the same claim: a caller asking for the
+        # largest page the endpoint advertises actually receives that many
+        # records, which is only true while the cap is at least that large.
+        import httpx
+        from server.main import create_app, DECISION_HISTORY_MAX
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(Path(directory) / "history.sqlite3")
+            store = app.state.store
+            try:
+                for index in range(DECISION_HISTORY_MAX):
+                    identifier = decisions.begin(store, "arsenal", view(), parts=["roster"],
+                                                 trigger="automatic", reason="第 %d 轮。" % index)
+                    decisions.finish(store, identifier, view(str(index % 10)), {"status": "completed"})
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                             base_url="http://testserver") as client:
+                    response = await client.get(
+                        f"/api/teams/arsenal/decisions?limit={DECISION_HISTORY_MAX}")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(response.json()["items"]), DECISION_HISTORY_MAX)
+            finally:
+                store.close()

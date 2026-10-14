@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { api, errorText, put } from "./api";
 import { Crest, Modal, Spinner } from "./components";
-import { clubCatalog } from "./clubCatalog";
+import { findClubById } from "./clubCatalog";
 import { FeedView } from "./v7Feed";
 import { loadView, RecoverableView } from "./RecoverableView";
 import type { AssistantPrompt } from "./v7Assistant";
@@ -462,26 +462,41 @@ function TeamPicker({
   }, []);
   const countryMatches = (team: Team) =>
     !country || leagueTeams[country]?.includes(team.id);
-  const results = teams
-    .filter(
-      (item) =>
-        countryMatches(item) &&
-        (!onlyFollowing || followed.includes(item.id)) &&
-        [
-          item.name,
-          item.english_name,
-          item.short_name,
-          item.city,
-          ...(clubCatalog.find((club) => club.id === item.id)?.aliases || []),
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(query.trim().toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        Number(followed.includes(b.id)) - Number(followed.includes(a.id)),
-    );
+  // Every part of this is memoised on its own inputs. The filter used to run a
+  // linear `clubCatalog.find` and a `followed.includes` per candidate on every
+  // render — 96 entries times 96 clubs, and again on each keystroke — while the
+  // work is the same until the query, the country, the follow list or the data
+  // actually changes.
+  const followedSet = useMemo(() => new Set(followed), [followed]);
+  const leagueSet = useMemo(
+    () => new Set(country ? leagueTeams[country] || [] : []),
+    [country, leagueTeams],
+  );
+  const needle = query.trim().toLowerCase();
+  const results = useMemo(
+    () =>
+      teams
+        .filter(
+          (item) =>
+            (!country || leagueSet.has(item.id)) &&
+            (!onlyFollowing || followedSet.has(item.id)) &&
+            [
+              item.name,
+              item.english_name,
+              item.short_name,
+              item.city,
+              ...(findClubById(item.id)?.aliases || []),
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(needle),
+        )
+        .sort(
+          (a, b) =>
+            Number(followedSet.has(b.id)) - Number(followedSet.has(a.id)),
+        ),
+    [teams, country, leagueSet, onlyFollowing, followedSet, needle],
+  );
   return (
     <Modal title="关注与发现球队" onClose={onClose} wide>
       <div className="team-picker">

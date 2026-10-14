@@ -124,6 +124,30 @@ class WikimediaPortraitTests(unittest.IsolatedAsyncioTestCase):
         changed_person = {**player, "provider_id": "102"}
         self.assertIsNone(wikimedia_portraits.cached_reading(self.store, changed_person, "arsenal"))
 
+    async def test_a_traditional_zh_label_is_published_in_simplified(self):
+        # Wikidata carries 米高·奧利斯 for Michael Olise: no ``zh-hans`` label, so
+        # the fallback is Traditional and would be published as if it were the
+        # simplified reading. The row must carry 奥利斯 and keep the published
+        # form in the proof so the conversion can be re-checked.
+        player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
+        replies = self.identity_replies()
+        async def traditional(store, host, params):
+            response = await replies(store, host, params)
+            if host == "www.wikidata.org" and params.get("ids") == "Q16902219":
+                response["entities"]["Q16902219"]["labels"] = {"zh": {"language": "zh", "value": "米高·奧利斯"}}
+            return response
+        with patch.object(wikimedia_portraits, "request_json", side_effect=traditional):
+            result = await wikimedia_portraits.resolve_portrait(self.store, player, "arsenal")
+        self.assertEqual(result["status"], "missing")
+        self.assertEqual(result["name_status"], "verified")
+        self.assertEqual(result["name_zh"], "米高·奥利斯")
+        self.assertEqual(result["name_zh_identity"]["label"], "米高·奧利斯")
+        self.assertEqual(result["name_zh_identity"]["language"], "zh")
+        # The stored reading re-derives through the same map, so the cache serves
+        # the simplified form without re-asking Wikidata.
+        stored = wikimedia_portraits.cached_reading(self.store, player, "arsenal")
+        self.assertEqual(stored["name_zh"], "米高·奥利斯")
+
     async def test_name_identity_and_photo_license_have_independent_outcomes(self):
         player = {**self.player, "provider_id": "101", "team_id": "arsenal"}
         with patch.object(wikimedia_portraits, "request_json", side_effect=self.identity_replies(

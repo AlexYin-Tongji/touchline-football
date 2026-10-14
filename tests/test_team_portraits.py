@@ -617,3 +617,70 @@ class RetainedPhotoThroughReplayTests(unittest.IsolatedAsyncioTestCase):
         row = replayed["roster"][0]
         self.assertEqual(row.get("photo_url"), cutout)
         self.assertNotEqual(row.get("reason_code"), "identity_revalidation")
+
+
+class KeptSourceReportTests(unittest.TestCase):
+    """A refusal must reach the pass summary, not vanish into the loop.
+
+    ``_apply_photo`` has always returned whether it wrote the row. Callers threw
+    that away, so a pass where a weaker source derived a perfectly good photo and
+    was correctly outranked reported exactly the same numbers as a pass where the
+    source returned nothing at all. "Kept the stronger source" and "the source
+    had no picture" are different facts about the run: the first means the work
+    is settled, the second means it is still open.
+    """
+
+    DIRECTORY = {"photo_match": "exact_name_and_number"}
+    COMMUNITY = {"photo_match": "community_name_and_nationality"}
+    WIKIMEDIA = {"photo_match": "wikimedia_verified_club"}
+
+    def test_a_refused_weaker_source_is_counted(self):
+        player = {"provider_id": "1", **self.COMMUNITY}
+        summary = {}
+        team_portraits._record_kept_source(summary, player, self.WIKIMEDIA)
+        self.assertEqual(summary["kept_stronger_source_count"], 1)
+        self.assertEqual(summary["kept_stronger_source"],
+                         [{"kept": "community_name_and_nationality", "skipped": "wikimedia_verified_club"}])
+
+    def test_a_write_is_never_reported_as_a_refusal(self):
+        # The helper is called only on a False return, but it decides for itself
+        # rather than trusting the caller. A source at least as strong as the
+        # row's is written, not refused.
+        summary = {}
+        team_portraits._record_kept_source(summary, {"provider_id": "1", **self.COMMUNITY}, self.DIRECTORY)
+        team_portraits._record_kept_source(summary, {"provider_id": "1", **self.COMMUNITY}, self.COMMUNITY)
+        self.assertEqual(summary, {})
+
+    def test_an_unranked_source_is_not_a_refusal_either(self):
+        summary = {}
+        team_portraits._record_kept_source(summary, {"provider_id": "1", **self.COMMUNITY},
+                                           {"photo_match": "invented_source"})
+        team_portraits._record_kept_source(summary, {"provider_id": "1", "photo_match": None}, self.DIRECTORY)
+        self.assertEqual(summary, {})
+
+    def test_the_same_pair_is_counted_once_in_the_pair_list(self):
+        summary = {}
+        for _ in range(3):
+            team_portraits._record_kept_source(summary, {"provider_id": "1", **self.COMMUNITY}, self.WIKIMEDIA)
+        self.assertEqual(summary["kept_stronger_source_count"], 3)
+        self.assertEqual(len(summary["kept_stronger_source"]), 1)
+
+    def test_no_player_identity_reaches_the_report(self):
+        # The count and the source names are what the reader needs; a player id
+        # would be an identity claim this function has not verified.
+        summary = {}
+        team_portraits._record_kept_source(summary, {"provider_id": "PRIVATE-42", "name": "某人",
+                                                     **self.COMMUNITY}, self.WIKIMEDIA)
+        import json
+        self.assertNotIn("PRIVATE-42", json.dumps(summary))
+        self.assertNotIn("某人", json.dumps(summary))
+
+    def test_a_pass_with_no_refusal_carries_no_extra_keys(self):
+        summary = team_portraits._merge_kept_source({"status": "completed"}, {})
+        self.assertEqual(summary, {"status": "completed"})
+
+    def test_a_pass_with_a_refusal_carries_the_count(self):
+        summary = team_portraits._merge_kept_source({"status": "completed"},
+                                                    {"kept_stronger_source_count": 2,
+                                                     "kept_stronger_source": [{"kept": "a", "skipped": "b"}]})
+        self.assertEqual(summary["kept_stronger_source_count"], 2)

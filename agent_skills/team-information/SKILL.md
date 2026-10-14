@@ -17,6 +17,7 @@ description: 查询、维护并解释当前球队有来源的阵容、球员、�
 | --- | --- | --- |
 | 某球员是谁、位置、号码、统计 | 球员 → 资料 | [球员资料](references/squad/info.md) |
 | 球员照片、缺图、照片来源与许可 | 球员 → 图像 | [球员图像](references/squad/images.md) |
+| 哪些项该重试、怎么重试、哪些需要进一步核查 | 球员 → 复核 | [资料与照片复核](references/squad/review.md) |
 | 俱乐部、赛程、积分榜、避剧透 | 球队 | [球队](references/team.md) |
 | 球队创立年份、主场、昵称、队徽状态 | 球队资料 | [球队资料](references/club.md) |
 | 胜负、进失球、近期表现与样本范围 | 数据 | [数据](references/data.md) |

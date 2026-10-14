@@ -235,8 +235,13 @@ class Delegation:
             if prior_view.get("result"):
                 child["delegation_previous"] = prior["answer"]
         settings = copy.deepcopy(self.settings)
-        # Children supply candidates; the owning task enforces final verification.
-        settings["verification_enabled"] = False
+        # The child inherits the run's verification posture. Clearing it here
+        # used to be a second copy of the exemption already written into
+        # LocalTools, and it made the two disagree once that exemption was
+        # removed: the tool layer would have verified while the settings said
+        # not to. Verification is decided in one place — the flag carried down
+        # from the root run — and a maintenance block is exempt by *kind*
+        # (operation_delivery), not by being a sub-agent.
         child_store = ChildStore(self.store, child, settings)
         await run_agent(child_store, context.id, context.cancel_event, execution=context, settings_override=settings)
         result = child_store.get("runs", context.id)

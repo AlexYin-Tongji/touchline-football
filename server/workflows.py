@@ -320,8 +320,96 @@ class WorkflowManager:
                                                cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress,
                                                report_ids=authorized)
 
+    def _team_agent_configured(self):
+        """Whether a usable model is assigned to the team-maintenance role.
+
+        Two separate questions, and both have to be yes: something is assigned
+        to the role, and that assignment actually resolves to an endpoint. A
+        role pointing at a provider that has since been removed should fall back
+        to the deterministic pass rather than fail the refresh.
+        """
+        from .model_config import role_selection, role_settings
+        from .news_reports import _configured
+        try:
+            if not role_selection(self.store, "team"):
+                return False
+            return _configured(role_settings(self.store, "team"))
+        except Exception:
+            return False
+
+    def _spawn_team_run(self, entry):
+        """The run a model-driven refresh works through.
+
+        It is an ordinary run in every respect except that no conversation owns
+        it — the UI's start button does. Keeping it a run rather than a bespoke
+        loop is what gives it the step log, the model budget, the delegation
+        tree and the verification path that already exist for every other task.
+        """
+        from .model_config import role_selection
+        import uuid as _uuid
+        run_id = "maintain_" + _uuid.uuid4().hex
+        selected = role_selection(self.store, "team") or {}
+        run = {"id": run_id, "mode": "live", "team_id": entry.team_id,
+               "team_name": (self.store.get("teams", entry.team_id) or {}).get("name") or entry.team_id,
+               "skill": "team_refresh", "question": "按块核对并更新本球队的阵容、赛程、积分、照片、球队资料与球员中文名。",
+               "conversation_id": run_id, "status": "queued", "answer": "", "evidence_ids": [],
+               "warnings": [], "steps": [], "error": None, "created_at": now(), "finished_at": None,
+               "internal_report": True, "model_role": "team",
+               "provider_id": selected.get("provider_id"), "model": selected.get("model"),
+               "allow_network": True, "spoiler": False, "input_evidence_ids": [],
+               "workflow_context": prompt_context(self.store, "team", entry.team_id),
+               "maintenance_parts": list(entry.parts) if entry.parts else None}
+        self.store.put("runs", run)
+        return run_id
+
+    async def _team_agent_cycle(self, entry, first):
+        """Run one model-driven refresh: the model reads the skill and delegates.
+
+        Progress is reported from the run's own step log rather than from a
+        second set of counters, so what the UI shows is what actually happened.
+        """
+        from .agent import run_agent
+        run_id = self._spawn_team_run(entry)
+        self.update(entry, phase="maintaining", message="正在读取维护技能，按块核对球队资料。")
+
+        async def execute(context):
+            await run_agent(self.store, run_id, context.cancel_event, execution=context)
+            return {"run_id": run_id}
+
+        outcome = await self._unit(entry, execute, {"run_id": run_id})
+        run = self.store.get("runs", run_id) or {}
+        outcome = {**outcome, "run": run}
+        # A model-driven pass still leaves the deterministic bookkeeping to the
+        # code: the components it did not touch, and the photo queue it may have
+        # advanced, are read from the same view the old cycle used. The model
+        # decides *what* to refresh; what "the club's data looks like now" means
+        # is not a judgement call and does not become one.
+        from .team_center import center_view
+        self._record_team_progress(entry, run, center_view(self.store, entry.team_id))
+
+    def _record_team_progress(self, entry, run, view):
+        components = (view or {}).get("components", {})
+        selected = entry.parts or ("roster", "schedule", "standings")
+        good = sum(components.get(part, {}).get("status") in {"completed", "fresh", "partial", "stale"} for part in selected)
+        bad = sum(components.get(part, {}).get("status") in {"failed", "unavailable", "interrupted"} for part in selected)
+        note = None
+        if run.get("status") == "failed":
+            note = run.get("error") or "本轮维护未完成，已保留上次有效资料。"
+        elif run.get("status") == "cancelled":
+            note = "本轮维护已停止，已完成的部分已保存。"
+        self.update(entry, progress={"completed": good, "failed": bad, "remaining": max(0, len(selected) - good - bad)},
+                    last_error=note or ("部分球队资料暂未更新，仍可查看上次有效资料。" if bad else None))
+
     async def _team_cycle(self, entry, first):
         from .team_center import maintain_team, center_view, sync_portraits
+        if self._team_agent_configured():
+            await self._team_agent_cycle(entry, first)
+            return
+        # No model is assigned to the team role, so there is nothing to delegate
+        # and the deterministic pass is what runs. This is the path the app used
+        # before the maintenance skill existed, kept intact on purpose: a user
+        # who has configured no model still gets their club's data refreshed,
+        # and gets it without a provider round-trip they never opted into.
         self.update(entry, phase="maintaining", message="正在核对并更新阵容、赛程和积分。")
         async def maintain(context):
             async with self.team_slots:
@@ -355,7 +443,8 @@ class WorkflowManager:
                 # wide enough for a full batch at the paced Wikimedia rate;
                 # otherwise the batch is truncated mid-way.
                 return await asyncio.wait_for(
-                    sync_portraits(self.store, entry.team_id, force=first, budget_seconds=photo_budget), 180)
+                    sync_portraits(self.store, entry.team_id, force=first, budget_seconds=photo_budget,
+                                   review=True), 180)
             photos = await self._unit(entry, portraits, {"team_id": entry.team_id, "part": "portraits"})
             photo_complete = photos.get("status") == "completed"
             photo_failed = photos.get("status") in {"failed", "unavailable", "interrupted"}

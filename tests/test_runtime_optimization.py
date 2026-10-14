@@ -98,6 +98,51 @@ class LightweightAPITests(unittest.IsolatedAsyncioTestCase):
             finally:
                 store.close()
 
+    async def test_summary_polls_only_the_clubs_the_shell_can_show(self):
+        # The shell filters matches by the viewed team, so matches belonging to
+        # clubs that are neither viewed nor followed were rows no component
+        # could reach. The summary scopes to those two groups.
+        from server.main import SUMMARY_MATCHES_PER_TEAM
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(Path(directory) / "api.sqlite3")
+            store = app.state.store
+            try:
+                store.put("teams", {"id": "arsenal", "name": "阿森纳"})
+                store.put("teams", {"id": "liverpool", "name": "利物浦"})
+                store.put("teams", {"id": "chelsea", "name": "切尔西"})
+                store.save_settings({"followed_teams": ["liverpool"]})
+                for team in ("arsenal", "liverpool", "chelsea"):
+                    for index in range(SUMMARY_MATCHES_PER_TEAM + 4):
+                        store.put("matches", {"id": f"{team}-{index}", "mode": "live", "team_id": team,
+                                              "opponent": "Other", "kickoff": f"2026-09-{index % 28 + 1:02d}T10:00:00Z",
+                                              "status": "finished", "score": "1-0", "evidence_ids": ["e"]})
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+                    response = await client.get("/api/state?mode=live&team_id=arsenal&view=summary")
+                self.assertEqual(response.status_code, 200)
+                served = {match["team_id"] for match in response.json()["matches"]}
+                self.assertEqual(served, {"arsenal", "liverpool"})
+                per_team = {}
+                for match in response.json()["matches"]:
+                    per_team[match["team_id"]] = per_team.get(match["team_id"], 0) + 1
+                self.assertEqual(set(per_team.values()), {SUMMARY_MATCHES_PER_TEAM})
+            finally:
+                store.close()
+
+    async def test_summary_omits_the_raw_source_body(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(Path(directory) / "api.sqlite3")
+            store = app.state.store
+            try:
+                store.put("teams", {"id": "arsenal", "name": "阿森纳"})
+                store.put("matches", {"id": "m1", "mode": "live", "team_id": "arsenal", "opponent": "Other",
+                                      "kickoff": "2026-09-01T10:00:00Z", "status": "finished", "score": "1-0",
+                                      "source_raw": {"secret": "upstream payload"}, "evidence_ids": []})
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+                    response = await client.get("/api/state?mode=live&team_id=arsenal&view=summary")
+                self.assertNotIn("source_raw", json.dumps(response.json()))
+            finally:
+                store.close()
+
 
 class AgentProgressTests(unittest.IsolatedAsyncioTestCase):
     async def test_alternating_unchanged_tools_stop_before_long_task_timeout(self):

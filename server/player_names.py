@@ -22,9 +22,62 @@ football coverage, and the original spelling is always shown beside it.
 """
 from __future__ import annotations
 
+import json
 import unicodedata
 import re
 from datetime import datetime, timezone
+from pathlib import Path
+
+# Wikidata's ``zh`` label is not guaranteed to be simplified: an entity with no
+# ``zh-hans`` label falls back to whatever the community wrote, which for several
+# Bundesliga and Ligue 1 players is Traditional Chinese (米高·奧利斯, 孔拉德·萊梅爾).
+# ``cjk_label`` alone cannot see the difference — it only checks that the label
+# is Chinese at all — so the script was published as if it were simplified.
+#
+# The map is generated once from Unicode's Unihan database
+# (``kSimplifiedVariant``) and shipped as data rather than fetched, so the
+# runtime makes no extra request and the conversion is reproducible from the
+# file. It deliberately keeps only single-target mappings and drops every
+# character that is itself a simplification target, because those are dual-use:
+# 著/裡/復 are correct in simplified prose and converting them would corrupt a
+# name rather than normalise it.
+#
+# Converting is safe where the map is; where it is not, the label is kept as the
+# source wrote it and the reader sees 繁体 rather than a reading nobody checked.
+_TRADITIONAL_MAP_PATH = Path(__file__).resolve().parent / "wikidata_zh_hans.json"
+
+
+def _load_traditional_map():
+    try:
+        payload = json.loads(_TRADITIONAL_MAP_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    pairs = payload.get("pairs") if isinstance(payload, dict) else None
+    return {key: value for key, value in pairs.items() if isinstance(key, str) and isinstance(value, str)} \
+        if isinstance(pairs, dict) else {}
+
+
+_TRADITIONAL_TO_SIMPLIFIED = _load_traditional_map()
+
+
+def to_simplified(value):
+    """The simplified reading of a label, or ``""`` when it cannot be normalised.
+
+    Only characters with an unambiguous one-to-one simplification are rewritten.
+    A character the map does not carry is left exactly as it was, so a label that
+    is already simplified passes through unchanged and one that mixes scripts
+    keeps whatever the map cannot resolve — the caller decides whether that is
+    publishable, by comparing the result with what the source published.
+    """
+    if not isinstance(value, str) or not value:
+        return ""
+    return "".join(_TRADITIONAL_TO_SIMPLIFIED.get(char, char) for char in value)
+
+
+def is_traditional(value):
+    """Whether the text contains a character this table knows only as Traditional."""
+    return isinstance(value, str) and any(char in _TRADITIONAL_TO_SIMPLIFIED for char in value)
+
 
 
 # Letters that survive NFKD as themselves, because they are distinct letters in
@@ -442,6 +495,41 @@ def cjk_label(value):
             and not any(ord(char) < 32 or char in "<>{}[]=/\\" for char in value))
 
 
+# The readings a player's name may be taken from, and what a citation for each
+# one looks like. A source is not a free-text field: the pair of (name, URL
+# shape) is fixed here, so a stored proof can only cite one of these, and a new
+# source is added by adding a row rather than by widening a check.
+#
+# Why two routes. Wikidata's ``zh`` label is what the portrait pass could read
+# for free, and it is genuinely useful — but it mixes Mainland, Hong Kong and
+# Taiwan conventions, because those are all community-written labels on the same
+# entity. Measured on a real Bundesliga squad, it produced 马田·达尼亚 for
+# Martin Terrier ("马田" is Cantonese for Martin) where the label a Mainland
+# reader uses is 马丁·泰里耶. The Chinese Wikipedia article title follows the
+# Mainland naming convention, so it is the better first choice — and the two
+# disagree often enough that which one a reading came from has to travel with
+# the reading.
+#
+# The Wikidata QID is required either way: it is the identity anchor the two
+# routes share, and it is what the birth-date and club checks were performed
+# against.
+NAME_SOURCES = {
+    "Wikidata 中文标签": {
+        "url": lambda proof: "https://www.wikidata.org/wiki/" + str(proof.get("qid") or ""),
+        "method": "wikidata_existing_identity_check",
+    },
+    # The citation here is the article the reading was read from, because that is
+    # what a reader can open to check it. It is built from the *published* title,
+    # so a stored proof can only cite the article whose title it recorded. The
+    # QID still rides along in the proof as the identity anchor the birth-date
+    # and club comparisons were made against.
+    "维基百科中文条目": {
+        "url": lambda proof: "https://zh.wikipedia.org/wiki/" + str(proof.get("zh_title") or ""),
+        "method": "wikidata_existing_identity_check",
+    },
+}
+
+
 def checked_wikidata_reading(candidate, row, *, team_id=None):
     if not isinstance(candidate, dict) or candidate.get("name_status", "verified") != "verified":
         return None
@@ -449,14 +537,24 @@ def checked_wikidata_reading(candidate, row, *, team_id=None):
     reading = candidate.get("name_zh")
     if not isinstance(proof, dict) or not cjk_label(reading):
         return None
+    # A ``zh`` label may be Traditional. The row stores the simplified reading so
+    # the interface never publishes 繁体 under a simplified heading; the proof
+    # keeps what the source actually published, and the two are tied together by
+    # re-running the same one-to-one conversion here. A label that the map cannot
+    # fully normalise is refused rather than half-converted, and a label that was
+    # already simplified passes through unchanged.
+    source_label = proof.get("label")
+    if to_simplified(source_label) != reading:
+        return None
     qid = proof.get("qid")
+    source = NAME_SOURCES.get(candidate.get("name_zh_source"))
     if (not re.fullmatch(r"Q[1-9][0-9]{0,11}", str(qid or ""))
-            or candidate.get("name_zh_source_url") != "https://www.wikidata.org/wiki/" + qid
-            or candidate.get("name_zh_source") != "Wikidata 中文标签"
-            or proof.get("method") != "wikidata_existing_identity_check"
+            or source is None
+            or candidate.get("name_zh_source_url") != source["url"](proof)
+            or proof.get("method") != source["method"]
             or proof.get("identity_checked") is not True or proof.get("unique_article") is not True
             or proof.get("public") is not True or proof.get("language") not in {"zh", "zh-hans"}
-            or proof.get("label") != reading
+            or proof.get("label") != source_label
             or normalize_name(proof.get("name")) != normalize_name(row.get("name"))
             or proof.get("team_id") != (team_id or row.get("team_id"))
             or proof.get("roster_birth_date", "") != (row.get("birth_date") or "")

@@ -37,3 +37,17 @@ export function findClub(
   if (!nameOrId) return undefined;
   return clubsByName.get(normalizeClubName(nameOrId));
 }
+
+/** Exact club-id lookup, kept separate from the name index.
+ *
+ * ``findClub`` goes through ``normalizeClubName``, which strips punctuation and
+ * spacing so that "Paris Saint-Germain" and "paris saint germain" agree. That is
+ * the right rule for a name and the wrong one for an id: the work reads ids
+ * straight off rows, and it needs the 96-entry lookup to be a hash rather than a
+ * linear scan of the catalogue on every render.
+ */
+const clubsById = new Map<string, Club>(clubCatalog.map((club) => [club.id, club]));
+
+export function findClubById(id: string | null | undefined): Club | undefined {
+  return id ? clubsById.get(id) : undefined;
+}

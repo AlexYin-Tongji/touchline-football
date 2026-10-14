@@ -41,7 +41,7 @@ interface ProviderState {
   resolved_roles?: Partial<Record<ModelRole, ModelSelection | null>>;
 }
 type ModelSelection = { provider_id: string; model: string };
-type ModelRole = "feed" | "chat" | "team" | "verify" | "photos";
+type ModelRole = "feed" | "chat" | "team" | "verify" | "photos" | "review";
 const roleDescriptions = [
   {
     id: "feed" as const,
@@ -80,6 +80,14 @@ const roleDescriptions = [
     // and setting it means paying for one extra call per refresh.
     text: "决定先核对哪些缺图球员",
     context: "只在补图时读取缺图清单与球员编号顺序，不接收照片地址或身份依据；不指定则按原有顺序推进。",
+  },
+  {
+    id: "review" as const,
+    title: "资料复核",
+    icon: CheckCircle2,
+    // Same rule as photos: it runs on a refresh, so leaving it unset is free.
+    text: "决定下一轮重试谁、怎么重试",
+    context: "只接手代码判不了的模糊项：多个候选分不出高下、缺口看不出成因、结果看起来有问题但代码判不了。不写任何字段值，不引入新来源；未指派则不做复核。",
   },
 ];
 const empty = (): Provider => ({

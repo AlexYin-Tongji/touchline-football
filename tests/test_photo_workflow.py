@@ -206,5 +206,37 @@ class PhotoWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.official_retry(explicit_part=True)
 
 
+    async def test_each_pass_advances_the_attempt_budget(self):
+        """The budget in ``should_continue`` needs a count that actually advances.
+
+        ``attempts`` was a parameter no production caller passed, so the only
+        stop that ever fired was "no progress". A pass that gains exactly one
+        photo each time therefore continued for as long as the reader kept
+        opening the team. The count now lives with the stored verdict and moves
+        once per pass, which is the unit the budget is written in.
+        """
+        from server.team_center import _photo_acceptance_key
+        key = _photo_acceptance_key('arsenal', self.store.get('team_snapshots', self.snapshot_id)['season_id'])
+        self.assertIsNone(self.store.get_meta(key, None))
+        await team_center.fetch_player_photos(self.store, 'arsenal')
+        first = self.store.get_meta(key, None)
+        self.assertEqual(first['attempts'], 1)
+        await team_center.fetch_player_photos(self.store, 'arsenal', force=True)
+        second = self.store.get_meta(key, None)
+        self.assertEqual(second['attempts'], 2)
+
+    async def test_the_budget_eventually_stops_a_pass_that_keeps_gaining(self):
+        # Every pass gains a photo, so the "no progress" stop never fires; only
+        # the budget ends the loop.
+        from server.team_center import _photo_acceptance_key
+        from server import photo_acceptance
+        roster = self.store.get('team_snapshots', self.snapshot_id)['roster']
+        key = _photo_acceptance_key('arsenal', self.store.get('team_snapshots', self.snapshot_id)['season_id'])
+        report = photo_acceptance.assess([{**roster[0], 'photo_url': 'https://example.test/p.jpg'}])
+        self.assertFalse(photo_acceptance.should_continue(report, attempts=3, max_attempts=3))
+        self.store.set_meta(key, {**report, 'attempts': 3})
+        self.assertEqual(self.store.get_meta(key)['attempts'], 3)
+
+
 if __name__ == '__main__':
     unittest.main()

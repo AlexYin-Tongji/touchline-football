@@ -8,7 +8,7 @@ import re
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
-from .skill_catalog import PRIMARY_SKILLS, WORKFLOWS, resolve_workflow
+from .skill_catalog import PRIMARY_SKILLS, WORKFLOWS, resolve_workflow, topic_hint
 
 
 class ToolError(ValueError):
@@ -45,7 +45,7 @@ TOOL_DEFINITIONS = [
     {"name": "discover_news", "description": "【先看候选时用】列出当前球队可用来源里的新闻标题，不读正文、快。当你还不知道有什么消息、想先看标题决定读哪篇时用它；也可用 category 只看某类。返回的候选只有标题和摘要，不能引用；挑中后必须 read_article 读原文。想看内容就直接用 refresh_team_sources，不必先 discover。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_article", "description": "【按候选读原文】把一个 discover_news 返回的 candidate_id 读成可引用原文。只能读已发现的候选，不能输入任意网址。读完的内容成为本轮证据，可交给 submit_answer 引用。", "parameters": {"type": "object", "properties": {"candidate_id": {"type": "string", "maxLength": 120}}, "required": ["candidate_id"], "additionalProperties": False}},
     {"name": "refresh_team_sources", "description": "【取本轮素材的主力】围绕一个问题，从该队全部来源（官网、媒体订阅、球迷社区）发现并直接读取原文，一次拿到可引用证据。日常问题、要写报道、要了解最近发生了什么，优先用这个。limit 是读取篇数，默认读取量由证据决定；要更全就调大 limit。结果里的 evidence_ids 必须再 read_evidence 才能引用。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, "required": ["query"], "additionalProperties": False}},
-    {"name": "use_skill", "description": "按需加载球队动态、球队信息或问答助手规程；team-information 还可用 topic 加载一个工作方向（squad=球员、squad.info=球员资料、squad.images=球员图像、team=球队、data=数据、scope=数据范围）。不会改变球队、联网、避剧透或比赛授权；已有规程不必重复加载。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": list(PRIMARY_SKILLS)}, "workflow": {"type": "string", "enum": list(WORKFLOWS), "maxLength": 40}, "topic": {"type": "string", "maxLength": 40}}, "required": ["skill"], "additionalProperties": False}},
+    {"name": "use_skill", "description": "按需加载球队维护、球队动态、球队信息或问答助手规程；有树状方向的技能还可用 topic 加载一个工作方向（" + topic_hint() + "）。不会改变球队、联网、避剧透或比赛授权；已有规程不必重复加载。", "parameters": {"type": "object", "properties": {"skill": {"type": "string", "maxLength": 40, "enum": list(PRIMARY_SKILLS)}, "workflow": {"type": "string", "enum": list(WORKFLOWS), "maxLength": 40}, "topic": {"type": "string", "maxLength": 40}}, "required": ["skill"], "additionalProperties": False}},
     {"name": "submit_answer", "description": "阅读原文并完成研究后，单独调用此工具提交唯一最终答复。提交通过即结束，无需再写文字。正文不得写思考过程、工具预算或引用括号；引用仅填evidence_ids。", "parameters": {
         "type": "object", "properties": {
             "status": {"type": "string", "enum": ["complete", "insufficient"]},
@@ -74,16 +74,17 @@ TOOL_DEFINITIONS = [
 # ninety seconds of network work that the team page's own refresh does better,
 # with a progress display and a retry policy. A conversational task that
 # triggers one stalls with nothing to show for it.
-BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data")
+BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data", "review_maintenance")
 TOOL_DEFINITIONS.extend([
     {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。每条缺图带 reason_code 与 retryable；namesake_blocked 表示来源只返回了同名他人，重试无效，应改用其他来源。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
     {"name": "photo_queue", "description": "查看当前球队还剩哪些球员没有照片，以及每人为什么还没拿到：从未核对、来源已否决、缺少可核对的身份信息，还是被同名球员挡住。只读，不联网，不返回图片地址或身份依据。补图前先用它看清缺口；namesake_blocked 的人不要对同一来源重试。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 120}}, "additionalProperties": False}},
     {"name": "plan_photo_batch", "description": "在补图前指定本轮先核对哪一批球员及先后顺序（最多 12 人）。只能从 photo_queue 已列出的未核对球员中选择；它决定先问谁，不能新增球员、不能提供或更改照片与身份依据。省略则按原有顺序推进。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 12}}, "additionalProperties": False}},
+    {"name": "review_maintenance", "description": "查看模型对当前球队已核验资料与照片的复核结论，并可按需重新复核一轮。代码已完成事实判定（谁是谁、字段有没有、来源有没有回答过），这里处理的是代码判不了的模糊项：照片画面是否可用、中文名为何缺失、阵容缺出生日期或国籍、球队资料缺字段、队徽缺来源或署名。每项给一个动作：keep（无需动作）、retry（值得再试一次，retry_hint 说明换什么）、investigate（有重大怀疑，需进一步核查）。这只是返工线索：不会删除照片、不会改写任何资料、也不会引入新来源。省略 action 时只读不联网；action=refresh 会调用已指派给复核角色的模型，属于付费调用。", "parameters": {"type": "object", "properties": {"action": {"type": "string", "enum": ["status", "refresh"]}, "player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 6}}, "additionalProperties": False}},
     {"name": "conversation_history", "description": "查阅当前对话在本球队、资料模式和比赛范围内的完整历史问答；可用offset/limit分页。其他对话、后台动态及已失效来源不会进入上下文。历史回答不是新证据。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}}, "additionalProperties": False}},
     {"name": "search_team_knowledge", "description": "检索当前球队已保存且来源版本仍有效的中文知识，返回对应来源ID。只作背景与检索线索，实时结论仍须重新阅读原文；不会修改球队事实。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"], "additionalProperties": False}},
     {"name": "get_team_data", "description": "查看当前球队的真实阵容、球员、日程、积分与统计数据，含更新时间和出处；不联网。缺失数据不猜测。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "query_structured_sources", "description": "按需发现并核对当前球队的 API-Football 身份，再查询该队的结构化阵容、赛程或积分。发现可能消耗 API 配额；缺密钥、身份或配额会返回明确缺口。模型不能指定球队编号。结果只是来源线索，最终引用仍须本轮 read_evidence 阅读原文。", "parameters": {"type": "object", "properties": {"capability": {"type": "string", "enum": ["squad", "fixture", "standings"]}}, "required": ["capability"], "additionalProperties": False}},
-    {"name": "maintain_team_data", "description": "按需补全当前球队缺失或过期的资料。parts 可选 roster（阵容）、schedule（赛程）、standings（积分）、portraits（球员照片）、profile（球队自身资料：创立年份、主场、昵称）。先看状态再决定补哪些：get_team_data 返回的 components 里有每部分的缺失状态，profile 还带 missing_fields、source 与 crest 结果；只刷新真的缺失或过期的部分。roster、schedule、standings 是页面主干，打开球队时会自动跟随；portraits 与 profile 是按需的，只在你确认缺项后才传。失败会保留旧快照并说明范围。", "parameters": {"type": "object", "properties": {"parts": {"type": "array", "items": {"type": "string", "enum": ["roster", "schedule", "standings", "portraits", "profile"]}, "minItems": 1, "maxItems": 5}}, "additionalProperties": False}},
+    {"name": "maintain_team_data", "description": "按需补全当前球队缺失或过期的资料。parts 可选 roster（阵容）、schedule（赛程）、standings（积分）、portraits（球员照片）、profile（球队自身资料：创立年份、主场、昵称）、names（球员中文名）。先看状态再决定补哪些：get_team_data 返回的 components 里有每部分的缺失状态，profile 还带 missing_fields、source 与 crest 结果；只刷新真的缺失或过期的部分。roster、schedule、standings 是页面主干，打开球队时会自动跟随；portraits、profile 与 names 是按需的，只在你确认缺项后才传。失败会保留旧快照并说明范围。", "parameters": {"type": "object", "properties": {"parts": {"type": "array", "items": {"type": "string", "enum": ["roster", "schedule", "standings", "portraits", "profile", "names"]}, "minItems": 1, "maxItems": 6}}, "additionalProperties": False}},
     {"name": "research_news", "description": "【联网专题研究】围绕一个具体问题跨来源搜索并读取原文，返回可引用材料、来源覆盖和失败清单。当你有一个明确的问题（某球员伤情、某笔转会的最新进展）而不只是想看这个队有什么消息时用它；只是想要这个队的近期素材，用 refresh_team_sources 更直接。limit 是读取篇数，问题越需要多方印证就该调大。不会把摘要当正文。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 300}, "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, "required": ["query"], "additionalProperties": False}},
     {"name": "search_passages", "description": "在当前可见长文中定位关键词段落，返回上下文和字符offset。只是定位索引，不增加已读证据；随后read_evidence(offset)阅读该处。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 300}, "evidence_id": {"type": "string", "maxLength": 120}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "compare_sources", "description": "比较2至6篇本轮已读材料的时间、来源域名、正文覆盖和可引用片段；标出同一网址及可能转载，独立性仍须核对。不会自动判定哪个说法属实。", "parameters": {"type": "object", "properties": {"evidence_ids": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "string", "minLength": 1, "maxLength": 120}}, "query": {"type": "string", "maxLength": 300}}, "required": ["evidence_ids"], "additionalProperties": False}},
@@ -211,6 +212,28 @@ def clean_delivery_text(text):
     return len(paragraphs) == len(set(paragraphs))
 
 
+# A maintenance run reports what it *did* and what is *still missing*, not what
+# a source said. Its blocks call maintain_team_data and get structured rows back
+# — no article is read, so there is nothing to quote and no evidence id to cite.
+#
+# The submit contract was written for the other two kinds of task: a question
+# and a news report both make claims about the world, and the rule that a claim
+# needs text read this round is what keeps them honest. Applying it to a roster
+# sync does not make the sync more truthful; it makes the sync unreportable,
+# because "完成" was gated on facts that this task can never have.
+#
+# So the shape of the delivery follows the kind of work, and this constant names
+# the one workflow allowed to deliver an operation report. Everything else keeps
+# the evidence rule exactly as it was, including every child of every other
+# skill — the exception is a property of the task, not of being a sub-agent.
+OPERATION_SKILLS = frozenset({"team_refresh"})
+
+
+def operation_delivery(skill):
+    """Whether this task reports an operation rather than a sourced claim."""
+    return str(skill) in OPERATION_SKILLS
+
+
 def evidence_passages(text):
     """Stable literal passages, never crossing a visible paragraph boundary."""
     passages, seen = [], set()
@@ -334,7 +357,18 @@ class LocalTools:
         self.redacted_ids = set()
         self.submission = None
         self.news_draft = None
-        self.verification_enabled = self.mode == "live" and not run.get("internal_agent") and (self.skill == "news_report" or settings.get("verification_enabled", False) is True)
+        # A sub-agent inherits the run's verification posture instead of being
+        # exempted from it. The exemption was justified as "children supply
+        # candidates, the owning task verifies" — but a child is where the
+        # reading happens, so a child that may cite unchecked text is exactly
+        # the one whose citations the parent cannot reconstruct. Inheriting means
+        # a child of a verified task is verified too, and a child of an
+        # unverified task is not, which is what the setting already meant.
+        #
+        # The mode check stays: verification still requires live data, and a
+        # demo run has no provider to ask.
+        self.verification_enabled = self.mode == "live" and (
+            self.skill == "news_report" or settings.get("verification_enabled", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
         # The directions loaded from a skill's tree, by topic id, and the file
@@ -597,9 +631,10 @@ class LocalTools:
         # article) and permission come first and are never overridden here,
         # because this is a relevance decision about an otherwise-withheld tool,
         # not a widening of what the task may do.
-        from .tool_registry import topic_exposes
-        self.exposed_background = {name for key in self.topics_used
-                                   for name in topic_exposes(*key.split(":", 1))}
+        from .tool_registry import topic_exposes, workflow_exposes
+        self.exposed_background = ({name for key in self.topics_used
+                                    for name in topic_exposes(*key.split(":", 1))}
+                                   | set(workflow_exposes(self.skill)))
         if self.skill != "news_report" or not isinstance(self.news_draft, dict):
             excluded.add("revise_news")
         if self.mode != "live" or self.match or self.run.get("report_id"):
@@ -773,6 +808,7 @@ class LocalTools:
         # disagree, so an insufficiency is resolved to whichever of the two
         # actually states the gap rather than to a leftover complete draft.
         is_report = self.skill == "news_report"
+        is_operation = operation_delivery(self.skill)
         primary, fallback = ("summary", "answer") if is_report else ("answer", "summary")
         lead = str(arguments.get(primary) or arguments.get(fallback) or "").strip()
         if arguments.get("status") == "insufficient":
@@ -826,7 +862,7 @@ class LocalTools:
                 raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
         if len({fact["title"].strip() for fact in arguments["facts"]}) != len(arguments["facts"]):
             raise ToolError("请合并重复主题，每个事实主题只提交一次。")
-        if arguments["status"] == "complete" and not arguments["facts"]:
+        if arguments["status"] == "complete" and not arguments["facts"] and not is_operation:
             raise ToolError("完成回答至少需要一项实际已读原文支持的事实；没有证据请提交 insufficient。")
         if arguments["status"] == "insufficient":
             if arguments["facts"] or arguments["analysis"].strip():
@@ -1243,6 +1279,18 @@ class LocalTools:
             return self.photo_queue_result(arguments.get("limit", 60))
         if name == "plan_photo_batch":
             return self.plan_photo_batch(arguments.get("player_ids"))
+        if name == "review_maintenance":
+            if arguments.get("action") == "refresh":
+                self.network_guard()
+                if self.match or self.run.get("report_id"):
+                    raise ToolError("本次任务已固定比赛或文章范围，请使用该范围的已有来源。")
+                self.network_queries += 1
+                from .team_center import review_photo_pass
+                record = await review_photo_pass(self.store, self.team_id)
+                if record is None:
+                    raise ToolError("没有可审查的照片：照片需先通过来源核验，且设置中要为图片角色指派模型。")
+                return {**record, "notice": "结论只作返工线索；照片仍由来源核对身份，模型不修改任何球员资料。"}
+            return self.photo_review_result()
         if name == "fetch_player_photos":
             self.network_guard()
             if self.match or self.run.get("report_id"):
@@ -1414,6 +1462,29 @@ class LocalTools:
         return {"ordered_count": len(chosen), "player_ids": chosen,
                 "queued_count": report.get("untried_count", 0),
                 "notice": "顺序已记录。调用 fetch_player_photos 时会先核对这些人；照片仍由来源核对身份后写入。"}
+
+    def photo_review_result(self):
+        """The stored usability verdicts, read from local state only.
+
+        Same shape as ``photo_queue_result``: a caller may learn what the review
+        said and use it to decide what is worth looking at again, and nothing
+        here can write a photo, a licence or an identity claim back onto a row.
+        """
+        from .team_center import _photo_review_key, photo_review_note
+        from .team_center import team_season_context
+        try:
+            _, _, season, _ = team_season_context(self.store, self.team_id)
+            record = self.store.get_meta(_photo_review_key(self.team_id, season["id"]), None)
+        except Exception:
+            record = None
+        if not isinstance(record, dict):
+            return {"checked": False, "team_id": self.team_id,
+                    "notice": "还没有照片画面审查记录。先用 photo_queue 确认已有来源核验的照片，再用 action=refresh 让图片角色的模型看一遍。"}
+        return {"checked": True, "team_id": self.team_id, "checked_at": record.get("checked_at"),
+                "reviews": record.get("reviews") or [], "needs_rework": record.get("needs_rework") or [],
+                "uncertain": record.get("uncertain") or [], "unreadable": record.get("unreadable") or [],
+                "note": photo_review_note(record),
+                "notice": "结论只作返工线索；照片身份仍由来源核对，模型不修改任何球员资料。"}
 
     def budget(self):
         return {"queries_used": self.network_queries, "queries_limit": None,

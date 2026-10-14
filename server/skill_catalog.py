@@ -19,6 +19,7 @@ import re
 
 SKILL_ROOT = Path(__file__).resolve().parents[1] / "agent_skills"
 PRIMARY_SKILLS = {
+    "team-maintenance": ("球队维护", "team_refresh"),
     "team-news": ("球队动态", "team_brief"),
     "team-information": ("球队信息", "team_maintenance"),
     "football-assistant": ("问答助手", "ask"),
@@ -27,6 +28,7 @@ WORKFLOWS = {
     "news_report": ("team-news", "news-writing.md"),
     "team_brief": ("team-news", "briefing.md"),
     "team_maintenance": ("team-information", "data-scope.md"),
+    "team_refresh": ("team-maintenance", None),
     "ask": ("football-assistant", None),
     "match_preview": ("football-assistant", "preview.md"),
     "match_review": ("football-assistant", "review.md"),
@@ -45,6 +47,23 @@ WORKFLOWS = {
 # topic that only talks about photos cannot call the article reader. A topic
 # without one inherits its skill's set.
 TOPICS = {
+    # The blocks a maintenance run is made of. One topic per block, because a
+    # block is what gets handed to a sub-agent: the tree says how many there
+    # are, and the run's structure follows the tree rather than a list in code.
+    "team-maintenance": {
+        "roster": {"path": "references/roster.md",
+                   "description": "阵容：球员名单、号码、位置、出生日期与归属。"},
+        "schedule": {"path": "references/schedule.md",
+                     "description": "赛程：联赛与有参赛证据的欧战，完整度口径与避剧透。"},
+        "standings": {"path": "references/standings.md",
+                      "description": "积分榜：所属联赛完整排名与扣分口径。"},
+        "portraits": {"path": "references/portraits.md",
+                      "description": "球员照片：缺口归因、重试方向、批次与验收。"},
+        "profile": {"path": "references/profile.md",
+                    "description": "球队自身资料：创立年份、主场、昵称与队徽状态。"},
+        "names": {"path": "references/names.md",
+                  "description": "球员中文名：译名口径、身份核验与缺口。"},
+    },
     "team-information": {
         "squad": {"path": "references/squad.md",
                   "description": "球员方向：分信息与图像两条，按问题选一条。"},
@@ -52,6 +71,8 @@ TOPICS = {
                        "description": "球员事实字段：国籍、出生日期、位置、号码、统计。"},
         "squad.images": {"path": "references/squad/images.md",
                          "description": "球员照片：缺口、来源、许可、重试与验收。"},
+        "squad.review": {"path": "references/squad/review.md",
+                         "description": "资料与照片复核：模型在代码已归类的候选集上决定重试谁、怎么重试、哪些需进一步核查。"},
         "team": {"path": "references/team.md",
                  "description": "俱乐部背景、赛程、积分榜与避剧透边界。"},
         "club": {"path": "references/club.md",
@@ -75,6 +96,23 @@ TOPICS = {
 def topics(skill):
     """The directions a skill's tree offers, for the catalogue and the prompt."""
     return {name: dict(value) for name, value in (TOPICS.get(skill) or {}).items()}
+
+
+def topic_hint():
+    """The topic ids a caller may load, written out for the tool description.
+
+    This used to be a sentence typed by hand into the ``use_skill`` schema, and
+    it drifted the moment a direction was added: the registry gained a topic and
+    the description the model actually reads did not, so a block could exist,
+    have a file, and still never be asked for by name. Generating it here keeps
+    ``TOPICS`` the single place a direction is declared.
+    """
+    parts = []
+    for skill, entries in TOPICS.items():
+        ids = "、".join(entries)
+        if ids:
+            parts.append(f"{skill} 有 {ids}")
+    return "；".join(parts)
 
 
 def resolve_topic(skill, topic):

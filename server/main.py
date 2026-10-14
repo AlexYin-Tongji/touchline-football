@@ -23,6 +23,10 @@ from . import ingestion
 from .seed import seed
 from .storage import Store, provider_origin
 from .build_info import BUILD_ID, VERSION, listen_port, local_url
+# The largest decision-history page the API will serve, taken from the retention
+# cap rather than restated: a page larger than what the store keeps would promise
+# history it no longer holds, and two literals would drift apart.
+from .decisions import RETAIN_PER_TEAM as DECISION_HISTORY_MAX
 
 ROOT = Path(__file__).resolve().parent.parent
 Mode = Literal["demo", "live"]
@@ -30,6 +34,10 @@ Identifier = Annotated[str, StringConstraints(min_length=1, max_length=100, patt
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 EventKind = Literal["team", "injury", "transfer", "match"]
+# How many matches the polling summary keeps per club. The shell reads only the
+# next fixture and the last result, so this is headroom, not a display limit; it
+# exists so a club with several stored seasons cannot make one poll unbounded.
+SUMMARY_MATCHES_PER_TEAM = 24
 
 
 class Model(BaseModel):
@@ -270,7 +278,7 @@ class RunInput(Model):
     mode: Mode
     team_id: Identifier
     question: str = Field(min_length=1, max_length=5000)
-    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report", "team_maintenance", "team-news", "team-information", "football-assistant"] = "auto"
+    skill: Literal["auto", "ask", "team_brief", "match_preview", "match_review", "event_watch", "transfer_check", "tactics_explainer", "news_report", "team_maintenance", "team_refresh", "team-news", "team-information", "team-maintenance", "football-assistant"] = "auto"
     provider_id: str | None = Field(None, pattern=r"^[a-z][a-z0-9_-]{0,47}$")
     model: str | None = Field(None, min_length=1, max_length=200)
     evidence_ids: list[Identifier] = Field(default_factory=list, max_length=5)
@@ -695,6 +703,50 @@ def create_app(db_path=None, *, collection_enabled=None):
         recommendation["dismissed"] = payload.dismissed
         return store.put("recommendations", recommendation)
 
+    def _summary_matches(store, mode, team_id, settings):
+        """The matches a polling shell actually reads, not the whole collection.
+
+        ``view=summary`` exists so the visible page can poll for maintenance
+        results. The shell reads matches for two things only: the next unplayed
+        fixture, and the most recent finished one — both filtered to the team
+        being viewed. It was returning every match in the database anyway, so
+        the request carried rows no component could reach.
+
+        Scoping to the viewed team and the followed clubs keeps that correct:
+        the viewed team is what the filters above select, and a followed club's
+        rows are what the page shows the moment the reader switches to it. A
+        per-team cap then bounds it, because a season is finite but a database
+        that accumulates seasons is not. Earlier seasons are not lost, only
+        omitted from the polling view — the team page reads its own season
+        directly.
+        """
+        teams = [team_id] if team_id else []
+        teams.extend(identifier for identifier in (settings.get("followed_teams") or [])
+                     if identifier and identifier not in teams)
+        if not teams:
+            return []
+        rows = []
+        for identifier in teams:
+            rows.extend(store.list("matches", mode, identifier))
+        for match in rows:
+            match.pop("source_raw", None)
+            if settings["spoiler_free"]:
+                match["evidence_ids"] = []
+                if match["status"] == "finished":
+                    match.update(score=None, note="", spoiler_hidden=True, home_score=None, away_score=None,
+                                 goals_for=None, goals_against=None, result=None, source_versions=[])
+        rows.sort(key=lambda item: item["kickoff"])
+        # Keep the newest window per team rather than globally: a club with a
+        # long history must not crowd out the one being viewed.
+        capped, per_team = [], {}
+        for match in reversed(rows):
+            owner = match.get("team_id")
+            if per_team.get(owner, 0) >= SUMMARY_MATCHES_PER_TEAM:
+                continue
+            per_team[owner] = per_team.get(owner, 0) + 1
+            capped.append(match)
+        return sorted(capped, key=lambda item: item["kickoff"])
+
     @app.get("/api/state")
     async def state(mode: Mode | None = Query(None), team_id: Identifier | None = Query(None),
                     view: Literal["full", "summary"] = "full"):
@@ -709,16 +761,9 @@ def create_app(db_path=None, *, collection_enabled=None):
             from .model_config import MODEL_ROLES, role_selection
             legacy = bool(settings["llm"].get("base_url") and settings["llm"].get("model"))
             roles = {role: bool(role_selection(store, role)) or legacy for role in MODEL_ROLES}
-            matches = store.list("matches", mode, team_id)
-            for match in matches:
-                match.pop("source_raw", None)
-                if settings["spoiler_free"]:
-                    match["evidence_ids"] = []
-                    if match["status"] == "finished":
-                        match.update(score=None, note="", spoiler_hidden=True, home_score=None, away_score=None,
-                                     goals_for=None, goals_against=None, result=None, source_versions=[])
+            matches = _summary_matches(store, mode, team_id, settings)
             return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
-                    "matches": sorted(matches, key=lambda item: item["kickoff"]), "service": await get_service(),
+                    "matches": matches, "service": await get_service(),
                     "setup": {"model_configured": any(roles[role] for role in ("feed", "chat", "team")), "model_roles_configured": roles,
                               "live_evidence_count": store.count("evidence", "live")},
                     "events": [], "evidence": [], "runs": [], "reports": [], "sources": [], "tracking": [],
@@ -852,7 +897,7 @@ def create_app(db_path=None, *, collection_enabled=None):
         return preparation.status(kind, team_id)
 
     @app.get("/api/teams/{team_id}/decisions")
-    async def team_decisions(team_id: Identifier, limit: int = Query(20, ge=1, le=50), reveal: bool = False):
+    async def team_decisions(team_id: Identifier, limit: int = Query(20, ge=1, le=DECISION_HISTORY_MAX), reveal: bool = False):
         from .decisions import history
         team_exists(team_id)
         return history(store, team_id, limit=limit, reveal=reveal)
@@ -1282,7 +1327,7 @@ def create_app(db_path=None, *, collection_enabled=None):
         else:
             prior = []
         from .model_config import role_selection
-        model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill in {"team_maintenance", "team-information"} else "feed" if payload.skill == "team-news" else "chat")
+        model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill in {"team_maintenance", "team_information", "team_refresh", "team-maintenance"} else "feed" if payload.skill == "team-news" else "chat")
         active_model = role_selection(store, model_role) or {}
         from .conversations import conversation_binding
         bound = conversation_binding(store, prior, strict=True) if payload.mode == "live" else None

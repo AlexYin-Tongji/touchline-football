@@ -6,6 +6,7 @@ Only ordinary assistant text and function calls leave the adapter for display.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import copy
 import re
@@ -15,6 +16,8 @@ import httpx
 
 MAX_RESPONSE_BYTES = 2_000_000
 PROTOCOLS = {"chat_completions": "/chat/completions", "responses": "/responses", "anthropic_messages": "/messages"}
+# The image types every wire protocol accepts without negotiation.
+IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 
 
 class AgentFailure(Exception):
@@ -83,8 +86,40 @@ def responses_input(messages):
                 result.append({"type": "function_call", "call_id": call["id"],
                                "name": call["function"]["name"], "arguments": call["function"]["arguments"]})
         else:
-            result.append({"role": message["role"], "content": message.get("content") or ""})
+            images = message.get("_images")
+            if images:
+                # An image message carries its bytes in the same part list as its
+                # text, because a caption and the picture it describes are one
+                # turn, not two. ``responses_input`` needs the parts at the top
+                # level, never a string.
+                content = [part for part in ({"type": "input_text", "text": message.get("content")} if message.get("content") else None,
+                                             *[_wire_image(block, "responses") for block in images]) if part]
+                result.append({"role": message["role"], "content": content})
+            else:
+                result.append({"role": message["role"], "content": message.get("content") or ""})
     return result
+
+
+def image_block(media_type, data):
+    """A normalised image part, or ``None`` when the bytes cannot be described.
+
+    Only the three types the wire protocols universally accept are allowed, and
+    the caller passes already-validated bytes: this function formats a request,
+    it does not decide whether reading the image was permitted.
+    """
+    if media_type not in IMAGE_MEDIA_TYPES or not isinstance(data, bytes) or not data:
+        return None
+    return {"media_type": media_type, "data": base64.b64encode(data).decode("ascii")}
+
+
+def _wire_image(block, protocol):
+    """One image part in the shape the chosen protocol expects."""
+    if protocol == "anthropic_messages":
+        return {"type": "image", "source": {"type": "base64", "media_type": block["media_type"],
+                                            "data": block["data"]}}
+    if protocol == "responses":
+        return {"type": "input_image", "image_url": f"data:{block['media_type']};base64,{block['data']}"}
+    return {"type": "image_url", "image_url": {"url": f"data:{block['media_type']};base64,{block['data']}"}}
 
 
 def make_payload(config, messages, tools=None, tool_choice="auto"):
@@ -106,6 +141,7 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
                 content = copy.deepcopy(message["_anthropic_content"])
             else:
                 content = [{"type": "text", "text": message["content"]}] if message.get("content") else []
+                content.extend(_wire_image(block, "anthropic_messages") for block in message.get("_images") or [])
                 for call in message.get("tool_calls", []):
                     content.append({"type": "tool_use", "id": call["id"], "name": call["function"]["name"], "input": json.loads(call["function"]["arguments"])})
             if not content:
@@ -134,6 +170,11 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
         wire = []
         for message in messages:
             entry = {key: value for key, value in message.items() if not key.startswith("_")}
+            if message.get("_images"):
+                # Chat Completions takes the parts array on ``content`` itself,
+                # so the plain string is replaced rather than accompanied.
+                entry["content"] = ([{"type": "text", "text": message["content"]}] if message.get("content") else []) \
+                    + [_wire_image(block, "chat_completions") for block in message["_images"]]
             if "_chat_reasoning" in message:
                 entry["reasoning_content"] = message["_chat_reasoning"]
             wire.append(entry)

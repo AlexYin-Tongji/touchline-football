@@ -28,6 +28,7 @@ _PORTRAIT_PATHS = {
     "www.tottenhamhotspur.com": {"/teams/mens/squad", "/teams/mens/squad/"},
     "www.juventus.com": {"/en/teams/first-team-men/squad", "/en/teams/first-team-men/squad/"},
     "en.wikipedia.org": {"/w/api.php"},
+    "zh.wikipedia.org": {"/w/api.php"},
     "www.wikidata.org": {"/w/api.php"},
     "commons.wikimedia.org": {"/w/api.php"},
 }

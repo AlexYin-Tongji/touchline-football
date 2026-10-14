@@ -1,11 +1,12 @@
 # 球员
 
-球员方向分两条，按问题选一条，不要同时展开：
+球员方向分三条，按问题选一条，不要同时展开：
 
 | 问题 | 读 | 工具 |
 | --- | --- | --- |
 | 某球员是谁、什么位置、多少岁、统计数据 | [球员资料](squad/info.md) | `get_team_data`、`maintain_team_data` |
 | 球员照片、缺图、照片来源与许可 | [球员图像](squad/images.md) | `photo_queue`、`plan_photo_batch`、`fetch_player_photos` |
+| 哪些项该重试、怎么重试、哪些需要进一步核查 | [资料与照片复核](squad/review.md) | `review_maintenance` |
 
 ## 球员图片与其他资料分开
 

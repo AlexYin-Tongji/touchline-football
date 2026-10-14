@@ -137,6 +137,8 @@ interface CenterData {
     untried_count?: number;
     settled_count?: number;
     no_identity_facts_count?: number;
+    acceptance_note?: string;
+    review_note?: string;
     missing_fields?: string[];
     fields?: Record<string, string | number | null | undefined>;
     note?: string;
@@ -434,6 +436,7 @@ export function TeamCenter({
                 <span className={`data-state data-state-${part.status}`}>{componentStatuses[part.status] || part.status}</span>
                 <small>{key === "portraits" && part.total_count != null ? `${part.available_count || 0} / ${part.total_count} 张有来源照片` : part.updated_at ? `更新于${friendlyTime(part.updated_at)}` : "尚无有效快照"}</small>
                 {key === "portraits" && photoGapNote(part) && <small>{photoGapNote(part)}</small>}
+                {key === "portraits" && !!part.review_note && <small>{part.review_note}</small>}
                 {key === "profile" && <small>{part.note}</small>}
                 {key === "profile" && part.crest && <small>{part.crest.note}</small>}
                 {!!part.errors?.length && <p>{part.errors.join("；")}</p>}

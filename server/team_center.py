@@ -14,7 +14,7 @@ from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 
 from . import league_data
-from .ingestion import IngestionError, now, published_time
+from .ingestion import IngestionError, now, published_time, source_error_details
 from .player_names import with_reading
 
 ROSTER_CACHE_SECONDS = 86400
@@ -25,7 +25,11 @@ CORE_PARTS = ("roster", "schedule", "standings")
 # club's founding year and nickname are read once and then never change, so
 # folding them into the automatic sweep would spend a Wikidata lookup on every
 # reader who opens a club to look at the squad list.
-MAINTENANCE_PARTS = (*CORE_PARTS, "portraits", "profile")
+#
+# ``names`` is optional for the same reason: it costs one round-trip per player
+# and returns rows that already have a reading for free, so a squad with
+# complete names should not keep paying for the ones it has.
+MAINTENANCE_PARTS = (*CORE_PARTS, "portraits", "profile", "names")
 POSITIONS = {
     "G": ("门将", "GK"), "GK": ("门将", "GK"), "D": ("后卫", "DF"),
     "DF": ("后卫", "DF"), "M": ("中场", "MF"), "MF": ("中场", "MF"),
@@ -324,6 +328,9 @@ def parse_roster(payload, team, league, season, provider_team_id):
         if any(record.get(flag) is True for record in (athlete, athlete.get("headshot") or {}) if isinstance(record, dict)
                for flag in ("private", "deleted", "restricted")):
             row["photo_blocked_sources"] = ["espn"]
+        # No stored reading is consulted here on purpose: this function is pure
+        # parsing, it has no store, and a reading is attached at the display
+        # path (``center_view``) where the row's identity is already final.
         roster.append(with_reading(row))
     order = {"GK": 0, "DF": 1, "MF": 2, "FW": 3, "OTHER": 4}
     roster.sort(key=lambda p: (order[p["position_group"]], int(p["number"]) if p["number"] else 999, p["name"]))
@@ -439,7 +446,7 @@ def _validated_parts(parts):
     if parts is None:
         return None
     if not isinstance(parts, (list, tuple)) or not parts or any(not isinstance(part, str) or part not in MAINTENANCE_PARTS for part in parts):
-        raise IngestionError("资料部分只能选择 roster、schedule、standings、portraits 或 profile。")
+        raise IngestionError("资料部分只能选择 roster、schedule、standings、portraits、profile 或 names。")
     return tuple(dict.fromkeys(parts))
 
 
@@ -471,7 +478,8 @@ def center_view(store, team_id, year=None, *, reveal=False):
     finished = [m for m in domestic_matches if m["status"] == "finished" and m["goals_for"] is not None and m["goals_against"] is not None]
     from .team_portraits import apply_cached_portraits
     visible_snapshot = apply_cached_portraits(store, copy.deepcopy(snapshot))
-    roster = [with_reading(row) for row in visible_snapshot.get("roster", [])]
+    roster = [with_reading(row, source_reading=team_names_for(store, row, team_id), team_id=team_id)
+              for row in visible_snapshot.get("roster", [])]
     roster_season = ({"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]}
                      if roster else None)
     latest = max(view.seasons_of(league["id"]),
@@ -596,7 +604,15 @@ def center_view(store, team_id, year=None, *, reveal=False):
         if acceptance is not None:
             components["portraits"].update(acceptance=acceptance,
                                            acceptance_note=photo_acceptance.summarize(acceptance),
-                                           continuation_worthwhile=photo_acceptance.should_continue(acceptance))
+                                           continuation_worthwhile=photo_acceptance.should_continue(
+                                               acceptance, attempts=int(acceptance.get("attempts") or 0)))
+        # The model's own verdict on the pictures, when a review pass has run.
+        # Kept beside the acceptance record, never merged into it: one is a code
+        # judgement about coverage, the other a model judgement about the image.
+        stored_review = store.get_meta(_photo_review_key(team_id, season["id"]), None)
+        if isinstance(stored_review, dict):
+            components["portraits"].update(review=stored_review,
+                                           review_note=photo_review_note(stored_review))
         try:
             gap = photo_queue(store, snapshot, limit=1)
             components["portraits"].update(untried_count=gap["untried_count"],
@@ -648,6 +664,82 @@ def _record_component(store, key, part, patch):
 def _photo_acceptance_key(team_id, season_id):
     """Where the last photo pass's own judgement is kept for comparison."""
     return f"photo_acceptance_v1_{team_id}_{season_id}"
+
+
+def _photo_review_key(team_id, season_id):
+    """Where a model's usability verdict on the photos is kept.
+
+    Separate from the acceptance record on purpose: acceptance is a code
+    judgement about coverage, this is a model judgement about the picture. They
+    answer different questions and must be readable apart.
+    """
+    return f"photo_review_v1_{team_id}_{season_id}"
+
+
+def photo_review_note(record):
+    """One line for the reader, from a stored review record."""
+    if not isinstance(record, dict):
+        return ""
+    retry = record.get("retry_now") or []
+    investigate = record.get("investigate") or []
+    reviewed = len(record.get("reviews") or [])
+    parts = []
+    if retry:
+        parts.append(f"模型建议立即重试 {len(retry)} 项")
+    if investigate:
+        parts.append(f"{len(investigate)} 项需进一步核查")
+    if not parts:
+        return f"模型已复核 {reviewed} 项，均无需动作。" if reviewed else ""
+    return "；".join(parts) + f"（本轮共复核 {reviewed} 项）。"
+
+
+async def review_photo_pass(store, team_id, year=None, *, requester=None, timeout=None):
+    """Ask the photo role which sourced portraits are unusable as pictures.
+
+    Optional and opt-in, exactly like the batch planner: a team cycle can run on
+    a timer, so an unattended refresh must not start paying for a vision call the
+    reader never asked for. Called only from a path that owns a budget.
+
+    The verdict never writes a player field. It is recorded beside the photos so
+    the interface and the assistant can report it, and a "needs rework" answer is
+    a reason to look again — not permission to delete a photo a source proved.
+    """
+    from . import photo_review
+    _, _, season, _ = team_season_context(store, team_id, year)
+    snapshot_id = _snapshot_id(team_id, season["id"])
+    snapshot = store.get("team_snapshots", snapshot_id) or {}
+    if snapshot.get("team_id") != team_id or snapshot.get("season_id") != season["id"]:
+        return None
+    roster = snapshot.get("roster") or []
+    acceptance = store.get_meta(_photo_acceptance_key(team_id, season["id"]), None)
+    if not isinstance(acceptance, dict):
+        from . import photo_acceptance
+        try:
+            acceptance = photo_acceptance.assess(roster)
+        except Exception:
+            acceptance = None
+    kwargs = {} if timeout is None else {"timeout": timeout}
+    if requester is not None:
+        kwargs["requester"] = requester
+    reviews, notes = await photo_review.review_photos(store, roster, acceptance=acceptance, **kwargs)
+    # The other three record domains ride the same round: a Chinese name the
+    # publishers spell two ways, a squad row the feed shipped without the facts a
+    # lookup needs, the club's own missing fields, and a badge whose attribution
+    # is incomplete. All four are the same shape of question — code has narrowed
+    # it, and what remains is a judgement about what to try next.
+    from . import review_records
+    record_items = review_records.record_items(roster, store.get("teams", team_id))
+    if record_items:
+        reviews = list(reviews) + await review_records.review_records(
+            store, record_items, **({} if timeout is None else {"timeout": timeout}))
+    if not reviews and not notes:
+        return None
+    record = {"checked_at": now(), "reviews": reviews, "unreadable": notes,
+              "retry_now": [item["item_id"] for item in reviews if item["action"] == photo_review.ACTION_RETRY],
+              "investigate": [item["item_id"] for item in reviews if item["action"] == photo_review.ACTION_INVESTIGATE]}
+    if store.get("team_snapshots", snapshot_id) == snapshot:
+        store.set_meta(_photo_review_key(team_id, season["id"]), record)
+    return record
 
 
 async def fetch_player_photos(store, team_id, year=None, *, player_ids=None, force=False, order=None, deadline=None):
@@ -728,11 +820,19 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         from . import photo_acceptance
         acceptance = photo_acceptance.assess(current.get("roster"))
         previous = store.get_meta(_photo_acceptance_key(team_id, season["id"]), None)
+        # The attempt count is what makes ``should_continue``'s budget real. It
+        # was a parameter no production caller passed, so the only stop that ever
+        # fired was "no progress" — which means a pass that gained exactly one
+        # photo each time would run for as long as the reader kept opening the
+        # team. The count lives beside the last verdict and advances once per
+        # pass, which is the unit the budget is written in.
+        attempts = int((previous or {}).get("attempts") or 0) + 1 if previous else 1
         summary.update(acceptance=acceptance,
                        acceptance_note=photo_acceptance.summarize(acceptance, previous),
-                       continuation_worthwhile=photo_acceptance.should_continue(acceptance, previous))
+                       continuation_worthwhile=photo_acceptance.should_continue(acceptance, previous,
+                                                                               attempts=attempts))
         if store.get("team_snapshots", snapshot_id) == current:
-            store.set_meta(_photo_acceptance_key(team_id, season["id"]), acceptance)
+            store.set_meta(_photo_acceptance_key(team_id, season["id"]), {**acceptance, "attempts": attempts})
         _record_component(store, key, "portraits", summary)
         photos = [{k: player.get(k) for k in ("id", "provider_id", "name", "photo_url", "photo_credit", "photo_source_url", "photo_file_page", "photo_license", "photo_restrictions", "photo_updated_at", "photo_match")}
                   for player in current.get("roster", []) if player.get("photo_url")]
@@ -748,19 +848,112 @@ async def _fetch_player_photos_once(store, team_id, year=None, *, player_ids=Non
         raise
 
 
-async def sync_portraits(store, team_id, year=None, *, force=False, budget_seconds=None):
+async def sync_portraits(store, team_id, year=None, *, force=False, budget_seconds=None, review=False):
     """Fill optional photos without replacing a newer roster or its timestamp.
 
     Photo planning is opt-in through ``budget_seconds``: only the caller that
     owns a time budget asks for a model to order the batch. Every other path —
     opening a team, the maintenance queue — runs the ordinary cursor order, so
     a background refresh never spends a model call the reader did not ask for.
+
+    ``review`` adds the vision pass on the same terms: it asks a model to look at
+    the photos that came back and say whether they are usable as pictures. It is
+    off by default and refused without a budget, because it is a second paid call
+    and the same rule has to cover it.
     """
     order, deadline = None, None
     if budget_seconds is not None:
         deadline = time.monotonic() + max(1.0, float(budget_seconds))
         order = await _photo_order(store, team_id, year, deadline=deadline)
-    return await fetch_player_photos(store, team_id, year, force=force, order=order, deadline=deadline)
+    result = await fetch_player_photos(store, team_id, year, force=force, order=order, deadline=deadline)
+    if review and budget_seconds is not None:
+        result = dict(result)
+        try:
+            remaining = None if deadline is None else max(5.0, deadline - time.monotonic())
+            result["review"] = await review_photo_pass(store, team_id, year, timeout=remaining)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # A reviewer that cannot answer leaves the photos exactly as they are.
+            result["review"] = None
+    return result
+
+
+def team_names_for(store, row, team_id):
+    """The stored Chinese reading for a roster row, or None.
+
+    The read side of the name pass: a stored reading is handed to
+    ``with_reading`` so the row carries it, and it goes through the same
+    verifier there, so a proof whose ``provider_id`` no longer matches the row
+    is dropped rather than displayed. Local only — never a network call, because
+    this runs on every roster render.
+    """
+    from . import team_names
+    try:
+        return team_names.cached_reading(store, row, team_id)
+    except Exception:
+        return None
+
+
+async def sync_names(store, team_id, year=None, *, force=False, deadline=None):
+    """Fill in the Chinese reading for roster rows that have none.
+
+    This is the pass that makes a name *available*, separately from the photo
+    pass that used to be the only way one could be reached. The two are kept
+    apart because they answer different questions against different sources: a
+    player can have a citable name and no usable photo, and the reverse. Folding
+    names into the photo batch is what left a 27-strong squad with six names —
+    the batch advances a photo cursor, so a player whose photo resolved long ago
+    was never visited again and his name was never looked up at all.
+
+    Batch-and-cursor like the photo passes, for the same reason: each player
+    costs several paced requests, so one run cannot cover a squad and the rest
+    has to be carried forward. A player whose reading is already stored and
+    still checks out is skipped without a request.
+    """
+    from . import team_names
+    from .team_portraits import PLAYER_PAGE_LIMIT, batch_limit
+    _, _, season, _ = team_season_context(store, team_id, year)
+    snapshot = store.get("team_snapshots", _snapshot_id(team_id, season["id"])) or {}
+    roster = snapshot.get("roster") or []
+    if not roster:
+        return {"status": "missing", "errors": ["阵容尚未取得，无法核对球员中文名。"],
+                "checked": 0, "remaining_count": 0}
+
+    remaining_seconds = None if deadline is None else max(0.0, deadline - time.monotonic())
+    limit = batch_limit(remaining_seconds, ceiling=PLAYER_PAGE_LIMIT)
+    cursor_key = f"name_cursor_v1_{team_id}_{season['id']}"
+    needs = [row for row in roster if force or not team_names.cached_reading(store, row, team_id)]
+    if not needs:
+        return {"status": "fresh", "checked": 0, "remaining_count": 0,
+                "named_count": sum(bool(team_names.cached_reading(store, row, team_id)) for row in roster)}
+
+    offset = int(store.get_meta(cursor_key, {}).get("next", 0)) % len(needs)
+    batch = (needs[offset:] + needs[:offset])[:limit]
+    errors, checked, named = {}, 0, 0
+    for row in batch:
+        try:
+            record, reason = await team_names.resolve_reading(store, row, team_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # A transport fault is not "the source has no reading for him".
+            # Kept distinct so the next run retries instead of settling.
+            errors[row.get("provider_id") or row.get("name")] = source_error_details(exc)["message"]
+            break
+        checked += 1
+        if record:
+            team_names.store_reading(store, row, team_id, record)
+            named += 1
+        else:
+            errors[row.get("provider_id") or row.get("name")] = reason
+    store.set_meta(cursor_key, {"next": (offset + len(batch)) % len(needs), "updated_at": now()})
+    total_named = sum(bool(team_names.cached_reading(store, row, team_id)) for row in roster)
+    return {"status": "completed" if not errors else "partial",
+            "checked": checked, "newly_named": named, "named_count": total_named,
+            "total_count": len(roster), "remaining_count": max(0, len(roster) - total_named),
+            "errors": list(errors.values()), "reasons": errors,
+            "updated_at": now()}
 
 
 async def _photo_order(store, team_id, year, *, deadline=None):
@@ -842,6 +1035,11 @@ async def maintain_team(store, team_id, year=None, *, force=False, parts=None, d
             # All teams in a league share one independently cached table.
             "standings": lambda: league_data.sync_standings(store, league["id"], season["season_start_year"], force=force),
             "portraits": lambda: fetch_player_photos(store, team_id, year, force=force),
+            # A Chinese reading is checked against the roster row, so it needs
+            # the roster to exist; it reads the stored snapshot rather than
+            # waiting on a refresh running in the same gather, which is why a
+            # squad that is being rebuilt this pass gets its names next pass.
+            "names": lambda: sync_names(store, team_id, year, force=force),
             # A club's founding year and nickname are collected, never derived:
             # the model may ask for them and report the outcome, and cannot
             # write them itself.
