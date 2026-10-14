@@ -743,8 +743,9 @@ time,
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: #1f2a22b8;
-  backdrop-filter: blur(3px) saturate(1.05);
+  /* 实色遮罩，不再对背后整页做 backdrop-filter。模糊要先把动态/球队页
+     栅格化再模糊，打开弹层和弹层开着时切队都会卡一两秒。 */
+  background: #1f2a22e0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -772,12 +773,10 @@ time,
 }
 @keyframes panel-in {
   from {
-    opacity: 0.4;
-    transform: translateY(12px) scale(0.99);
+    opacity: 0;
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 /* 阅读弹窗：940px 的无内边距正文行长超过 60 字，眼睛会丢行。

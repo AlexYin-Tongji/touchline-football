@@ -54,6 +54,7 @@ function realComponents() {
   const slots = [];
   let index = 0;
   const react = {
+    memo: value => value,
     useState(initial) {
       const i = index++;
       if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
@@ -111,6 +112,12 @@ function component(file, name, props, api, saved = {}) {
       if (!same(slots[i]?.deps, deps)) slots[i] = { fn, deps };
       return slots[i].fn;
     },
+    useMemo(fn, deps) {
+      const i = index++;
+      if (!same(slots[i]?.deps, deps)) slots[i] = { deps, value: fn() };
+      return slots[i].value;
+    },
+    startTransition(fn) { fn(); },
     useEffect(fn, deps) {
       const i = index++;
       if (!same(slots[i]?.deps, deps)) effects.push(() => {
@@ -1031,6 +1038,7 @@ function crestModule() {
   let index = 0, dirty = true, alive = true, tree;
   const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
   const react = {
+    memo: value => value,
     useState(initial) {
       const i = index++;
       if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;

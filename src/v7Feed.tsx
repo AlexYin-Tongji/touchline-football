@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -100,7 +100,7 @@ const latestPreparation = (current: Preparation | null, next: Preparation) => {
   return next;
 };
 
-export function FeedView({
+export const FeedView = memo(function FeedView({
   team,
   data,
   ask,
@@ -677,4 +677,4 @@ export function FeedView({
       )}
     </div>
   );
-}
+});

@@ -3681,6 +3681,10 @@
   box-shadow: var(--shadow-1), var(--inset-hi);
   transition: border-color 0.2s, box-shadow 0.26s var(--ease-out),
     transform 0.26s var(--ease-out);
+  /* 目录大约一百支球队。视口外的卡片跳过排版和绘制，但仍留在无障碍树和
+     Tab 顺序里，滚到或聚焦时再画。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 124px;
 }
 .picker-team:hover {
   border-color: var(--ink);

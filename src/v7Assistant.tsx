@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -178,7 +178,7 @@ function responseError(value?: string | null) {
   return "这次查询没有完成，请重试或换一种方式提问。";
 }
 
-export function Assistant({
+export const Assistant = memo(function Assistant({
   team,
   data,
   incoming,
@@ -1067,4 +1067,4 @@ export function Assistant({
       )}
     </div>
   );
-}
+});

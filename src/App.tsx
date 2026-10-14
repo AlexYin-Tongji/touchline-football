@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -143,20 +143,45 @@ export default function App() {
   const team = teams.find((item) => item.id === teamId);
   const followed = data?.settings.followed_teams || [];
   const favoriteTeams = teams.filter((item) => followed.includes(item.id));
-  const ask = (value: AssistantPrompt) => {
+  const followingCurrent = followed.includes(teamId);
+  // Callbacks passed into memoized pages and the open picker must stay stable.
+  // A shell poll replaces `data` every minute; recreating these would force the
+  // feed, team page, and the club grid to render again for nothing.
+  const snapshot = useRef({ data, teams, followed, teamId });
+  snapshot.current = { data, teams, followed, teamId };
+  const ask = useCallback((value: AssistantPrompt) => {
     setPrompt({ ...value, token: Date.now() });
     setPage("assistant");
-  };
-  const toggleFollow = async (id = teamId) => {
-    const target = teams.find((item) => item.id === id);
-    if (!data || !target || followLock.current) return;
+  }, []);
+  const openPicker = useCallback(() => setPicker(true), []);
+  const closePicker = useCallback(() => setPicker(false), []);
+  const openSettings = useCallback(() => setSettings(true), []);
+  const closeSettings = useCallback(() => setSettings(false), []);
+  const refreshModels = useCallback(async () => {
+    setModelRevision((value) => value + 1);
+    await load();
+  }, [load]);
+  const selectTeam = useCallback((id: string) => {
+    // Close the dialog on the click, and let the heavy page swap happen as a
+    // transition so the picker does not freeze while the new team mounts.
+    setPicker(false);
+    startTransition(() => {
+      setPrompt(null);
+      setTeamId(id);
+    });
+  }, []);
+  const toggleFollow = useCallback(async (id?: string) => {
+    const snap = snapshot.current;
+    const targetId = id || snap.teamId;
+    const target = snap.teams.find((item) => item.id === targetId);
+    if (!snap.data || !target || followLock.current) return;
     followLock.current = true;
     setFollowBusy(true);
     try {
-      const selected = followed.includes(id);
+      const selected = snap.followed.includes(targetId);
       const next = selected
-        ? followed.filter((item) => item !== id)
-        : [...followed, id];
+        ? snap.followed.filter((item) => item !== targetId)
+        : [...snap.followed, targetId];
       await put("/settings", { followed_teams: next });
       setData((previous) =>
         previous
@@ -178,7 +203,18 @@ export default function App() {
       setFollowBusy(false);
       followLock.current = false;
     }
-  };
+  }, [load]);
+  useEffect(() => {
+    const warm = () => {
+      void import("./v7ModelSettings").catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 1500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(warm, 800);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <div className="v7-app">
       <header className="site-header">
@@ -219,7 +255,7 @@ export default function App() {
             className="icon-button"
             aria-label="模型配置"
             title="模型配置"
-            onClick={() => setSettings(true)}
+            onClick={openSettings}
           >
             <Settings2 size={20} />
           </button>
@@ -231,7 +267,7 @@ export default function App() {
             <span>我的球队</span>
             <button
               className="icon-button"
-              onClick={() => setPicker(true)}
+              onClick={openPicker}
               aria-label="寻找球队"
             >
               <Plus size={17} />
@@ -243,8 +279,10 @@ export default function App() {
                 key={item.id}
                 className={item.id === teamId ? "active" : ""}
                 onClick={() => {
-                  setPrompt(null);
-                  setTeamId(item.id);
+                  startTransition(() => {
+                    setPrompt(null);
+                    setTeamId(item.id);
+                  });
                 }}
               >
                 <Crest team={item} small />
@@ -260,7 +298,7 @@ export default function App() {
               从这里开启你的主场。
             </p>
           )}
-          <button className="explore-teams" onClick={() => setPicker(true)}>
+          <button className="explore-teams" onClick={openPicker}>
             <Search size={16} />
             发现更多球队
             <ArrowRight size={14} />
@@ -282,7 +320,7 @@ export default function App() {
             <div className="team-context">
               <button
                 className="current-team"
-                onClick={() => setPicker(true)}
+                onClick={openPicker}
                 aria-label={`切换球队，当前${team.name}`}
               >
                 <Crest team={team} small />
@@ -293,15 +331,15 @@ export default function App() {
                 {team.league_name || team.league || team.country}
               </span>
               <button
-                className={`follow-button ${followed.includes(teamId) ? "following" : ""}`}
+                className={`follow-button ${followingCurrent ? "following" : ""}`}
                 disabled={followBusy}
                 onClick={() => toggleFollow()}
               >
                 <Star
                   size={14}
-                  fill={followed.includes(teamId) ? "currentColor" : "none"}
+                  fill={followingCurrent ? "currentColor" : "none"}
                 />
-                {followed.includes(teamId) ? "已关注" : "关注球队"}
+                {followingCurrent ? "已关注" : "关注球队"}
               </button>
             </div>
           )}
@@ -324,7 +362,7 @@ export default function App() {
                   team={team}
                   data={data}
                   ask={ask}
-                  openModel={() => setSettings(true)}
+                  openModel={openSettings}
                 />
               )}
               {page === "team" && (
@@ -342,7 +380,7 @@ export default function App() {
                   team={team}
                   data={data}
                   incoming={prompt}
-                  openModel={() => setSettings(true)}
+                  openModel={openSettings}
                   onChanged={load}
                   active={page === "assistant"}
                   modelRevision={modelRevision}
@@ -358,7 +396,7 @@ export default function App() {
               <p>选择一支球队，开始阅读动态、了解球员和比赛。</p>
               <button
                 className="button primary"
-                onClick={() => setPicker(true)}
+                onClick={openPicker}
               >
                 选择球队
               </button>
@@ -373,22 +411,15 @@ export default function App() {
           current={teamId}
           followBusy={followBusy}
           onFollow={toggleFollow}
-          onSelect={(id) => {
-            setPrompt(null);
-            setTeamId(id);
-            setPicker(false);
-          }}
-          onClose={() => setPicker(false)}
+          onSelect={selectTeam}
+          onClose={closePicker}
         />
       )}
       {settings && (
-        <Modal title="模型配置" onClose={() => setSettings(false)} wide>
+        <Modal title="模型配置" onClose={closeSettings} wide>
           <RecoverableView label="模型配置">
           <Suspense fallback={<Spinner text="正在打开模型配置" />}>
-            <ModelSettings onChanged={async () => {
-              setModelRevision((value) => value + 1);
-              await load();
-            }} />
+            <ModelSettings onChanged={refreshModels} />
           </Suspense>
           </RecoverableView>
         </Modal>
@@ -410,7 +441,90 @@ export default function App() {
   );
 }
 
-function TeamPicker({
+const pickerLeagues = [
+  { id: "PL", name: "英超" },
+  { id: "PD", name: "西甲" },
+  { id: "BL1", name: "德甲" },
+  { id: "SA", name: "意甲" },
+  { id: "FL1", name: "法甲" },
+];
+const pickerFirstPaint = 24;
+const pickerEagerCrests = 18;
+
+function sameIds(left: string[], right: string[]) {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1)
+    if (left[index] !== right[index]) return false;
+  return true;
+}
+
+function samePickerTeams(left: Team[], right: Team[]) {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const a = left[index];
+    const b = right[index];
+    if (a === b) continue;
+    if (
+      a.id !== b.id ||
+      a.name !== b.name ||
+      a.english_name !== b.english_name ||
+      a.short_name !== b.short_name ||
+      a.city !== b.city ||
+      a.crest_url !== b.crest_url ||
+      a.color !== b.color
+    )
+      return false;
+  }
+  return true;
+}
+
+const PickerTeamRow = memo(function PickerTeamRow({
+  team,
+  selected,
+  following,
+  followBusy,
+  eager,
+  onSelect,
+  onFollow,
+}: {
+  team: Team;
+  selected: boolean;
+  following: boolean;
+  followBusy: boolean;
+  eager: boolean;
+  onSelect: (id: string) => void;
+  onFollow: (id: string) => Promise<void>;
+}) {
+  return (
+    <div className={`picker-team${selected ? " selected" : ""}`}>
+      <button
+        className="picker-team-open"
+        onClick={() => onSelect(team.id)}
+        aria-label={`查看${team.name}`}
+      >
+        <Crest team={team} defer={!eager} />
+        <span>
+          <strong>{team.name}</strong>
+          <small>{team.english_name}</small>
+        </span>
+      </button>
+      <button
+        className={`picker-follow${following ? " following" : ""}`}
+        aria-label={`${following ? "取消关注" : "关注"}${team.name}`}
+        aria-pressed={following}
+        disabled={followBusy}
+        onClick={() => void onFollow(team.id)}
+      >
+        <Star size={15} fill={following ? "currentColor" : "none"} />
+        {following ? "已关注" : "关注"}
+      </button>
+    </div>
+  );
+});
+
+const TeamPicker = memo(function TeamPicker({
   teams,
   followed,
   current,
@@ -432,13 +546,7 @@ function TeamPicker({
   const [onlyFollowing, setOnlyFollowing] = useState(false);
   const [leagueTeams, setLeagueTeams] = useState<Record<string, string[]>>({});
   const [leagueError, setLeagueError] = useState(false);
-  const countries = [
-    { id: "PL", name: "英超" },
-    { id: "PD", name: "西甲" },
-    { id: "BL1", name: "德甲" },
-    { id: "SA", name: "意甲" },
-    { id: "FL1", name: "法甲" },
-  ];
+  const [painted, setPainted] = useState(pickerFirstPaint);
   useEffect(() => {
     let valid = true;
     api<{ leagues: { id: string; teams: Team[] }[] }>("/leagues")
@@ -460,43 +568,54 @@ function TeamPicker({
       valid = false;
     };
   }, []);
-  const countryMatches = (team: Team) =>
-    !country || leagueTeams[country]?.includes(team.id);
-  // Every part of this is memoised on its own inputs. The filter used to run a
-  // linear `clubCatalog.find` and a `followed.includes` per candidate on every
-  // render — 96 entries times 96 clubs, and again on each keystroke — while the
-  // work is the same until the query, the country, the follow list or the data
-  // actually changes.
+  // Aliases are resolved once per club list, not once per candidate per
+  // keystroke. A shell poll hands the picker a new array even when the clubs
+  // did not change; the memo comparator skips this render in that case.
+  const directory = useMemo(
+    () =>
+      teams.map((team) => ({
+        team,
+        haystack: [
+          team.name,
+          team.english_name,
+          team.short_name,
+          team.city,
+          ...(findClubById(team.id)?.aliases || []),
+        ]
+          .join("\n")
+          .toLowerCase(),
+      })),
+    [teams],
+  );
   const followedSet = useMemo(() => new Set(followed), [followed]);
   const leagueSet = useMemo(
     () => new Set(country ? leagueTeams[country] || [] : []),
     [country, leagueTeams],
   );
   const needle = query.trim().toLowerCase();
+  const filtering = needle.length > 0 || !!country || onlyFollowing;
   const results = useMemo(
     () =>
-      teams
+      directory
         .filter(
-          (item) =>
-            (!country || leagueSet.has(item.id)) &&
-            (!onlyFollowing || followedSet.has(item.id)) &&
-            [
-              item.name,
-              item.english_name,
-              item.short_name,
-              item.city,
-              ...(findClubById(item.id)?.aliases || []),
-            ]
-              .join(" ")
-              .toLowerCase()
-              .includes(needle),
+          ({ team, haystack }) =>
+            (!country || leagueSet.has(team.id)) &&
+            (!onlyFollowing || followedSet.has(team.id)) &&
+            (!needle || haystack.includes(needle)),
         )
         .sort(
           (a, b) =>
-            Number(followedSet.has(b.id)) - Number(followedSet.has(a.id)),
-        ),
-    [teams, country, leagueSet, onlyFollowing, followedSet, needle],
+            Number(followedSet.has(b.team.id)) - Number(followedSet.has(a.team.id)),
+        )
+        .map(({ team }) => team),
+    [directory, country, leagueSet, onlyFollowing, followedSet, needle],
   );
+  useEffect(() => {
+    if (painted >= results.length) return;
+    const frame = requestAnimationFrame(() => setPainted(results.length));
+    return () => cancelAnimationFrame(frame);
+  }, [painted, results.length]);
+  const visible = filtering ? results : results.slice(0, painted);
   return (
     <Modal title="关注与发现球队" onClose={onClose} wide>
       <div className="team-picker">
@@ -530,7 +649,7 @@ function TeamPicker({
           >
             全部球队
           </button>
-          {countries.map((item) => (
+          {pickerLeagues.map((item) => (
             <button
               key={item.id}
               className={country === item.id ? "active" : ""}
@@ -545,37 +664,21 @@ function TeamPicker({
           <p className="muted">联赛筛选暂时不可用，你仍然可以搜索球队。</p>
         )}
         <div className="picker-count">{results.length} 支球队</div>
-        <div className="picker-grid">
-          {results.map((item) => (
-            <div
+        <div
+          className="picker-grid"
+          aria-busy={!filtering && visible.length < results.length}
+        >
+          {visible.map((item, index) => (
+            <PickerTeamRow
               key={item.id}
-              className={`picker-team ${current === item.id ? "selected" : ""}`}
-            >
-              <button
-                className="picker-team-open"
-                onClick={() => onSelect(item.id)}
-                aria-label={`查看${item.name}`}
-              >
-                <Crest team={item} />
-                <span>
-                  <strong>{item.name}</strong>
-                  <small>{item.english_name}</small>
-                </span>
-              </button>
-              <button
-                className={`picker-follow ${followed.includes(item.id) ? "following" : ""}`}
-                aria-label={`${followed.includes(item.id) ? "取消关注" : "关注"}${item.name}`}
-                aria-pressed={followed.includes(item.id)}
-                disabled={followBusy}
-                onClick={() => onFollow(item.id)}
-              >
-                <Star
-                  size={15}
-                  fill={followed.includes(item.id) ? "currentColor" : "none"}
-                />
-                {followed.includes(item.id) ? "已关注" : "关注"}
-              </button>
-            </div>
+              team={item}
+              selected={current === item.id}
+              following={followedSet.has(item.id)}
+              followBusy={followBusy}
+              eager={index < pickerEagerCrests}
+              onSelect={onSelect}
+              onFollow={onFollow}
+            />
           ))}
         </div>
         {!results.length && (
@@ -588,4 +691,12 @@ function TeamPicker({
       </div>
     </Modal>
   );
-}
+}, (prev, next) =>
+  prev.current === next.current &&
+  prev.followBusy === next.followBusy &&
+  prev.onSelect === next.onSelect &&
+  prev.onClose === next.onClose &&
+  prev.onFollow === next.onFollow &&
+  sameIds(prev.followed, next.followed) &&
+  samePickerTeams(prev.teams, next.teams),
+);
