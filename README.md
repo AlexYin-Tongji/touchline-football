@@ -1,14 +1,10 @@
-# 看台 · V8.10.0
+# 看台 · V8.11.0
 
 一个保存在自己电脑里的个人足球 Agent。打开浏览器就能看中文消息、了解球队与球员、向助手提问；不需要部署网站，也没有社区账号、发帖或评论系统。
 
-V8.8 修掉球员照片的四类缺陷并整理技能分层。四类缺陷病根相同——**缓存过期被读成了身份被否定**，于是已核验的照片被自己擦掉（缓存一到期就清空照片、整队刷新时会跳过所有缓存重发请求、连"阵容缺出生日期"这种没发请求的结论也会擦照片、完成与判定共用一个 7 天窗口）。同名遮挡现在成为独立状态：整年出生日期不符的同名者仍被拒绝，但会明确标注"被同名球员挡住，需换来源"，而不是含糊的多候选。技能从单文件变为一棵树，加载一个方向会收窄工具面（图像方向 16 → 11 个工具），并把本方向真正需要的后台工具放出来，作用域仍优先。详见 [V8.8 头像来源与技能分层](docs/V8_8_PORTRAITS_AND_SKILL_TREE.md)。
+**V8.11 清理了开发流程本身。** 数据库重置到出厂状态（保留加密密钥与模型配置），23,694 行测试代码与 18 份已完成使命的版本文档一并移除，理由见 [版本记录](docs/CHANGELOG.md) 顶部的说明。项目现在从一个干净基线出发，**边界知识全部保留在 [AGENTS.md](AGENTS.md)**——那里写的每一条都是用真金白银的 bug 换来的，重写时请对照。
 
-V8.7 重做前端版式、层次与交互，不改功能。改动前全站有 28 个字号、15 个行高，相邻档常只差 0.5px；中文标签被按西文大写排了 2px 量级的字距；`--faint` 在纸底上只有 2.92:1，低于下限。这一版收敛成一套排版变量、换掉中文正文字体、按最差落点重定次要色，并补上投影层次与动效。业务逻辑、DOM 结构与类名一律未改。详见 [V8.7 版式、层次与交互](docs/V8_7_TYPOGRAPHY_AND_DEPTH.md)。
-
-V8.5 把球队资料与球员照片各自收敛到一个权威源：96 支球队的成立年与主场全部补齐（Wikidata，CC0，逐队记录出处），四支球队散落在根目录的队徽统一归入 `clubs/`，球员照片删除「最后写入者胜出」改为按实测覆盖率排序（官网 81% → 社区 61% → 维基 11%），弱源不得覆盖强源。详见 [V8.5 球队资料补全与照片权威源](docs/V8_5_TEAM_DATA_AND_PORTRAITS.md)。
-
-V8.4 扩充消息来源：每支球队的可用发布方从 12 个增加到 32–33 个，新增意大利、西班牙、法国、葡萄牙、荷兰语的本国媒体与七个球迷社区，并去掉两个只会失败或返回死档的来源。同一轮取消了「正文未能确认就丢弃整条消息」的旧规则，改为保留并标注。详见 [V8.4 来源扩充与读取规则](docs/V8_4_SOURCE_EXPANSION.md)。
+之前的 V8.8 / V8.7 / V8.5 / V8.4 各轮改动与它们立下的边界，已收敛进 [版本记录](docs/CHANGELOG.md)。
 
 ## 三个入口
 
@@ -64,40 +60,39 @@ npm run build
 
 开发前端使用 `npm run dev`，其 API 代理到 9080（同样可用 `TOUCHLINE_PORT` 覆盖）。
 
+界面改动请在真实应用里核对桌面（1440）与窄屏（390）两个宽度：
+
 ```powershell
-python scripts/check.py --suite fast
-# 修改某个模块时只跑相关回归，例如：
-python scripts/check.py --module test_team_refresh_parts test_team_center
-# 交付前完整检查：
-python scripts/check.py --suite full --json output/test-results.json
-npm run test:ui
-npm run build
+npm install --no-save playwright   # 按需安装，不是项目依赖
+npm run shot                       # 普通页面
+npm run shot:settings              # 需要点击或未登录状态的界面
 ```
 
-GitHub Actions 还检查 Linux 环境和 Docker 构建。Docker / Render 文件保留作可选服务器运行方式，不是个人版本的使用前提。
+截图落在 `output/visual/`（被 Git 忽略）。样式表改动后请自己在浏览器控制台核对受影响组件的计算样式——失配的选择器不会让编译或运行报错，只在 `getComputedStyle` 里现形。
 
-快速套件不替代完整回归。检查入口会优先使用本项目 `.venv`，并列出最慢的用例。前端行为回归覆盖慢请求下的草稿和切队等操作；字体与布局通过桌面及窄屏实际浏览器检查。Python 依赖用 `requirements.lock.txt` 固定已验证版本，升级依赖后应重跑完整检查。
+GitHub Actions 检查 Linux 环境下的导入与 Docker 构建。Docker / Render 文件保留作可选服务器运行方式，不是个人版本的使用前提。Python 依赖用 `requirements.lock.txt` 固定已验证版本。
 
-优化前的源码已保存在标签 `v7.0.0`，主线包含后续改进。涉及旧数据迁移时，程序先在 `data/backups/` 保存一致性数据库及配套 `.key`；回退代码前也应单独备份当前数据，Git 标签不包含个人数据库。
+需要把本机数据重置到出厂状态时（保留加密密钥与模型配置）：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/reset-data.py --dry-run   # 先看会删什么
+.\.venv\Scripts\python.exe scripts/reset-data.py
+```
+
+**永远不要 `rm data/`**：`data/touchline.key` 与数据库是一个单元，删了 key，所有密钥不可恢复。
 
 ## 资料
 
-- [V8 设计原则](docs/DESIGN_PRINCIPLES.md)
-- [V8 交接完成与验收记录](docs/V8_PROGRESS.md)
+- [开发约定](AGENTS.md)：现场规矩，改代码前必读
+- [版本记录](docs/CHANGELOG.md)：每轮为什么改，以及当时立下的边界
+- [V8 设计原则](docs/DESIGN_PRINCIPLES.md)：为什么这样设计
+- [现行质量与运行契约](docs/QUALITY_AND_RUNTIME_CONTRACTS.md)：引用、比赛数据边界、主子智能体、技能权限
 - [数据来源、配额与后台维护](docs/DATA_SOURCES.md)
-- [现行质量与运行契约](docs/QUALITY_AND_RUNTIME_CONTRACTS.md)：原文支持核对、比赛数据边界、主子智能体、技能权限
-- [V7.8.1 项目清理](docs/V7_8_1_CLEANUP.md)
-- [V7.8 版式与交互修正](docs/V7_8_LAYOUT_AND_INTERACTION.md)
-- [V7.7 来源、照片与问答](docs/V7_7_SOURCES_PHOTOS_ASK.md)
-- [V7.6 来源与照片验收](docs/RELIABILITY_V7_6.md)
 - [接口与模块约定](docs/API.md)
-- [运行协调与多模型分工](docs/HARNESS.md)
-- [产品需求](docs/PRD.md)
+- [球员肖像匹配实验](docs/PORTRAIT_MATCH_EXPERIMENTS.md)：身份绑定与覆盖率的实测数据
 - [本地与免费托管的选择](docs/FREE_HOSTING.md)
-- [V7 设计与验证](docs/PERSONAL_V7.md)
-- [V7 可靠性与模型上下文](docs/RELIABILITY_V7.md)
 - [球队与来源素材](public/assets/clubs/README.md)
 
 代码保存在私有仓库 [AlexYin-Tongji/touchline-football](https://github.com/AlexYin-Tongji/touchline-football)。原 `football-ai-harness-loop` 仓库保持原样。数据库、API 密钥、备份和临时资料均排除在 Git 外。
 
-各版本的验收记录与早期设计文档已在 V7.8.1 清理中移除；需要追溯时按版本标签检出，例如 `git show v7.4.0:docs/V4_VALIDATION.md`。
+已完成使命的版本文档已移除；需要追溯某轮细节时按标签检出，例如 `git show v8.9.0:docs/V8_9_TODO.md`。

@@ -249,7 +249,12 @@ export const Crest = memo(function Crest({
     <span
       ref={host}
       className={`crest ${small ? "small" : ""} ${hasImage ? "crest-image" : "crest-fallback"}`}
-      style={{ background: team?.color || "#758b79" }}
+      // The team colour belongs to the fallback letter only. Behind an actual
+      // crest it is a second red field under a red badge — Nottingham Forest,
+      // Liverpool and Bayern all sit on a tint of their own colour, and the
+      // crest's own edge disappears into it. With an image present the plate is
+      // neutral so the badge is what carries the colour.
+      style={hasImage ? undefined : { background: team?.color || "#758b79" }}
       title={`${label}${hasImage ? "队徽" : " · 暂无队徽"}`}
     >
       {showImage ? (

@@ -49,18 +49,27 @@ def _portrait_claims(store, result, source_id, *, team_id, fetched):
 
 @provider(
     {"id": "thesportsdb", "name": "TheSportsDB 社区球员资料", "tier": SourceTier.COMMUNITY,
-     "domains": (".thesportsdb.com",), "reviewed_at": "2026-09-24"},
+     "domains": (".thesportsdb.com",), "reviewed_at": "2026-10-15"},
     {Capability.PERSON, Capability.IMAGE},
     cost=Cost.LIGHT, latency=Latency.SLOW,
-    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定。姓名搜索已退出默认照片核对；本提供者不再发出检索。",
+    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定。照片走完整姓名查询加出生日期核对，2026-10-15 实测 81-90% 命中、零错配。",
 )
 class TheSportsDbProvider(BaseProvider):
-    """Community club value, with portrait name-search retired.
+    """Community portraits by full name, confirmed by birth date.
 
     The club claim stays: it records an unstated relation and does not decide
-    identity. Portrait lookup by name is the failed path, and the free API
-    cannot be asked for an ESPN id, so ``portrait`` returns a gap and does
-    not call the publisher.
+    identity. Portrait acquisition goes through
+    ``community_portraits.resolve_portrait``, which is also what
+    ``_enrich_wikimedia_photos`` calls — this method exists so a *tool* can ask
+    for one player's portrait directly, and it delegates rather than
+    re-implementing the identity rule in a second place where the two could
+    drift apart.
+
+    What was retired is narrower than it looked. The surname fallback and
+    ``lookup_all_players`` are not used — the first turns ``Saka`` into
+    ``n'Sakala``, the second returns ten alphabetical rows of mixed clubs — and
+    neither is reachable from here. A full-name query is, and the birth date is
+    checked before any image is considered.
     """
 
     min_interval = 1.1
@@ -68,10 +77,19 @@ class TheSportsDbProvider(BaseProvider):
     async def portrait(self, player, team_id, *, force=False):
         if self.store is None:
             raise ProviderError("读取照片需要存储。", code="no_store")
-        return self.unavailable(
-            Capability.IMAGE,
-            "免费社区库不能按球员编号反查，姓名搜索已退出，本提供者不会发出检索。",
-            retryable=False)
+        from ..community_portraits import resolve_portrait
+        await self.pacing.wait()
+        try:
+            result = await resolve_portrait(self.store, player, team_id, force=force)
+        except Exception as exc:
+            return self.unavailable(Capability.IMAGE, str(exc) or "社区球员库暂时不可达。", retryable=True)
+        item, reason = _portrait_claims(self.store, result, self.source.id, team_id=team_id,
+                                        fetched=(result or {}).get("fetched_at"))
+        if item is None:
+            return self.envelope(Capability.IMAGE, gaps=[{
+                "source_id": self.source.id, "message": reason,
+                "retryable": bool((result or {}).get("retryable"))}])
+        return self.envelope(Capability.IMAGE, items=[item])
 
     def club(self, record, *, fetched_at=None):
         """The publisher's club value, with the relation deliberately unstated.

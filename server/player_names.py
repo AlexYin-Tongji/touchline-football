@@ -595,6 +595,16 @@ def with_reading(row, *, source_reading=_SOURCE_UNSET, team_id=None):
         reading = ""
     elif reading:
         dynamic = None
+    # Neither channel could produce a reading this time. That is *not* evidence
+    # that the row has no reading: it is what a missing cache record looks like,
+    # and the roster already carries values that were checked on an earlier pass.
+    # Clearing here deleted six verified Wikidata names from the Getafe squad on
+    # every rebuild — the row went English-only while the snapshot still held the
+    # reading, and the next read could not put it back because its cache key was
+    # gone too. Name lookups are additive, so a pass with nothing to add leaves
+    # the row as it found it.
+    if not reading and not dynamic:
+        return row
     for field in NAME_FIELDS:
         row.pop(field, None)
     if reading:

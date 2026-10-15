@@ -36,6 +36,7 @@ FOUNDED_PROPERTY = "P571"    # inception
 VENUE_PROPERTY = "P115"      # home venue
 NICKNAME_PROPERTY = "P1449"  # nickname
 INSTANCE_PROPERTY = "P31"    # instance of
+CAPACITY_PROPERTY = "P1083"  # capacity, read off the *venue* entity
 # Wikidata classes that mean "this is a football club at all". A candidate whose
 # P31 shares none of these is refused outright rather than merely ranked lower:
 # "Bologna" is a city, "Nice" is a place, "Monaco" is a country, and a scoring
@@ -60,8 +61,16 @@ SECOND_TEAM_WORDS = re.compile(
 
 # Values the interface reads as a football club. Anything else is not shown, so
 # it is not collected either.
-FIELDS = ("founded", "stadium", "nickname")
-FIELD_LABELS = {"founded": "创立年份", "stadium": "主场", "nickname": "昵称"}
+FIELDS = ("founded", "stadium", "nickname", "stadium_capacity")
+FIELD_LABELS = {"founded": "创立年份", "stadium": "主场", "nickname": "昵称",
+                "stadium_capacity": "球场容量"}
+# Deliberately absent: a "rival" field. Both sources that could carry one were
+# measured on 2026-10-15 and neither does. TheSportsDB's free tier returns a
+# substituted sample response for club lookups (Celtic's id answers "Tulane"),
+# so its null `strRivalry` says nothing, and Wikidata's P1962 is empty for the
+# pairs that obviously have rivals — Celtic/Rangers, Dortmund/Schalke,
+# Liverpool/Everton — because the property is effectively unmaintained. A field
+# with no source is not a field; adding one would mean inventing the values.
 # A founding year does not go off. There is no "check again next week" for a
 # value that has been stable since 1886, and treating it as perishable would
 # re-read Wikidata on every visit for a field that cannot have changed.
@@ -152,8 +161,40 @@ def identity_score(entity):
     return 2 if ASSOCIATION_FOOTBALL_CLUB in classes else 1
 
 
-def facts_from(entity, *, labels=None):
-    """The three fields, from one entity and its referenced venue label."""
+def _capacity(venue_entity):
+    """A ground's stated capacity, as a whole number.
+
+    Read off the *venue* entity rather than the club's, because that is where
+    Wikidata keeps it — the club links to the ground, and the ground states how
+    many it holds. The value arrives as a quantity with a unit, sometimes signed
+    and sometimes carrying a precision suffix, so it is normalised rather than
+    trusted. A number no ground could hold is refused instead of clamped: a
+    four-seat stadium or a two-million-seat one is a data fault, and writing a
+    plausible-looking bound over it would hide that.
+    """
+    claims = (venue_entity or {}).get("claims") or {}
+    for claim in claim_values(claims, CAPACITY_PROPERTY):
+        value = _datavalue(claim)
+        amount = value.get("amount") if isinstance(value, dict) else None
+        if not isinstance(amount, str):
+            continue
+        text = amount.lstrip("+").split(".")[0]
+        if not text.lstrip("-").isdigit():
+            continue
+        seats = int(text)
+        if 100 <= seats <= 500000:
+            return seats
+    return None
+
+
+def facts_from(entity, *, labels=None, venue_entity=None):
+    """The collected fields, from one entity, its venue label and its ground.
+
+    ``venue_entity`` is the claims of the home ground, when the caller fetched
+    it. Capacity cannot be answered from the club alone, so a caller that did
+    not fetch the ground simply gets no capacity — it is left missing rather
+    than guessed at from a number on some other entity.
+    """
     facts = {}
     claims = (entity or {}).get("claims") or {}
     inception = _datavalue(next(iter(claim_values(claims, FOUNDED_PROPERTY)), None))
@@ -171,6 +212,9 @@ def facts_from(entity, *, labels=None):
         venue = _name(labels.get(venue_ids[0]))
         if venue:
             facts["stadium"] = venue
+    capacity = _capacity(venue_entity)
+    if capacity:
+        facts["stadium_capacity"] = capacity
     for claim in claim_values(claims, NICKNAME_PROPERTY):
         value = _datavalue(claim)
         text = value.get("text") if isinstance(value, dict) else None
@@ -324,7 +368,15 @@ async def collect(store, team):
     for claim in claim_values(found.get("claims"), VENUE_PROPERTY):
         venue_ids.extend(entity_ids(_datavalue(claim)))
     labels = await labels_for(store, venue_ids) if venue_ids else {}
-    facts = facts_from(found, labels=labels)
+    # The ground's own entity, and only when its capacity is actually wanted. It
+    # is a second request per club, so it is spent only by a record that is
+    # missing that field — a club whose capacity is already recorded costs
+    # nothing. Without it ``facts_from`` simply reports no capacity, which is
+    # the correct answer for "we did not ask".
+    venue_entity = None
+    if "stadium_capacity" in missing and venue_ids:
+        venue_entity = await entity(store, venue_ids[0], props="claims")
+    facts = facts_from(found, labels=labels, venue_entity=venue_entity)
     resolved_qid = str(found.get("id") or qid)
     written = apply_facts(team, facts, qid=resolved_qid)
     return {"team": team, "written": written, "qid": resolved_qid,

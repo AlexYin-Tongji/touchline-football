@@ -219,36 +219,53 @@ def _merge_kept_source(summary, kept):
 # place the order is decided, so acquiring a photo and replacing one already on
 # the row cannot disagree about which source wins.
 #
-# The order is measured, not preferred. Across 40 clubs in five leagues:
-# a club's own verified directory answers for 81% of a squad in under two
-# seconds; the community database has a record for 86% of players and a picture
-# for 73% of those, at about half a minute per club; Wikimedia answers for 11%
-# and takes nearly three minutes. A source that answers more often and cheaper
-# is tried first, and a source that answers less often must not overwrite it.
+# The order is measured, not preferred, and it was re-measured on 2026-10-15.
+# The earlier ordering put the community database last on the strength of a
+# reading that turned out to be about the wrong path: what had been measured
+# as "name search" was the *surname* fallback and the roster endpoint, and both
+# are genuinely bad. A full-name query is a different question to the same
+# endpoint and a good one — the publisher ranks rather than lists, so the
+# response is one record and the whole decision is whether one identity fact
+# agrees. Across 107 players at Arsenal, Real Madrid, Bayern Munich and Inter
+# it matched 81-90% with an exact birth date, produced zero wrong-person
+# matches, and every refusal was a real namesake or a stale record.
+#
+# So TheSportsDB now leads. It costs one paced request per player and answers
+# for most of a squad, which the club directories (useful at three clubs, 81%
+# where configured) and Wikidata (11%, ~3 min/club) never did.
 PHOTO_SOURCE_ORDER = (
-    "exact_name_and_number",          # the club's own directory, name + number
+    # Full name plus a birth date that agrees to the day. The tier the
+    # 2026-10-15 measurement was about; 81-90% of a squad, zero misattribution.
+    "community_name_and_birthdate",
+    # The club's own directory, name + number. Still the strongest evidence
+    # available — a club stating its own squad — but it only exists at a
+    # handful of clubs, so it is no longer the default first pass.
+    "exact_name_and_number",
     # Same ESPN id as the roster, plus a Commons file whose licence was checked.
-    # Stronger than the community tiers: those still depend on a truncated name
-    # search, and their images are unlicensed reposts.
     "wikidata_espn_provider_id",
-    # The community tiers, strongest evidence first. All of them are one source,
-    # so they share a rank: only a re-derivation by the same source may replace
-    # one, which is what a manual retry asks for.
+    # The remaining community tiers, weakest last. Flattened onto one rank
+    # below, so only this source may re-derive over itself.
     "community_espn_provider_id",      # same athlete id as the roster carries
     "community_name_and_nationality",  # one unique record, nationality agrees
-    "community_name_and_birthdate",    # full name, birth date agrees to the day
     "community_name_and_birth_year",   # full name, birth year only
     "community_surname_and_birthdate",  # publisher's spelling, exact birth date
     "wikimedia_verified_club",        # free licence, identity + club verified
     "espn_directory_provider_id",     # ESPN's own player page, id-bound
     "espn_provider_id",               # rides on the roster payload, id-bound
 )
-# Community tiers share one rank — the position of the first of them — so a
-# later tier cannot outrank an earlier one from the same publisher. Sources
-# placed ahead of that position, including the id-anchored Commons file, stay
-# strictly stronger.
+# The five weaker community tiers share one rank — the position of the first of
+# them — so a later tier cannot outrank an earlier one from the same publisher.
+#
+# The birth-date tier is deliberately *not* in that set, and the reason is the
+# rank arithmetic: ``_COMMUNITY_RANK`` is read off this tuple, so widening the
+# set to include the tier now at index 0 would collapse every community tier
+# onto rank 0 and make a surname guess equal to a club's own verified directory.
+# It is also the right answer on the merits — a full name with an agreeing birth
+# date is a stronger claim than the tiers below it, and the one tier that must
+# not be able to overwrite it is the weaker evidence from its own publisher.
 _COMMUNITY_RANK = PHOTO_SOURCE_ORDER.index("community_espn_provider_id")
-PHOTO_SOURCE_RANK = {match: (_COMMUNITY_RANK if match in COMMUNITY_PHOTO_MATCHES else rank)
+PHOTO_SOURCE_RANK = {match: (_COMMUNITY_RANK if match in COMMUNITY_PHOTO_MATCHES
+                             and match != "community_name_and_birthdate" else rank)
                      for rank, match in enumerate(PHOTO_SOURCE_ORDER)}
 
 
@@ -275,6 +292,37 @@ def photo_outranks(incoming, current):
     if current_rank is None:
         return True
     return incoming_rank <= current_rank
+
+
+def _apply_source_verdict(player, photo):
+    """Write a source's durable "not this player" answer onto the row.
+
+    A verdict and a transport fault are different facts and this writes only the
+    first. A fault leaves the row looking merely un-attempted, which is right —
+    nothing has been learned and the next pass should try again. A verdict is
+    the source having been asked and answered, and leaving it off the row makes
+    the acceptance report count it as never attempted, so the same players are
+    asked again forever.
+
+    The photo already on the row is not touched. A source reaching a negative
+    answer about a player it was never able to identify says nothing about a
+    picture a *different* source proved, and clearing it here would be the
+    cache-window-read-as-verdict mistake in a new place. Only the reason
+    travels, and only when the row has no stronger picture to protect.
+    """
+    if photo.get("retryable"):
+        return
+    next_rank = photo_source_rank(photo.get("photo_match"))
+    current_rank = photo_source_rank(player.get("photo_match"))
+    if current_rank is not None and (next_rank is None or current_rank < next_rank):
+        # A stronger source is already on the row. This refusal is about a
+        # weaker tier and cannot speak to it.
+        return
+    if not player.get("photo_url"):
+        player["photo_reason"] = photo.get("photo_reason") or "社区球员库里没有这名球员的可展示照片。"
+        player["retryable"] = False
+        player["reason_code"] = photo.get("reason_code") or "community_missing"
+        _copy_namesake(player, photo)
 
 
 def _copy_namesake(player, photo):
@@ -1044,17 +1092,30 @@ async def enrich_player_photos(store, snapshot, *, player_ids=None, force=False,
 
 async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, explicit_selection, deadline=None,
                                    on_progress=None):
-    """Fill portraits from identity-bound sources, then a verified club page.
+    """Fill portraits from the community database first, then the bound sources.
 
-    Free TheSportsDB name search is not part of this pass. Measured on the
-    2026 Arsenal, Chelsea and Manchester City squads, that search attached
-    faces from a single unsorted hit, including records whose ``idESPN``
-    disagrees with the roster. A photo already stored from that source can
-    still be shown by ``apply_cached_portraits`` until a later migration drops
-    name-tier rows. This pass asks Wikidata by the roster's ESPN id, then
-    Wikimedia's verified-club check for whoever is still without a picture.
-    A weaker source cannot replace a stronger one.
+    The order here is the acquisition order and it is measured, not preferred.
+    The community full-name query runs first because it answers for most of a
+    squad: across 107 players at four clubs it matched 81-90% with a birth date
+    that agreed to the day, one paced request each, and it produced no
+    wrong-person matches. Wikidata (11%, about three minutes per club) and
+    Wikimedia's verified-club page stay behind it for whoever is still without
+    a picture.
+
+    What made this source look unusable, and why it is back, is worth keeping
+    straight. The 2026-10-14 measurement that retired it was of the *surname*
+    fallback and of ``lookup_all_players``. Both are genuinely bad: a surname
+    query is a different question to the same endpoint and the ranking answers
+    it with a stranger (``Saka`` ranks ``n'Sakala`` first), and the roster
+    endpoint returns ten alphabetical rows containing coaches and players
+    contracted elsewhere. A full-name query is neither. The endpoint ranks, so
+    it returns one record, and an agreeing birth date is what confirms it —
+    checked before any image is considered.
+
+    A weaker source still cannot replace a stronger one; that arbitration is in
+    ``_apply_photo`` and it is the only place it happens.
     """
+    from .community_portraits import cached_portrait as cached_community, resolve_portrait as resolve_community
     from .wikimedia_portraits import cached_portrait as cached_wikimedia, resolve_portrait
     from .wikidata_portraits import MATCH_ESPN_PROVIDER_ID, cached_portrait as cached_wikidata, resolve_portrait as resolve_wikidata
 
@@ -1077,6 +1138,67 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     errors = {}
     wikimedia_failures = {}
     held_photo_failures = set()
+
+    def checked_community(row):
+        cached = cached_community(store, row, team_id)
+        return bool(cached and cached.get("status") == "completed")
+
+    # --- community database: the full-name query, first because it answers most
+    # often and cheapest. The cursor advances by batch so an interrupted pass
+    # resumes rather than restarting at the same players.
+    community_cursor_key = f"community_cursor_v1_{team_id}_{snapshot.get('season_id', '')}"
+    community_offset = (0 if explicit_selection or not selected else
+                        int(store.get_meta(community_cursor_key, {}).get("next", 0)) % len(selected))
+    community_ordered = selected[community_offset:] + selected[:community_offset]
+    community_attempted = 0
+    community_unavailable = False
+    community_processed = []
+    for row in community_ordered:
+        if community_attempted >= community_limit:
+            break
+        # A row already holding a stronger picture is not asked about again —
+        # a club's own directory or a licence-checked Commons file outranks this
+        # source, so a request spent here could not be used.
+        if row.get("photo_url") and photo_source_rank(row.get("photo_match")) is not None \
+                and photo_source_rank(row.get("photo_match")) < photo_source_rank("community_name_and_birthdate"):
+            continue
+        refreshing = force and explicit_selection and row.get("photo_match") in COMMUNITY_PHOTO_MATCHES
+        cached = None if refreshing else cached_community(store, row, team_id)
+        if cached:
+            photo = cached
+        else:
+            if deadline is not None and deadline - time.monotonic() < 12:
+                break
+            community_attempted += 1
+            photo = await resolve_community(store, row, team_id, force=refreshing)
+        community_processed.append(row)
+        if photo.get("status") == "completed" and photo.get("photo_url"):
+            if not _apply_photo(row, photo):
+                _record_kept_source(kept_source, row, photo)
+        elif photo.get("status") == "unavailable" and not cached:
+            community_unavailable = True
+            reason = ("社区球员库照片来源："
+                      + (photo.get("photo_reason") or "社区球员库暂时不可达，稍后自动重试。"))
+            row["photo_reason"] = reason
+            row["retryable"] = bool(photo.get("retryable", True))
+            row["reason_code"] = photo.get("reason_code") or "source_unavailable"
+            errors[row["provider_id"]] = f"球员 {row['provider_id']}：{reason}"
+            if on_progress:
+                on_progress(snapshot)
+            # An outage is not this player's answer, so the batch stops instead
+            # of spending the remaining paced requests against a closed door.
+            break
+        elif photo.get("status") in {"missing", "ambiguous"}:
+            # A durable verdict from this source. Written on the row so the
+            # photo is not left looking merely un-attempted, and so a namesake
+            # block reaches the acceptance report.
+            _apply_source_verdict(row, photo)
+        if on_progress and photo.get("status") == "completed":
+            on_progress(snapshot)
+    if not explicit_selection and community_processed:
+        last = selected.index(community_processed[-1])
+        store.set_meta(community_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
+
     def checked_wikimedia(row):
         cached = cached_wikimedia(store, row, team_id)
         return bool(cached and cached.get("status") == "completed" and all(cached.get(field) for field in
@@ -1085,8 +1207,7 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
     def force_player(row):
         return force and (explicit_selection or not (row.get("photo_url") and checked_wikimedia(row)))
 
-    # Id-anchored Commons portraits do not use the free name search. Cached
-    # answers are free; fresh lookups share the batch cap so one pass cannot
+    # Id-anchored Commons portraits do not use the free name search. Cached    # answers are free; fresh lookups share the batch cap so one pass cannot
     # walk the whole squad at Wikimedia's pace. A miss is not written onto the
     # row — the verified-club page still gets to answer. A transport failure is
     # written, because it is a fact about this attempt rather than a verdict
@@ -1132,9 +1253,9 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         last = selected.index(wikidata_processed[-1])
         store.set_meta(wikidata_cursor_key, {"next": (last + 1) % len(selected), "updated_at": now()})
 
-    # Free name search is not called. Wikimedia looks at players still without
-    # a picture after the id-anchored pass. Reusing its checked cache first
-    # keeps an outage of the other source from sending the whole squad here.
+    # Wikimedia looks at players still without a picture after the community and
+    # id-anchored passes. Reusing its checked cache first keeps an outage of the
+    # other sources from sending the whole squad here.
     for row in ordered:
         _apply_cached_reading(store, row, team_id)
         # An explicit forced selection is the caller saying "check these players
@@ -1276,13 +1397,14 @@ async def _enrich_wikimedia_photos(store, snapshot, selected, before, *, force, 
         # A fallback success finishes this player's photo work too: do not
         # report them as still queued in the preferred source's old batch.
         "remaining_count": wikimedia_remaining,
-        # Name search is retired on this pass. The counters stay so a reader of
-        # an older summary shape still sees an explicit zero rather than a hole.
-        "community_attempted_count": 0,
+        # The community counters are real again. They were pinned to zero while
+        # the name search was retired, with a comment saying the zero was for
+        # older readers — which is the state this pass has left behind.
+        "community_attempted_count": community_attempted,
         "wikidata_espn_attempted_count": wikidata_attempted,
         "wikidata_espn_unavailable": wikidata_unavailable,
         "wikidata_remaining_count": wikidata_remaining,
-        "community_unavailable": False,
-        "community_remaining_count": 0,
+        "community_unavailable": community_unavailable,
+        "community_remaining_count": max(0, len(selected) - community_attempted),
         "continuation_ready": continuation_ready,
         "errors": errors, "updated_at": now()}, kept_source)

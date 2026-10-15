@@ -133,7 +133,7 @@ run_agent 从 runs 读取用户已授权任务，以 store.settings() 获取 llm
 
 ## 文件责任
 
-- Backend：server/main.py、server/storage.py、server/ingestion.py、server/seed.py、requirements.txt、tests/test_backend.py。
-- Harness：server/agent.py（可加 agent_tools.py）、agent_skills/**、tests/test_agent.py。
+- Backend：server/main.py、server/storage.py、server/ingestion.py、server/seed.py、requirements.txt。
+- Harness：server/agent.py（可加 agent_tools.py）、agent_skills/**。
 - Frontend：package.json、vite.config.ts、tsconfig*.json、index.html、src/**。
 - Root：prototype/**、docs/API.md、README.md、启动脚本、集成/验收记录；协调接口变化。

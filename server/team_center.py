@@ -305,6 +305,13 @@ def parse_roster(payload, team, league, season, provider_team_id):
         stats = {}
         for category in ((athlete.get("statistics") or {}).get("splits") or {}).get("categories", []):
             for stat in category.get("stats", []):
+                # The squad source writes an absent total as ``null`` rather than
+                # omitting the key, so a raw copy puts ``None`` into every player
+                # row and the interface renders the string "null" beside anyone
+                # who has not played. Dropping the key keeps "no value" and "zero"
+                # distinguishable without either reaching the page as text.
+                if stat.get("value") is None:
+                    continue
                 stats[stat.get("name")] = stat.get("value")
         player_stats = {key: _number(stats.get(source), integer=True) for key, source in PLAYER_STATS.items()}
         source_url = f"https://www.espn.com/soccer/player/_/id/{provider_id}"
@@ -459,6 +466,79 @@ def _attach_chart_blocks(result):
     return result
 
 
+def _standouts(roster, *, limit=3):
+    """The squad's own season leaders, from the statistics the roster carries.
+
+    Read off the squad source's per-player totals rather than computed here: the
+    counts are the publisher's, and a total this module derived from match
+    events would be a second, differently-derived answer to a question the
+    source already answers. That is the same reason scores are never recomputed.
+
+    Three boards rather than one ranking, because they are not comparable. A
+    goalkeeper's saves and a forward's goals are different units, so a single
+    "best players" list would be ranking the squad on a number that means
+    something different for each row. Keeping them apart also means a squad can
+    show a keeper without pretending the comparison is like-for-like.
+
+    Ties break on appearances and then on name, so the board is stable across
+    reads — a list that reshuffles between two identical responses reads as
+    data changing when nothing has.
+    """
+    def whole(value):
+        """A stats value as a whole number, or None when it is not one.
+
+        The squad parser already normalises these to ints, so this is not
+        defence against the shipped source — it is defence against the
+        assumption. A string that slips through would otherwise reach the sort
+        key as ``-item["appearances"]`` and raise on the comparison, taking the
+        whole page down over a display detail.
+        """
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, str):
+            return int(value) if value.strip().lstrip("-").isdigit() else None
+        if isinstance(value, (int, float)):
+            return int(value)
+        return None
+
+    def tally(rows, field, *, minimum=1):
+        board = []
+        for row in rows:
+            stats = row.get("stats") if isinstance(row.get("stats"), dict) else {}
+            value = whole(stats.get(field))
+            if value is None or value < minimum:
+                continue
+            board.append({"id": row.get("id"), "name": row.get("name"),
+                          "name_zh": row.get("name_zh"), "number": row.get("number"),
+                          "position": row.get("position"),
+                          "position_group": row.get("position_group"),
+                          "photo_url": row.get("photo_url"),
+                          "photo_credit": row.get("photo_credit"),
+                          "photo_source_url": row.get("photo_source_url"),
+                          "photo_file_page": row.get("photo_file_page"),
+                          "photo_license": row.get("photo_license"),
+                          "photo_match": row.get("photo_match"),
+                          "photo_reason": row.get("photo_reason"),
+                          "appearances": whole(stats.get("appearances")),
+                          "value": value})
+        board.sort(key=lambda item: (-item["value"], -(item["appearances"] or 0), str(item["name"] or "")))
+        return board[:limit]
+
+    keepers = [row for row in roster if row.get("position_group") == "GK"]
+    outfield = [row for row in roster if row.get("position_group") != "GK"]
+    boards = {}
+    scorers = tally(outfield, "goals")
+    if scorers:
+        boards["goals"] = scorers
+    assists = tally(outfield, "assists")
+    if assists:
+        boards["assists"] = assists
+    saves = tally(keepers, "saves")
+    if saves:
+        boards["saves"] = saves
+    return boards
+
+
 def center_view(store, team_id, year=None, *, reveal=False):
     view = _ReadView(store)
     team = view.team(team_id)
@@ -529,6 +609,10 @@ def center_view(store, team_id, year=None, *, reveal=False):
         for player in roster:
             player["stats"] = {}
         stats, charts = {"hidden": True}, {}
+    # Built after the spoiler branch so a hidden squad cannot leak season totals
+    # through a leaderboard. The stat totals are what the spoiler setting hides,
+    # and a board of top scorers states the same thing in a different shape.
+    standouts = {} if protected else _standouts(roster)
     sources = []
     if snapshot.get("source_url"):
         sources.append({"name": "ESPN 球队阵容", "url": snapshot["source_url"], "updated_at": snapshot.get("fetched_at")})
@@ -636,6 +720,7 @@ def center_view(store, team_id, year=None, *, reveal=False):
     return _attach_chart_blocks({"team": team, "league": league, "season": {"id": season["id"], "label": season["label"], "start_year": season["season_start_year"]},
             "roster_season": roster_season, "latest_season": latest_season, "roster_fallback": roster_fallback,
             "roster": roster, "roster_count": len(roster), "matches": matches, "stats": stats, "charts": charts,
+            "standouts": standouts,
             "standings": [] if protected else standings, "standings_hidden": protected,
             "updated_at": max(timestamps) if timestamps else None, "roster_updated_at": snapshot.get("fetched_at"),
             "roster_source_updated_at": snapshot.get("source_updated_at"), "fixtures_updated_at": league_status.get("fixtures_at"),

@@ -8,6 +8,8 @@ import {
   Search,
   Shield,
   Sparkles,
+  Star,
+  Target,
   Trophy,
   UserRound,
   Users,
@@ -49,6 +51,24 @@ interface Player {
   source_url?: string;
   bio?: string;
   stats?: Record<string, number | string>;
+}
+/** One board of the squad's own season leaders, as the server ranked them. */
+interface Standout {
+  id: string;
+  name: string;
+  name_zh?: string;
+  number?: string | number;
+  position?: string;
+  position_group?: string;
+  photo_url?: string;
+  photo_credit?: string;
+  photo_source_url?: string;
+  photo_file_page?: string;
+  photo_license?: string;
+  photo_match?: string;
+  photo_reason?: string;
+  appearances?: number;
+  value: number;
 }
 interface TeamMatch {
   id: string;
@@ -92,6 +112,7 @@ interface CenterData {
   roster_fallback?: boolean;
   roster: Player[];
   matches: TeamMatch[];
+  standouts?: Record<string, Standout[]>;
   standings?: Standing[];
   standings_hidden?: boolean;
   stats: {
@@ -175,6 +196,48 @@ const componentStatuses: Record<string, string> = {
 const results: Record<string, string> = { W: "胜", D: "平", L: "负" };
 const numberOrDash = (value?: number) =>
   value === undefined || value === null ? "—" : value;
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+/**
+ * A kickoff in Beijing time, split into the parts the fixture row shows.
+ *
+ * Every read is pinned to Asia/Shanghai rather than the browser's zone: the
+ * dates come from the source in UTC and "which day is this" is a question the
+ * reader answers in local football time, not in whatever the machine is set to.
+ * The weekday is derived from the same pinned date for the same reason — asking
+ * the browser for the weekday of a UTC instant is how a Sunday match ends up
+ * labelled Saturday on a machine in another zone.
+ */
+const localStamp = (value?: string | null) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const zone = "Asia/Shanghai";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone, month: "numeric", day: "numeric", weekday: "short",
+    // ``hourCycle: "h23"`` rather than ``hour12: false``: the latter yields
+    // "24:00" for midnight in some locales, and a fixture listed at 24:30 is a
+    // time that does not exist.
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  const weekdayShort = pick("weekday");
+  const index = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekdayShort);
+  const month = Number(pick("month"));
+  const day = Number(pick("day"));
+  return {
+    date,
+    month: `${month} 月`,
+    day: `${day} 日`,
+    weekday: index >= 0 ? WEEKDAYS[index] : "",
+    time: `${pick("hour")}:${pick("minute")}`,
+  };
+};
+/** Whole days between now and a kickoff, or null when there is nothing to count. */
+const daysUntil = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.ceil((date.getTime() - Date.now()) / 86400000);
+};
 
 // 指针倾斜：直接写 style.transform，不走 state，所以鼠标划过不会触发渲染。
 // 用 rAF 合并同一帧内的多次 pointermove；只在细指针设备上启用，触屏保持静止。
@@ -240,7 +303,7 @@ export const TeamCenter = memo(function TeamCenter({
   const [center, setCenter] = useState<CenterData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("info");
   const [position, setPosition] = useState("");
   const [playerQuery, setPlayerQuery] = useState("");
   const [player, setPlayer] = useState<Player | null>(null);
@@ -277,7 +340,7 @@ export const TeamCenter = memo(function TeamCenter({
   }, [team.id, reveal]);
   useEffect(() => {
     setCenter(null);
-    setTab("overview");
+    setTab("info");
     setPosition("");
     setPlayerQuery("");
     setPlayer(null);
@@ -381,6 +444,8 @@ export const TeamCenter = memo(function TeamCenter({
   const showHomeAway = blockReady
     ? !!(homeBlock || awayBlock)
     : !blocks && !!season?.played;
+  const recentForm = (center?.stats.recent || []).slice(-5);
+  const capacity = (center?.team as { stadium_capacity?: number } | undefined)?.stadium_capacity ?? (profile as { stadium_capacity?: number }).stadium_capacity;
   return (
     <div className="team-center">
       <section className="club-hero" ref={heroRef}>
@@ -403,6 +468,7 @@ export const TeamCenter = memo(function TeamCenter({
                 <span>
                   <MapPin size={13} />
                   {profile.stadium}
+                  {capacity ? ` · ${capacity.toLocaleString("zh-CN")} 座` : ""}
                 </span>
               )}
               <span>
@@ -439,9 +505,9 @@ export const TeamCenter = memo(function TeamCenter({
       <div className="center-toolbar">
         <div className="filter-tabs">
           {[
-            { id: "overview", label: "球队概览" },
-            { id: "squad", label: "球员阵容" },
-            { id: "schedule", label: "比赛日程" },
+            { id: "info", label: "球队信息" },
+            { id: "squad", label: "球员信息" },
+            { id: "fixtures", label: "未来比赛" },
           ].map((item) => (
             <button
               key={item.id}
@@ -505,123 +571,117 @@ export const TeamCenter = memo(function TeamCenter({
           <Spinner text="正在读取球队档案" />
         </div>
       )}
-      {tab === "overview" && (
+      {tab === "info" && (
         <>
-          <div className="club-overview-grid">
-            <section className="panel club-about">
-              <div className="section-heading">
-                <h2>关于{team.name}</h2>
-                <Shield size={18} />
+          <section className="panel club-identity">
+            <div className="section-heading">
+              <h2>球队资料</h2>
+              <Shield size={18} />
+            </div>
+            <div className="identity-grid">
+              {[
+                { label: "所在城市", value: profile.city },
+                { label: "国家 / 地区", value: profile.country },
+                { label: "成立年份", value: profile.founded ? `${profile.founded} 年` : "" },
+                { label: "主场", value: profile.stadium },
+                { label: "球场容量", value: capacity ? `${capacity.toLocaleString("zh-CN")} 座` : "" },
+                { label: "昵称", value: profile.nickname },
+                { label: "所属联赛", value: center?.league?.name || team.league_name || team.league },
+                { label: "英文名", value: profile.english_name },
+              ]
+                .filter((item) => item.value)
+                .map((item) => (
+                  <div key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+            </div>
+            {profile.description && <p className="identity-intro">{profile.description}</p>}
+            <button
+              className="text-button"
+              onClick={() =>
+                ask({
+                  text: `为我介绍${team.name}的球队历史、战术风格和目前最值得关注的球员，注明资料来源。`,
+                  skill: "team_maintenance",
+                })
+              }
+            >
+              <Sparkles size={15} />
+              让助手带我认识这支球队
+              <ArrowRight size={14} />
+            </button>
+          </section>
+          <section className="panel season-card">
+            <div className="section-heading">
+              <h2>赛季表现</h2>
+              <span>{center?.season?.label || "当前赛季"}</span>
+            </div>
+            {center?.stats.hidden ? (
+              <div className="empty-state compact">
+                <Shield size={24} />
+                <p>已为你隐藏比赛结果。</p>
               </div>
-              <p>
-                {profile.description ||
-                  "暂无球队介绍，可以向助手了解球队的历史与风格。"}
-              </p>
-              <div className="club-details">
-                {profile.city && (
+            ) : (
+              <>
+                <div className="season-numbers">
                   <div>
-                    <span>城市</span>
-                    <strong>{profile.city}</strong>
+                    <strong>
+                      {numberOrDash(center?.stats.standing?.rank)}
+                    </strong>
+                    <span>联赛排名</span>
                   </div>
-                )}
-                {profile.stadium && (
                   <div>
-                    <span>主场</span>
-                    <strong>{profile.stadium}</strong>
+                    <strong>
+                      {numberOrDash(center?.stats.standing?.points)}
+                    </strong>
+                    <span>积分</span>
                   </div>
-                )}
-                {profile.country && (
                   <div>
-                    <span>国家</span>
-                    <strong>{profile.country}</strong>
-                  </div>
-                )}
-              </div>
-              <button
-                className="text-button"
-                onClick={() =>
-                  ask({
-                    text: `为我介绍${team.name}的球队历史、战术风格和目前最值得关注的球员，注明资料来源。`,
-                    skill: "team_maintenance",
-                  })
-                }
-              >
-                <Sparkles size={15} />
-                让助手带我认识这支球队
-                <ArrowRight size={14} />
-              </button>
-            </section>
-            <section className="panel season-card">
-              <div className="section-heading">
-                <h2>赛季表现</h2>
-                <span>{center?.season?.label || "当前赛季"}</span>
-              </div>
-              {center?.stats.hidden ? (
-                <div className="empty-state compact">
-                  <Shield size={24} />
-                  <p>已为你隐藏比赛结果。</p>
-                </div>
-              ) : (
-                <>
-                  <div className="season-numbers">
-                    <div>
-                      <strong>
-                        {numberOrDash(center?.stats.standing?.rank)}
-                      </strong>
-                      <span>联赛排名</span>
-                    </div>
-                    <div>
-                      <strong>
-                        {numberOrDash(center?.stats.standing?.points)}
-                      </strong>
-                      <span>积分</span>
-                    </div>
-                    <div>
-                      <strong>
-                        {numberOrDash(
-                          center?.stats.standing?.played ?? season?.played,
-                        )}
-                      </strong>
-                      <span>已赛</span>
-                    </div>
-                  </div>
-                  <div className="result-line">
-                    <span>近期状态</span>
-                    <div>
-                      {center?.stats.recent?.length ? (
-                        center.stats.recent.slice(-5).map((result, i) => (
-                          <b key={i} className={`result-${result}`}>
-                            {results[result] || result}
-                          </b>
-                        ))
-                      ) : (
-                        <small>暂无已完成比赛</small>
+                    <strong>
+                      {numberOrDash(
+                        center?.stats.standing?.played ?? season?.played,
                       )}
-                    </div>
+                    </strong>
+                    <span>已赛</span>
                   </div>
-                  {center?.stats.sample_complete === false && (
-                    <p className="sample-note">
-                      下方表现统计已收录 {season?.played || 0} 场比赛
-                    </p>
-                  )}
-                  <div className="win-draw-loss">
-                    <span>
-                      <i className="result-W" />
-                      {numberOrDash(season?.won)} 胜
-                    </span>
-                    <span>
-                      <i className="result-D" />
-                      {numberOrDash(season?.drawn)} 平
-                    </span>
-                    <span>
-                      <i className="result-L" />
-                      {numberOrDash(season?.lost)} 负
-                    </span>
+                </div>
+                <div className="result-line">
+                  <span>近期状态</span>
+                  <div>
+                    {recentForm.length ? (
+                      recentForm.map((result, i) => (
+                        <b key={i} className={`result-${result}`}>
+                          {results[result] || result}
+                        </b>
+                      ))
+                    ) : (
+                      <small>暂无已完成比赛</small>
+                    )}
                   </div>
-                </>
-              )}
-            </section>
-          </div>
+                </div>
+                {center?.stats.sample_complete === false && (
+                  <p className="sample-note">
+                    下方表现统计已收录 {season?.played || 0} 场比赛
+                  </p>
+                )}
+                <div className="win-draw-loss">
+                  <span>
+                    <i className="result-W" />
+                    {numberOrDash(season?.won)} 胜
+                  </span>
+                  <span>
+                    <i className="result-D" />
+                    {numberOrDash(season?.drawn)} 平
+                  </span>
+                  <span>
+                    <i className="result-L" />
+                    {numberOrDash(season?.lost)} 负
+                  </span>
+                </div>
+              </>
+            )}
+          </section>
           <section className="panel team-standings-panel">
             <div className="section-heading">
               <h2>联赛积分榜</h2>
@@ -701,7 +761,10 @@ export const TeamCenter = memo(function TeamCenter({
                     </div>
                     <div className="chart-legend results-legend">
                       {resultBars.map((item) => (
-                        <span key={item.label}>{item.label} {item.value}</span>
+                        <span key={item.label}>
+                          <i className={`legend-${item.label === "胜" ? "W" : item.label === "平" ? "D" : "L"}`} />
+                          {item.label} <b>{item.value}</b>
+                        </span>
                       ))}
                     </div>
                     <p className="chart-basis-note">{chartSampleNote}</p>
@@ -782,12 +845,21 @@ export const TeamCenter = memo(function TeamCenter({
                       { label: "客场", value: blockReady ? awayBlock : center?.stats.away },
                     ].map((item) => {
                       const played = item.value?.played || 0;
+                      // ``chart_blocks.home_away`` carries won/drawn/lost but not
+                      // points, and it is preferred over ``stats.home`` when the
+                      // chart blocks are ready — so reading ``points`` straight
+                      // off the chosen value shows "—" for a split whose record
+                      // is known. Points from wins and draws are arithmetic, not
+                      // a source claim, so they are derived here rather than
+                      // leaving a visible hole in an otherwise complete row.
+                      const points = item.value?.points ??
+                        (item.value ? (item.value.won || 0) * 3 + (item.value.drawn || 0) : undefined);
                       return (
                         <div className="performance-row" key={item.label}>
                           <div>
                             <strong>{item.label}</strong>
                             <span>
-                              {played} 场 · {numberOrDash(item.value?.points)}{" "}
+                              {played} 场 · {numberOrDash(points)}{" "}
                               分
                             </span>
                           </div>
@@ -854,6 +926,11 @@ export const TeamCenter = memo(function TeamCenter({
               </section>
             </div>
           )}
+          {!center?.stats.hidden && <Standouts boards={center?.standouts} onOpen={(board, item) => {
+            const found = (center?.roster || []).find((row) => row.id === item.id);
+            if (found) setPlayer(found);
+            else if (board) setPlayer(item as unknown as Player);
+          }} />}
           {center?.stats.sample_complete === false && !center.stats.hidden && (
             <p className="chart-basis-note">
               比赛表现按已收录的完整比分统计，积分以联赛积分榜为准。
@@ -931,15 +1008,24 @@ export const TeamCenter = memo(function TeamCenter({
                   <span className="player-position">{item.position}</span>
                 </div>
                 <div className="player-card-info">
-                  <h3>
-                    {item.name}
-                    {chineseReading(item) && <small className="player-name-zh">{chineseReading(item)}</small>}
-                  </h3>
+                  {chineseReading(item) ? (
+                    <h3 lang="zh-Hans">
+                      {chineseReading(item)}
+                      <small className="player-name-zh">{item.name}</small>
+                    </h3>
+                  ) : (
+                    // No Chinese reading yet. Falling back to the source spelling
+                    // alone, not "中文名待补": the English name is how the source
+                    // writes this player, and a placeholder would print a fault
+                    // notice on a card whose only problem is a pending pass.
+                    <h3>{item.name}</h3>
+                  )}
                   <p>
                     {[item.nationality, item.age ? `${item.age} 岁` : ""]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
+                  {seasonLine(item) && <p className="player-season-line">{seasonLine(item)}</p>}
                   <span>
                     了解球员
                     <ArrowRight size={13} />
@@ -958,11 +1044,11 @@ export const TeamCenter = memo(function TeamCenter({
           )}
         </section>
       )}
-      {tab === "schedule" && (
+      {tab === "fixtures" && (
         <section className="panel schedule-panel">
           <div className="section-heading">
             <div>
-              <h2>比赛日程</h2>
+              <h2>{matchTab === "recent" ? "已完成比赛" : "未来比赛"}</h2>
               <p>{center?.season?.label || "当前赛季"} · 北京时间</p>
             </div>
             <CalendarDays size={20} />
@@ -987,81 +1073,21 @@ export const TeamCenter = memo(function TeamCenter({
               已完成
             </button>
           </div>
-          <div className="match-list">
+          <div className={matchTab === "upcoming" ? "fixture-timeline" : "match-list"}>
             {matches.slice(0, matchLimit).map((match) => (
-              <div className="match-row" key={match.id}>
-                <div className="match-date">
-                  <strong>
-                    {match.kickoff
-                      ? new Date(match.kickoff).toLocaleDateString("zh-CN", {
-                          month: "numeric",
-                          day: "numeric",
-                          timeZone: "Asia/Shanghai",
-                        })
-                      : "待定"}
-                  </strong>
-                  <span>
-                    {match.kickoff
-                      ? new Date(match.kickoff).toLocaleTimeString("zh-CN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                          timeZone: "Asia/Shanghai",
-                        })
-                      : ""}
-                    {match.kickoff_confirmed === false ? " · 待确认" : ""}
-                  </span>
-                </div>
-                <span className="venue-tag">
-                  {match.venue === "home"
-                    ? "主"
-                    : match.venue === "away"
-                      ? "客"
-                      : "—"}
-                </span>
-                <div className="match-opponent">
-                  <Crest
-                    team={
-                      data.teams.find(
-                        (item) => item.id === match.opponent_id,
-                      ) || findClub(match.opponent)
-                    }
-                    name={match.opponent}
-                    small
-                  />
-                  <div className="match-opponent-copy">
-                    <strong>{findClub(match.opponent)?.name || match.opponent}</strong>
-                    {match.competition && <small className="match-competition">{match.competition}</small>}
-                  </div>
-                </div>
-                <span
-                  className={`match-score ${match.result ? `result-text-${match.result}` : ""}`}
-                >
-                  {match.goals_for != null &&
-                  match.goals_against != null &&
-                  !match.spoiler_hidden
-                    ? `${match.goals_for} : ${match.goals_against}`
-                    : match.spoiler_hidden
-                      ? "已隐藏"
-                      : "VS"}
-                </span>
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    ask({
-                      text: `请${matchTab === "recent" ? "复盘" : "前瞻"}${team.name}对阵${match.opponent}的比赛。`,
-                      skill:
-                        matchTab === "recent"
-                          ? "match_review"
-                          : "match_preview",
-                      matchId: match.id,
-                    })
-                  }
-                >
-                  {matchTab === "recent" ? "复盘" : "前瞻"}
-                  <ArrowRight size={14} />
-                </button>
-              </div>
+              <FixtureRow
+                key={match.id}
+                match={match}
+                upcoming={matchTab === "upcoming"}
+                teams={data.teams}
+                onAsk={() =>
+                  ask({
+                    text: `请${matchTab === "recent" ? "复盘" : "前瞻"}${team.name}对阵${match.opponent}的比赛。`,
+                    skill: matchTab === "recent" ? "match_review" : "match_preview",
+                    matchId: match.id,
+                  })
+                }
+              />
             ))}
           </div>
           {!matches.length && !loading && (
@@ -1132,14 +1158,8 @@ export const TeamCenter = memo(function TeamCenter({
                 ["中文名", chineseReading(player)],
                 ["国籍", player.nationality],
                 ["年龄", player.age ? `${player.age} 岁` : undefined],
-                [
-                  "身高",
-                  player.height_cm ? `${player.height_cm} cm` : undefined,
-                ],
-                [
-                  "体重",
-                  player.weight_kg ? `${player.weight_kg} kg` : undefined,
-                ],
+                ["身高", player.height_cm ? `${player.height_cm} cm` : undefined],
+                ["体重", player.weight_kg ? `${player.weight_kg} kg` : undefined],
                 ["出生日期", player.birth_date?.slice(0, 10)],
               ]
                 .filter(([, value]) => value)
@@ -1156,8 +1176,14 @@ export const TeamCenter = memo(function TeamCenter({
                   { id: "appearances", label: "出场" },
                   { id: "goals", label: "进球" },
                   { id: "assists", label: "助攻" },
+                  { id: "shots", label: "射门" },
+                  { id: "shots_on_target", label: "射正" },
+                  { id: "yellow_cards", label: "黄牌" },
+                  { id: "red_cards", label: "红牌" },
+                  { id: "saves", label: "扑救" },
+                  { id: "goals_conceded", label: "失球" },
                 ]
-                  .filter((item) => player.stats?.[item.id] !== undefined)
+                  .filter((item) => player.stats?.[item.id] !== undefined && player.stats?.[item.id] !== "")
                   .map((item) => (
                     <div key={item.id}>
                       <strong>{player.stats?.[item.id]}</strong>
@@ -1207,11 +1233,177 @@ function chineseReading(player: Pick<Player, "name_zh">) {
   return reading || undefined;
 }
 
+/**
+ * A player's season totals as one short line, or nothing.
+ *
+ * The squad source writes an absent total as ``null`` rather than omitting it —
+ * a player with no appearances has ``{"appearances": null, "goals": null}`` —
+ * so a check that only rejects ``undefined`` and ``""`` renders the string
+ * "null" into the card. Every value is tested for being a real number here, and
+ * a total of zero is dropped: "0 球" beside every defender is noise, and the
+ * line only earns its place when it says something the position does not.
+ */
+function seasonLine(player: Player) {
+  const stats = player.stats || {};
+  const whole = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+  const parts: string[] = [];
+  const appearances = whole(stats.appearances);
+  if (appearances !== null && appearances > 0) parts.push(`${appearances} 场`);
+  for (const [field, label] of [["goals", "球"], ["assists", "助攻"], ["saves", "扑救"]] as const) {
+    const value = whole(stats[field]);
+    if (value !== null && value > 0) parts.push(`${value} ${label}`);
+  }
+  return parts.length ? `本季 ${parts.join(" · ")}` : "";
+}
+
 function playerPhotoUrl(player: Player) {
   if (!safeUrl(player.photo_source_url)) return null;
   if (player.photo_match?.startsWith("wikimedia_") &&
       (!player.photo_credit?.trim() || !player.photo_license?.trim() || !safeUrl(player.photo_file_page))) return null;
   return safeUrl(player.photo_url);
+}
+
+/**
+ * The squad's own season leaders, on three separate boards.
+ *
+ * Read from the squad source's per-player totals, which is also why the boards
+ * are split: a keeper's saves and a forward's goals are different units, so a
+ * single ranking would be sorted on a number that means something different for
+ * each row. A board with nothing on it is not rendered at all — a heading over
+ * an empty list reads as a fault, and "nobody has scored yet" is a normal state
+ * six games into a season.
+ */
+function Standouts({ boards, onOpen }: { boards?: Record<string, Standout[]>; onOpen: (board: string, item: Standout) => void }) {
+  const boardMeta: { id: string; title: string; unit: string; icon: typeof Target }[] = [
+    { id: "goals", title: "队内射手", unit: "球", icon: Target },
+    { id: "assists", title: "助攻榜", unit: "次", icon: Star },
+    { id: "saves", title: "门将扑救", unit: "次", icon: Shield },
+  ];
+  const shown = boardMeta.filter((meta) => (boards?.[meta.id] || []).length);
+  if (!shown.length) return null;
+  return (
+    <section className="panel standouts-panel">
+      <div className="section-heading">
+        <div>
+          <h2>本季亮眼球员</h2>
+          <p>按来源给出的本季累计数据排序，未做换算</p>
+        </div>
+      </div>
+      <div className={`standouts-grid standouts-grid-${shown.length}`}>
+        {shown.map((meta) => {
+          const Icon = meta.icon;
+          return (
+            <div className="standout-board" key={meta.id}>
+              <h3>
+                <Icon size={15} />
+                {meta.title}
+              </h3>
+              <ol>
+                {(boards?.[meta.id] || []).map((item, index) => (
+                  <li key={item.id || index}>
+                    <button onClick={() => onOpen(meta.id, item)}>
+                      <span className="standout-rank">{index + 1}</span>
+                      <span className="standout-photo">
+                        <PlayerPhoto player={item as unknown as Player} />
+                      </span>
+                      <span className="standout-name">
+                        <strong>{item.name}</strong>
+                        {item.name_zh && <small>{item.name_zh}</small>}
+                        {item.position && <em>{item.position}</em>}
+                      </span>
+                      <span className="standout-value">
+                        <strong>{item.value}</strong>
+                        <small>{meta.unit}</small>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One fixture, as a timeline entry rather than a table row.
+ *
+ * The kickoff is the thing a reader is scanning for, so it gets its own column
+ * with the weekday: "10月18日" answers nothing on its own when the question is
+ * "how long until this". A countdown is shown only for a kickoff the source has
+ * actually confirmed — an unconfirmed date with a countdown beside it would
+ * present a guess as a schedule.
+ */
+function FixtureRow({
+  match,
+  upcoming,
+  teams,
+  onAsk,
+}: {
+  match: TeamMatch;
+  upcoming: boolean;
+  teams: Team[];
+  onAsk: () => void;
+}) {
+  const stamp = localStamp(match.kickoff);
+  const opponent = teams.find((item) => item.id === match.opponent_id) || findClub(match.opponent);
+  const countdown = upcoming && match.kickoff_confirmed !== false ? daysUntil(match.kickoff) : null;
+  const countdownText = countdown === null
+    ? ""
+    : countdown <= 0
+      ? "即将开始"
+      : countdown === 1
+        ? "明天"
+        : `${countdown} 天后`;
+  return (
+    <article className={`fixture-row${match.kickoff_confirmed === false ? " is-tentative" : ""}`}>
+      <div className="fixture-when">
+        {stamp ? (
+          <>
+            <strong>{stamp.month}{stamp.day}</strong>
+            <span>{stamp.weekday}</span>
+            <small>{stamp.time}</small>
+          </>
+        ) : (
+          <>
+            <strong>待定</strong>
+            <span>时间未公布</span>
+          </>
+        )}
+      </div>
+      <div className="fixture-body">
+        <div className="fixture-teams">
+          <span className={`venue-tag${match.venue === "home" ? " is-home" : match.venue === "away" ? " is-away" : ""}`}>
+            {match.venue === "home" ? "主" : match.venue === "away" ? "客" : "—"}
+          </span>
+          <Crest team={opponent} name={match.opponent} small />
+          <div className="fixture-opponent">
+            <strong>{opponent?.name || match.opponent}</strong>
+            <small>{match.venue === "home" ? "主场作战" : match.venue === "away" ? "客场作战" : "场地待定"}</small>
+          </div>
+          <span className={`match-score ${match.result ? `result-text-${match.result}` : ""}`}>
+            {match.goals_for != null && match.goals_against != null && !match.spoiler_hidden
+              ? `${match.goals_for} : ${match.goals_against}`
+              : match.spoiler_hidden
+                ? "已隐藏"
+                : "VS"}
+          </span>
+        </div>
+        <div className="fixture-meta">
+          {match.competition && <span className="fixture-competition">{match.competition}</span>}
+          {countdownText && <span className="fixture-countdown">{countdownText}</span>}
+          {match.kickoff_confirmed === false && <span className="fixture-tentative">开球时间待确认</span>}
+        </div>
+      </div>
+      <button className="text-button fixture-action" onClick={onAsk}>
+        {upcoming ? "前瞻" : "复盘"}
+        <ArrowRight size={14} />
+      </button>
+    </article>
+  );
 }
 
 /**

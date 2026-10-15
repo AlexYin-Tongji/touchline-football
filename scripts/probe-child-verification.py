@@ -20,7 +20,47 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from server.agent_tools import LocalTools, ToolError  # noqa: E402
-from tests.test_agent import FakeStore  # noqa: E402
+
+
+class FakeStore:
+    """Just enough store for this probe: one team, one run, no metadata.
+
+    Kept here rather than borrowed from ``tests/`` so this script stays runnable
+    on its own.
+    """
+
+    def __init__(self):
+        self.data = {name: {} for name in ("teams", "runs")}
+        self.config = {"spoiler_free": True, "explanation_depth": "standard",
+                       "llm": {"base_url": "http://localhost:9999/v1", "model": "test",
+                               "api_key": "secret-example", "max_rounds": 5, "timeout_seconds": 10}}
+        self.put("teams", {"id": "arsenal", "name": "阿森纳", "english_name": "Arsenal"})
+
+    def put(self, collection, item):
+        self.data.setdefault(collection, {})[item["id"]] = copy.deepcopy(item)
+        return copy.deepcopy(item)
+
+    def get(self, collection, item_id):
+        return copy.deepcopy(self.data.get(collection, {}).get(item_id))
+
+    def list(self, collection, mode=None, team_id=None):
+        return [copy.deepcopy(item) for item in self.data.get(collection, {}).values()
+                if (mode is None or item.get("mode") == mode)
+                and (team_id is None or item.get("team_id") == team_id)]
+
+    def settings(self):
+        return copy.deepcopy(self.config)
+
+    def get_meta(self, key, default=None):
+        return copy.deepcopy(self.data.get("metadata", {}).get(key, default))
+
+    def set_meta(self, key, value):
+        self.data.setdefault("metadata", {})[key] = copy.deepcopy(value)
+        return value
+
+    def atomic(self):
+        from contextlib import nullcontext
+        return nullcontext()
 
 
 def child_run(**patches):

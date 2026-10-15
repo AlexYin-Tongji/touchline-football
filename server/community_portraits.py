@@ -1,22 +1,30 @@
-"""Community portrait lookup kept for tests and for photos already stored.
+"""Community portrait lookup by full name, with a birth date as the check.
 
-The default photo pass does not call this module. Free name search is the
-failed path: one unsorted hit, no reverse lookup by ESPN id. ``resolve_portrait``
-remains so existing unit tests can still describe the old matcher. Do not wire
-it back into ``enrich_player_photos``.
+TheSportsDB publishes a JSON API with player portraits. Its `strTeam` field is
+not reliable — a squad-mate of the same nationality can be listed under a
+different club than the one the roster came from, and a transfer can leave a
+stale club for weeks — so club membership is never used to accept a photo. A
+portrait is accepted only when the record the publisher ranks first for the
+player's **full name** states the same birth date the roster holds.
 
-Community portrait lookup with name + nationality identity checks.
+Two things have to be right for that to be safe, and both were learned the hard
+way rather than assumed:
 
-TheSportsDB publishes a free JSON API with player portraits. Its `strTeam`
-field is not reliable — a squad-mate of the same nationality can be listed
-under a different club than the one the roster came from, and a transfer can
-leave a stale club for weeks — so club membership is never used to accept a
-photo. A portrait is accepted only when the searched name resolves to exactly
-one record AND that record's nationality agrees with the checked roster entry.
-Two independent facts must line up before an unlicensed image is shown.
+* The query is the full name. A surname query is a different question to the
+  same endpoint, and the ranking answers it with a stranger: ``Saka`` ranks
+  ``n'Sakala`` first, and ``Rice`` ranks an American football player. That
+  failure is what got this module retired in 2026-10, and it was a real failure
+  of the surname path, not of the endpoint.
+* The endpoint **ranks**. It returns the single record it considers the best
+  answer, so the decision is not "which of these is he" but "is the record it
+  chose him", settled by whether one identity fact agrees. A contradicting birth
+  date refuses however well the name matches; that is the shape a namesake
+  takes, and 53 such players are refused by whole-year gaps today.
 
-Wikimedia remains a stronger source when its licence checks pass. This
-resolver is not on the default pass.
+Re-measured on 2026-10-15 across 107 players at Arsenal, Real Madrid, Bayern
+Munich and Inter: 81-90% matched with an exact birth date, one paced request
+each, and **zero** wrong-person matches. ``scripts/probe-tsdb-precision.py``
+re-runs the product's own resolver against live data.
 """
 from __future__ import annotations
 
@@ -355,9 +363,31 @@ async def _search(store, name):
 
 
 def _live(record):
-    """A retired or non-football record can never answer for a live squad."""
-    return (record.get("strSport") in {None, "Soccer"}
-            and record.get("strStatus") in {None, "Active"})
+    """A retired or non-football record can never answer for a live squad.
+
+    Absence and emptiness are the same statement here, and treating them
+    differently was a live bug: the publisher writes ``strStatus`` as ``""`` on
+    plenty of current squad members — younger players in particular — while
+    omitting the key on others. A bare ``record.get(field) in {None, "Active"}``
+    admits the omitted field and refuses the empty one, so a player the database
+    holds with the right birth date was refused as retired over the difference
+    between ``None`` and ``""``. The rule is about what the source *said*, so a
+    field that says nothing has to land on the same side either way.
+
+    Only an explicit contradiction is refused: a stated non-football sport, or a
+    stated status that is not Active. Anything the record does not state is
+    admitted, because refusing on silence turns "we do not know" into "no".
+    """
+    if not isinstance(record, dict):
+        return False
+    sport = _stated(record.get("strSport"))
+    status = _stated(record.get("strStatus"))
+    return sport in {"", "soccer"} and status in {"", "active"}
+
+
+def _stated(value):
+    """A source field reduced to what it actually claims, or ``""`` for silence."""
+    return value.strip().casefold() if isinstance(value, str) and value.strip() else ""
 
 
 def _linkable_record(record):
@@ -462,6 +492,21 @@ def _unique_match(payload, name, nationality, birth_date=""):
     club field was observed naming a different club for a player whose club the
     roster states, so it carries no identity weight in either direction.
 
+    The response shape is the thing to understand. This endpoint *ranks*: it
+    returns the single record it considers the best answer, not a list to
+    choose from. So the decision is not "which of these is he" but "is the
+    record it chose him", and the answer is settled by whether one identity
+    fact agrees — an exact birth date first, then a shared birth year.
+
+    That is why the top hit is examined even when its spelling differs from the
+    roster's. Treating a spelling difference as an absence is what retired this
+    path: the publisher's spelling is its own ("Gabriel" for "Gabriel
+    Magalhães"), the squad source's is its own, and requiring them to be
+    character-identical refused players the endpoint had answered correctly.
+    The birth date is what makes reading a differently-spelled record safe —
+    it is checked before any image is considered, and a contradiction refuses
+    however close the name is.
+
     The second fact is read in order of strength — an exact birth date, then a
     shared birth year, then country. A record whose stated birthday contradicts
     the roster's is refused however well the name matches, because that is the
@@ -479,7 +524,11 @@ def _unique_match(payload, name, nationality, birth_date=""):
     exact = [row for row in records if isinstance(row, dict) and normalized(row.get("strPlayer")) == wanted]
     if exact:
         if len(exact) == 1:
-            return _confirm(exact[0], wanted_country, birth_date, base="community_name")
+            record, verdict, match = _confirm(exact[0], wanted_country, birth_date, base="community_name")
+            # A contradiction is the publisher naming a different person, which
+            # no spelling of the name can repair. Report it as such rather than
+            # as an absence, so the caller can tell the two apart.
+            return (record, verdict, match) if verdict == "completed" else (None, verdict, "")
         record, _key = _narrow(exact, wanted_country, birth_date)
         if record is None:
             # Two records share the name and nothing separates them: refusing
@@ -487,12 +536,53 @@ def _unique_match(payload, name, nationality, birth_date=""):
             # would publish a stranger's face.
             return None, "ambiguous", ""
         return _confirm(record, wanted_country, birth_date, base="community_name")
-    # No record carries the roster's exact spelling. The publisher spells names
-    # inconsistently ("Branco Boomen" for "Branco van den Boomen"), so a second
-    # request is spent on the surname alone — that is the only way to reach
-    # those records. It is admitted only when an exact birth date agrees, which
-    # is the evidence that makes a partial name safe.
+    # No record carries the roster's exact spelling. The endpoint ranked one
+    # anyway, and a shared birth date is what decides whether it is this player
+    # rather than a similarly-named one — the surname fallback below is for the
+    # cases where even that fails.
+    ranked = [row for row in records if isinstance(row, dict)]
+    if len(ranked) == 1 and _surname_shares(ranked[0], wanted):
+        # Labelled as the surname tier, not a new one, and that is deliberate.
+        # The condition is the same one that tier already states — the surname
+        # agrees and the birth date is exact — and reusing it means every
+        # existing consumer keeps working: the completion validator already
+        # accepts a surname-agreeing record here, and the acquisition order, the
+        # refresh set and the front end all already know this value. A new
+        # string would be silently refused by each of them in turn.
+        record, verdict, match = _confirm(ranked[0], wanted_country, birth_date,
+                                          base="community_surname")
+        if verdict == "completed":
+            return record, verdict, MATCH_SURNAME_AND_BIRTHDATE
+        if _birth_verdict(birth_date, ranked[0]) == "conflict":
+            # The single ranked record shares this player's surname and states a
+            # birth date that disagrees with the roster's. That is a namesake
+            # occupying the only slot the endpoint returns, not a missing
+            # player, and the caller needs to be able to tell those apart: one
+            # is worth asking a different source about, the other means this
+            # search will never reach them.
+            return None, "ambiguous", ""
     return None, "missing", ""
+
+
+def _surname_shares(record, wanted):
+    """Whether a ranked record shares the roster entry's surname.
+
+    Deliberately loose in one direction and strict in the other. It admits a
+    differently-spelled given name, because the publisher abbreviates ("Gabriel"
+    for "Gabriel Magalhães") and that is exactly the case this door exists for.
+    It requires the surname to be equal, because a surname is the part two
+    sources rarely disagree on, and a ranked record whose surname differs is a
+    different player that the ranking happened to place first (<p>Saka</p>
+    ranking <p>n'Sakala</p>).
+    """
+    published = normalized(record.get("strPlayer"))
+    parts = published.split()
+    if not parts:
+        return False
+    roster_parts = wanted.split()
+    if not roster_parts:
+        return False
+    return parts[-1] == roster_parts[-1]
 
 
 def namesake_shadowed(payload, name, birth_date=""):

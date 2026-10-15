@@ -365,6 +365,17 @@ def _empty_chart(reason, *, sample):
 
 
 def _tally(matches):
+    """W/D/L, goals, points and goal difference over one set of matches.
+
+    ``team_center`` has its own ``_tally`` that already computes points and goal
+    difference, and this one used to stop at the raw counts. The two are fed the
+    same matches and are read by the same panel, so a field present in one and
+    absent from the other is a field that disappears depending on which path
+    built the payload — which is what put an em dash in the home/away row beside
+    a record the source had already stated. Both derived values are arithmetic
+    on the same goals rather than separate source claims, so computing them here
+    asserts nothing new.
+    """
     won = drawn = lost = goals_for = goals_against = 0
     for match in matches:
         scored_for = match["goals_for"]
@@ -378,11 +389,24 @@ def _tally(matches):
         else:
             drawn += 1
     return {"played": len(matches), "won": won, "drawn": drawn, "lost": lost,
-            "goals_for": goals_for, "goals_against": goals_against}
+            "goals_for": goals_for, "goals_against": goals_against,
+            "points": won * 3 + drawn,
+            "goal_difference": goals_for - goals_against}
 
 
 def _venue_block(tally):
-    return {key: tally[key] for key in ("won", "drawn", "lost", "goals_for", "goals_against", "played")}
+    """One venue's record, with the fields the page actually reads.
+
+    ``points`` and ``goal_difference`` are in the whitelist because ``_tally``
+    computes them and dropping them here is what made the home/away panel show
+    an em dash beside a record that was known: the block is preferred over
+    ``stats.home``/``stats.away`` when the chart blocks are ready, so a field
+    missing from this dict is a field missing from the page. Both are arithmetic
+    on the same tallies rather than separate source claims, so carrying them is
+    not asserting anything the source did not already say.
+    """
+    return {key: tally[key] for key in ("won", "drawn", "lost", "goals_for", "goals_against",
+                                        "played", "points", "goal_difference")}
 
 
 def _chart_sources(view, matches):

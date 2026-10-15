@@ -435,6 +435,11 @@
   color: var(--muted);
   letter-spacing: 0.3px;
 }
+/* 有队徽时不用球队主色当底：红队徽压在红底上会让队徽自己的边缘糊掉。
+   中性纸色让队徽自身承载颜色，主色只留给上面那个首字母兜底。 */
+.crest-image {
+  background: var(--paper-sunk);
+}
 
 /* ============================ 动态 ============================ */
 .feed-layout {
@@ -1592,45 +1597,31 @@
   font-size: var(--t-h3);
   margin-bottom: 13px;
 }
-.club-about {
-  font-size: var(--t-read);
-  line-height: var(--lh-read);
-  color: var(--ink-soft);
-  max-width: 44em;
-}
-.club-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.club-details > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: var(--rule);
-  font-size: var(--t-body-sm);
-}
-.club-details > div:last-child {
-  border-bottom: 0;
-}
-/* 标签是 <span>、值是 <strong>：旧规则选 dt/dd，两个都匹配不到，
-   于是标签继承了正文色、值靠左贴着标签。 */
-.club-details span {
-  color: var(--faint);
-}
-.club-details strong {
-  color: var(--ink);
-  font-weight: 500;
-  text-align: right;
-}
+/* 「关于球队」那一段已并进 .identity-grid 的字段网格，本节随之移除。
+   字段仍是 <span> 标签 + <strong> 值，颜色与对齐在 .identity-grid 里定义。 */
 .season-card {
   display: flex;
   flex-direction: column;
 }
+/* 三个数字铺满整行并等宽，中间用竖线分隔。
+   原来是 display:flex + gap:30px，三个数挤在左半边，右侧一片空白——
+   而这一栏是全宽卡片，留白比数字本身还大。 */
 .season-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+.season-numbers > div {
   display: flex;
-  gap: 30px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 2px 20px;
+  border-left: var(--rule);
+}
+/* 第一栏不画分隔线，否则左边框会贴着卡片边缘成一条悬空的线 */
+.season-numbers > div:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 /* 大号数字落位：从下方轻微升起并清晰化。
    不做逐位计数——数值是模型与数据源给的事实，动画不能改动它，
@@ -1658,11 +1649,6 @@
 }
 .season-numbers > div:nth-child(3) strong {
   animation-delay: 160ms;
-}
-.season-numbers > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .season-numbers b {
   font-family: var(--font-serif);
@@ -1699,14 +1685,47 @@
   display: block;
   flex-shrink: 0;
 }
-.result-W {
-  color: var(--green);
+/* 胜/平/负三色。这个类名同时挂在两种元素上，含义不同：
+   <b> 是「近期状态」里逐场的结果文字，要的是文字颜色；
+   <i> 是条形图里的一段，要的是背景色（它没有文字）。
+   原来这里只写了 color，<i> 因而永远不着色，三段全被
+   .performance-track > i 刷成同一个墨色，一条胜平负条看着就是一根黑棍。
+   所以两个属性都要给，但必须按元素分开——一起写会让「近期状态」
+   的每个字都顶上一个色块。 */
+b.result-W,
+i.result-W {
+  color: var(--green, #276348);
 }
-.result-D {
-  color: var(--muted);
+b.result-W { background: none; }
+i.result-W {
+  background: var(--green, #276348);
 }
-.result-L {
-  color: var(--red);
+b.result-D {
+  color: #8d8878;
+}
+i.result-D {
+  background: #b9b4a5;
+}
+b.result-L {
+  color: var(--red, #a8232f);
+}
+i.result-L {
+  background: var(--red, #a8232f);
+}
+/* 图例小方块与对应的段同色 */
+.chart-legend i.legend-W {
+  background: var(--green, #276348);
+}
+.chart-legend i.legend-D {
+  background: #b9b4a5;
+}
+.chart-legend i.legend-L {
+  background: var(--red, #a8232f);
+}
+.chart-legend b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
 }
 
 /* 积分榜 */
@@ -2357,6 +2376,21 @@
   border-radius: 999px;
   background: var(--ink);
 }
+/* 这条 > 组合选择器（0,2,0）比下面的 .result-W（0,1,0）更具体，
+   而这几个 <.i> 同时落在两者之下，所以三色必须在这里显式提权，
+   否则上面写好的绿/灰/红会被这行的墨色盖掉——正是原来的表现。 */
+.performance-track > i.result-W,
+.results-track > i.result-W {
+  background: var(--green, #276348);
+}
+.performance-track > i.result-D,
+.results-track > i.result-D {
+  background: #b9b4a5;
+}
+.performance-track > i.result-L,
+.results-track > i.result-L {
+  background: var(--red, #a8232f);
+}
 .performance-row b {
   font-variant-numeric: tabular-nums;
   color: var(--ink);
@@ -2398,31 +2432,45 @@
   font-size: var(--t-display);
   color: var(--ink);
 }
+/* 每场一列，列内两根竖柱（进球／失球）。
+   这里是竖柱，不是横条：柱高由内联百分比给出，所以父级必须有确定高度，
+   否则百分比落空、柱子全塌成 0。 */
 .goal-bar-pair {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  /* 与 .goal-chart 的 min-height 相减后剩下的就是可用柱高 */
+  height: 118px;
 }
 .goal-bar {
-  display: grid;
-  grid-template-columns: 78px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  font-size: var(--t-label);
-  color: var(--muted);
+  position: relative;
+  width: 13px;
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--ink);
+  transition: height 0.32s var(--ease-out);
 }
-.goal-bar > i {
-  display: block;
-  height: 9px;
-  border-radius: 2px;
+/* 柱顶的数字：绝对定位在柱子上方，柱子再矮也不会把数字压掉 */
+.goal-bar > span {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 3px;
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  line-height: 1;
+}
+.goal-bar.goals-for {
   background: var(--ink);
 }
-.goals-against > i {
+/* 失球用浅色：和进球同色会让两根柱子读成一组，看不出攻守之别 */
+.goal-bar.goals-against {
   background: var(--line-strong);
 }
-/* 图表图例里的色块：与柱体同色，说明颜色含义 */
-.chart-legend i.goals-for,
-.goal-bar.goals-for > i {
+.chart-legend i.goals-for {
   background: var(--ink);
 }
 .chart-legend i.goals-against {
@@ -2436,13 +2484,14 @@
   margin-right: 6px;
   vertical-align: -1px;
 }
+/* 图表本体。柱子靠 flex-end 贴底线，基线用 border-bottom 画出来，
+   所以这里的 padding-bottom 是柱子和基线之间的空隙。 */
 .goal-chart {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  min-height: 150px;
-  padding-top: 12px;
-  border-bottom: 2px solid var(--ink);
+  gap: 10px;
+  padding: 0 2px 9px;
+  border-bottom: 1px solid var(--line-strong);
 }
 .goal-chart-column {
   flex: 1;
@@ -2450,22 +2499,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
 }
-.goal-chart-column > i {
-  display: block;
-  width: 100%;
-  border-radius: 2px 2px 0 0;
-  background: var(--ink);
-}
+/* 队名竖排：八个 41px 宽的列放不下「阿斯顿维拉」这种全名，
+   截断会变成「阿斯顿…」，等于把对手名丢掉一半；缩小字号在窄屏更糊。
+   中文本身可纵向阅读，两字一行既保住全名又不挤。 */
 .goal-chart-label {
   font-size: var(--t-meta);
   color: var(--faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  line-height: 1.15;
+  text-align: center;
+  width: 2.2em;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .team-assistant-banner {
   display: flex;
@@ -4293,8 +4340,363 @@
   display: flex;
   margin-top: 0.75rem;
 }
+/* .results-track 用的是 <i>，但上面只有 .performance-track > i 那一条基础规则，
+   两者不是同一个类，所以这里的段一直没有 display/height——行内 <i> 的
+   宽高不生效，三段等于不存在。基础形状在这里补回来。 */
+.results-track > i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.results-track > i:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.results-track > i:last-child {
+  border-radius: 0 999px 999px 0;
+}
+/* 只有一段时两端都是圆的，上面两条会把它削成方角 */
+.results-track > i:only-child {
+  border-radius: 999px;
+}
 .results-legend {
   margin-top: 0.65rem;
   gap: 0.85rem;
 }
 
+
+/* ==========================================================================
+   球队信息 · 资料卡
+   身份字段做成两列网格。每条沿用 .club-details 的做法：标签是 <span>、
+   值是 <strong>，所以标签色与右对齐都从既有规则继承，不重复定义颜色。
+   ========================================================================== */
+.club-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.identity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 30px;
+}
+.identity-grid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: var(--rule);
+  font-size: var(--t-body-sm);
+  min-width: 0;
+}
+.identity-grid span {
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.identity-grid strong {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 简介单独成段，和字段网格之间留出呼吸；最大宽度按阅读行长限制 */
+.identity-intro {
+  font-size: var(--t-read);
+  line-height: var(--lh-read);
+  color: var(--ink-soft);
+  max-width: 46em;
+}
+
+/* ==========================================================================
+   球队信息 · 本季亮眼球员
+   射门/助攻/扑救分三栏，不合并成一个排行榜：门将扑救和前锋进球不是同一个
+   单位，合成一张表就是在用一个对各行为含义不同的数字排名。
+   ========================================================================== */
+.standouts-panel {
+  display: flex;
+  flex-direction: column;
+}
+.standouts-grid {
+  display: grid;
+  gap: 26px;
+}
+/* 有哪几栏就铺满哪几栏，不留下空列 */
+.standouts-grid-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.standouts-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.standouts-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.standout-board h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--t-label);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+.standout-board ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.standout-board li + li {
+  border-top: var(--rule);
+}
+.standout-board li > button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 6px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius);
+  transition: background 0.16s;
+}
+.standout-board li > button:hover {
+  background: var(--paper-sunk);
+}
+.standout-rank {
+  flex-shrink: 0;
+  width: 20px;
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  color: var(--faint);
+  text-align: center;
+}
+/* 头像是正方形的，和阵容卡里的竖版不同：这里一行就是一条，不能撑高 */
+.standout-photo {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper-sunk);
+  display: grid;
+  place-items: center;
+}
+.standout-photo .player-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.standout-photo .player-no-photo {
+  width: 100%;
+  height: 100%;
+}
+.standout-photo .player-no-photo svg {
+  width: 19px;
+  height: 19px;
+}
+/* 无照片时占位块里的“暂无照片”在这尺寸下没有位置，头像本身就是说明 */
+.standout-photo .player-no-photo span {
+  display: none;
+}
+.standout-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.standout-name strong {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.standout-name small {
+  font-size: var(--t-meta);
+  color: var(--faint);
+}
+.standout-name em {
+  font-size: var(--t-overline);
+  font-style: normal;
+  color: var(--faint);
+  letter-spacing: 0.3px;
+}
+.standout-value {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.standout-value strong {
+  font-family: var(--font-serif);
+  font-size: var(--t-num-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.standout-value small {
+  font-size: var(--t-meta);
+  color: var(--faint);
+}
+
+/* ==========================================================================
+   未来比赛 · 时间轴
+   开球时间是读者在扫的东西，所以它独占一列并带星期：单说“10月18日”答不了
+   “还有多久”。倒计时只在来源已确认开球时间时出现——未确认的日期配倒计时
+   等于把猜测呈现成赛程。
+   ========================================================================== */
+.fixture-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.fixture-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: var(--rule);
+  transition: background 0.16s;
+}
+.fixture-row:last-child {
+  border-bottom: 0;
+}
+.fixture-row:hover {
+  background: #f9f7f2;
+}
+.fixture-when {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.fixture-when strong {
+  font-family: var(--font-serif);
+  font-size: var(--t-h4);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.fixture-when span {
+  font-size: var(--t-meta);
+  color: var(--faint);
+}
+.fixture-when small {
+  font-size: var(--t-meta);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.fixture-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.fixture-teams {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.fixture-opponent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.fixture-opponent strong {
+  font-size: var(--t-read);
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fixture-opponent small {
+  font-size: var(--t-meta);
+  color: var(--faint);
+}
+/* 主客用色调区分，不只是文字：扫一列的时候颜色比字先到 */
+.venue-tag.is-home {
+  background: var(--green-wash);
+  color: var(--green);
+}
+.venue-tag.is-away {
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+.fixture-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-meta);
+  color: var(--faint);
+}
+.fixture-competition {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--paper-sunk);
+}
+.fixture-countdown {
+  color: var(--red);
+  font-weight: 600;
+}
+.fixture-tentative {
+  font-style: normal;
+}
+/* 时间未确认的场次整体降低对比：它是一个意向，不是已排定的比赛 */
+.fixture-row.is-tentative .fixture-when strong {
+  color: var(--faint);
+}
+.fixture-action {
+  flex-shrink: 0;
+}
+
+/* 球员卡：把本季数据放进网格里，不用打开弹窗就能比较 */
+.player-season-line {
+  font-size: var(--t-meta);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 新板块的窄屏收拢。三栏亮眼球赛表在中等宽度先变两栏，再变一栏；
+   时间轴把倒计时和操作按钮折到下一行，日期列收窄。 */
+@media (max-width: 1180px) {
+  .standouts-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .standouts-grid-2,
+  .standouts-grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .fixture-row {
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 13px;
+    align-items: start;
+  }
+  .fixture-action {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 2px;
+  }
+  .fixture-row .match-score {
+    margin-left: auto;
+  }
+  .identity-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
