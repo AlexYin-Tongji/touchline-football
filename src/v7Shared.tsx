@@ -56,11 +56,32 @@ export function uniqueImages(
       ? image.url
       : safeUrl(image.url);
     if (!safe) return false;
-    const identity = safe.split(/[?#]/)[0];
+    // 后端已经按"同一张照片的不同尺寸"合并过一次；前端如果只比较完整 URL，
+    // 就会把同一张照片的两个裁切重新当成两张图并排显示。
+    const identity = imageIdentity(safe);
     if (seen.has(identity)) return false;
     seen.add(identity);
     return true;
   });
+}
+
+/** 与后端 image_identity 同一规则：去掉查询串里的尺寸，也去掉路径里的尺寸段。 */
+export function imageIdentity(value: string) {
+  let path = value.split(/[?#]/)[0];
+  try {
+    const parsed = new URL(value, "https://placeholder.invalid");
+    path = parsed.pathname;
+  } catch {
+    // 相对地址就按原样处理。
+  }
+  const segments = path.split("/");
+  const sizeSegment =
+    /^(?:alternates\/)?[a-z]?\d{2,4}[a-z]?$|^\d{2,4}x\d{2,4}[a-z]?$|^s\d{2,4}[a-z]?$/i;
+  const stripped = segments
+    .slice(-4)
+    .filter((part) => !sizeSegment.test(part))
+    .map((part) => part.replace(/(?:^|[-_])\d{2,4}x\d{2,4}(?=$|[-_.])/i, ""));
+  return [...segments.slice(0, -4), ...stripped].join("/");
 }
 export const Photo = memo(function Photo({
   image,

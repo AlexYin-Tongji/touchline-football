@@ -102,6 +102,19 @@ def _token_set(value):
     return set(re.findall(r"[a-z]{3,}|[" + "一-鿿" + r"]{2}", normalized(value)))
 
 
+def _figures(value):
+    """The numbers a headline commits to.
+
+    Two outlets writing the same story in different languages share almost no
+    words, but they share the figure: "up to 60 jobs", "60 suppressions de
+    postes". A specific number beside a named person is a much stronger identity
+    than a translated headline, and it is the only cross-language signal
+    available here.
+    """
+    return {match.group(0).rstrip("%")
+            for match in re.finditer(r"(?<![0-9./])([0-9]{1,3}(?:[.][0-9]+)?)%?(?![0-9])", normalized(value))}
+
+
 def find_related_event(store, team_id, title, text, url="", published_at=None):
     """Join the same article, or a second telling of the same story.
 
@@ -149,6 +162,12 @@ def find_related_event(store, team_id, title, text, url="", published_at=None):
             # one press conference. Stricter on the wording so a season of
             # stories about one player does not collapse into one event.
             if (kind == event.get("kind") and similar >= .55 and current_time and prior_time
+                    and abs((current_time - prior_time).total_seconds()) <= 2 * 86400):
+                return event
+            # Cross-language coverage of one story: the same person and the same
+            # figure, filed within two days. Translation removes every shared
+            # word, so similarity cannot be the test here.
+            if (current_time and prior_time and _figures(title) & _figures(prior.get("title", ""))
                     and abs((current_time - prior_time).total_seconds()) <= 2 * 86400):
                 return event
     return None

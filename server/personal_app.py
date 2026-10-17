@@ -123,7 +123,76 @@ def message_topic(title):
     return "team"
 
 
-def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
+_STORY_FIGURE = re.compile(r"(?<![0-9./])([0-9]{1,3}(?:[.][0-9]+)?)%?(?![0-9])")
+
+
+def _story_keys(row):
+    """What two cards must share before they are treated as one story."""
+    from .events import entities
+    title = row.get("title") or ""
+    return set(entities(title)), {m.group(0).rstrip("%") for m in _STORY_FIGURE.finditer(title)}
+
+
+def _collapse_same_story(items):
+    """One story is one card, even when it arrived as several events.
+
+    Events are grouped when an article is first stored. A story that only turns
+    into the same story later — a club's own announcement and two foreign
+    reports of it, each filed under its own event — never meets that rule, so the
+    reader sees the one piece of news three times. Merging at display time is the
+    last place the aggregation can notice it.
+
+    The merge is deliberately narrow: a shared named person *and* a shared
+    figure in the headline, or essentially the same headline. Two different
+    stories about one player share neither. Sources of every merged card are
+    kept, because the point of this product is that the reader can see who said
+    what.
+    """
+    kept = []
+    for row in items:
+        people, figures = _story_keys(row)
+        target = None
+        for candidate in kept:
+            other_people, other_figures = _story_keys(candidate)
+            same_headline = _similar_title(row.get("title", ""), candidate.get("title", ""))
+            if same_headline or (people & other_people and figures & other_figures):
+                target = candidate
+                break
+        if target is None:
+            kept.append({**row})
+            continue
+        # Keep the richer card: a finished report beats a raw source excerpt.
+        keep, drop = (target, row) if _card_weight(target) >= _card_weight(row) else (row, target)
+        merged = {**keep}
+        sources = {source.get("id"): source for source in [*(drop.get("sources") or []),
+                                                           *(keep.get("sources") or [])] if source}
+        merged["sources"] = list(sources.values())
+        merged["evidence_ids"] = [source["id"] for source in merged["sources"]]
+        seen = {image.get("url") for image in merged.get("images") or []}
+        merged["images"] = [*(merged.get("images") or []),
+                            *[image for image in drop.get("images") or [] if image.get("url") not in seen]][:4]
+        merged["source_gap_count"] = (keep.get("source_gap_count") or 0) + (drop.get("source_gap_count") or 0)
+        merged["updated_at"] = max(keep.get("updated_at") or "", drop.get("updated_at") or "")
+        if target in kept:
+            kept[kept.index(target)] = merged
+        else:
+            kept[-1] = merged
+    return kept
+
+
+def _card_weight(row):
+    return (1 if row.get("report_id") else 0, len(row.get("summary") or ""))
+
+
+def _similar_title(left, right):
+    from difflib import SequenceMatcher
+    a, b = (left or "").strip(), (right or "").strip()
+    if not a or not b:
+        return False
+    return SequenceMatcher(None, a, b).ratio() >= .86
+
+
+def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None, raw=False):
     from .news_reports import list_reports, queue_summary
     settings = store.settings()
     teams = {team_id} if team_id else set(settings.get("followed_teams", []))
@@ -187,6 +256,11 @@ def feed_view(store, team_id=None, cursor=None, limit=20, *, topic=None):
                       "source_gap_count": len(content.get("source_gaps") or []),
                       "report_id": report["id"] if ready else None, "status": "ready" if ready else "source",
                       "evidence_ids": [s["id"] for s in sources]})
+    # The model decides which cards are one story; the rule below is the
+    # fallback for when it has not answered for this exact card set yet.
+    if not raw:
+        from .feed_grouping import apply_cached
+        items = _collapse_same_story(apply_cached(store, (team_id or ""), items))
     if topic:
         items = [row for row in items if row["topic"] == topic]
     items.sort(key=lambda row: (row.get("updated_at") or "", row["id"]), reverse=True)

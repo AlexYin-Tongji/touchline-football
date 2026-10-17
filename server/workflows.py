@@ -333,6 +333,20 @@ class WorkflowManager:
         await news_reports.process_report_queue(self.store, team_id=entry.team_id, owner_id=entry.root_id,
                                                cancel_event=entry.cycle_cancel, runner=runner, on_progress=progress,
                                                report_ids=authorized)
+        # Which finished cards describe one story is a judgement, not a rule, so
+        # it is asked once per refresh over the cards this team now has. A stale
+        # or failed answer leaves the rule-based grouping in charge.
+        try:
+            from .personal_app import feed_view
+            from .feed_grouping import regroup
+            # ``raw`` is the card list before any rule-based collapse, which is
+            # the set the grouping is keyed on.
+            cards = feed_view(self.store, entry.team_id, None, 30, raw=True).get("items") or []
+            await regroup(self.store, entry.team_id, cards)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            pass
 
     def _team_agent_configured(self):
         """Whether a usable model is assigned to the team-maintenance role.
