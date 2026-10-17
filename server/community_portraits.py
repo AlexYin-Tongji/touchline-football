@@ -42,7 +42,12 @@ from .research_transport import blocking_request, shared_request, fetch_reviewed
 from .player_names import normalize_name
 
 HOST = "www.thesportsdb.com"
+# The free public key lives in the path. A paid key does not replace it: it moves
+# the request to the v2 tree and travels in ``X-API-KEY``, because a key in a path
+# is quoted by every failure record that mentions the address.
 API_PREFIX = "/api/v1/json/3/"
+API_PREFIX_V2 = "/api/v2/json/"
+KEY_NAME = "thesportsdb_api_key"
 ACCEPTED_HOSTS = frozenset({HOST, "thesportsdb.com"})
 IMAGE_HOSTS = frozenset({"r2.thesportsdb.com", "www.thesportsdb.com"})
 MAX_JSON_BYTES = 512 * 1024
@@ -325,17 +330,44 @@ async def _pace(store):
         store._community_last_request = time.monotonic()
 
 
-async def _search(store, name):
-    url = f"https://{HOST}{API_PREFIX}searchplayers.php?p={quote(name)}"
+def _request_target(store, path):
+    """Where to send one read, and what credential to carry.
+
+    Without a paid key this is the v1 URL the module has always used. With one
+    it is the v2 tree and an ``X-API-KEY`` header. The choice is per request
+    rather than cached at import, so a key added from the settings page applies
+    to the next portrait pass without a restart.
+    """
+    key = ""
+    if store is not None and hasattr(store, "get_secret"):
+        try:
+            key = (store.get_secret(KEY_NAME) or "").strip()
+        except Exception:
+            key = ""
+    if key:
+        return f"https://{HOST}{API_PREFIX_V2}{path}", {"X-API-KEY": key}, API_PREFIX_V2
+    return f"https://{HOST}{API_PREFIX}{path}", None, API_PREFIX
+
+
+async def _read(store, resource, *, cache_key):
+    """Fetch one publisher document with the narrowest checks that still hold.
+
+    The response check accepts either tree's path prefix, because which one was
+    requested depends on whether a key is configured; the host, scheme and port
+    checks are unchanged. A JSON body is required either way — the v2 tree
+    answers an HTML page for an unauthorised key, and accepting that as "no
+    rows" would turn a credential problem into a missing player.
+    """
+    url, headers, prefix = _request_target(store, resource)
 
     async def factory():
         body, final_url, content_type = await blocking_request(fetch_document, url, timeout=22,
-            allowed_hosts=ACCEPTED_HOSTS, max_body=MAX_JSON_BYTES,
+            allowed_hosts=ACCEPTED_HOSTS, max_body=MAX_JSON_BYTES, headers=headers,
             content_types=("application/json", "text/json", "text/plain", "text/html"))
         parts = urlsplit(final_url)
         if (parts.scheme != "https" or parts.hostname not in ACCEPTED_HOSTS or parts.username
                 or parts.password or parts.port not in {None, 443}
-                or not parts.path.startswith(API_PREFIX.rstrip("/")) or parts.fragment
+                or not parts.path.startswith(prefix.rstrip("/")) or parts.fragment
                 or len(body) > MAX_JSON_BYTES or "json" not in content_type.lower()):
             raise IngestionError("球员照片社区来源响应不完整，未采用照片。")
         try:
@@ -350,7 +382,7 @@ async def _search(store, name):
     for attempt, wait in enumerate(RETRY_BACKOFF_SECONDS):
         await _pace(store)
         try:
-            return await shared_request(store, "community:" + url, HOST, factory, force=attempt > 0)
+            return await shared_request(store, cache_key + url, HOST, factory, force=attempt > 0)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -360,6 +392,10 @@ async def _search(store, name):
             if wait:
                 await asyncio.sleep(wait)
     raise last
+
+
+async def _search(store, name):
+    return await _read(store, f"searchplayers.php?p={quote(name)}", cache_key="community:")
 
 
 def _live(record):
@@ -654,40 +690,8 @@ def _surname_match(payload, name, birth_date=""):
 
 async def _lookup(store, publisher_id):
     """The publisher's full record for one id, where the cross-references live."""
-    url = f"https://{HOST}{API_PREFIX}lookupplayer.php?id={quote(str(publisher_id))}"
-
-    async def factory():
-        body, final_url, content_type = await blocking_request(fetch_document, url, timeout=22,
-            allowed_hosts=ACCEPTED_HOSTS, max_body=MAX_JSON_BYTES,
-            content_types=("application/json", "text/json", "text/plain", "text/html"))
-        parts = urlsplit(final_url)
-        if (parts.scheme != "https" or parts.hostname not in ACCEPTED_HOSTS or parts.username
-                or parts.password or parts.port not in {None, 443}
-                or not parts.path.startswith(API_PREFIX.rstrip("/")) or parts.fragment
-                or len(body) > MAX_JSON_BYTES or "json" not in content_type.lower()):
-            raise IngestionError("球员照片社区来源响应不完整，未采用照片。")
-        try:
-            payload = json.loads(body)
-        except (UnicodeError, ValueError, RecursionError):
-            raise IngestionError("球员照片社区来源资料无法读取，未采用照片。") from None
-        if not isinstance(payload, dict):
-            raise IngestionError("球员照片社区来源返回了无法识别的格式。")
-        return payload
-
-    last = None
-    for attempt, wait in enumerate(RETRY_BACKOFF_SECONDS):
-        await _pace(store)
-        try:
-            return await shared_request(store, "community-lookup:" + url, HOST, factory, force=attempt > 0)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            last = exc
-            if source_error_details(exc)["code"] != "http_rate_limited":
-                raise
-            if wait:
-                await asyncio.sleep(wait)
-    raise last
+    return await _read(store, f"lookupplayer.php?id={quote(str(publisher_id))}",
+                       cache_key="community-lookup:")
 
 
 async def _espn_bound_match(store, payload, provider_id):

@@ -24,7 +24,7 @@ import math
 import re
 import time
 
-from .model_config import AgentFailure, effective_config, role_selection
+from .model_config import AgentFailure, background_config
 from .provider import request_completion
 
 # The batch the executor will actually read in one pass, from team_portraits.
@@ -59,17 +59,15 @@ _TOOL = {
 
 
 def planner_config(store):
-    """Config for the photo role, or None when it has no model assigned.
+    """Config for the photo planner, or None when that pass is switched off.
 
-    Returning None rather than falling back to the active model is deliberate.
-    Photo planning is a paid call that runs on a team refresh, so a reader who
-    configured only a chat model must not silently start paying for it.
+    It never falls back to the active model on its own. Photo planning is a paid
+    call that runs on a team refresh, so with one model configured it would start
+    happening every time a team page opens. That is now a switch the reader sets
+    (``background_model_tasks.photos``), not a role that happens to be unset.
     """
-    selected = role_selection(store, "photos")
-    if not selected:
-        return None
     try:
-        return effective_config(store, selected["provider_id"], selected["model"])
+        return background_config(store, "photos")
     except AgentFailure:
         return None
 

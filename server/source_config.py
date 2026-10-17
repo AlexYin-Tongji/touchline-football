@@ -12,15 +12,18 @@ class CredentialInput(BaseModel):
 
 def register_routes(app, store):
     def keyed_source(identity):
-        row = next((row for row in providers.sources(reachable=False) if row.id == identity and row.requires_key), None)
+        row = next((row for row in providers.sources(reachable=False)
+                    if row.id == identity and (row.requires_key or row.optional_key)), None)
         if row is None:
             raise HTTPException(404, "没有此凭据来源。")
         return row
 
     def safe_source(row):
-        configured = not row.requires_key or bool(store.get_secret(row.requires_key))
+        name = row.requires_key or row.optional_key
+        configured = bool(store.get_secret(name)) if name else True
         result = {"id": row.id, "name": row.name, "configured": configured,
-                  "requires_key": bool(row.requires_key), "capabilities": sorted(cap.value for cap in row.capabilities)}
+                  "requires_key": bool(row.requires_key), "optional_key": bool(row.optional_key),
+                  "capabilities": sorted(cap.value for cap in row.capabilities)}
         if row.id == "api_football":
             from .provider_quota import DailyQuota
             result["quota"] = DailyQuota(store, "api_football").status()
@@ -33,14 +36,58 @@ def register_routes(app, store):
     @app.put("/api/data-sources/{identity}/credential")
     async def set_credential(identity: str, value: CredentialInput):
         row = keyed_source(identity)
-        store.set_secret(row.requires_key, value.api_key.get_secret_value())
+        store.set_secret(row.requires_key or row.optional_key, value.api_key.get_secret_value())
         return safe_source(row)
 
     @app.delete("/api/data-sources/{identity}/credential")
     async def clear_credential(identity: str):
         row = keyed_source(identity)
-        store.set_secret(row.requires_key, None)
+        store.set_secret(row.requires_key or row.optional_key, None)
         return safe_source(row)
+
+    @app.post("/api/data-sources/{identity}/test")
+    async def test_credential(identity: str):
+        """Ask a keyed source a question whose answer is already known.
+
+        A free tier does not fail loudly: it answers 200 with substituted sample
+        data, so "the request succeeded" says nothing about the tier. The only
+        honest check is identity — ask for a club by its published id and see
+        whether the record that comes back is that club. Arsenal (133604) is used
+        because the project already measured that the free tier answers a
+        different team for the same id.
+
+        This makes one paced request and writes only the verdict, never the
+        body. It is not run automatically: a key is spent on exactly this check
+        only when the reader asks for it.
+        """
+        row = keyed_source(identity)
+        name = row.requires_key or row.optional_key
+        if not store.get_secret(name):
+            raise HTTPException(400, "尚未保存密钥，先保存再检测。")
+        if row.id != "thesportsdb":
+            return {"ok": False, "checked": False,
+                    "message": f"{row.name} 暂不支持身份检测；密钥已保存，会在下一次取源时生效。"}
+        from .community_portraits import _pace, _read
+        await _pace(store)
+        try:
+            payload = await _read(store, "lookup/team/133604", cache_key="credential-check:")
+        except Exception as exc:
+            from .ingestion import source_error_details
+            details = source_error_details(exc)
+            return {"ok": False, "checked": True,
+                    "message": f"{row.name}：{details['message']}"}
+        team = payload.get("team") or payload.get("teams") or payload.get("data")
+        if isinstance(team, list):
+            team = team[0] if team else None
+        actual = team.get("strTeam") if isinstance(team, dict) else None
+        if not actual:
+            return {"ok": False, "checked": True,
+                    "message": f"{row.name}：接口有响应，但没有返回球队记录；密钥可能无效或档位不足。"}
+        if "arsenal" not in str(actual).lower():
+            return {"ok": False, "checked": True, "actual": str(actual)[:80],
+                    "message": f"{row.name}：查询 Arsenal 返回了「{actual}」，数据被替换为样例，当前档位不可用。"}
+        return {"ok": True, "checked": True, "actual": str(actual),
+                "message": f"{row.name}：查询 Arsenal 返回了正确的球队记录，密钥有效。"}
 
     @app.get("/api/network-diagnostics")
     async def network_diagnostics():

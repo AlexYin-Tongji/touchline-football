@@ -16,6 +16,12 @@ import httpx
 
 MAX_RESPONSE_BYTES = 2_000_000
 PROTOCOLS = {"chat_completions": "/chat/completions", "responses": "/responses", "anthropic_messages": "/messages"}
+# Anthropic expresses thinking as a token budget while OpenAI expresses it as a
+# named level. The settings form stores the level (one vocabulary for all three
+# protocols); this table is the only place the conversion lives, and the budget
+# is capped by ``max_tokens - 1`` at send time because the API requires the
+# thinking budget to be smaller than the answer's ceiling.
+THINKING_BUDGETS = {"minimal": 1024, "low": 2048, "medium": 4096, "high": 8192, "xhigh": 16384, "max": 24576}
 # The image types every wire protocol accepts without negotiation.
 IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 
@@ -124,10 +130,19 @@ def _wire_image(block, protocol):
 
 def make_payload(config, messages, tools=None, tool_choice="auto"):
     protocol = protocol_name(config)
-    limit = max(128, min(16000, int(config.get("max_output_tokens", 3000))))
+    # The ceiling used to be 16000 regardless of what was stored, so a plan that
+    # allows 32K or 128K could not ask for more and a long report ended at
+    # ``finish_reason=length`` with advice the form would not accept. The limit
+    # is the model's, now that the model entry carries it.
+    limit = max(128, min(131072, int(config.get("max_output_tokens", 3000))))
     payload = {"model": config["model"].strip(), "stream": False}
-    if config.get("send_temperature", False):
-        payload["temperature"] = float(config.get("temperature", 0.2))
+    # Temperature is sent only when the model says it accepts one. It used to be
+    # written for every protocol from the top of this function, which meant an
+    # Anthropic or reasoning-model request could carry a parameter those services
+    # reject with a 400 that reads as a protocol error.
+    temperature = config.get("temperature")
+    send_temperature = config.get("send_temperature") is True and temperature is not None
+    effort = config.get("reasoning_effort") if isinstance(config.get("reasoning_effort"), str) else None
     if protocol == "anthropic_messages":
         system, wire = [], []
         for message in messages:
@@ -154,6 +169,15 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
         payload.pop("stream", None)
         if system:
             payload["system"] = "\n\n".join(system)
+        if effort:
+            # Anthropic states thinking as a token budget rather than a named
+            # effort level, so the level is mapped to a budget and the model is
+            # left to spend it. Temperature is refused while thinking is on
+            # (the API requires 1), so it is simply not sent.
+            payload["thinking"] = {"type": "enabled",
+                                   "budget_tokens": min(limit - 1, THINKING_BUDGETS.get(effort, 4096))}
+        elif send_temperature:
+            payload["temperature"] = float(temperature)
         if tools:
             payload["tools"] = [{"name": tool["function"]["name"], "description": tool["function"].get("description", ""), "input_schema": tool["function"]["parameters"]} for tool in tools]
             payload["tool_choice"] = ({"type": "tool", "name": tool_choice["function"]["name"]} if isinstance(tool_choice, dict)
@@ -161,6 +185,12 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
     elif protocol == "responses":
         payload.update(input=responses_input(messages), store=False, max_output_tokens=limit,
                        include=["reasoning.encrypted_content"])
+        # Responses takes the effort level by name, which is what the settings
+        # form stores; no budget arithmetic is needed here.
+        if effort:
+            payload["reasoning"] = {"effort": effort}
+        elif send_temperature:
+            payload["temperature"] = float(temperature)
         if tools:
             # Explicit strict=false retains optional parameters from our schema.
             payload["tools"] = [{"type": "function", **tool["function"], "strict": False} for tool in tools]
@@ -179,8 +209,18 @@ def make_payload(config, messages, tools=None, tool_choice="auto"):
                 entry["reasoning_content"] = message["_chat_reasoning"]
             wire.append(entry)
         payload["messages"] = wire
+        thinking = config.get("thinking_enabled")
         if "deepseek" in payload["model"].lower():
-            payload["thinking"] = {"type": "enabled" if config.get("thinking_enabled", False) else "disabled"}
+            payload["thinking"] = {"type": "enabled" if (thinking is True or effort) else "disabled"}
+        if effort:
+            # Chat Completions names the same idea ``reasoning_effort``. It is
+            # sent because the model entry carries a level, not because the
+            # model name looks like a reasoning model: a gateway may route the
+            # name to something the pattern would not recognise, and a model
+            # that refuses the parameter says so with a named error.
+            payload["reasoning_effort"] = effort
+        elif send_temperature:
+            payload["temperature"] = float(temperature)
         reasoning = bool(re.match(r"^(o[134](?:-|$)|gpt-[5-9](?:[.-]|$))", payload["model"], re.I))
         payload["max_completion_tokens" if reasoning else "max_tokens"] = limit
         if tools:
@@ -268,7 +308,8 @@ def http_failure(status, body):
                 message = categories[code]
             parameter = error.get("param")
             known = {"temperature", "max_tokens", "max_completion_tokens", "max_output_tokens", "tools",
-                     "tool_choice", "messages", "input", "model", "include", "store", "reasoning"}
+                     "tool_choice", "messages", "input", "model", "include", "store", "reasoning",
+                     "reasoning_effort", "thinking", "budget_tokens"}
             if parameter in known:
                 message += f"（参数：{parameter}）"
     except (ValueError, AttributeError, TypeError):

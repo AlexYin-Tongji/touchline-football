@@ -32,9 +32,26 @@ _PORTRAIT_PATHS = {
     "www.wikidata.org": {"/w/api.php"},
     "commons.wikimedia.org": {"/w/api.php"},
 }
+# A paid TheSportsDB key is presented as ``X-API-KEY`` on the v2 tree, whose
+# paths carry a resource name the v1 tree put in the query string. Listing every
+# v2 path would mean guessing endpoint names this project does not call, so the
+# rule is a *prefix* on the two hosts that own it — and nowhere else. It is still
+# a reviewed destination: the host list above is the whole surface, and a
+# redirect is checked against the same function.
+_ISSUER_PREFIXES = {
+    "www.thesportsdb.com": ("/api/v2/json/",),
+    "thesportsdb.com": ("/api/v2/json/",),
+}
 
 
-def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body,
+def _path_allowed(host, path):
+    if path in _PORTRAIT_PATHS.get(host, ()):
+        return True
+    return any(path.startswith(prefix) and len(path) > len(prefix) and ".." not in path
+               for prefix in _ISSUER_PREFIXES.get(host, ()))
+
+
+def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body, headers=None,
                                      content_types=("text/html", "xhtml")):
     """Use the system HTTPS proxy for reviewed public portrait metadata.
 
@@ -42,6 +59,11 @@ def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body,
     Those remain forbidden to the pinned transport; the explicit proxy must
     resolve our fixed publisher hostname instead. This function is synchronous
     so existing shielded workers retain their cancellation/capacity accounting.
+
+    ``headers`` carries a keyed API credential. It is never part of the URL —
+    a key in a path is quoted in every failure message that mentions the
+    address, and those records outlive the request. The pinned HTTP transport
+    accepts this argument too, so a keyed read works with or without a proxy.
     """
     from . import ingestion
     hosts = frozenset(allowed_hosts or ())
@@ -51,22 +73,25 @@ def fetch_reviewed_portrait_document(url, *, allowed_hosts, max_body,
         current = ingestion.normalize_url(value)
         parts = urlsplit(current)
         if (parts.scheme != "https" or parts.port not in {None, 443}
-                or parts.hostname not in hosts or parts.path not in _PORTRAIT_PATHS[parts.hostname]):
+                or parts.hostname not in hosts or not _path_allowed(parts.hostname, parts.path)):
             raise IngestionError("球员照片来源或重定向地址未获允许。")
         return current
     current = checked(url)
     max_body = max(1, min(int(max_body), 2 * 1024 * 1024))
     proxy = getproxies().get("https")
     if not proxy:
-        return ingestion.fetch_document(current, allowed_hosts=hosts, max_body=max_body, content_types=content_types)
+        return ingestion.fetch_document(current, allowed_hosts=hosts, max_body=max_body,
+                                        content_types=content_types, headers=headers)
     started = time.monotonic()
+    request_headers = {"User-Agent": ingestion.USER_AGENT,
+                       "Accept": "text/html,application/json,text/json,text/plain",
+                       "Accept-Encoding": "identity",
+                       **(headers or {})}
     try:
         # Using only this explicit OS proxy avoids NO_PROXY sending a reviewed
         # host back through intercepted local DNS. Arbitrary hosts never enter.
         with httpx.Client(proxy=proxy, trust_env=False, follow_redirects=False,
-                          headers={"User-Agent": ingestion.USER_AGENT,
-                                   "Accept": "text/html,application/json,text/json,text/plain",
-                                   "Accept-Encoding": "identity"}) as client:
+                          headers=request_headers) as client:
             for hop in range(5):
                 remaining = 20 - (time.monotonic() - started)
                 if remaining <= 0:

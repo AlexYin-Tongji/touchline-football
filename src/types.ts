@@ -329,7 +329,7 @@ export interface AppState {
   source_catalog?: CatalogSource[];
   setup?: {
     model_configured: boolean;
-    model_roles_configured?: { feed: boolean; chat: boolean; team: boolean };
+    model_roles_configured?: Partial<Record<"feed" | "chat" | "team", boolean>>;
     live_evidence_count: number;
   };
   last_refresh?: string | null;

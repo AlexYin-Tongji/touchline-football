@@ -52,7 +52,9 @@ class LLMSettings(Model):
     clear_api_key: bool = False
     protocol: Literal["chat_completions", "responses", "anthropic_messages"] | None = None
     send_temperature: bool | None = None
-    max_output_tokens: int | None = Field(None, ge=256, le=16000)
+    max_output_tokens: int | None = Field(None, ge=256, le=131072)
+    context_window: int | None = Field(None, ge=1024, le=10485760)
+    reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh", "max"] | None = None
     use_env_proxy: bool | None = None
     thinking_enabled: bool | None = None
     max_rounds: int | None = Field(None, ge=2, le=16)
@@ -758,13 +760,16 @@ def create_app(db_path=None, *, collection_enabled=None):
                 from .league_data import materialize_team
                 materialize_team(store, team_id)
         if view == "summary":
-            from .model_config import MODEL_ROLES, role_selection
+            from .model_config import role_selection
             legacy = bool(settings["llm"].get("base_url") and settings["llm"].get("model"))
-            roles = {role: bool(role_selection(store, role)) or legacy for role in MODEL_ROLES}
+            configured = bool(role_selection(store)) or legacy
+            # Kept as a shape the assistant's readiness check still reads. There
+            # is one model now, so every role reports the same answer.
+            roles = {role: configured for role in ("feed", "chat", "team")}
             matches = _summary_matches(store, mode, team_id, settings)
             return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
                     "matches": matches, "service": await get_service(),
-                    "setup": {"model_configured": any(roles[role] for role in ("feed", "chat", "team")), "model_roles_configured": roles,
+                    "setup": {"model_configured": configured, "model_roles_configured": roles,
                               "live_evidence_count": store.count("evidence", "live")},
                     "events": [], "evidence": [], "runs": [], "reports": [], "sources": [], "tracking": [],
                     "source_catalog": [], "recommendations": [], "last_refresh": store.get_meta("last_refresh_" + mode),
@@ -809,9 +814,10 @@ def create_app(db_path=None, *, collection_enabled=None):
         evidence = [{**item, "text": "", "paragraphs": []} if item.get("origin") in {"web", "rss"} and not item.get("fixture_record") else item for item in evidence]
         catalog_team = team_id or (settings["followed_teams"][0] if settings["followed_teams"] else None)
         catalog = source_catalog(store, catalog_team) if catalog_team else []
-        from .model_config import MODEL_ROLES, role_selection
+        from .model_config import role_selection
         legacy_configured = bool(settings["llm"].get("base_url") and settings["llm"].get("model"))
-        configured_roles = {role: bool(role_selection(store, role)) or legacy_configured for role in MODEL_ROLES}
+        configured = bool(role_selection(store)) or legacy_configured
+        configured_roles = {role: configured for role in ("feed", "chat", "team")}
         return {"settings": safe_settings(settings), "teams": store.list("teams"), "runtime": runtime.describe(),
                 "reports": news_reports.list_reports(store, team_id=team_id, mode=mode), "report_budget": news_reports.report_budget(store),
                 "events": sorted(events, key=lambda item: item["updated_at"], reverse=True),
@@ -819,7 +825,7 @@ def create_app(db_path=None, *, collection_enabled=None):
                 "sources": store.list("sources", mode, team_id), "runs": [run_response(run) for run in runs[-100:]],
                 "last_refresh": store.get_meta("last_refresh_" + mode), "spoiler_hidden": hidden,
                 "tracking": [tracking_response(item) for item in store.list("tracking", mode, team_id)],
-                "source_catalog": catalog, "setup": {"model_configured": any(configured_roles[role] for role in ("feed", "chat", "team")), "model_roles_configured": configured_roles,
+                "source_catalog": catalog, "setup": {"model_configured": configured, "model_roles_configured": configured_roles,
                     "live_evidence_count": len(store.list("evidence", "live"))},
                 "recommendations": get_recommendations(store, mode), "automation_status": automation.status(), "service": await get_service()}
 
@@ -1341,7 +1347,7 @@ def create_app(db_path=None, *, collection_enabled=None):
             prior = []
         from .model_config import role_selection
         model_role = prior[0].get("model_role", "chat") if prior else ("team" if payload.skill in {"team_maintenance", "team_information", "team_refresh", "team-maintenance", "team"} else "feed" if payload.skill == "team-news" else "chat")
-        active_model = role_selection(store, model_role) or {}
+        active_model = role_selection(store) or {}
         from .conversations import conversation_binding
         bound = conversation_binding(store, prior, strict=True) if payload.mode == "live" else None
         provider_id = bound["provider_id"] if bound else payload.provider_id or active_model.get("provider_id")

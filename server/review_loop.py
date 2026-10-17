@@ -34,7 +34,7 @@ from __future__ import annotations
 import json
 import math
 
-from .model_config import AgentFailure, effective_config, role_selection
+from .model_config import AgentFailure, background_config
 from .provider import request_completion
 
 # What the loop may decide about one item. These are actions, not adjectives:
@@ -106,18 +106,14 @@ def _tool():
 
 
 def review_config(store):
-    """Config for the review role, or None when no model is assigned to it.
+    """Config for the review loop, or None when that pass is switched off.
 
-    Returning None rather than reusing the active chat model is deliberate, and
-    the same rule the batch planner follows: review calls run on a refresh that
-    the reader did not initiate, so a reader who configured only a chat model
-    must not silently start paying for them.
+    Same rule as the photo planner: review calls run on a refresh the reader did
+    not initiate, so with one model configured the permission has to be a switch
+    rather than the absence of a role assignment.
     """
-    selected = role_selection(store, "review")
-    if not selected:
-        return None
     try:
-        return effective_config(store, selected["provider_id"], selected["model"])
+        return background_config(store, "review")
     except AgentFailure:
         return None
 

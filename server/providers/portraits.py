@@ -52,7 +52,8 @@ def _portrait_claims(store, result, source_id, *, team_id, fetched):
      "domains": (".thesportsdb.com",), "reviewed_at": "2026-10-15"},
     {Capability.PERSON, Capability.IMAGE},
     cost=Cost.LIGHT, latency=Latency.SLOW,
-    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定。照片走完整姓名查询加出生日期核对，2026-10-15 实测 81-90% 命中、零错配。",
+    optional_key="thesportsdb_api_key",
+    note="球迷维护的社区数据库。俱乐部字段未声明关系类型，不参与身份判定。照片走完整姓名查询加出生日期核对，2026-10-15 实测 81-90% 命中、零错配。免费档会把部分响应替换成样例数据；付费档的密钥在设置中填写，走 v2 接口与 X-API-KEY 头。",
 )
 class TheSportsDbProvider(BaseProvider):
     """Community portraits by full name, confirmed by birth date.

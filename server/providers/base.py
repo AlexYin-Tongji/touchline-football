@@ -82,6 +82,12 @@ class Source:
     latency: Latency = Latency.NORMAL
     note: str = ""
     requires_key: str = ""      # named entry in the credential store, if any
+    # A named credential this source *uses when present* but does not require.
+    # TheSportsDB reads on the free key 3 and answers with substituted sample
+    # data; a paid key raises the real limits without being a precondition for
+    # registering the source. ``source_config`` lists both kinds so the settings
+    # page can offer a field for either.
+    optional_key: str = ""
     reviewed_at: str = ""
 
     def __post_init__(self):
@@ -171,7 +177,7 @@ def reset():
 
 
 def provider(source, capabilities, *, cost=Cost.LIGHT, latency=Latency.NORMAL,
-             requires_key="", note="", reviewed_at=""):
+             requires_key="", optional_key="", note="", reviewed_at=""):
     """Declare one provider and its source, and return the adapter class.
 
     Registration is the composition step: it both tells ``provenance`` which
@@ -190,6 +196,8 @@ def provider(source, capabilities, *, cost=Cost.LIGHT, latency=Latency.NORMAL,
             fields.setdefault("capabilities", capabilities)
             if requires_key:
                 fields["requires_key"] = requires_key
+            if optional_key:
+                fields["optional_key"] = optional_key
             declared = Source(**fields)
         register_provider(declared)
         cls.source = declared

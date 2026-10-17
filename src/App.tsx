@@ -416,10 +416,10 @@ export default function App() {
         />
       )}
       {settings && (
-        <Modal title="模型配置" onClose={closeSettings} wide>
-          <RecoverableView label="模型配置">
-          <Suspense fallback={<Spinner text="正在打开模型配置" />}>
-            <ModelSettings onChanged={refreshModels} />
+        <Modal title="配置" onClose={closeSettings} wide>
+          <RecoverableView label="配置">
+          <Suspense fallback={<Spinner text="正在打开配置" />}>
+            <ModelSettings onChanged={refreshModels} notify={setNotice} />
           </Suspense>
           </RecoverableView>
         </Modal>
