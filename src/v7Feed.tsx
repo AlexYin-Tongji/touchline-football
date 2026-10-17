@@ -300,7 +300,9 @@ export const FeedView = memo(function FeedView({
   };
   const items = (feed?.items || []).map((item) => ({
       ...item,
-      images: uniqueImages(item.images).slice(0, 1),
+      // 卡片上给两张：一张常常只是个题图，两张才能说明这是"一组消息"。
+      // 后端最多送四张，三张的网格会让每张都小到看不清。
+      images: uniqueImages(item.images).slice(0, 2),
     }));
   const upcoming = data.matches
     .filter(

@@ -838,7 +838,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                 run = {"id": run_id, "team_id": row["team_id"], "mode": row["mode"], "skill": "news_report",
                        "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
                        "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
-                       "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代进展；根据事件复杂度和原文材料自行安排篇幅与章节，充分交代原文细节与必要影响。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
+                       "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代这一件事和它的最新进展；材料若有多篇报道，先合并成一件事再写，重复叙述不要重复出现，各篇说法不一致时并列写清。根据事件复杂度和原文材料自行安排篇幅与章节。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
                        "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
                        "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
                        "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}

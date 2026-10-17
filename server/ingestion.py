@@ -582,6 +582,12 @@ def image_identity(url):
     Unknown query parameters remain part of the identity: some CDNs use an id
     or source URL in the query to select entirely different photographs.
     """
+def image_identity(url):
+    """Identify the same publisher asset across known resizing/cropping URLs.
+
+    Unknown query parameters remain part of the identity: some CDNs use an id
+    or source URL in the query to select entirely different photographs.
+    """
     parts = urlsplit(str(url or ""))
     host = (parts.hostname or "").lower()
     if host == "guim.co.uk" or host.endswith(".guim.co.uk"):
@@ -591,7 +597,46 @@ def image_identity(url):
     transforms = {"width", "height", "w", "h", "quality", "q", "fit", "crop", "rect", "dpr", "auto", "format", "fm", "resize"}
     pairs = sorted((key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
                    if key.lower() not in transforms and not key.lower().startswith("utm_"))
-    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, urlencode(pairs), ""))
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), _path_without_size(parts.path), urlencode(pairs), ""))
+
+
+# Publishers serve one photograph under several generated sizes, sometimes in
+# the query and sometimes in a path segment. Only the query rule existed, so one
+# photo could occupy all four illustration slots.
+_SIZE_SEGMENT = re.compile(
+    r"^(?:alternates/)?[a-z]?\d{2,4}[a-z]?$"
+    r"|^(?:[a-z]{1,6}_)?\d{2,4}x\d{2,4}[a-z]?$"
+    r"|^s\d{2,4}[a-z]?$"
+    r"|^(?:[a-z]{1,2}_)?(?:preview|landscape|portrait|square|thumbnail|thumb|large|small|medium"
+    r"|xl|xxl|xxlarge|big|full|original)$", re.I)
+# The same generated size is also embedded in the file name itself:
+# ``img_1200x721.jpg``, ``pic-190x114.jpg``, ``s1200d/pic.jpg``.
+_NAME_SIZE = re.compile(r"(?:^|[-_])(?:[a-z]?\d{2,4}x\d{2,4}|s\d{2,4}[a-z]?|\d{2,4}d)(?=$|[-_.])", re.I)
+def _strip_name_size(name):
+    stem, dot, ext = name.rpartition(".")
+    if not dot:
+        return name
+    return _NAME_SIZE.sub("", stem) + dot + ext
+
+
+def _path_without_size(path):
+    """Drop generated-size segments, never an article's own words.
+
+    ``ALTERNATES/s1200d/pic.jpg`` and ``upload/xl_landscape/pic.jpg`` are the
+    same photograph; ``news/a.jpg`` and ``news/b.jpg`` are not. A segment is
+    only removed when it is *entirely* a size token, and only from the last
+    three segments where publishers put them.
+    """
+    if not path:
+        return path
+    segments = path.split("/")
+    keep = segments[:-4]
+    tail = []
+    for part in segments[-4:]:
+        if _SIZE_SEGMENT.match(part):
+            continue
+        tail.append(_strip_name_size(part))
+    return "/".join([*keep, *tail])
 
 
 def article_image_scope(url):
@@ -646,8 +691,13 @@ def source_images(source, limit=4):
     # is insufficient for that image: require an explicit headline or caption
     # identity. RSS names such as "Guardian · Barcelona" are routing metadata.
     title = str(source.get("title") or "")
-    require_team_caption = (bool(_MULTI_TOPIC_TITLE.search(title)) or
-                            bool(_MULTI_TEAM_TITLE.search(title)) and not _image_mentions_team(title, source.get("team_id")))
+    # A roundup needs an explicit identity for the picture. When the headline
+    # itself names this club, that identity already holds for the page's own
+    # lead image — demanding a caption on top of it removed the image from every
+    # roundup whose og:image is captionless, which is most of them.
+    title_names_team = _image_mentions_team(title, source.get("team_id"))
+    require_team_caption = (not title_names_team and
+                            (bool(_MULTI_TOPIC_TITLE.search(title)) or bool(_MULTI_TEAM_TITLE.search(title))))
     results, seen = [], set()
     for image in source.get("images") or []:
         if not isinstance(image, dict) or image.get("evidence_id", source.get("id")) != source.get("id"):
@@ -669,6 +719,27 @@ def source_images(source, limit=4):
     return results
 
 
+def _figure_sources(img):
+    """Every URL a ``<img>`` offers, real photographs before placeholders.
+
+    ``add`` de-duplicates, so offering several is cheap; offering the wrong one
+    first is what previously cost the whole figure.
+    """
+    srcset = img.get("srcset") or img.get("data-srcset") or ""
+    scaled = [part.strip().split(" ")[0] for part in srcset.split(",") if part.strip()]
+    ordered = [img.get("data-src"), img.get("data-original"), img.get("data-lazy-src"),
+               img.get("data-srcset") and (scaled[-1] if scaled else None),
+               img.get("src"), scaled[-1] if scaled else None]
+    seen = set()
+    for value in ordered:
+        if not isinstance(value, str) or not value or value in seen:
+            continue
+        if value.startswith("data:") or value.startswith("blob:"):
+            continue
+        seen.add(value)
+        yield value
+
+
 def extract_images(soup, url, source_name):
     """Article-owned figures and lead metadata; section artwork is not news."""
     if not article_image_scope(url):
@@ -683,7 +754,13 @@ def extract_images(soup, url, source_name):
     node = _primary_article_node(soup, url)
     nodes = [node] if node and (_article_matches(node, url) or
                                (not _article_location(node) and primary is not None and node.get("articleBody"))) else []
-    if primary is None and not nodes:
+    # A page whose body sits outside the recognised containers still declares
+    # its lead image in <head>. Returning early here threw that away and left
+    # the article permanently image-less.
+    declared = soup.select('meta[property="og:image"], meta[property="og:image:secure_url"], '
+                           'meta[property="og:image:url"], meta[name="og:image"], '
+                           'meta[name="twitter:image"], meta[name="twitter:image:src"]')
+    if primary is None and not nodes and not declared:
         return []
     def add(value, caption="", credit="", caption_priority=1):
         clean = safe_image_url(value, url)
@@ -698,7 +775,7 @@ def extract_images(soup, url, source_name):
             caption_priorities[identity] = caption_priority if caption else 0
             results.append({"url": clean, "source_url": url, "caption": clean_text(str(caption))[:300],
                             "credit": clean_text(str(credit or source_name))[:160], "article_image": True})
-    for meta in soup.select('meta[property="og:image"], meta[name="twitter:image"]'):
+    for meta in declared:
         add(meta.get("content"))
     for node in nodes:
         images = node.get("image") or []
@@ -707,17 +784,26 @@ def extract_images(soup, url, source_name):
                 add(image)
             elif isinstance(image, dict):
                 add(image.get("url") or image.get("contentUrl"), image.get("caption", ""), image.get("creditText", ""), caption_priority=2)
-    figures = primary.select("figure")[:8] if primary is not None else []
+    # Without a recognised body, a <figure> with a caption is still an
+    # article-owned picture: the caption is the page's own claim that this
+    # image belongs to the story. Requiring a container for it was stricter
+    # than the rule for og:image, and it left many pages with no picture at all.
+    scope = primary if primary is not None else soup.body or soup
+    figures = scope.select("figure")[:8]
     for figure in figures:
         if figure.find_parent(["aside", "nav"]) or any(re.search(r"related|recommend|promo", " ".join(parent.get("class", [])), re.I) for parent in [figure, *figure.parents]):
             continue
         img = figure.find("img")
         caption = figure.find("figcaption")
         if img:
-            srcset = img.get("srcset") or img.get("data-srcset") or ""
-            fallback = srcset.split(",")[-1].strip().split(" ")[0] if srcset else None
-            add(img.get("src") or img.get("data-src") or img.get("data-original") or fallback,
-                caption.get_text(" ", strip=True) if caption else img.get("alt", ""), caption_priority=3 if caption else 1)
+            # Lazy-loading pages put a placeholder in ``src`` and the real
+            # photograph in ``data-src``/``srcset``. Testing each candidate in
+            # turn — rather than string-OR-ing them — is what lets the real one
+            # win: a ``data:`` placeholder is non-empty, so the old chain never
+            # reached the attribute holding the image.
+            caption_text = caption.get_text(" ", strip=True) if caption else img.get("alt", "")
+            for candidate in _figure_sources(img):
+                add(candidate, caption_text, caption_priority=3 if caption else 1)
     return results
 
 
@@ -914,6 +1000,25 @@ def extract_feed(body, url, source_name):
                 if not link or child.attrib.get("rel", "alternate") == "alternate":
                     link = candidate
             values[name] = content
+        # The feed already declares its lead image in every common dialect.
+        # Reading only the article page threw that away whenever the followed
+        # page was not longer than the feed body, or failed to load at all.
+        feed_images = []
+        for node in entry.iter():
+            name = local(node.tag)
+            if name in {"content", "thumbnail"}:
+                candidate = node.attrib.get("url") or node.attrib.get("href")
+                kind = str(node.attrib.get("type") or node.attrib.get("medium") or "image").lower()
+                if candidate and kind.startswith("image"):
+                    feed_images.append(candidate)
+            elif name == "enclosure":
+                candidate = node.attrib.get("url")
+                if candidate and str(node.attrib.get("type") or "").lower().startswith("image"):
+                    feed_images.append(candidate)
+            elif name == "image" and node is not entry:
+                candidate = node.attrib.get("href") or "".join(node.itertext()).strip()
+                if candidate.startswith(("http://", "https://")):
+                    feed_images.append(candidate)
         raw = values.get("encoded") or values.get("content") or values.get("description") or values.get("summary") or ""
         raw_text = html_text(raw)
         text = raw_text[:MAX_ARTICLE_TEXT]
@@ -926,8 +1031,11 @@ def extract_feed(body, url, source_name):
             except IngestionError:
                 continue
         embedded_body = bool(values.get("encoded") or values.get("content"))
+        declared = [{"url": value, "source_url": url, "caption": "", "credit": source_name, "article_image": True}
+                    for value in feed_images]
         results.append({"title": clean_text(values.get("title") or source_name)[:200], "text": text,
-                        "url": article_url, "published_at": published_time(values.get("pubDate") or values.get("published")),
+                        "url": article_url, "images": declared,
+                        "published_at": published_time(values.get("pubDate") or values.get("published")),
                         "content_status": "partial" if embedded_body else "summary",
                         "content_method": "feed_content" if embedded_body else "feed_summary",
                         "content_note": "订阅源提供的正文片段，尚未与原始文章核对完整性。" if embedded_body else "当前仅有订阅摘要，原文尚未完整读取。",

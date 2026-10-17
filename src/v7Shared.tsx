@@ -87,7 +87,7 @@ export const Photo = memo(function Photo({
     <figure className={`photo ${className}`}>
       <img
         src={url}
-        alt={image?.alt || "球队相关图片"}
+        alt={image?.alt || image?.caption || (image?.credit ? `${image.credit} 配图` : "新闻配图")}
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"

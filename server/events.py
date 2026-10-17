@@ -82,17 +82,76 @@ def _timestamp(value):
         return None
 
 
+def _url_identity(value):
+    """The address with tracking removed, the same way the report snapshot reads it.
+
+    Grouping and snapshotting have to agree on what "the same article" means.
+    When they do not, one layer collapses a duplicate and the other cannot see
+    it, which is how one story ends up as two events and two cards.
+    """
+    if not value:
+        return ""
+    try:
+        from .research import article_url
+        return article_url(value)
+    except (ValueError, TypeError, ImportError):
+        return value.split("#")[0]
+
+
+def _token_set(value):
+    return set(re.findall(r"[a-z]{3,}|[" + "一-鿿" + r"]{2}", normalized(value)))
+
+
 def find_related_event(store, team_id, title, text, url="", published_at=None):
-    """Join a URL revision, or a single entity + topic in a short time window."""
+    """Join the same article, or a second telling of the same story.
+
+    Three tells, in order of strength:
+
+    1. the same address, after tracking removal, is the same article;
+    2. a shared named person *and* a matching headline is the same story, even
+       when two publishers filed it under different editors or under a
+       different topic. Requiring ``kind in {injury, transfer}``, as this used
+       to, meant a press conference covered by four outlets and any ordinary
+       team story could never be grouped at all;
+    3. the same person, the same topic and a close headline within two days.
+
+    What is still refused is the case the old rule existed to protect: two
+    different pieces of news about the same player. "Saka signs" and "Saka
+    injured" name the same person and must stay apart, which is why a shared
+    name alone is never enough.
+    """
     records = store.list("events", "live", team_id)
     evidence = {item["id"]: item for item in store.list("evidence", "live", team_id)}
+    identity = _url_identity(url)
     for event in reversed(records):
-        if url and any(evidence.get(item, {}).get("url") == url for item in event.get("evidence_ids", [])):
+        if identity and any(_url_identity(evidence.get(item, {}).get("url")) == identity
+                            for item in event.get("evidence_ids", [])):
             return event
     kind = suggest_stage(title, text)["kind"]
     keys = entities(title)
-    if len(keys) != 1 or kind not in {"injury", "transfer"}:
+    if not keys:
         return None
+    current_time = _timestamp(published_at)
+    left = _token_set(title)
+    for event in reversed(records):
+        if not set(event.get("entity_keys", entities(event.get("title", "")))) & set(keys):
+            continue
+        prior_items = [evidence[item] for item in event.get("evidence_ids", []) if item in evidence]
+        for prior in reversed(prior_items):
+            prior_time = _timestamp(prior.get("published_at"))
+            if current_time and prior_time and abs((current_time - prior_time).total_seconds()) > 14 * 86400:
+                continue
+            similar = SequenceMatcher(None, normalized(title), normalized(prior.get("title", ""))).ratio()
+            # Wording repeats when two outlets cover one event.
+            if similar >= .82 or len(left & _token_set(prior.get("title", ""))) >= 3:
+                return event
+            # Same person, same topic, much closer date: a same-day report of
+            # one press conference. Stricter on the wording so a season of
+            # stories about one player does not collapse into one event.
+            if (kind == event.get("kind") and similar >= .55 and current_time and prior_time
+                    and abs((current_time - prior_time).total_seconds()) <= 2 * 86400):
+                return event
+    return None
     current_time = _timestamp(published_at)
     for event in reversed(records):
         if event.get("kind") != kind or event.get("entity_keys", entities(event.get("title", ""))) != keys:

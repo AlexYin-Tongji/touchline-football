@@ -5426,3 +5426,8 @@ i.result-L {
     overscroll-behavior: contain;
   }
 }
+/* 正文段落里的配图没有比例，图片加载前高度为 0，读长文时会跳。
+   2:1 与 lead 图一致，也让裁切后的构图可预期。 */
+.story-section .photo img {
+  aspect-ratio: 2;
+}
