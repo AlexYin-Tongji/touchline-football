@@ -175,18 +175,32 @@ def names_config(store):
 
 
 def _extract(message, allowed):
+    """The names the model returned, plus whether it answered at all.
+
+    The second value is the whole point of this function, and it used to be
+    missing. An empty tool call and a failed call both produce no names, so
+    ``_extract`` returned the same ``{}`` for "the model looked at these and
+    declined" and for "the model never got the question" — and the caller then
+    recorded both as ``MODEL_FAILED`` and retried them forever.
+
+    The system prompt tells the model not to return a person it is unsure of,
+    so declining is the behaviour we asked for. A squad with five unguessable
+    academy names therefore never settled: every round re-asked the same five,
+    spent a request, and stored the same failure. Distinguishing them is what
+    makes the loop converge.
+    """
     calls = message.get("tool_calls") if isinstance(message, dict) else None
     call = next((item for item in calls or []
                  if (item.get("function") or {}).get("name") == _TOOL_NAME), None)
     if call is None:
-        return {}
+        return {}, False
     try:
         arguments = json.loads((call.get("function") or {}).get("arguments") or "{}")
     except (TypeError, ValueError):
-        return {}
+        return {}, False
     rows = arguments.get("names")
     if not isinstance(rows, list):
-        return {}
+        return {}, False
     chosen = {}
     for row in rows:
         if not isinstance(row, dict):
@@ -195,7 +209,7 @@ def _extract(message, allowed):
         name_zh = accept_name(row.get("name_zh"))
         if provider_id in allowed and name_zh and provider_id not in chosen:
             chosen[provider_id] = name_zh
-    return chosen
+    return chosen, True
 
 
 async def _default_requester(config, messages, duration):
@@ -227,6 +241,7 @@ async def translate_roster(store, team_id, *, requester=None):
                                 [dict(row) for row in snapshot.get("roster") or [] if isinstance(row, dict)])
     pending = []
     skipped = []
+    declined = 0
     for row in roster:
         if _blank(row.get("name_zh")):
             continue
@@ -236,12 +251,20 @@ async def translate_roster(store, team_id, *, requester=None):
             skipped.append({"provider_id": provider_id, "name": english,
                             "reason_code": "MISSING", "retryable": False})
             continue
+        # A player the model already answered about stays out of the next batch.
+        # Without this the pass rebuilt an identical queue every round — those
+        # rows have no ``name_zh``, so nothing else excluded them — and the same
+        # question was paid for again and again without any chance of a
+        # different answer.
+        if _blank(row.get("name_zh_reason_code")) == "MODEL_DECLINED":
+            declined += 1
+            continue
         pending.append({"provider_id": provider_id, "name": english})
     if skipped:
         remember(store, team_id, season_id, skipped)
     if not pending:
         return {"status": "completed", "translated": 0, "pending": 0, "model_failed": 0,
-                "skipped": len(skipped)}
+                "declined": declined, "skipped": len(skipped)}
     config = names_config(store)
     if config is None:
         _fail(store, team_id, season_id, pending)
@@ -256,23 +279,45 @@ async def translate_roster(store, team_id, *, requester=None):
         _fail(store, team_id, season_id, pending)
         return {"status": "completed", "translated": 0, "pending": len(pending),
                 "model_failed": len(pending), "skipped": len(skipped)}
-    chosen = _extract(message, {row["provider_id"] for row in pending})
+    chosen, answered = _extract(message, {row["provider_id"] for row in pending})
     written = []
+    declined = []
     failed = []
     for row in pending:
         name_zh = chosen.get(row["provider_id"])
         if name_zh:
             written.append({**row, "name_zh": name_zh})
+        elif answered:
+            # The model saw this player and chose not to name them, which is the
+            # instruction it was given for a name it cannot place. That is an
+            # answer, not a failure: recording it as retryable is what made this
+            # leaf re-ask the same unguessable players every single round.
+            declined.append(row)
         else:
             failed.append(row)
     if written:
         remember(store, team_id, season_id, written)
+    if declined:
+        _decline(store, team_id, season_id, declined)
     if failed:
         _fail(store, team_id, season_id, failed)
-    return {"status": "completed", "translated": len(written), "pending": len(failed),
+    return {"status": "completed", "translated": len(written),
+            "declined": len(declined), "pending": len(failed),
             "model_failed": len(failed), "skipped": len(skipped)}
 
 
 def _fail(store, team_id, season_id, rows):
     remember(store, team_id, season_id, [
         {**row, "name_zh": "", "reason_code": "MODEL_FAILED", "retryable": True} for row in rows])
+
+
+def _decline(store, team_id, season_id, rows):
+    """The model answered and left these players unnamed.
+
+    Stored as its own terminal code rather than as a failure. The distinction is
+    the difference between a loop that settles and one that spends a request
+    every round on a question already answered: a youth player no published
+    source covers will not become nameable by being asked again tomorrow.
+    """
+    remember(store, team_id, season_id, [
+        {**row, "name_zh": "", "reason_code": "MODEL_DECLINED", "retryable": False} for row in rows])

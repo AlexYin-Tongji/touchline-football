@@ -19,6 +19,11 @@ from .player_names import with_reading
 
 ROSTER_CACHE_SECONDS = 86400
 RETRY_SECONDS = 60
+# How soon the automatic paths may ask the name model again about one club. Long
+# on purpose: a full squad is one batch, and a player the model has already
+# declined is excluded from the next batch rather than re-asked, so a repeat run
+# is either picking up genuinely new rows or doing nothing at all.
+NAME_RETRY_SECONDS = 900
 CORE_PARTS = ("roster", "schedule", "standings")
 # ``profile`` is asked for, never picked up on its own. The core three are
 # refreshed whenever a page is opened because they are what the page is; a
@@ -1221,6 +1226,7 @@ class TeamMaintenanceManager:
         self.store = store
         self.tasks = {}
         self.portrait_tasks = {}
+        self.name_tasks = {}
         self.finalizers = {}
         self.decision_ids = {}
         self.gate = asyncio.Semaphore(2)
@@ -1281,6 +1287,64 @@ class TeamMaintenanceManager:
         self.portrait_tasks[key] = asyncio.create_task(sync_portraits(self.store, team_id, year))
         return True
 
+    def _start_names(self, team_id, year=None):
+        """Ask the name model about the squad rows that still have no reading.
+
+        A side pass for the same reason portraits are one: the core three parts
+        are what the page is, and this is one round-trip that the page does not
+        have to wait on.
+
+        It exists because nothing else reached it. ``names`` is in
+        ``MAINTENANCE_PARTS`` but not in ``CORE_PARTS``, and both automatic
+        entry points — opening a club and the resident sweep — filter their
+        part list down to ``CORE_PARTS``. So a squad could sit with rows the
+        model had never once been asked about, while the page reported them as
+        pending work, until somebody pressed the panel's start button. The
+        original intent (do not spend a request per reader on names nobody is
+        missing) is preserved by the ordering: a squad whose rows all carry a
+        reading, or a terminal decline, makes ``translate_roster`` return
+        without a model call, so the common case costs a dict lookup.
+        """
+        _, _, season, _ = team_season_context(self.store, team_id, year)
+        key = _status_key(team_id, season["id"])
+        existing = self.name_tasks.get(key)
+        if existing and not existing.done():
+            return False
+        view = center_view(self.store, team_id, year)
+        if not view["roster"]:
+            return False
+        state = self.store.get_meta(key, {}).get("components", {}).get("names", {})
+        if _elapsed(state.get("last_attempt")) < NAME_RETRY_SECONDS:
+            return False
+        # No model assigned means the leaf records MODEL_FAILED and stops. Do not
+        # start a task that can only ever produce that.
+        from .squad_names import names_config
+        if names_config(self.store) is None:
+            return False
+        _record_component(self.store, key, "names", {"status": "running", "last_attempt": now(), "errors": []})
+        self.name_tasks[key] = asyncio.create_task(self._run_names(key, team_id))
+        return True
+
+    async def _run_names(self, key, team_id):
+        """Run the name pass and record its own outcome as a component."""
+        from .squad_names import translate_roster
+        try:
+            result = await asyncio.wait_for(translate_roster(self.store, team_id), 120)
+        except asyncio.CancelledError:
+            _record_component(self.store, key, "names", {"status": "interrupted", "errors": ["中文名更新中断，已有译名保留。"]})
+            raise
+        except Exception:
+            _record_component(self.store, key, "names", {"status": "failed", "errors": ["译名模型暂不可用。"]})
+            return None
+        declared = sum(bool(row.get("name_zh")) for row in (center_view(self.store, team_id).get("roster") or []))
+        payload = {"status": "completed", "updated_at": now(), "errors": [],
+                   "translated": result.get("translated", 0), "declined": result.get("declined", 0),
+                   "named_count": declared}
+        if result.get("model_failed"):
+            payload.update(status="failed", errors=[f"{result['model_failed']} 名球员的译名未能完成。"])
+        _record_component(self.store, key, "names", payload)
+        return result
+
     def start(self, team_id, year=None, *, force=False, parts=None, decision_id=None):
         requested = _validated_parts(parts)
         _, _, season, _ = team_season_context(self.store, team_id, year)
@@ -1298,18 +1362,34 @@ class TeamMaintenanceManager:
         selected = tuple(part for part in selected if part in CORE_PARTS
                          and _elapsed(prior.get("components", {}).get(part, {}).get("last_attempt")) >= RETRY_SECONDS)
         with_portraits = requested is None or "portraits" in requested
+        # Names ride along with either branch below for the same reason photos
+        # do, and the caller never has to ask: a club opened today whose squad
+        # arrived yesterday should get its readings filled without the reader
+        # knowing a name pass exists.
+        with_names = requested is None or "names" in requested
         if not selected:
             portraits_started = self._start_portraits(team_id, year) if with_portraits else False
+            names_started = self._start_names(team_id, year) if with_names else False
             if portraits_started and decision_id:
                 self.decision_ids[key] = decision_id
                 self._finish_after_portraits(key, team_id, year, ("portraits",), decision_id)
-            return {"started": portraits_started, "status": "running" if portraits_started else prior.get("status", "completed"), "team_id": team_id, "cached": not portraits_started}
+            started = portraits_started or names_started
+            return {"started": started, "status": "running" if started else prior.get("status", "completed"), "team_id": team_id, "cached": not started}
         self.store.set_meta(key, {**prior, "status": "running", "errors": []})
         async def run():
             from . import decisions
             try:
                 async with self.gate:
                     result = await maintain_team(self.store, team_id, year, force=force, parts=selected, decision_id=decision_id)
+                # Started here, before the portrait branch rather than after it,
+                # because that branch returns early when a photo batch begins.
+                # Names only depend on the roster write above — the pass reads
+                # the stored snapshot — so hanging them off the end of the photo
+                # path would have skipped them on exactly the route that runs
+                # most often: a plain club open, where ``requested`` is None and
+                # photos are therefore always in scope.
+                if with_names:
+                    self._start_names(team_id, year)
                 if with_portraits:
                     portrait_started = self._start_portraits(team_id, year)
                     portrait = self.portrait_tasks.get(key)
@@ -1366,9 +1446,20 @@ class TeamMaintenanceManager:
                                    parts=selected, trigger=trigger, reason=reason, plan=safe_plan)
         details = {"plan": safe_plan, "reason": reason, "decision_id": identity}
         if not selected:
-            decisions.finish(self.store, identity, outcome={"status": "checked" if not needs else "deferred"})
-            return {"started": False, "status": "checked" if not needs else "deferred", **details}
-        result = self.start(team_id, year, parts=selected, decision_id=identity)
+            # Every core part is fresh, but names are not a core part and never
+            # appear in the freshness plan — they follow the squad, and a squad
+            # can be perfectly current with rows nobody has translated yet. So
+            # this branch, which used to end the round, is exactly where the
+            # name pass has to be tried: a club whose roster/standings/schedule
+            # are all settled would otherwise never have its names asked about.
+            names_started = self._start_names(team_id, year)
+            outcome = {"status": "running" if names_started else ("checked" if not needs else "deferred")}
+            decisions.finish(self.store, identity, outcome=outcome)
+            return {"started": names_started, **outcome, **details}
+        # "names" rides along explicitly. ``with_names`` in ``start`` is derived
+        # from the caller's part list, and this method always passes one, so
+        # without naming it here the scheduler path could not reach the pass.
+        result = self.start(team_id, year, parts=[*selected, "names"], decision_id=identity)
         if not result.get("started"):
             decisions.finish(self.store, identity, outcome={"status": "deferred"})
         return {**result, **details}
@@ -1378,19 +1469,27 @@ class TeamMaintenanceManager:
         key = _status_key(team_id, season["id"])
         task = self.tasks.get(key)
         portrait = self.portrait_tasks.get(key)
+        name_task = self.name_tasks.get(key)
         finalizer = self.finalizers.get(key)
         try:
             if task and not task.cancelled():
                 await task
             finalizer = self.finalizers.get(key) or finalizer
             portrait = self.portrait_tasks.get(key) or portrait
+            name_task = self.name_tasks.get(key) or name_task
+            # The name task is awaited last because it is the cheapest and most
+            # likely to be the only thing left running: the resident sweep calls
+            # this after every round, and a squad whose names are already settled
+            # returns from it without a model call.
             if finalizer:
                 await finalizer
             elif portrait:
                 await portrait
+            if name_task and not name_task.cancelled():
+                await name_task
         except asyncio.CancelledError:
             if asyncio.current_task().cancelling():
-                active = [item for item in (task, portrait, finalizer) if item and not item.done()]
+                active = [item for item in (task, portrait, name_task, finalizer) if item and not item.done()]
                 for item in active:
                     item.cancel()
                 if active:
@@ -1401,7 +1500,8 @@ class TeamMaintenanceManager:
         return self.store.get_meta(key, {})
 
     async def close(self):
-        active = [task for task in [*self.tasks.values(), *self.portrait_tasks.values(), *self.finalizers.values()] if not task.done()]
+        active = [task for task in [*self.tasks.values(), *self.portrait_tasks.values(),
+                                    *self.name_tasks.values(), *self.finalizers.values()] if not task.done()]
         for task in active:
             task.cancel()
         if active:
@@ -1419,3 +1519,7 @@ class TeamMaintenanceManager:
             status = self.store.get_meta(key, {})
             if status.get("components", {}).get("portraits", {}).get("status") == "running":
                 _record_component(self.store, key, "portraits", {"status": "interrupted", "errors": ["照片补充中断，核心资料仍可使用。"]})
+        for key in self.name_tasks:
+            status = self.store.get_meta(key, {})
+            if status.get("components", {}).get("names", {}).get("status") == "running":
+                _record_component(self.store, key, "names", {"status": "interrupted", "errors": ["中文名更新中断，已有译名保留。"]})

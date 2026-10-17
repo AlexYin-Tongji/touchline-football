@@ -139,6 +139,7 @@ PANEL_REASON_CODES = {
     "SOURCE_UNAVAILABLE": True,
     "RATE_LIMITED": True,
     "MODEL_FAILED": True,
+    "MODEL_DECLINED": False,
     "NAMESAKE_BLOCKED": False,
     "CREST_MISSING": False,
     "INCOMPLETE_SCHEDULE": True,
@@ -151,11 +152,15 @@ PANEL_REASON_CODES = {
 # Shared MISSING means "this leaf has no snapshot yet" and stays retryable.
 # On squad.names the same code on a player means there is no English display
 # name to translate, and that gap is terminal. MODEL_FAILED is the model call
-# itself failing. INTERRUPTED matches the shared round stop.
+# itself failing. MODEL_DECLINED is the model answering and leaving the player
+# unnamed because it cannot place the name — the instruction it was given, and
+# terminal for that reason: re-asking tomorrow spends another request on a
+# question already answered. INTERRUPTED matches the shared round stop.
 PANEL_LEAF_REASON_CODES = {
     "squad.names": {
         "MISSING": False,
         "MODEL_FAILED": True,
+        "MODEL_DECLINED": False,
         "INTERRUPTED": False,
     },
 }

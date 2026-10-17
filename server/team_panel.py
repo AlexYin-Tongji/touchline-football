@@ -22,8 +22,8 @@ LEAVES = PANEL_LEAVES
 REASON_CODES = PANEL_REASON_CODES
 
 _PRIORITY = (
-    "RATE_LIMITED", "SOURCE_UNAVAILABLE", "MODEL_FAILED", "INTERRUPTED", "INCOMPLETE_SCHEDULE",
-    "STALE", "MISSING", "NAMESAKE_BLOCKED", "CREST_MISSING",
+    "RATE_LIMITED", "SOURCE_UNAVAILABLE", "MODEL_FAILED", "MODEL_DECLINED", "INTERRUPTED",
+    "INCOMPLETE_SCHEDULE", "STALE", "MISSING", "NAMESAKE_BLOCKED", "CREST_MISSING",
     "SAMPLE_INSUFFICIENT", "SCOPE_DENIED",
 )
 _BAD_ATTEMPT = {"failed", "unavailable", "interrupted"}
@@ -598,6 +598,15 @@ def _names_leaf(view):
         if code == "MODEL_FAILED":
             player_gaps.append({"provider_id": provider_id, "reason_code": "MODEL_FAILED",
                                 "retryable": flags["MODEL_FAILED"], "detail": "中文名翻译没有完成。"})
+            continue
+        if code == "MODEL_DECLINED":
+            # The model was asked, answered, and left this player unnamed — the
+            # behaviour its prompt asks for when it cannot place a name. Reading
+            # it as a failure is what kept this leaf actionable forever: the
+            # round re-asked the same unguessable players and stored the same
+            # non-answer. It stays visible as a gap, but not as work to redo.
+            player_gaps.append({"provider_id": provider_id, "reason_code": "MODEL_DECLINED",
+                                "retryable": flags["MODEL_DECLINED"], "detail": "模型未给出译名，暂以原文显示。"})
             continue
         if code == "INTERRUPTED":
             player_gaps.append({"provider_id": provider_id, "reason_code": "INTERRUPTED",
