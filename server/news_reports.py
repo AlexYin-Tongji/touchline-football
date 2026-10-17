@@ -576,7 +576,14 @@ def enqueue_reports(store, *, team_id=None, mode="live", event_ids=None, limit=N
                    "report": None, "run_id": None, "retry_at": None, "manual_requested": force,
                    "config_revision": _configuration_revision(settings),
                    "fingerprint": snapshot["fingerprint"], "source_hashes": snapshot["source_hashes"],
-                   "boundary_hash": snapshot["boundary_hash"], **_source_fields(snapshot)}
+                   "boundary_hash": snapshot["boundary_hash"],
+                   # The event's own headline and topic, for the writing brief
+                   # only. They are the collector's working labels, not facts,
+                   # and the prompt says so: the model must still read the
+                   # articles and may write a different headline.
+                   "event_hint": {"title": (event.get("title") or "")[:200],
+                                  "kind": event.get("kind") or "team"},
+                   **_source_fields(snapshot)}
             store.put("reports", row)
             result.append(row)
             queued += 1
@@ -839,6 +846,7 @@ async def process_report_queue(store, *, max_jobs=None, runner=None, team_id=Non
                        "conversation_id": "conversation_" + row["id"], "internal_report": True, "manual_report": manual,
                        "report_id": row["id"], "event_id": row["event_id"], "input_evidence_ids": row["evidence_ids"],
                        "question": "把本次事件整理成可直接阅读的中文动态。标题具体，导语交代这一件事和它的最新进展；材料若有多篇报道，先合并成一件事再写，重复叙述不要重复出现，各篇说法不一致时并列写清。根据事件复杂度和原文材料自行安排篇幅与章节。有原文支持的背景才写背景，不凑篇幅。只用实际读过的原文，不拼凑其他事件，不编造事实，不重复空泛警示。",
+                       "event_hint": row.get("event_hint") or {},
                        "allow_network": False, "status": "queued", "created_at": _stamp(), "answer": "", "steps": [],
                        "evidence_ids": [], "warnings": [], "error": None, "finished_at": None,
                        "model": settings.get("llm", {}).get("model", ""), "model_role": "feed"}
