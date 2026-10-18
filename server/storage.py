@@ -16,12 +16,12 @@ from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 
-COLLECTIONS = frozenset({"teams", "evidence", "events", "matches", "sources", "runs", "tracking", "candidates", "recommendations", "fixture_sources", "knowledge", "leagues", "seasons", "league_memberships", "league_matches", "standings", "reports", "model_profiles", "players", "squads", "team_snapshots", "agent_tasks", "decisions"})
+COLLECTIONS = frozenset({"teams", "evidence", "events", "matches", "sources", "runs", "tracking", "candidates", "recommendations", "fixture_sources", "knowledge", "leagues", "seasons", "league_memberships", "league_matches", "standings", "reports", "model_profiles", "players", "squads", "team_snapshots", "agent_tasks", "decisions", "search_index"})
 DEFAULT_SETTINGS = {
     "mode": "live", "followed_teams": ["arsenal"], "spoiler_free": True,
     "explanation_depth": "standard", "auto_refresh": False, "refresh_minutes": 30,
     "automation": {"enabled": False, "interval_minutes": 60, "sync_matches": True, "generate_brief": False},
-    "verification_enabled": True, "verification_timeout_seconds": 45,
+    "verification_enabled": False, "conversation_verification": False, "verification_timeout_seconds": 45,
     "personalization": {"interests": [], "reading_language": "zh", "fan_level": "regular", "briefing_window_hours": 72},
     "reports": {"auto_generate": True},
     "network": {"proxy_url": ""},
@@ -141,7 +141,50 @@ class Store:
                 self._bodies[(item["id"], item["body_hash"])] = (time.monotonic() + self.BODY_TTL_SECONDS, body)
                 self._trim_bodies()
             item["body_storage"] = "transient"
+            # The index is built here, while the body still exists in this call
+            # frame. Building it after ``put`` would index the prepared record,
+            # which no longer has a body at all.
+            self._index_evidence(item, body)
+        elif collection == "evidence":
+            # Fixture rows and manually imported notes keep their text in the
+            # record; they get the same index so a match question is not the one
+            # question whose local material cannot be ranked.
+            self._index_evidence(item, str(item.get("text") or ""))
         return item
+
+    def _index_evidence(self, prepared, body):
+        """Keep the derived search record in step with the evidence row.
+
+        Keyed on the body hash so a re-fetch that returns the same article
+        rewrites nothing, and a changed article is re-indexed. A failure here
+        must not fail the ingest itself: a missing index degrades search to the
+        previous behaviour, while a raised exception would lose the article.
+        """
+        try:
+            from .search_index import build_record
+            if not body:
+                # Nothing to index beyond the title, and the previous record is
+                # at least as good. Writing here would replace a real body
+                # profile with a hollow one under the same hash.
+                return
+            record = build_record({**prepared, "text": body}, self)
+            current = self._db.execute(
+                "SELECT json_extract(body, '$.body_hash'), json_extract(body, '$.body_owed') "
+                "FROM documents WHERE collection='search_index' AND id=?",
+                (record["id"],)).fetchone()
+            # A record rebuilt from title only has the same hash as the article
+            # but no body profile; ``body_owed`` marks it so the first genuine
+            # read replaces it instead of being skipped.
+            if current and current[0] == record["body_hash"] and not current[1]:
+                return
+            self._db.execute(
+                "INSERT INTO documents(collection,id,body) VALUES(?,?,?) "
+                "ON CONFLICT(collection,id) DO UPDATE SET body=excluded.body",
+                ("search_index", record["id"], json.dumps(record, ensure_ascii=False)))
+        except Exception:
+            # Indexing is an optimisation of search, never part of storing the
+            # source. The evidence write that follows is what must succeed.
+            pass
 
     def _hydrate(self, collection, item):
         if collection == "evidence" and self.external_evidence(item) and item.get("body_storage") == "transient":

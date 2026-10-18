@@ -746,7 +746,28 @@ export const Assistant = memo(function Assistant({
                       {run.steps
                         ?.filter((step) => step.status === "running")
                         .slice(-1)[0]?.label || "正在查找资料、整理思路"}
-                      <small>需要一点时间，可以先继续浏览其他页面。</small>
+                      <small>
+                        {(() => {
+                          // Polling samples the run every 1.6s, and most steps
+                          // finish between samples, so "the one running step"
+                          // was usually empty and the reader watched a static
+                          // line for a minute. Showing what just happened is
+                          // the honest progress signal we already have.
+                          const done = (run.steps || [])
+                            .filter(
+                              (step) =>
+                                step.status !== "running" &&
+                                !["任务完成", "任务已停止", "任务停止", "任务异常"].includes(
+                                  step.label,
+                                ),
+                            )
+                            .slice(-3)
+                            .map((step) => step.label);
+                          return done.length
+                            ? `已完成：${done.join(" · ")}`
+                            : "需要一点时间，可以先继续浏览其他页面。";
+                        })()}
+                      </small>
                     </div>
                   </div>
                 ) : null}

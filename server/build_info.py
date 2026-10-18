@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 
-VERSION = "9.1.0"
+VERSION = "9.2.0"
 ROOT = Path(__file__).resolve().parent.parent
 PARTS = ("python", "node", "frontend")
 

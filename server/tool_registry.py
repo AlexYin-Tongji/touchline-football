@@ -164,6 +164,49 @@ TOPIC_CAPABILITIES = {
         "exposes": ("maintain_team_data",)},
     "team:stats.charts": {
         "capabilities": frozenset({IDENTITY, TEAM, SKILL, OUTPUT})},
+
+    # --- football-assistant: question directions ------------------------------
+    # The question workflow holds the full ASK_WORK set because a question can be
+    # about anything. A loaded direction says which part of "anything" this one
+    # is, so the tool surface narrows while it is loaded. As with every other
+    # topic these only subtract; a direction cannot grant a capability its
+    # skill does not hold.
+    #
+    # ``match.review`` keeps MATCH and EVIDENCE and drops NEWS: a review reads
+    # the selected fixture's evidence, not fresh discovery — and discovery in a
+    # review scope is exactly what used to return another fixture's material.
+    "football-assistant:match.preview": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, MATCH, TEAM, PERSON, SKILL, OUTPUT})},
+    "football-assistant:match.review": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, MATCH, TEAM, PERSON, SKILL, OUTPUT})},
+    # A transfer question is about people and announcements; it does not need
+    # match context, and it does need news discovery.
+    "football-assistant:transfer.status": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, NEWS, PERSON, SKILL, OUTPUT})},
+    # An injury question needs today's reports, so discovery stays; it is about
+    # people, so match context is not required.
+    "football-assistant:injury": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, NEWS, PERSON, TEAM, SKILL, OUTPUT})},
+    # Tactics is read from match evidence and team data, not from a fresh sweep
+    # of every configured feed.
+    "football-assistant:tactics.explain": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, MATCH, TEAM, PERSON, SKILL, OUTPUT})},
+    # "How are they doing" is answered from the snapshot and the local corpus.
+    # ``get_team_data`` stays because the brief summarises it but does not carry
+    # every row; discovery is withheld so a status question cannot turn into a
+    # news sweep.
+    "football-assistant:team.state": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, PERSON, SKILL, OUTPUT})},
+    "football-assistant:event.watch": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, EVENTS, NEWS, SKILL, OUTPUT})},
+    # Form is arithmetic over the stored fixture list plus what the papers say
+    # about it. It reads the snapshot and the local corpus; it does not discover
+    # new material, because a status question is not a news sweep.
+    "football-assistant:team.form": {
+        "capabilities": frozenset({IDENTITY, EVIDENCE, TEAM, SKILL, OUTPUT})},
+    # These two are about how to work, not what to read; they add no tools.
+    "football-assistant:directions": {"capabilities": ASK_WORK},
+    "football-assistant:answer.writing": {"capabilities": ASK_WORK},
 }
 
 
@@ -227,10 +270,14 @@ TOOL_CAPABILITIES = {
     "search_passages": (EVIDENCE,),
     "compare_sources": (EVIDENCE,),
     "read_evidence": (EVIDENCE,),
-    "read_article": (EVIDENCE, NEWS),
+    # ``read_article`` reads a candidate that ``discover_news`` produced, so it
+    # belongs to NEWS rather than EVIDENCE: offered to a direction without news
+    # discovery it is a tool that can only fail, which is the exact problem the
+    # capability model was introduced to stop.
+    "read_article": (NEWS,),
     "discover_news": (NEWS,),
     "refresh_team_sources": (NEWS,),
-    "research_news": (NEWS, EVIDENCE),
+    "research_news": (NEWS,),
     "event_timeline": (EVENTS,),
     "match_context": (MATCH, TEAM),
     "get_team_data": (TEAM, PERSON),

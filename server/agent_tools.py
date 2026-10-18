@@ -38,7 +38,7 @@ def parse_time(value):
 
 TOOL_DEFINITIONS = [
     {"name": "context_pack", "description": "一次读取当前球队背景：球队资料、可见事件索引、比赛基本信息、已存知识线索、最近更新记录、可用来源与你的阅读偏好。更新记录可回答何时检查、是否变化，但不是已读证据；引用前须 read_evidence。", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
-    {"name": "search_evidence", "description": "检索当前球队和模式内的本地资料，支持中文和英文关键词；返回片段，引用前需 read_evidence。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 500}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
+    {"name": "search_evidence", "description": "检索当前球队和模式内的本地资料，按标题与正文特征排序，同一事件的多篇报道会合并成一条并列出 other 来源；返回命中片段，引用前需 read_evidence。", "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 500}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["query"], "additionalProperties": False}},
     {"name": "read_evidence", "description": "按字符位置分页阅读原文，默认前12000字符；next_offset可继续读长文。返回真实passages和正文完整性；只可引用本轮实际读到的片段。", "parameters": {"type": "object", "properties": {"evidence_id": {"type": "string", "maxLength": 120}, "offset": {"type": "integer", "minimum": 0, "maximum": 100000}, "length": {"type": "integer", "minimum": 500, "maximum": 12000}}, "required": ["evidence_id"], "additionalProperties": False}},
     {"name": "event_timeline", "description": "查看当前事件中有证据支持的进展，分清发布时间和记录时间，不自行判定事实已获验证。", "parameters": {"type": "object", "properties": {"event_id": {"type": "string", "maxLength": 120}}, "required": ["event_id"], "additionalProperties": False}},
     {"name": "match_context", "description": "读取比赛主客队、来源、更新时间、确认名单及缺失警告和相关证据 ID；遵守避剧透和赛前时间边界。比赛索引不能代替原文引用。", "parameters": {"type": "object", "properties": {"match_id": {"type": "string", "maxLength": 120}}, "required": ["match_id"], "additionalProperties": False}},
@@ -75,6 +75,22 @@ TOOL_DEFINITIONS = [
 # with a progress display and a retry policy. A conversational task that
 # triggers one stalls with nothing to show for it.
 BACKGROUND_TOOL_NAMES = ("fetch_player_photos", "maintain_team_data", "review_maintenance")
+# Withheld from a conversation even though the ask workflow technically holds
+# them. Each one either duplicates what the situation brief already answers
+# (context_pack, get_team_data when the brief includes squad and results),
+# costs a slow network round the model can reach through research_news anyway,
+# or is a maintenance concern. Fewer advertised tools is fewer rounds: the
+# baseline showed ten to thirteen model requests for questions whose answer was
+# in the local corpus the whole time.
+CONVERSATION_WITHHELD = frozenset({
+    "context_pack",          # the brief is this, already rendered
+    "query_structured_sources",  # provider discovery spends quota; brief has the snapshot
+    "photo_queue", "plan_photo_batch",
+    "search_team_knowledge",  # the brief carries the top saved knowledge lines
+    "conversation_history",   # prior turns are already in the transcript
+    "compare_sources",        # one extra round over text the model already read
+})
+
 TOOL_DEFINITIONS.extend([
     {"name": "fetch_player_photos", "description": "获取当前球队已核对阵容中球员的真实照片，按来源球员ID、官网或百科中的明确身份匹配；Wikimedia 图片须核对自由许可。返回出处、作者、许可或缺图原因，引用时保留署名。可指定球员，身份或许可不明则留空；照片不能证明首发或出场。每条缺图带 reason_code 与 retryable；namesake_blocked 表示来源只返回了同名他人，重试无效，应改用其他来源。", "parameters": {"type": "object", "properties": {"player_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}, "minItems": 1, "maxItems": 60}, "force": {"type": "boolean"}}, "additionalProperties": False}},
     {"name": "photo_queue", "description": "查看当前球队还剩哪些球员没有照片，以及每人为什么还没拿到：从未核对、来源已否决、缺少可核对的身份信息，还是被同名球员挡住。只读，不联网，不返回图片地址或身份依据。补图前先用它看清缺口；namesake_blocked 的人不要对同一来源重试。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 120}}, "additionalProperties": False}},
@@ -115,7 +131,12 @@ def tool_definitions(skill="ask"):
         # arrive as five fields whatever was asked, and a model writing into a
         # mandatory "still unconfirmed" slot fills it, which is where much of the
         # hedging in ordinary answers came from.
-        submit["parameters"]["required"] = ["status", "answer", "facts"]
+        submit["parameters"]["required"] = ["status", "answer", "evidence_ids"]
+        fields["evidence_ids"] = {
+            "type": "array", "minItems": 0,
+            "items": {"type": "string", "minLength": 1, "maxLength": 120},
+            "description": "answer 中每个说法实际依据的本轮已读证据 ID。answer 正文不必逐句标注；这里列出整段答复所依据的来源。"}
+        fields["facts"].update(description="可选。只在需要逐条对照多条说法时使用；普通回答把依据列在顶层 evidence_ids 即可。")
         return definitions
     submit["parameters"]["required"].remove("answer")
     fields["title"] = {"type": "string", "minLength": 4, "maxLength": 80,
@@ -228,6 +249,21 @@ def clean_delivery_text(text):
 # else keeps the evidence rule exactly as it was — the exception is a property
 # of the task, not of being a sub-agent.
 OPERATION_SKILLS = frozenset({"team_refresh", "team"})
+# Work that collects or rewrites the store rather than answering a question.
+# These keep the old behaviour: no prefetch, no collection budget, no round
+# nudge, and a report is still verified. Everything else is a conversation.
+# ``team_maintenance`` is deliberately absent — it is the query side of the team
+# page, not a maintenance pass, despite the name.
+# The skills that are not a conversation. A question and the skills derived from
+# it (transfer, tactics, preview, review, injury, form, event) get the
+# conversational shape: prefetch the likely sources, a two-round collection
+# budget, a nudge to deliver, and an unverified but locally citation-checked
+# answer. The rest — a collected report, the team page's maintenance pass, its
+# query-side data report — keep their previous behaviour.
+#
+# ``team_maintenance`` is the query side of the team page, not a maintenance
+# pass despite the name.
+NON_QUESTION_SKILLS = frozenset({"news_report", "team_refresh", "team", "team_maintenance"})
 
 
 def operation_delivery(skill):
@@ -368,8 +404,22 @@ class LocalTools:
         #
         # The mode check stays: verification still requires live data, and a
         # demo run has no provider to ask.
+        # A news report is verified by default — it is published as a standalone
+        # article and the second pass is worth its cost. A conversation is not:
+        # the reader is present, the answer arrives into a dialogue, and the
+        # baseline measured 5–40 seconds of extra wait per question for a label
+        # the reader can get by opening the cited source. The local citation
+        # integrity check still runs either way; only the paid semantic pass is
+        # an opt-in for conversations.
+        #
+        # ``verification_enabled`` historically meant "verify everything" and is
+        # true in existing databases, so it cannot be the conversation switch
+        # any more — that would keep the slow path on for every upgraded user.
+        # It now governs reports; ``conversation_verification`` is the new,
+        # off-by-default opt-in for questions.
         self.verification_enabled = self.mode == "live" and (
-            self.skill == "news_report" or settings.get("verification_enabled", False) is True)
+            (self.skill == "news_report" and settings.get("verification_enabled", True) is True)
+            or settings.get("conversation_verification", False) is True)
         self.skill_loader = skill_loader
         self.skills_used = [self.skill]
         # The directions loaded from a skill's tree, by topic id, and the file
@@ -378,6 +428,12 @@ class LocalTools:
         self.topics_used = {}
         self.allow_network = self.mode == "live" and run.get("allow_network", True) is True
         self.network_queries = 0
+        # A conversation gets two collection rounds. Past that, more searching
+        # stops returning new material — the baseline showed five to nine model
+        # rounds where the first two had already found the articles the answer
+        # used. The cap is on *collection*; reading a source already found is
+        # always allowed, because that is where the citations come from.
+        self.collection_budget = None if self.skill in NON_QUESTION_SKILLS else 2
         self.article_reads = 0
         self.candidate_count = 0
         # Which players the model asked to check first this run. It orders the
@@ -573,6 +629,106 @@ class LocalTools:
                  "notice": "历史模型观察只代表当时的待验证假设，不是事实或本次已读证据。引用原始资料前仍须调用 read_evidence；用本次赛后原文判断支持、相反或无法核验。"}
                 for _, row in candidates]
 
+    def index_records(self):
+        """The derived index rows for this team, in memory for this call.
+
+        The index is persisted per evidence row and carries no prose, so loading
+        it is cheap and survives a restart. It is re-read per search rather than
+        cached on the instance because an ingest during the same task would
+        otherwise be invisible until the run ended.
+        """
+        if not hasattr(self.store, "_db"):
+            return []
+        allowed = {item["id"] for item in self.visible_evidence()}
+        try:
+            rows = self.store.list("search_index", self.mode, self.team_id)
+        except Exception:
+            return []
+        return [row for row in rows if row.get("id") in allowed]
+
+    def search_evidence(self, arguments):
+        """Rank local material, preferring stories and cheap before bodies.
+
+        Two sources of signal, in this order: the persisted index (titles plus a
+        derived body profile) and, when an article's body is in the process
+        cache, the body itself. Excerpts are the matching passages when the body
+        is available and the article opening otherwise — never the same fixed
+        three hundred characters for every source.
+        """
+        from . import search_index
+
+        query, limit = arguments["query"], arguments.get("limit", 5)
+        records = self.index_records()
+        groups = search_index.search(records, query, self.team_id, self.store, limit=max(limit, 8))
+        # Time and category filters are applied after ranking so a filter can
+        # never silently turn into "no local material": the caller sees the
+        # ranked rows that were excluded and why.
+        rows, filtered = [], 0
+        for entry in groups:
+            record = entry["primary"]
+            item = self.evidence_view(self.scoped_get("evidence", record["id"]))
+            if not item:
+                filtered += 1
+                continue
+            if not self._within_days(item, arguments.get("max_age_days")):
+                filtered += 1
+                continue
+            if arguments.get("category", "all") != "all":
+                from .research import article_categories
+                if arguments["category"] not in article_categories(item):
+                    filtered += 1
+                    continue
+            rows.append((entry, item))
+        results = []
+        for entry, item in rows[:limit]:
+            record = entry["primary"]
+            cached = self.read_cache.get(item["id"]) if self.cache_is_current(item["id"]) else None
+            excerpt = ""
+            if cached:
+                excerpt = self._passage_excerpt(cached, record, query)
+            if not excerpt:
+                excerpt = str(item.get("text") or "")[:300]
+            results.append({
+                "id": item["id"], "title": item.get("title"), "excerpt": excerpt,
+                "source_name": item.get("source_name"), "published_at": item.get("published_at"),
+                "fetched_at": item.get("fetched_at"), "url": item.get("url"),
+                "categories": article_categories(item) if arguments.get("category") else [],
+                "also_reported_by": entry["also_reported_by"],
+                "matched_terms": round(entry["score"], 2),
+                "spoiler_redacted": bool(item.get("spoiler_redacted")), "redaction_note": item.get("redaction_note"),
+                "body_read": bool(cached),
+            })
+        return {
+            "results": results,
+            "matched_count": len(rows),
+            "filtered_out": filtered,
+            "corpus_size": len(records),
+            "notice": ("按标题与正文特征排序；excerpt 是命中片段而非全文，引用前必须 read_evidence 阅读原文。"
+                       "also_reported_by 是同一事件的其他记录，不构成独立核实。"
+                       "body_read=false 表示本篇正文尚未在本轮读取，excerpt 可能为空。"),
+        }
+
+    def _passage_excerpt(self, cached, record, query):
+        """The passages of one read article that match the question."""
+        from . import search_index
+        weights = search_index.query_weights(query)
+        if not weights or not cached.get("text"):
+            return ""
+        best, best_score = "", 0
+        for part in cached.get("passages", []):
+            tokens = search_index.frequencies(part["text"])
+            score = sum(weights.get(term, 0) for term in tokens)
+            if score > best_score:
+                best, best_score = part["text"], score
+        return best[:600]
+
+    @staticmethod
+    def _within_days(item, days):
+        if days is None:
+            return True
+        from .research import within_days
+        return within_days(item, days)
+
     def validate(self, name, arguments):
         definitions = [*tool_definitions(self.skill), *(self.delegation.definitions if self.delegation else [])]
         # A legacy name resolves to the tool that now serves it, so a stored run
@@ -616,9 +772,53 @@ class LocalTools:
                          "workflow": arguments.get("workflow", arguments["skill"])}
         check(arguments, definition["parameters"])
 
+    async def prefetch_evidence(self, ids, *, limit=4):
+        """Read likely sources before the model asks for them.
+
+        A stored article has its body in a one-hour process cache; after a
+        restart it does not, so the first ``read_evidence`` on it is a network
+        round trip. Batching those reads here, concurrently, turns four
+        sequential ten-second reads inside the model loop into one wait before
+        it. A failure is recorded as a gap for that source and does not fail the
+        batch — the model can still search and read others.
+        """
+        import asyncio
+        readable = [eid for eid in dict.fromkeys(ids)
+                    if (item := self.scoped_get("evidence", eid)) and self.evidence_allowed(item)]
+        if not readable:
+            return {"read": 0, "failed": 0}
+        slots = asyncio.Semaphore(max(1, limit))
+        read, failed = 0, 0
+
+        async def one(eid):
+            nonlocal read, failed
+            async with slots:
+                item = self.scoped_get("evidence", eid) or {}
+                if not (item.get("body_storage") == "transient" and not item.get("text")):
+                    return
+                if not self.allow_network:
+                    return
+                try:
+                    from .research import read_evidence_source
+                    await read_evidence_source(self.store, eid)
+                    read += 1
+                except Exception:
+                    failed += 1
+
+        await asyncio.gather(*(one(eid) for eid in readable), return_exceptions=True)
+        return {"read": read, "failed": failed}
+
     def available_tools(self):
         """Only advertise executable capabilities; guards still enforce scope."""
         excluded = set()
+        # The conversational path gets a narrow surface on purpose. Twenty-odd
+        # schemas cost tokens on every round, and a model choosing among them
+        # spends a round on orientation that code can do instead: the brief is
+        # already in its context. Reading, searching, structured data and the
+        # final submission are what a question actually needs.
+        conversational = self.skill not in NON_QUESTION_SKILLS
+        excluded.update({name for name in CONVERSATION_WITHHELD if name not in (self.run.get("tool_allowlist") or ())
+                         } if conversational else ())
         # An explicit allowlist means an internal orchestrator that already
         # declared exactly what it runs. It is the one caller that may have the
         # background photo tools, which are otherwise withheld because they are
@@ -863,7 +1063,17 @@ class LocalTools:
                 raise ToolError("报告标题和每节正文须为实质中文叙事，不能用英文原文或一行占位摘要冒充整理报告。")
         if len({fact["title"].strip() for fact in arguments["facts"]}) != len(arguments["facts"]):
             raise ToolError("请合并重复主题，每个事实主题只提交一次。")
-        if arguments["status"] == "complete" and not arguments["facts"] and not is_operation:
+        if arguments["status"] == "complete" and not arguments["facts"] and not is_operation and not is_report:
+            # A conversational answer carries its evidence at the top level.
+            # The old rule demanded a fact ledger for every answer, which is
+            # what made ordinary replies read like a filled-in form.
+            top_level = arguments.get("evidence_ids") or []
+            if not top_level:
+                raise ToolError("完成回答至少需要一项实际已读原文支持的事实；没有证据请提交 insufficient。")
+            if any(not isinstance(eid, str) or eid not in self.read_ids
+                   or not self.evidence_allowed(self.scoped_get("evidence", eid)) for eid in top_level):
+                raise ToolError("提交引用不属于本次实际已读取且仍在允许范围的证据。先读取对应原文，或删除无依据事实后重新提交。")
+        if arguments["status"] == "complete" and not arguments["facts"] and not is_operation and is_report:
             raise ToolError("完成回答至少需要一项实际已读原文支持的事实；没有证据请提交 insufficient。")
         if arguments["status"] == "insufficient":
             if arguments["facts"] or arguments["analysis"].strip():
@@ -878,6 +1088,14 @@ class LocalTools:
                 raise ToolError("资料不足时应当直接说明目前无法确认什么、缺少哪些证据，不能提交带引用的结论。" +
                                 ("请先补充 summary。" if is_report else "请在 answer 中说明。"))
         cited = []
+        # A conversational answer lists its sources once, at the top level; a
+        # report lists them per section. Both go through the same check, so a
+        # citation that was not read this round is refused either way.
+        for eid in arguments.get("evidence_ids") or []:
+            if eid not in self.read_ids or not self.evidence_allowed(self.scoped_get("evidence", eid)):
+                raise ToolError("提交引用不属于本次实际已读取且仍在允许范围的证据。先读取对应原文，或删除无依据事实后重新提交。")
+            if eid not in cited:
+                cited.append(eid)
         for fact in arguments["facts"]:
             for eid in fact["evidence_ids"]:
                 if eid not in self.read_ids or not self.evidence_allowed(self.scoped_get("evidence", eid)):
@@ -1114,39 +1332,7 @@ class LocalTools:
         if name == "get_team_data":
             return self.team_data_result()
         if name == "search_evidence":
-            from .events import ENTITY_ALIASES, contains, entities
-            from .research import article_categories, within_days, OPPONENT_ALIASES, TEAM_ALIASES
-            query, limit = arguments["query"], arguments.get("limit", 5)
-            terms = search_terms(query)
-            people = entities(query)
-            opponents = [group for group in OPPONENT_ALIASES if group != TEAM_ALIASES.get(self.team_id)
-                         and any(contains(query, alias) for alias in group)]
-            generic = not query.strip() or query.strip().lower() in {"最近变化", "球队近况", "有什么值得关注", "latest news", "news", "最近消息", "球队资料"}
-            scored = []
-            interest_terms = set().union(*(search_terms(value) for value in self.preferences["interests"])) if generic and self.preferences["interests"] else set()
-            for item in self.visible_evidence():
-                title, body = item.get("title", "").lower(), item.get("text", "").lower()
-                text = title + " " + body
-                if people and not any(any(contains(text, alias) for alias in ENTITY_ALIASES[key]) for key in people):
-                    continue
-                if any(not any(contains(text, alias) for alias in group) for group in opponents):
-                    continue
-                if not within_days(item, arguments.get("max_age_days")):
-                    continue
-                if arguments.get("category", "all") != "all" and arguments["category"] not in article_categories(item):
-                    continue
-                score = sum(3 * (term in title) + (term in body) for term in terms)
-                if generic:
-                    score += sum(2 * (term in title) + (term in body) for term in interest_terms)
-                if generic or score:
-                    scored.append((score, item.get("published_at") or item.get("fetched_at") or "", item))
-            scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
-            return {"results": [{"id": item["id"], "title": item.get("title"), "excerpt": item.get("text", "")[:300],
-                                 "source_name": item.get("source_name"), "published_at": item.get("published_at"), "fetched_at": item.get("fetched_at"),
-                                 "url": item.get("url"), "categories": article_categories(item),
-                                 "spoiler_redacted": bool(item.get("spoiler_redacted")), "redaction_note": item.get("redaction_note")}
-                                for _, _, item in scored[:limit]], "matched_count": len(scored),
-                    "notice": "片段只供检索；引用前必须 read_evidence 阅读原文。"}
+            return self.search_evidence(arguments)
         if name == "read_evidence":
             item = self.evidence_view(self.scoped_get("evidence", arguments["evidence_id"]))
             if not item:
@@ -1326,6 +1512,14 @@ class LocalTools:
             return self.call(name, arguments)
         if name not in {"discover_news", "read_article", "refresh_team_sources", "research_news"}:
             return self.call(name, arguments)
+        if (name != "read_article" and self.collection_budget is not None
+                and self.network_queries >= self.collection_budget):
+            # Not an error: the model is told what to do next. Raising here made
+            # providers retry the same call; a tool result that says "answer with
+            # what you have" is the instruction that actually ends the loop.
+            return {"evidence_ids": [], "errors": [], "stopped": True,
+                    "notice": ("本轮联网检索已用完（上限 %d 次）。请基于已读原文作答；"
+                               "确有缺口就在答复里说明缺什么，不要再检索。" % self.collection_budget)}
         self.network_guard()
         from . import research
         if name in {"discover_news", "refresh_team_sources", "research_news"}:

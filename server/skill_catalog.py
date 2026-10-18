@@ -114,6 +114,32 @@ TOPICS = {
         "news-writing": {"path": "references/news-writing.md",
                          "description": "新闻写作：围绕一个事件写连贯正稿。"},
     },
+    # The question tree. Registered for the same reason the other three are: a
+    # direction that exists only as a Markdown link is a direction the model
+    # cannot ask for by name, and the tool description is generated from this
+    # table so adding one here is the whole change.
+    "football-assistant": {
+        "directions": {"path": "references/directions.md",
+                       "description": "问答方向的索引与共同边界；先看它确认走哪一条。"},
+        "match.preview": {"path": "references/preview.md",
+                          "description": "赛前观察：只用开球前资料，区分待评估与正式首发。"},
+        "match.review": {"path": "references/review.md",
+                         "description": "赛后复盘：只用本场已授权资料，不用结果倒推过程。"},
+        "transfer.status": {"path": "references/transfer.md",
+                            "description": "转会说法：区分兴趣、谈判、协议与公告，核对转载时间。"},
+        "injury": {"path": "references/injury.md",
+                   "description": "伤情与缺阵：区分确定缺阵、出战成疑、恢复训练、进名单与正式首发。"},
+        "tactics.explain": {"path": "references/tactics.md",
+                            "description": "战术解读：把原文的打法描述讲清楚，已报道细节与观察假设分开。"},
+        "team.state": {"path": "references/team-state.md",
+                       "description": "球队现状：阵容现状、球员定位与近期表现，不从数据反推首发。"},
+        "team.form": {"path": "references/team-form.md",
+                      "description": "战绩与走势：从比赛记录算胜负、积分、连胜连败与零封，标明样本范围。"},
+        "event.watch": {"path": "references/event.md",
+                        "description": "事件跟进：对照新旧证据确认进展，更新下一场的观察前提。"},
+        "answer.writing": {"path": "references/answer-writing.md",
+                           "description": "答复写法：结论在前、形式服从问题、不写过程叙述。"},
+    },
 }
 
 # Fixed spawn order for the panel workflow. Charts stay last: they read schedule

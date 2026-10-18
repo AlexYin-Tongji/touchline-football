@@ -154,6 +154,7 @@ class SettingsPatch(Model):
     reports: ReportSettings | None = None
     network: NetworkSettings | None = None
     verification_enabled: bool | None = None
+    conversation_verification: bool | None = None
     verification_timeout_seconds: int | None = Field(None, ge=10, le=90)
 
 
