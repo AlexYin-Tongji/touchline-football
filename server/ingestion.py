@@ -576,12 +576,41 @@ def safe_image_url(value, source_url):
         return None
 
 
-def image_identity(url):
-    """Identify the same publisher asset across known resizing/cropping URLs.
+# A publisher's picture is one asset with one identifier. Everything else in
+# the URL — which CDN edge, which crop, which generated width — is presentation,
+# and two addresses that differ only there are the same photograph. Each host
+# keeps its identifier somewhere different, so each needs its own rule; without
+# them one photo reaches the card twice, and the card lays itself out as a
+# two-column grid of the same picture.
+def _asset_key(host, path, query):
+    """The publisher's own name for the picture, or None for hosts not listed."""
+    if host.endswith(".espncdn.com") or host == "espncdn.com":
+        # ESPN serves one picture as /photo/<id>/<file>.jpg and again through a
+        # resizing proxy whose real path is URL-encoded inside ?img=. The
+        # combiner's own path (/combiner/i) says nothing about the picture, so
+        # only the decoded target is usable.
+        match = re.search(r"(?:^|[?&])img=([^&]+)", query)
+        target = unquote(match.group(1)).lstrip("/") if match else path.lstrip("/")
+        if not re.search(r"\.(?:jpe?g|png|webp)$", target, re.I):
+            return None
+        target = re.sub(r"^photo/", "", target)
+        return "asset:" + re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")
+    if host.endswith(".bbci.co.uk") or host == "bbci.co.uk":
+        # The UUID names the asset; /branded_sport/1200/ and /standard/1024/
+        # are renditions of it.
+        match = re.search(r"/live/([0-9a-f-]{16,})\.", path, re.I)
+        # A BBC address without a UUID must not fall through to the generic
+        # rule: that rule strips /standard/1024/ as a size token, which would
+        # collapse two different BBC photographs into one identity.
+        return "asset:" + (match.group(1).lower() if match else "url:" + path.lower())
+    if host.endswith(".metro.co.uk") or host == "metro.co.uk":
+        # WordPress keeps the upload name and appends only a rendition suffix
+        # before the extension: Daniel-Farke-798b_1792180371.jpg.
+        stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        return "metro:" + re.sub(r"_\d{6,}$", "", stem).lower() if stem else None
+    return None
 
-    Unknown query parameters remain part of the identity: some CDNs use an id
-    or source URL in the query to select entirely different photographs.
-    """
+
 def image_identity(url):
     """Identify the same publisher asset across known resizing/cropping URLs.
 
@@ -590,6 +619,9 @@ def image_identity(url):
     """
     parts = urlsplit(str(url or ""))
     host = (parts.hostname or "").lower()
+    key = _asset_key(host, parts.path, parts.query)
+    if key:
+        return key
     if host == "guim.co.uk" or host.endswith(".guim.co.uk"):
         match = re.search(r"/img/media/([a-f0-9]{20,64})/", parts.path, re.I)
         if match:
