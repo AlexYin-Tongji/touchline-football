@@ -1,0 +1,171 @@
+/* 开场封面
+   是全屏的独立层，不参与应用布局。背景用墨绿而不是纯黑：与球队页
+   hero 同色，进入应用时不会出现一次色温跳变。 */
+
+.cover {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-7);
+  overflow: hidden;
+  background: var(--ink);
+  color: #f0ede3;
+  opacity: 1;
+  transition: opacity 240ms var(--ease-out, ease);
+}
+.cover.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 静止的径向光斑，替代图片素材。
+   用两团低透明度暖光把视线收到标题上，不抢文字。 */
+.cover-art {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(46% 42% at 74% 18%, #3d5247 0%, transparent 68%),
+    radial-gradient(38% 36% at 16% 84%, #2e4136 0%, transparent 72%);
+  pointer-events: none;
+}
+
+.cover-inner {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.cover-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: var(--sp-8);
+}
+.cover-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid #ffffff2e;
+  color: #f0ede3;
+  align-self: center;
+}
+.cover-name {
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #fff;
+}
+.cover-latin {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  color: #a9a69c;
+}
+
+.cover-title {
+  margin: 0 0 var(--sp-5);
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 6vw, 62px);
+  font-weight: 600;
+  line-height: 1.22;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.cover-lead {
+  margin: 0 0 var(--sp-7);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-read);
+  color: #c8c5ba;
+}
+
+.cover-enter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: var(--radius);
+  background: #f0ede3;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 200ms var(--ease-out, ease),
+    box-shadow 200ms var(--ease-out, ease);
+  box-shadow: 0 10px 26px #00000033;
+}
+.cover-enter:hover {
+  background: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px #00000040;
+}
+.cover-enter:active {
+  transform: translateY(0);
+}
+/* 打开页面时浏览器会把焦点交给自动聚焦的按钮，默认焦点环会叠在
+   按钮自己的边框上，看起来像两层描边。用内描边把两者合成一层。 */
+.cover-enter:focus-visible {
+  outline: 2px solid #f0ede3;
+  outline-offset: -6px;
+}
+.cover-enter > svg {
+  transition: transform 200ms var(--ease-out, ease);
+}
+.cover-enter:hover > svg {
+  transform: translateX(3px);
+}
+
+.cover-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: var(--sp-7) 0 0;
+  font-size: var(--fs-caption);
+  color: #8f958b;
+}
+.cover-version {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 760px) {
+  .cover {
+    padding: var(--sp-6);
+  }
+  .cover-brand {
+    margin-bottom: var(--sp-7);
+  }
+  .cover-title {
+    font-size: 40px;
+  }
+  .cover-lead {
+    font-size: var(--fs-read);
+  }
+  .cover-enter {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover,
+  .cover-enter,
+  .cover-enter > svg {
+    transition-duration: 0.01ms;
+  }
+}

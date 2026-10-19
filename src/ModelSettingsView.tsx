@@ -20,7 +20,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { api, errorText, post, put } from "./api";
-import { NetworkVerdictNotice, Spinner } from "./components";
+import { NetworkVerdictNotice, Spinner } from "./ui";
 import type { NetworkDiagnostics } from "./types";
 
 /**
@@ -211,7 +211,7 @@ export const ModelSettings = memo(function ModelSettings({
           <p>
             {activeProvider
               ? `${activeProvider.name} · ${activeProvider.base_url}`
-              : "添加一个服务商，选一个模型，所有功能都用它。"}
+              : "还没有连接模型服务商。"}
           </p>
         </div>
         {activeModel && activeProvider && (
@@ -225,10 +225,10 @@ export const ModelSettings = memo(function ModelSettings({
       <nav className="settings-tabs" aria-label="配置分类">
         {(
           [
-            { id: "model" as const, label: "大模型", short: "模型", icon: Server },
-            { id: "api" as const, label: "API 参数", short: "参数", icon: Plug },
-            { id: "server" as const, label: "端口与数据", short: "端口", icon: Database },
-            { id: "sources" as const, label: "数据来源", short: "来源", icon: Globe },
+            { id: "model" as const, label: "模型", short: "模型", icon: Server },
+            { id: "api" as const, label: "参数", short: "参数", icon: Plug },
+            { id: "server" as const, label: "运行", short: "运行", icon: Database },
+            { id: "sources" as const, label: "数据源", short: "数据", icon: Globe },
           ] as const
         ).map((item) => (
           <button

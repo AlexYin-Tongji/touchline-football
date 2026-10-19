@@ -1,0 +1,734 @@
+/* ============================================================================
+   看台 · 问助手
+
+   对话正文收窄到 860px 好读，但标题左沿必须与动态、球队两页对齐。
+   输入框跟在内容之后随文档增长，不做吸底——页面只比视口高一点时，
+   吸底输入框会直接压住技能卡片。
+   ========================================================================= */
+
+.assistant-page {
+  display: flex;
+  flex-direction: column;
+}
+.chat-page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: var(--reading-max);
+  margin: 0 auto var(--sp-4);
+}
+.chat-page-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-h1);
+  margin: 0;
+}
+.chat-top-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.history-toggle {
+  gap: 6px;
+}
+.assistant-body {
+  width: 100%;
+  max-width: var(--reading-max);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 会话说明条：一行副信息，不抢标题 */
+.conversation-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  border-bottom: var(--rule);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+.conversation-context > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+/* 继续上次对话 */
+.resume-conversation {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-radius: var(--radius);
+  border: var(--rule);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.resume-conversation > svg {
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.resume-conversation > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.resume-conversation small {
+  font-size: var(--fs-caption);
+  color: var(--faint);
+}
+.resume-conversation strong {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 模型未配置 / 已移除：普通提示条，不用错误红。
+   这不是故障，是还没完成的一步设置。 */
+.model-connect,
+.model-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.model-connect > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.model-connect > span svg {
+  color: var(--red);
+}
+.model-connect > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: var(--fw-semibold);
+  color: var(--red);
+  white-space: nowrap;
+}
+.model-connect > button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.model-recovery {
+  flex-direction: column;
+  align-items: flex-start;
+  border-left: 3px solid var(--amber);
+  background: var(--amber-wash);
+  color: var(--ink-soft);
+}
+.model-recovery strong {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.model-recovery p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+}
+.model-recovery .button {
+  margin-top: var(--sp-2);
+}
+
+/* ---------------------------------------------------------------------------
+   对话
+   ------------------------------------------------------------------------ */
+.conversation {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--sp-2);
+}
+
+/* 欢迎页 */
+.assistant-welcome {
+  padding: var(--sp-6) 0 var(--sp-10);
+  text-align: center;
+}
+.welcome-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--sp-4);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+}
+.assistant-welcome h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h1);
+  line-height: 1.35;
+  margin: 0 0 var(--sp-2);
+  color: var(--ink);
+}
+.assistant-welcome > p {
+  margin: 0 auto var(--sp-6);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  color: var(--muted);
+  max-width: 44ch;
+}
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: left;
+}
+.skill-grid > button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3);
+  min-width: 0;
+  text-align: left;
+  border: var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.skill-grid > button:hover {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+.skill-grid > button.selected {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.skill-grid > button > div {
+  flex: 1;
+  min-width: 0;
+}
+.skill-grid strong {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+.skill-grid small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-ui);
+  color: var(--muted);
+}
+.skill-grid > button > svg {
+  color: var(--line-strong);
+  flex-shrink: 0;
+  transition: color var(--dur-fast), transform var(--dur-fast);
+}
+.skill-grid > button:hover > svg {
+  color: var(--red);
+  transform: translateX(2px);
+}
+.skill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: background var(--dur-base), color var(--dur-base);
+}
+.skill-grid > button:hover .skill-icon,
+.skill-grid > button.selected .skill-icon {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* 一轮对话 */
+.conversation-turn {
+  margin: 0 0 var(--sp-8);
+  animation: turn-in 0.3s var(--ease-out) backwards;
+}
+@keyframes turn-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.user-bubble {
+  margin: 0 0 var(--sp-4) auto;
+  width: fit-content;
+  max-width: 82%;
+  padding: 10px var(--sp-4);
+  border-radius: var(--radius-card) var(--radius-card) var(--radius-xs) var(--radius-card);
+  background: var(--ink);
+  color: #efece3;
+  font-size: var(--fs-body);
+  line-height: var(--lh-read);
+  box-shadow: var(--shadow-1);
+}
+.assistant-answer {
+  min-width: 0;
+}
+.answer-byline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  flex-wrap: wrap;
+}
+.answer-byline > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+.answer-byline strong {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+.answer-byline small {
+  font-size: var(--fs-caption);
+  color: var(--faint);
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--paper-sunk);
+}
+.assistant-answer .markdown {
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  color: var(--ink-soft);
+}
+.answer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--line);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  flex-wrap: wrap;
+}
+.answer-footer .text-button {
+  font-size: var(--fs-meta);
+}
+
+/* 思考中 */
+.thinking-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: var(--lh-ui);
+}
+.thinking-status > div {
+  min-width: 0;
+}
+.thinking-status small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  line-height: var(--lh-ui);
+}
+.thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+  padding-top: 7px;
+  flex-shrink: 0;
+}
+.thinking-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: thinking 1.4s ease-in-out infinite;
+}
+.thinking-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.thinking-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes thinking {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* 过程详情 */
+.answer-process {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
+}
+.answer-process > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.answer-process > summary::-webkit-details-marker {
+  display: none;
+}
+.answer-process > summary span {
+  color: var(--faint);
+}
+.answer-process > summary svg:last-child {
+  margin-left: auto;
+  transition: transform var(--dur-fast);
+}
+.answer-process[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+.answer-process ol {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+.answer-process li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.answer-process li small {
+  margin-left: auto;
+  color: var(--faint);
+}
+.step-failed,
+.step-error {
+  color: var(--amber);
+}
+
+/* ---------------------------------------------------------------------------
+   输入区
+   ------------------------------------------------------------------------ */
+.composer-area {
+  flex-shrink: 0;
+  padding: var(--sp-3) 0 var(--sp-4);
+  background: var(--paper);
+}
+.composer {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-2), var(--inset-hi);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base) var(--ease-out);
+}
+.composer:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px #a8232f14, var(--shadow-2), var(--inset-hi);
+}
+.composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 58px;
+  max-height: 220px;
+  padding: var(--sp-3) var(--sp-4);
+  border: 0;
+  background: none;
+  font-size: var(--fs-read);
+  line-height: var(--lh-ui);
+  resize: none;
+  outline: none;
+}
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-top: var(--rule);
+  background: #fbfaf7;
+}
+.composer-context {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: 0 0 var(--sp-2);
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.composer-context > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-note {
+  margin: var(--sp-2) 2px 0;
+  font-size: var(--fs-caption);
+  color: var(--faint);
+  line-height: 1.6;
+}
+.send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-1), inset 0 1px 0 #ffffff1f;
+  transition: background var(--dur-fast), transform var(--dur-base) var(--ease-spring);
+}
+.send-button:hover:not(:disabled) {
+  background: var(--red);
+  transform: scale(1.05);
+}
+.send-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.send-button:disabled {
+  background: var(--line-strong);
+  box-shadow: none;
+}
+.send-button.stop {
+  background: var(--red);
+}
+.send-button.stop:hover:not(:disabled) {
+  background: var(--red-deep);
+}
+
+/* 模型选择菜单 */
+.chat-model-picker {
+  position: relative;
+}
+.chat-model-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 236px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: var(--radius-card);
+  border: var(--rule);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  z-index: 20;
+}
+.chat-model-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  text-align: left;
+}
+.chat-model-menu button:hover {
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+.chat-model-menu button > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.chat-model-menu button small {
+  font-size: var(--fs-caption);
+  color: var(--faint);
+}
+.chat-model-menu .manage-models {
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------------------------------------------------------------------------
+   对话记录
+   ------------------------------------------------------------------------ */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+}
+.history-intro {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: var(--lh-read);
+}
+.chat-history > button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-2);
+  text-align: left;
+  border-bottom: var(--rule);
+  font-size: var(--fs-body);
+  color: var(--muted);
+  border-radius: 0;
+}
+.chat-history > button:hover:not(:disabled) {
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+.chat-history > button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.chat-history strong {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-history small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+.history-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--faint);
+}
+.button.history-more {
+  align-self: center;
+  margin-top: var(--sp-5);
+  min-width: 140px;
+}
+.conversation-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-caption);
+  background: var(--paper-sunk);
+  color: var(--muted);
+}
+.conversation-status.status-running,
+.conversation-status.status-queued {
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+.conversation-status.status-failed {
+  background: var(--red-wash);
+  color: var(--red);
+}
+
+/* ---------------------------------------------------------------------------
+   窄屏
+   ------------------------------------------------------------------------ */
+@media (max-width: 760px) {
+  .chat-page-heading h1 {
+    font-size: var(--fs-h2);
+  }
+  .chat-top-actions .button {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: var(--fs-meta);
+  }
+  .skill-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .assistant-welcome h2 {
+    font-size: var(--fs-h2);
+  }
+  .assistant-welcome > p {
+    font-size: var(--fs-body);
+  }
+  .user-bubble {
+    max-width: 100%;
+  }
+  .conversation-context > span:last-child {
+    display: none;
+  }
+  .composer-note {
+    display: none;
+  }
+  .answer-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .reader-assistant form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .reader-assistant form .dark-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

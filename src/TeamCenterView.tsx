@@ -16,12 +16,12 @@ import {
 } from "lucide-react";
 import { api, errorText } from "./api";
 import { DecisionHistory } from "./DecisionHistory";
-import { TeamHeroActions } from "./teamPanel";
-import { Crest, Modal, safeUrl, Spinner } from "./components";
+import { TeamHeroActions } from "./TeamActions";
+import { Crest, Modal, safeUrl, Spinner } from "./ui";
 import { findClub } from "./clubCatalog";
-import { Sources, friendlyTime, type SourceLink } from "./v7Shared";
+import { Sources, friendlyTime, type SourceLink } from "./shared";
 import type { AppState, Team } from "./types";
-import type { AssistantPrompt } from "./v7Assistant";
+import type { AssistantPrompt } from "./AssistantView";
 
 interface Player {
   id: string;
@@ -239,58 +239,6 @@ const daysUntil = (value?: string | null) => {
   return Math.ceil((date.getTime() - Date.now()) / 86400000);
 };
 
-// 指针倾斜：直接写 style.transform，不走 state，所以鼠标划过不会触发渲染。
-// 用 rAF 合并同一帧内的多次 pointermove；只在细指针设备上启用，触屏保持静止。
-function useTilt<T extends HTMLElement>(max = 4.5) {
-  const ref = useRef<T | null>(null);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (typeof window.matchMedia !== "function") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    let frame = 0;
-    let x = 0;
-    let y = 0;
-    let px = 50;
-    let py = 0;
-    const apply = () => {
-      frame = 0;
-      node.style.transform = `rotateX(${y.toFixed(2)}deg) rotateY(${x.toFixed(2)}deg)`;
-      node.style.setProperty("--glare-x", `${px.toFixed(1)}%`);
-      node.style.setProperty("--glare-y", `${py.toFixed(1)}%`);
-    };
-    const move = (event: PointerEvent) => {
-      const box = node.getBoundingClientRect();
-      if (!box.width || !box.height) return;
-      const fx = (event.clientX - box.left) / box.width;
-      const fy = (event.clientY - box.top) / box.height;
-      // 以中心为原点归一化到 [-1, 1]，再乘上限角度
-      x = (fx - 0.5) * 2 * max;
-      y = -(fy - 0.5) * 2 * max;
-      px = fx * 100;
-      py = fy * 100;
-      if (!frame) frame = requestAnimationFrame(apply);
-    };
-    const leave = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = 0;
-      node.style.transform = "";
-      node.style.removeProperty("--glare-x");
-      node.style.removeProperty("--glare-y");
-    };
-    node.addEventListener("pointermove", move);
-    node.addEventListener("pointerleave", leave);
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      node.removeEventListener("pointermove", move);
-      node.removeEventListener("pointerleave", leave);
-      node.style.transform = "";
-    };
-  }, [max]);
-  return ref;
-}
-
 export const TeamCenter = memo(function TeamCenter({
   team,
   data,
@@ -312,7 +260,6 @@ export const TeamCenter = memo(function TeamCenter({
   const [revealedTeam, setRevealedTeam] = useState<string | null>(null);
   const [fillOpen, setFillOpen] = useState(false);
   const reveal = revealedTeam === team.id;
-  const heroRef = useTilt<HTMLElement>();
   const active = useRef(team.id);
   active.current = team.id;
   const request = useRef(0);
@@ -402,7 +349,19 @@ export const TeamCenter = memo(function TeamCenter({
         ? (b.kickoff || "").localeCompare(a.kickoff || "")
         : (a.kickoff || "").localeCompare(b.kickoff || ""),
     );
-  const normalizeName = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+  /** Chart labels sit ten to a row, so an opponent is written the way a fan
+ *  would write it in a table: the club's short name when the catalogue has
+ *  one, otherwise the first four characters of the Chinese name. */
+function clubShortName(value?: string | null) {
+  if (!value) return "";
+  const club = findClub(value);
+  const short = club?.short_name?.trim();
+  if (short) return short;
+  const name = club?.name || value;
+  return name.length > 4 ? name.slice(0, 4) : name;
+}
+
+const normalizeName = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
   const query = normalizeName(playerQuery);
   const roster = (center?.roster || []).filter((item) =>
     (!position || item.position_group === position) &&
@@ -448,13 +407,12 @@ export const TeamCenter = memo(function TeamCenter({
   const capacity = (center?.team as { stadium_capacity?: number } | undefined)?.stadium_capacity ?? (profile as { stadium_capacity?: number }).stadium_capacity;
   return (
     <div className="team-center">
-      <section className="club-hero" ref={heroRef}>
+      <section className="club-hero">
         <div className="club-hero-art" aria-hidden="true">
           <i />
           <b />
           <span />
         </div>
-        <div className="club-hero-glare" aria-hidden="true" />
         <div className="club-hero-content">
           <div className="club-hero-crest">
             <Crest team={profile} />
@@ -499,8 +457,10 @@ export const TeamCenter = memo(function TeamCenter({
           onToggleFill={() => setFillOpen((value) => !value)}
         />
       </section>
-      {center?.preparation?.status === "running" && (
-        <div className="material-status" role="status"><Spinner /> 正在准备这支球队的名单、照片和比赛资料。</div>
+      {(!center || (!center.roster.length && !center.matches.length)) && (
+        <div className="material-status" role="status">
+          <Spinner text="正在准备球队的名单、照片与比赛资料" />
+        </div>
       )}
       <div className="center-toolbar">
         <div className="filter-tabs">
@@ -530,7 +490,7 @@ export const TeamCenter = memo(function TeamCenter({
           )}
         </div>
       </div>
-      {center && (
+      {center && !center.roster.length && !center.matches.length && (
         <div className="material-status" aria-label="球队资料收录情况">
           <span>
             <Users size={13} /> {center.roster.length} 名已收录球员
@@ -576,7 +536,6 @@ export const TeamCenter = memo(function TeamCenter({
           <section className="panel club-identity">
             <div className="section-heading">
               <h2>球队资料</h2>
-              <Shield size={18} />
             </div>
             <div className="identity-grid">
               {[
@@ -822,7 +781,10 @@ export const TeamCenter = memo(function TeamCenter({
                               <span>{item.goals_against}</span>
                             </div>
                           </div>
-                          <span className="goal-chart-label">{item.label}</span>
+                          <span className="goal-chart-label" title={item.label}>
+                            {clubShortName(item.label)}
+                            <small>{item.date ? String(item.date).slice(5, 10) : ""}</small>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -949,8 +911,8 @@ export const TeamCenter = memo(function TeamCenter({
               <Sparkles size={22} />
             </span>
             <div>
-              <strong>需要解读时再问助手</strong>
-              <p>球队栏主路径是上方「更新 / 补全」，不是聊天。</p>
+              <strong>让助手把这组数据讲给你听</strong>
+              <p>结合本季表现，说说优势在哪、哪里需要补强。</p>
             </div>
             <ArrowRight size={20} />
           </button>
@@ -966,10 +928,12 @@ export const TeamCenter = memo(function TeamCenter({
                 {center?.roster.length || 0} 名球员
               </p>
               {center?.roster_fallback && (
-                <p>当前为 {center?.roster_season?.label} 赛季名单；{center?.latest_season?.label} 赛季球队目录尚未齐全。</p>
+                <p>
+                  当前为 {center?.roster_season?.label} 赛季名单；
+                  {center?.latest_season?.label} 赛季球队目录尚未齐全。
+                </p>
               )}
             </div>
-            <Users size={21} />
           </div>
           <label className="player-search">
             <Search size={17} aria-hidden="true" />
@@ -1051,7 +1015,6 @@ export const TeamCenter = memo(function TeamCenter({
               <h2>{matchTab === "recent" ? "已完成比赛" : "未来比赛"}</h2>
               <p>{center?.season?.label || "当前赛季"} · 北京时间</p>
             </div>
-            <CalendarDays size={20} />
           </div>
           <div className="filter-tabs">
             <button
@@ -1308,9 +1271,14 @@ function Standouts({ boards, onOpen }: { boards?: Record<string, Standout[]>; on
                         <PlayerPhoto player={item as unknown as Player} />
                       </span>
                       <span className="standout-name">
-                        <strong>{item.name}</strong>
-                        {item.name_zh && <small>{item.name_zh}</small>}
-                        {item.position && <em>{item.position}</em>}
+                        <strong>{item.name_zh || item.name}</strong>
+                        {(item.name_zh || item.position) && (
+                          <small>
+                            {[item.name_zh ? item.name : "", item.position]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        )}
                       </span>
                       <span className="standout-value">
                         <strong>{item.value}</strong>
@@ -1382,18 +1350,18 @@ function FixtureRow({
           <Crest team={opponent} name={match.opponent} small />
           <div className="fixture-opponent">
             <strong>{opponent?.name || match.opponent}</strong>
-            <small>{match.venue === "home" ? "主场作战" : match.venue === "away" ? "客场作战" : "场地待定"}</small>
+            {match.competition && <small>{match.competition}</small>}
           </div>
-          <span className={`match-score ${match.result ? `result-text-${match.result}` : ""}`}>
-            {match.goals_for != null && match.goals_against != null && !match.spoiler_hidden
-              ? `${match.goals_for} : ${match.goals_against}`
-              : match.spoiler_hidden
+          {(match.spoiler_hidden ||
+            (match.goals_for != null && match.goals_against != null)) && (
+            <span className={`match-score ${match.result ? `result-text-${match.result}` : ""}`}>
+              {match.spoiler_hidden
                 ? "已隐藏"
-                : "VS"}
-          </span>
+                : `${match.goals_for} : ${match.goals_against}`}
+            </span>
+          )}
         </div>
         <div className="fixture-meta">
-          {match.competition && <span className="fixture-competition">{match.competition}</span>}
           {countdownText && <span className="fixture-countdown">{countdownText}</span>}
           {match.kickoff_confirmed === false && <span className="fixture-tentative">开球时间待确认</span>}
         </div>

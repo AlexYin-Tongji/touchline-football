@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Play, Square } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { friendlyTime } from "./v7Shared";
+import { friendlyTime } from "./shared";
 import type { WorkflowState } from "./WorkflowControls";
 
 export type SkillId =
@@ -377,12 +377,14 @@ export function TeamHeroActions({
         </small>
         {error && <p className="team-fill-error" role="alert">{error}</p>}
       </div>
-      <TeamCompletionBar
-        rows={rows}
-        open={fillOpen || running}
-        onToggle={onToggleFill}
-        summary={summary}
-      />
+      {(fillOpen || running) && (
+        <TeamCompletionBar
+          rows={rows}
+          open
+          onToggle={onToggleFill}
+          summary={summary}
+        />
+      )}
     </>
   );
 }

@@ -15,17 +15,17 @@ import {
   X,
 } from "lucide-react";
 import { api, errorText, put } from "./api";
-import { Crest, Modal, Spinner } from "./components";
+import { Crest, Modal, Spinner } from "./ui";
 import { findClubById } from "./clubCatalog";
-import { FeedView } from "./v7Feed";
+import { FeedView } from "./FeedView";
 import { loadView, RecoverableView } from "./RecoverableView";
-import type { AssistantPrompt } from "./v7Assistant";
+import type { AssistantPrompt } from "./AssistantView";
 import type { AppState, Team } from "./types";
 
 type Page = "feed" | "team" | "assistant";
-const TeamCenter = lazy(() => loadView(() => import("./v7TeamCenter").then((module) => ({ default: module.TeamCenter }))));
-const Assistant = lazy(() => loadView(() => import("./v7Assistant").then((module) => ({ default: module.Assistant }))));
-const ModelSettings = lazy(() => loadView(() => import("./v7ModelSettings").then((module) => ({ default: module.ModelSettings }))));
+const TeamCenter = lazy(() => loadView(() => import("./TeamCenterView").then((module) => ({ default: module.TeamCenter }))));
+const Assistant = lazy(() => loadView(() => import("./AssistantView").then((module) => ({ default: module.Assistant }))));
+const ModelSettings = lazy(() => loadView(() => import("./ModelSettingsView").then((module) => ({ default: module.ModelSettings }))));
 const navigation = [
   { id: "feed" as const, label: "动态", icon: Newspaper },
   { id: "team" as const, label: "球队", icon: Shield },
@@ -206,7 +206,7 @@ export default function App() {
   }, [load]);
   useEffect(() => {
     const warm = () => {
-      void import("./v7ModelSettings").catch(() => undefined);
+      void import("./ModelSettingsView").catch(() => undefined);
     };
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(warm, { timeout: 1500 });
@@ -250,14 +250,13 @@ export default function App() {
           ))}
         </nav>
         <div className="header-end">
-          <span className="personal-label">我的足球主场</span>
           <button
             className="icon-button"
-            aria-label="模型配置"
-            title="模型配置"
+            aria-label="设置"
+            title="设置"
             onClick={openSettings}
           >
-            <Settings2 size={20} />
+            <Settings2 size={19} />
           </button>
         </div>
       </header>
@@ -303,17 +302,6 @@ export default function App() {
             发现更多球队
             <ArrowRight size={14} />
           </button>
-          <div className="rail-bottom">
-            <span className="mini-pitch" aria-hidden="true">
-              <i />
-            </span>
-            <p>
-              一支球队，
-              <br />
-              不止九十分钟。
-            </p>
-            <small>英超 · 西甲 · 德甲 · 意甲 · 法甲</small>
-          </div>
         </aside>
         <main className={`main-content page-${page}`}>
           {data && team && (
@@ -391,15 +379,16 @@ export default function App() {
             </>
           ) : (
             <div className="empty-state">
-              <Shield />
+              <span className="empty-icon">
+                <Shield size={24} />
+              </span>
               <h2>找到你的球队</h2>
               <p>选择一支球队，开始阅读动态、了解球员和比赛。</p>
-              <button
-                className="button primary"
-                onClick={openPicker}
-              >
-                选择球队
-              </button>
+              <div className="empty-action">
+                <button className="button primary" onClick={openPicker}>
+                  选择球队
+                </button>
+              </div>
             </div>
           )}
         </main>
@@ -416,7 +405,7 @@ export default function App() {
         />
       )}
       {settings && (
-        <Modal title="配置" onClose={closeSettings} wide>
+        <Modal title="设置" onClose={closeSettings} wide className="settings-modal">
           <RecoverableView label="配置">
           <Suspense fallback={<Spinner text="正在打开配置" />}>
             <ModelSettings onChanged={refreshModels} notify={setNotice} />
@@ -425,15 +414,15 @@ export default function App() {
         </Modal>
       )}
       {notice && (
-        <div className="toast" role="status">
-          <Check size={16} />
-          {notice}
+        <div className="toast" role="status" aria-live="polite">
+          <Check size={15} />
+          <span>{notice}</span>
           <button
             className="icon-button"
             aria-label="关闭通知"
             onClick={() => setNotice("")}
           >
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
       )}
@@ -620,7 +609,7 @@ const TeamPicker = memo(function TeamPicker({
     <Modal title="关注与发现球队" onClose={onClose} wide>
       <div className="team-picker">
         <p className="picker-intro">
-          关注多支球队，把喜欢的俱乐部放进你的主场。点击球队可切换查看。
+          关注后，球队会出现在左侧列表。点队名即可切换查看。
         </p>
         <label className="search-input">
           <Search size={18} />
@@ -632,29 +621,34 @@ const TeamPicker = memo(function TeamPicker({
             placeholder="搜索球队、城市或英文名"
           />
         </label>
-        <div className="filter-tabs">
+        <div className="filter-row" role="group" aria-label="按联赛筛选">
           <button
             className={onlyFollowing ? "active" : ""}
             aria-pressed={onlyFollowing}
             onClick={() => setOnlyFollowing(!onlyFollowing)}
           >
-            <Star size={13} /> 已关注 {followed.length}
+            <Star size={12} /> 已关注 {followed.length}
           </button>
           <button
-            className={!country ? "active" : ""}
+            className={!country && !onlyFollowing ? "active" : ""}
+            aria-pressed={!country && !onlyFollowing}
             onClick={() => {
               setCountry("");
               setOnlyFollowing(false);
             }}
           >
-            全部球队
+            全部
           </button>
           {pickerLeagues.map((item) => (
             <button
               key={item.id}
               className={country === item.id ? "active" : ""}
+              aria-pressed={country === item.id}
               disabled={!leagueTeams[item.id]}
-              onClick={() => setCountry(item.id)}
+              onClick={() => {
+                setCountry(item.id);
+                setOnlyFollowing(false);
+              }}
             >
               {item.name}
             </button>
@@ -682,8 +676,10 @@ const TeamPicker = memo(function TeamPicker({
           ))}
         </div>
         {!results.length && (
-          <div className="empty-state">
-            <Search />
+          <div className="empty-state compact">
+            <span className="empty-icon">
+              <Search size={20} />
+            </span>
             <h3>没有找到这支球队</h3>
             <p>试试中文名、英文名或常用简称。</p>
           </div>

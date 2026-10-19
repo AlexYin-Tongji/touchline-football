@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, Square } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { NetworkVerdictNotice, SourceGapNotice } from "./components";
+import { NetworkVerdictNotice, SourceGapNotice } from "./ui";
 import type { NetworkDiagnostics, SourceGap } from "./types";
 
 export interface WorkflowState {
@@ -188,12 +188,30 @@ export function WorkflowControls({ kind, teamId, onChange, onConfigure }: {
   const sourceErrors = current && current.status !== "idle" && current.status !== "stopped"
     ? current.source_errors || [] : [];
   return (
-    <section className="workflow-controls" aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"}>
+    <section
+      className={`workflow-controls${active ? " is-active" : ""}`}
+      aria-label={kind === "news" ? "手动更新动态" : "手动更新球队资料"}
+    >
       <div className="workflow-status" role="status" aria-live="polite">
         <strong>{action === "start" ? "正在启动…" : action === "stop" ? "正在结束…" :
           current?.message || (current ? messages[current.status] : requestError ? "暂时无法读取跟进状态。" : "正在读取跟进状态…")}</strong>
-        {collection && <p>本轮来源：{collection.available_sources} / {collection.source_count} 个索引可用，发现 {collection.relevant_count} 条本队消息，{collection.window_count} 条在近期范围；尝试读取 {collection.read_attempted} 条正文，取得 {collection.readable_count} 条。</p>}
-        {showProgress && <p>{kind === "news" ? "中文整理" : "本轮资料"}：已完成 {progress.completed}，待处理 {progress.remaining}{progress.failed > 0 ? `，未完成 ${progress.failed}` : ""}</p>}
+        {collection && (
+          <details className="workflow-detail">
+            <summary>本轮来源详情</summary>
+            <p>
+              {collection.available_sources} / {collection.source_count} 个来源可用，
+              发现 {collection.relevant_count} 条本队消息（近期待读 {collection.window_count} 条）；
+              尝试读取 {collection.read_attempted} 条正文，取得 {collection.readable_count} 条。
+            </p>
+          </details>
+        )}
+        {showProgress && (
+          <p>
+            已处理 {progress.completed}
+            {progress.failed > 0 ? `，失败 ${progress.failed}` : ""}
+            {progress.remaining > 0 ? `，还有 ${progress.remaining} 项` : ""}
+          </p>
+        )}
         {(requestError || failure) && <p className="workflow-error" role="alert">
           {requestError || failure}
           {kind === "news" && onConfigure && /模型|配置/.test(requestError || failure) &&

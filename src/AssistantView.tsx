@@ -22,8 +22,8 @@ import {
   X,
 } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { dateTime, Modal } from "./components";
-import { Markdown, Sources } from "./v7Shared";
+import { dateTime, Modal } from "./ui";
+import { Markdown, Sources } from "./shared";
 import type { AppState, Run, Team } from "./types";
 
 export interface AssistantPrompt {

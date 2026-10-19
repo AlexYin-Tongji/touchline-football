@@ -1,0 +1,124 @@
+/* ============================================================================
+   看台 · 设计令牌
+
+   这是全站唯一的取值来源。组件样式表只允许引用这里的变量，不写裸数值。
+   任何新增字号、颜色、间距都应该先在这里登记，否则很快又会回到
+   "同一屏里有五种灰、六个相邻只差 0.5px 的字号"的老路上。
+
+   结构：字体 / 字号 / 行高 / 间距 / 圆角 / 层次 / 颜色 / 动效。
+   ========================================================================= */
+
+:root {
+  /* ---- 字体 ----
+     中文无衬线负责界面，中文衬线只负责标题与数字。
+     顺序按本机实测：Noto Sans SC 的中宫比雅黑更开，同字号下更清楚；
+     Segoe UI 排在中文之后专门接管西文与数字，表格与比分行不会散。 */
+  --font-sans: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    "PingFang SC", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN",
+    "Songti SC", "SimSun", serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+
+  /* ---- 字号 ----
+     七个正文档 + 三个标题档 + 两个数字档。相邻档至少差 1px，
+     不再出现 12/12.5/13/13.5 这种肉眼分不出的相邻档。
+     正文 14px 是界面下限；13px 只给辅助说明，11px 只给全大写标签。 */
+  --fs-caption: 11px;   /* 标签、角标、脚注：只用于短标签，不用于句子 */
+  --fs-meta: 12px;      /* 时间、来源、次级说明 */
+  --fs-sm: 13px;        /* 按钮、列表项、卡片操作 */
+  --fs-body: 14px;      /* 界面正文 */
+  --fs-read: 15px;      /* 摘要、长正文、对话 */
+  --fs-lead: 17px;      /* 导读段、文章正文 */
+  --fs-h4: 15px;        /* 卡片内小标题 */
+  --fs-h3: 18px;        /* 区块标题 */
+  --fs-h2: 22px;        /* 页面内大标题、弹窗标题 */
+  --fs-h1: 32px;        /* 页面主标题 */
+  --fs-display: 30px;   /* 球队 hero、大号衬线数字 */
+  --fs-num: 24px;       /* 次级数字 */
+
+  /* 字重只用两档：400 正文、600 强调。500 在中文里几乎等于 400，
+     700 在 Noto Sans SC 上会糊成一团，两者都不再用。 */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* ---- 行高 ----
+     中文是等宽方块字，行高要给得比西文宽才透气。
+     三档覆盖全部场景，不再为单个组件另开一档。 */
+  --lh-tight: 1.3;   /* 大标题、数字 */
+  --lh-snug: 1.5;    /* 卡片标题、按钮文字 */
+  --lh-ui: 1.7;      /* 界面正文、列表 */
+  --lh-read: 1.85;   /* 摘要、对话、长正文 */
+
+  /* ---- 间距（4px 基准）---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ---- 圆角 ---- */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius: 7px;
+  --radius-card: 10px;
+  --radius-pill: 999px;
+
+  /* ---- 颜色 ----
+     纸张底 + 墨色正文 + 印刷红点缀。灰阶只用 muted / faint 两档：
+     muted 是正文级说明，faint 是时间戳与单位。两者都在最差落点
+     （--paper-sunk）上达到 4.5:1，不再出现"11px 小字看不清"。 */
+  --paper: #faf9f6;
+  --paper-sunk: #f1efe9;
+  --paper-raised: #ffffff;
+  --surface: #ffffff;
+
+  --ink: #1d2822;        /* 标题、主要文字 */
+  --ink-soft: #333d37;   /* 正文 */
+  --muted: #5f685f;      /* 说明文字 */
+  --faint: #6f776c;      /* 时间、单位、来源 */
+
+  --line: #e4e0d6;
+  --line-strong: #cfcabb;
+
+  --red: #a8232f;        /* 强调、当前项、关键动作 */
+  --red-deep: #7d1a24;
+  --red-wash: #f7eded;
+
+  --green: #276348;      /* 成功、已关注、主队状态 */
+  --green-wash: #edf3ee;
+
+  --amber: #8a6a2f;      /* 缺资料、来源未读 */
+  --amber-wash: #f8f4e9;
+
+  --blue: #34557f;       /* 官方来源标签 */
+  --blue-wash: #edf1f7;
+
+  /* ---- 层次 ----
+     投影色相取墨绿而不是纯黑：纯黑落在暖纸底上会发灰发脏。 */
+  --shadow-1: 0 1px 2px #1d28220a;
+  --shadow-2: 0 2px 4px #1d28220a, 0 6px 16px #1d282208;
+  --shadow-3: 0 4px 10px #1d28220d, 0 14px 34px #1d28220f;
+  --shadow-4: 0 12px 28px #1d282214, 0 30px 70px #1d282214;
+  --inset-hi: inset 0 1px 0 #ffffffcc;
+  --rule: 1px solid var(--line);
+
+  /* ---- 动效 ---- */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.28, 0.64, 1);
+  --dur-fast: 0.15s;
+  --dur-base: 0.22s;
+  --dur-slow: 0.4s;
+
+  /* ---- 布局 ---- */
+  --header-h: 68px;
+  --rail-w: 216px;
+  --content-max: 1480px;
+  --aside-w: 292px;
+  --reading-max: 860px;
+}

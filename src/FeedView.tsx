@@ -4,12 +4,13 @@ import {
   CalendarDays,
   ChevronDown,
   MessageCircle,
+  CircleAlert,
   Newspaper,
   Sparkles,
 } from "lucide-react";
 import { api, errorText, post } from "./api";
 import { WorkflowControls } from "./WorkflowControls";
-import { Crest, dateTime, Modal, SourceGapNotice, Spinner } from "./components";
+import { Crest, dateTime, Modal, SourceGapNotice, Spinner } from "./ui";
 import { findClub } from "./clubCatalog";
 import { clubName } from "./clubNames";
 import {
@@ -20,9 +21,9 @@ import {
   uniqueImages,
   type MediaImage,
   type SourceLink,
-} from "./v7Shared";
+} from "./shared";
 import type { AppState, AutoReport, SourceGap, Team } from "./types";
-import type { AssistantPrompt } from "./v7Assistant";
+import type { AssistantPrompt } from "./AssistantView";
 
 interface FeedItem {
   id: string;
@@ -93,6 +94,25 @@ const topics = [
 ];
 const topicName = (value?: string) =>
   topics.find((item) => item.id === value)?.name || "球队动态";
+/** The card's one time line. A source that declares only a date is said so;
+ *  an item organized moments ago reads "刚刚整理", not "整理于刚刚". */
+export function feedTimeLabel(item: {
+  organized_at?: string | null;
+  published_at?: string | null;
+  published_date?: string | null;
+}) {
+  if (item.organized_at) {
+    const relative = friendlyTime(item.organized_at);
+    if (!relative) return "整理时间未知";
+    return relative === "刚刚" ? "刚刚整理" : `整理于 ${relative}`;
+  }
+  if (item.published_at) {
+    const relative = friendlyTime(item.published_at);
+    return relative ? `发布于 ${relative}` : "发布时间未知";
+  }
+  if (item.published_date) return `发布于 ${item.published_date}（仅日期）`;
+  return "发布时间未知";
+}
 const latestPreparation = (current: Preparation | null, next: Preparation) => {
   if (current?.team_id !== next.team_id) return next;
   if (next.status === "idle" && current.status !== "idle") return current;
@@ -345,19 +365,22 @@ export const FeedView = memo(function FeedView({
         </div>
         <WorkflowControls kind="news" teamId={team.id} onChange={workflowChanged} onConfigure={openModel} />
         {preparation?.team_id === team.id && preparation.status !== "idle" && (
-          <div className="notice" role="status" aria-live="polite">
+          <div className="preparation-note" role="status" aria-live="polite">
+            <Newspaper size={14} aria-hidden="true" />
             <div>
-              <p>{preparation.message}</p>
-              {!!preparation.source_errors?.length && <details>
-                <summary>查看 {preparation.source_errors.length} 个来源说明</summary>
-                <SourceGapNotice gaps={preparation.source_errors} />
-              </details>}
+              <span>{preparation.message}</span>
+              {!!preparation.source_errors?.length && (
+                <details>
+                  <summary>查看 {preparation.source_errors.length} 个来源说明</summary>
+                  <SourceGapNotice gaps={preparation.source_errors} />
+                </details>
+              )}
             </div>
           </div>
         )}
         {preparationError && <div className="notice error" role="alert">消息来源准备未完成：{preparationError}</div>}
         <div className="feed-toolbar">
-          <div className="filter-tabs">
+          <div className="filter-tabs" role="group" aria-label="动态分类">
             {topics.map((item) => (
               <button
                 key={item.id}
@@ -373,14 +396,15 @@ export const FeedView = memo(function FeedView({
         </div>
         {error && (
           <div className="notice error" role="alert">
-            {error}
+            <CircleAlert size={15} aria-hidden="true" />
+            <span>{error}</span>
             <button onClick={() => load()}>重试</button>
           </div>
         )}
         {!feed && loading ? (
           <div className="feed-skeleton" aria-label="正在读取动态">
             {[0, 1, 2].map((i) => (
-              <div key={i}>
+              <div key={i} aria-hidden="true">
                 <span />
                 <i />
                 <i />
@@ -396,9 +420,7 @@ export const FeedView = memo(function FeedView({
                   <Crest team={team} small />
                   <div>
                     <strong>{team.name}</strong>
-                    <span>{item.organized_at ? `整理于${friendlyTime(item.organized_at) || "时间未知"}`
-                      : item.published_at ? `来源发布于${friendlyTime(item.published_at)}`
-                        : item.published_date ? `来源发布于 ${item.published_date}（仅日期）` : "发布时间未知"}</span>
+                    <span>{feedTimeLabel(item)}</span>
                   </div>
                   <span className={`topic-tag topic-${item.topic}`}>
                     {topicName(item.topic)}
@@ -450,7 +472,9 @@ export const FeedView = memo(function FeedView({
         )}
         {feed && !items.length && (
           <div className="empty-state feed-empty">
-            <Newspaper size={35} />
+            <span className="empty-icon">
+              <Newspaper size={24} />
+            </span>
             <h2>{topic ? "这个分类还没有新消息" : preparation?.status === "running" ? "正在准备球队消息"
               : preparation?.counts?.readable ? "消息来源已就绪"
               : preparation?.status === "failed" ? "消息来源暂时未能读取"
@@ -572,8 +596,7 @@ export const FeedView = memo(function FeedView({
           <article className="story-reader">
             <div className="story-meta">
               <span>{team.name}</span>
-              <span>{selected.organized_at ? `整理于${friendlyTime(selected.organized_at) || "时间未知"}`
-                : selected.published_at ? `来源发布于${friendlyTime(selected.published_at)}` : "发布时间未知"}</span>
+              <span>{feedTimeLabel(selected)}</span>
               <span>{topicName(selected.topic)}</span>
             </div>
             {reading ? (

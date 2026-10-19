@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, ImageOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { safeUrl } from "./components";
+import { safeUrl } from "./ui";
 import type { Evidence } from "./types";
 
 // Stable across renders: react-markdown keys its parse cache on these

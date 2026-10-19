@@ -1,0 +1,397 @@
+/* ============================================================================
+   看台 · 外壳
+
+   页头 / 左侧球队栏 / 内容区 / 球队上下文条。
+   窄屏（≤760px）时左侧栏隐藏，主导航改为底部固定标签栏——
+   顶部横排三个中文标签在 390px 里会被挤成两行，图标压字。
+   ========================================================================= */
+
+.v7-app {
+  min-height: 100dvh;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------------
+   页头
+   三列：品牌（固定宽）/ 导航（居中）/ 设置（固定宽）。
+   去掉"我的足球主场"这类装饰性文字——它不携带信息，只让右列显得空。
+   ------------------------------------------------------------------------ */
+.site-header {
+  height: var(--header-h);
+  padding: 0 max(var(--sp-6), calc((100vw - var(--content-max)) / 2));
+  display: grid;
+  grid-template-columns: 200px 1fr 200px;
+  align-items: center;
+  gap: var(--sp-5);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  justify-self: start;
+}
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-2), inset 0 1px 0 #ffffff24;
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+.brand:hover .brand-mark {
+  transform: rotate(-8deg) scale(1.04);
+}
+.brand > span:last-child {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: var(--fw-semibold);
+  line-height: 1.15;
+  color: var(--ink);
+}
+.brand small {
+  font-family: var(--font-sans);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  line-height: 1.4;
+  color: var(--faint);
+  margin-top: 2px;
+}
+
+.main-tabs {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-1);
+}
+.main-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px var(--sp-4);
+  font-size: var(--fs-body);
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  transition: color var(--dur-fast);
+}
+.main-tabs button:hover {
+  color: var(--ink);
+}
+.main-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -2px;
+  height: 2px;
+  background: var(--red);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.26s var(--ease-out);
+}
+.main-tabs button:hover::after {
+  transform: scaleX(0.4);
+}
+.main-tabs button.active {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+.main-tabs button.active::after {
+  transform: scaleX(1);
+}
+
+.header-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  justify-self: end;
+}
+
+/* ---------------------------------------------------------------------------
+   工作区
+   ------------------------------------------------------------------------ */
+.workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* 左侧球队栏 */
+.team-rail {
+  position: sticky;
+  top: var(--header-h);
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h));
+  padding: var(--sp-5) var(--sp-3) var(--sp-4) var(--sp-4);
+  border-right: 1px solid var(--line);
+}
+.rail-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-1) var(--sp-2) 6px;
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--faint);
+}
+.favorite-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.favorite-teams > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px var(--sp-2);
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  color: var(--muted);
+  text-align: left;
+  min-width: 0;
+}
+.favorite-teams > button > span:not(.crest):not(.selected-dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.favorite-teams > button:hover {
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+.favorite-teams > button.active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--line);
+}
+.selected-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--red);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.rail-hint {
+  margin: var(--sp-2) 6px;
+  font-size: var(--fs-sm);
+  line-height: 1.75;
+  color: var(--faint);
+}
+.explore-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--sp-3);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-strong);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  transition: border-color var(--dur-fast), color var(--dur-fast),
+    background var(--dur-fast);
+}
+.explore-teams:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--surface);
+}
+.explore-teams > svg:last-child {
+  margin-left: auto;
+}
+
+/* 内容区 */
+.main-content {
+  min-width: 0;
+  padding: var(--sp-6) var(--sp-8) 72px;
+}
+.main-content.page-feed {
+  padding-top: var(--sp-5);
+}
+
+/* ---------------------------------------------------------------------------
+   球队上下文条
+   当前球队 + 联赛 + 关注。这是全站唯一显示"你在看谁"的地方，
+   所以它必须在三个页面都固定在同一位置。
+   ------------------------------------------------------------------------ */
+.team-context {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.current-team {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base) var(--ease-out);
+}
+.current-team:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-2);
+}
+.current-team strong {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+.current-team > svg {
+  color: var(--faint);
+}
+.team-context-league {
+  font-size: var(--fs-sm);
+  color: var(--faint);
+}
+.follow-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--muted);
+  transition: border-color var(--dur-fast), color var(--dur-fast),
+    background var(--dur-fast);
+}
+.follow-button:hover:not(:disabled) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.follow-button.following {
+  border-color: transparent;
+  background: var(--green-wash);
+  color: var(--green);
+}
+.follow-button.following:hover:not(:disabled) {
+  background: var(--green);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------------------
+   窄屏：主导航移到底部
+   ------------------------------------------------------------------------ */
+@media (max-width: 760px) {
+  :root {
+    --header-h: 58px;
+  }
+
+  .site-header {
+    grid-template-columns: 1fr auto;
+    padding: 0 var(--sp-4);
+    gap: var(--sp-3);
+  }
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+  .brand-mark svg {
+    width: 20px;
+    height: 20px;
+  }
+  .brand > span:last-child {
+    font-size: var(--fs-h3);
+  }
+  .brand small {
+    display: none;
+  }
+
+  /* 底部标签栏 */
+  .main-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    padding: 6px var(--sp-2) calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-top: var(--rule);
+    box-shadow: 0 -4px 18px #1d28220f;
+  }
+  .main-tabs button {
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 0;
+    font-size: var(--fs-caption);
+    border-bottom: 0;
+    color: var(--faint);
+  }
+  .main-tabs button span {
+    display: block;
+    line-height: 1.4;
+  }
+  .main-tabs button::after {
+    display: none;
+  }
+  .main-tabs button.active {
+    color: var(--red);
+    font-weight: var(--fw-semibold);
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .team-rail {
+    display: none;
+  }
+  .main-content {
+    padding: var(--sp-4) var(--sp-4) 96px;
+  }
+  .main-content.page-feed {
+    padding-top: var(--sp-3);
+  }
+  .team-context {
+    padding-bottom: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+  .team-context-league {
+    display: none;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+  .main-content {
+    padding: var(--sp-6) var(--sp-6) 64px;
+  }
+}

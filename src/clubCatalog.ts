@@ -1,7 +1,7 @@
 import catalog from "./generated/club-index.json";
 import type { Team } from "./types";
 
-export type Club = Pick<Team, "id" | "name"> & {
+export type Club = Pick<Team, "id" | "name" | "short_name"> & {
   english_name: string;
   aliases: string[];
   crest_url: string;

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ArrowRight, Goal, KeyRound, LogIn } from "lucide-react";
 import { api, errorText, post } from "./api";
-import { ErrorNotice, Spinner } from "./components";
+import { ErrorNotice, Spinner } from "./ui";
 
 interface AuthState { required: boolean; authenticated: boolean; server_mode: boolean }
 const AuthContext = createContext<{ status: AuthState | null; logout: () => Promise<void> }>({ status: null, logout: async () => undefined });
