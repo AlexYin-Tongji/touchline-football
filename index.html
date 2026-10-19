@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>看台 · 你的私人足球编辑部</title>
+<meta name="description" content="看台是一个本地运行的个人足球助手：按球队阅读中文动态、查看阵容与赛程、带着原文向助手提问。数据存在你自己的电脑里。" />
+<meta name="theme-color" content="#1d2822" />
+<meta property="og:title" content="看台 · 你的私人足球编辑部" />
+<meta property="og:description" content="一支球队的动态、阵容、赛程与数据，整理成中文，存在你自己的电脑里。" />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="assets/cover.png" />
+<meta property="og:url" content="https://alexyin-tongji.github.io/touchline-football/" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="assets/app.ico" />
+<style>
+  :root {
+    --paper: #faf9f6;
+    --paper-sunk: #f1efe9;
+    --surface: #ffffff;
+    --ink: #1d2822;
+    --ink-soft: #333d37;
+    --muted: #5f685f;
+    --faint: #6f776c;
+    --line: #e4e0d6;
+    --line-strong: #cfcabb;
+    --red: #a8232f;
+    --red-deep: #7d1a24;
+    --red-wash: #f7eded;
+    --green: #276348;
+    --green-wash: #edf3ee;
+    --amber: #8a6a2f;
+    --amber-wash: #f8f4e9;
+    --font-sans: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-serif: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "SimSun", serif;
+    --radius: 7px;
+    --radius-card: 10px;
+    --shadow-1: 0 1px 2px #1d28220a;
+    --shadow-2: 0 2px 4px #1d28220a, 0 6px 16px #1d282208;
+    --shadow-3: 0 4px 10px #1d28220d, 0 14px 34px #1d28220f;
+    --shadow-4: 0 12px 28px #1d282214, 0 30px 70px #1d282214;
+    --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --max: 1180px;
+  }
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink-soft);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, p, figure, blockquote { margin: 0; }
+  h1, h2, h3 { color: var(--ink); font-weight: 600; }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+  button { font: inherit; }
+  ::selection { background: #a8232f26; }
+
+  .wrap {
+    width: 100%;
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  /* ---------- 页头 ---------- */
+  .site-head {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #faf9f6eb;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .site-head .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    height: 66px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-serif);
+    font-size: 21px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .brand small {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--faint);
+    line-height: 1.3;
+  }
+  .brand-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    flex-shrink: 0;
+  }
+  .head-links {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .head-links a:hover { color: var(--ink); }
+  .head-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 0 15px;
+    border-radius: var(--radius);
+    background: var(--ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background .15s, transform .2s var(--ease-out);
+  }
+  .head-cta:hover { background: var(--red); transform: translateY(-1px); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding: 84px 0 0;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(60% 50% at 78% 10%, #efe9dc 0%, transparent 70%),
+      radial-gradient(50% 40% at 8% 0%, #f3eee3 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero .wrap { position: relative; }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+    box-shadow: var(--shadow-1);
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red);
+  }
+  .hero h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(38px, 5.4vw, 64px);
+    line-height: 1.18;
+    max-width: 15ch;
+    margin: 26px 0 22px;
+    text-wrap: balance;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--red);
+  }
+  .hero-lead {
+    max-width: 48ch;
+    font-size: 17px;
+    line-height: 1.85;
+    color: var(--muted);
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 34px 0 10px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 22px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: var(--shadow-1);
+    transition: border-color .15s, background .15s, transform .2s var(--ease-out), box-shadow .2s var(--ease-out);
+  }
+  .btn:hover { border-color: var(--ink); transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .btn.primary {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn.primary:hover { background: var(--red); border-color: var(--red); }
+  .hero-note {
+    font-size: 12px;
+    color: var(--faint);
+  }
+  .hero-shot {
+    position: relative;
+    margin: 56px 0 0;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-4);
+    background: var(--surface);
+  }
+  .hero-shot img { width: 100%; }
+
+  /* ---------- 分节 ---------- */
+  section { padding: 92px 0; }
+  .section-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .section-head h2 {
+    font-family: var(--font-serif);
+    font-size: clamp(28px, 3vw, 38px);
+    line-height: 1.3;
+  }
+  .section-head p {
+    max-width: 44ch;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .kicker {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* 三个入口 */
+  .entries {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .entry {
+    display: flex;
+    flex-direction: column;
+    padding: 26px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
+    transition: border-color .18s, box-shadow .25s var(--ease-out), transform .25s var(--ease-out);
+  }
+  .entry:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-3);
+    transform: translateY(-3px);
+  }
+  .entry-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: 18px;
+    border-radius: var(--radius);
+    background: var(--paper-sunk);
+    color: var(--ink);
+  }
+  .entry h3 {
+    font-family: var(--font-serif);
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .entry p {
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--muted);
+  }
+  .entry ul {
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+  .entry li { display: flex; gap: 8px; }
+  .entry li::before {
+    content: "";
+    width: 4px; height: 4px;
+    margin-top: 9px;
+    border-radius: 50%;
+    background: var(--line-strong);
+    flex-shrink: 0;
+  }
+
+  /* 截图画廊 */
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .shot {
+    position: relative;
+    margin: 0;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+  }
+  .shot img { width: 100%; height: auto; }
+  .shot figcaption {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #1d2822d9;
+    color: #fff;
+    font-size: 12px;
+    backdrop-filter: blur(4px);
+  }
+  .shot.wide { grid-column: span 8; }
+  .shot.half { grid-column: span 4; }
+  .shot.full { grid-column: span 12; }
+  .shot.phone {
+    grid-column: span 4;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 26px;
+    background: var(--paper-sunk);
+    grid-row: span 1;
+  }
+  .shot.phone img {
+    width: auto;
+    max-height: 640px;
+    border-radius: 26px;
+    border: 8px solid #1d2822;
+    box-shadow: var(--shadow-3);
+  }
+
+  /* 原则 */
+  .principles {
+    background: var(--ink);
+    color: #efece3;
+  }
+  .principles .wrap { padding-top: 0; padding-bottom: 0; }
+  .principles section { padding: 84px 0; }
+  .principles .kicker { color: #a9a69c; }
+  .principles h2 { color: #fff; }
+  .principles .section-head p { color: #c8c5ba; }
+  .principle-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: #ffffff1a;
+    border: 1px solid #ffffff1a;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+  .principle {
+    padding: 30px 28px;
+    background: var(--ink);
+  }
+  .principle .num {
+    display: block;
+    margin-bottom: 16px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    color: #a9a69c;
+  }
+  .principle h3 {
+    font-family: var(--font-serif);
+    font-size: 19px;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .principle p {
+    font-size: 13.5px;
+    line-height: 1.85;
+    color: #bdb9ae;
+  }
+
+  /* 安装 */
+  .install-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .steps {
+    display: grid;
+    gap: 14px;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 20px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .step-no {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--paper-sunk);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .step h3 {
+    font-size: 14px;
+    margin-bottom: 3px;
+  }
+  .step p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.75;
+  }
+  .step code {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    background: #1d2822;
+    color: #e8e4d8;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .specs {
+    padding: 26px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    position: sticky;
+    top: 96px;
+  }
+  .specs h3 {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  .specs dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+  }
+  .specs dl > div {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .specs dl > div:first-child { border-top: 0; padding-top: 0; }
+  .specs dt { color: var(--faint); }
+  .specs dd { margin: 0; color: var(--ink); }
+  .tagline {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: var(--red-wash);
+    color: var(--red-deep);
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  /* 页脚 */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 44px 0 56px;
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+  footer .wrap {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  footer .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+  }
+  footer a:hover { color: var(--ink); }
+  footer p { max-width: 52ch; line-height: 1.8; }
+
+  /* 下载 */
+  .download {
+    padding: 0 0 92px;
+  }
+  .download-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 40px;
+    align-items: center;
+    padding: 40px 44px;
+    border-radius: 16px;
+    background: var(--ink);
+    color: #e9e6dc;
+    box-shadow: var(--shadow-4);
+  }
+  .download-card h2 {
+    color: #fff;
+    font-family: var(--font-serif);
+    font-size: clamp(24px, 3vw, 32px);
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  .download-card p { color: #bcb9ae; max-width: 46ch; }
+  .download-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: #a9a69c;
+  }
+  .download-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .download-actions .btn {
+    justify-content: center;
+    min-height: 48px;
+  }
+  .btn.cream {
+    background: #f7f1e3;
+    color: var(--ink);
+    border-color: #f7f1e3;
+    font-weight: 600;
+  }
+  .btn.cream:hover { background: #fff; border-color: #fff; }
+  .btn.ghost {
+    background: transparent;
+    color: #e9e6dc;
+    border-color: #4a554d;
+  }
+  .btn.ghost:hover { border-color: #8a948c; color: #fff; }
+  .download-hint {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #9b988e;
+    text-align: center;
+  }
+
+  /* 影片 */
+  #film { padding-top: 0; }
+  .film-frame {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #050806;
+    box-shadow: var(--shadow-4);
+  }
+  .film-frame video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #050806;
+  }
+  .film-note {
+    margin-top: 14px;
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+
+  /* 响应式 */
+  @media (max-width: 980px) {
+    .hero { padding-top: 56px; }
+    section { padding: 68px 0; }
+    .entries { grid-template-columns: minmax(0, 1fr); }
+    .principle-grid { grid-template-columns: minmax(0, 1fr); }
+    .install-grid { grid-template-columns: minmax(0, 1fr); }
+    .download-card { grid-template-columns: minmax(0, 1fr); padding: 30px 26px; gap: 26px; }
+    .specs { position: static; }
+    .shot.wide, .shot.half, .shot.phone { grid-column: span 12; }
+    .shot.phone img { max-height: 560px; }
+    .head-links { display: none; }
+  }
+  @media (max-width: 620px) {
+    .wrap { padding: 0 20px; }
+    .hero h1 { font-size: 36px; }
+    .hero-lead { font-size: 15.5px; }
+    .hero-actions .btn { flex: 1; justify-content: center; }
+    .brand small { display: none; }
+    section { padding: 56px 0; }
+    .hero-shot { margin-top: 38px; border-radius: 10px; }
+    .shot.phone { padding: 16px; }
+    .shot.phone img { max-height: 480px; border-width: 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      transition-duration: .01ms !important;
+      animation-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="brand-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+        </svg>
+      </span>
+      <span>
+        看台
+        <small>为热爱留一席</small>
+      </span>
+    </a>
+    <nav class="head-links" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#principles">原则</a>
+      <a href="#start">开始使用</a>
+      <a href="#gallery">界面</a>
+    </nav>
+    <a class="head-cta" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
+      下载
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span>V9.3.0 · 首个公开发布版</span>
+      <h1>你的私人<br /><em>足球编辑部</em></h1>
+      <p class="hero-lead">
+        一支球队的动态、阵容、赛程与数据，整理成中文，存在你自己的电脑里。
+        没有账号，没有信息流推荐，没有替你做判断的“已核实”标签。
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
+          下载 V9.3.0 · Windows
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+        </a>
+        <a class="btn" href="#start">
+          从源码运行
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+      <p class="hero-note">本地运行 · 数据不出本机 · 支持任意兼容的模型服务</p>
+
+      <figure class="hero-shot">
+        <img src="assets/cover.png" alt="看台开场封面：品牌与进入按钮" width="1440" height="900" loading="eager" />
+      </figure>
+    </div>
+  </section>
+
+  <section class="download" id="download">
+    <div class="wrap">
+      <div class="download-card">
+        <div>
+          <h2>下载即可运行，不需要账号</h2>
+          <p>
+            一个压缩包，解压后双击 <strong>启动看台.cmd</strong>。首次启动会自动准备 Python 环境、安装依赖并构建页面，
+            之后每次打开只需要几秒。你的数据、密钥与对话都留在本机。
+          </p>
+          <div class="download-meta">
+            <span>V9.3.0 · 首个公开发布版</span>
+            <span>Windows 10 / 11</span>
+            <span>需要 Python 3.11+ 与 Node.js 22+</span>
+          </div>
+        </div>
+        <div class="download-actions">
+          <a class="btn cream" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
+            下载 Touchline-9.3.0.zip
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </a>
+          <a class="btn ghost" href="https://github.com/AlexYin-Tongji/touchline-football/releases">
+            全部版本与校验值
+          </a>
+          <p class="download-hint">压缩包内含校验说明；模型服务需在设置里自行填写。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="film">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Release film</span>
+          <h2>发布影片</h2>
+        </div>
+        <p>一分四十七秒。前面是看台上的噪音，最后三十秒才是产品。</p>
+      </div>
+      <div class="film-frame">
+        <video controls preload="metadata" poster="assets/film-poster.jpg" playsinline>
+          <source src="https://github.com/AlexYin-Tongji/touchline-football/releases/download/v9.3.0/touchline-release.mp4" type="video/mp4" />
+        </video>
+      </div>
+      <p class="film-note">英语旁白 · 画面由代码逐帧生成，产品片段为真实界面。</p>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Three entries</span>
+          <h2>三个入口，只看你在乎的</h2>
+        </div>
+        <p>动态、球队、问助手。采集、核验、调度与失败重试全部在后台完成，界面上不出现技术细节。</p>
+      </div>
+      <div class="entries">
+        <article class="entry">
+          <span class="entry-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h11a2 2 0 0 1 2 2v13H6a2 2 0 0 1-2-2Z"/><path d="M17 8h3v12H7"/><path d="M7 9h6M7 13h6"/></svg>
+          </span>
+          <h3>动态</h3>
+          <p>按球队阅读中文消息流。英文报道由模型整理成中文，配图来自来源自身声明，每条消息都标注来源层级。</p>
+          <ul>
+            <li>官网 / 数据源 / 媒体 / 社区分层呈现</li>
+            <li>展开后仍为中文，可点链接核对原文</li>
+            <li>就一条消息继续追问助手</li>
+          </ul>
+        </article>
+        <article class="entry">
+          <span class="entry-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6Z"/><path d="M9 12l2 2 4-4"/></svg>
+          </span>
+          <h3>球队</h3>
+          <p>资料、一线队名单与有来源的照片、赛季表现、积分榜、胜平负与主客场图表、未来赛程。数值以数据源为准。</p>
+          <ul>
+            <li>96 支五大联赛球队</li>
+            <li>照片必须有明确来源，缺图留空</li>
+            <li>更新记录说明当时看到什么、后来有无变化</li>
+          </ul>
+        </article>
+        <article class="entry">
+          <span class="entry-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 1 1-3.1-6.3"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+          </span>
+          <h3>问助手</h3>
+          <p>直接对话，或从今日速览、比赛前瞻、赛后复盘、转会核验、战术讲解进入。回答带引用，引用只来自本轮读过的原文。</p>
+          <ul>
+            <li>检索有排序：词频、时间衰减、来源层级</li>
+            <li>中文问句能命中英文来源</li>
+            <li>复杂问题可拆给子助手并行研究</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="principles" id="principles">
+    <div class="wrap">
+      <section>
+        <div class="section-head">
+          <div>
+            <span class="kicker">Principles</span>
+            <h2>三条不妥协的原则</h2>
+          </div>
+          <p>这些不是功能列表，而是每一次取舍的依据。它们来自被真实 bug 换来的边界。</p>
+        </div>
+        <div class="principle-grid">
+          <article class="principle">
+            <span class="num">01</span>
+            <h3>整合信息，不裁决真伪</h3>
+            <p>你看到的是“谁在什么时候说了什么”。我们不给消息盖“已核实”的章，也不因为无法确认就删掉它。真伪由你判断。</p>
+          </article>
+          <article class="principle">
+            <span class="num">02</span>
+            <h3>来源分层决定说话方式</h3>
+            <p>官网直接陈述，媒体写“据 X 报道”，社区写“社区有说法”并附认同量。社区源不是低一等的媒体源，它的价值在于时效与现场性。</p>
+          </article>
+          <article class="principle">
+            <span class="num">03</span>
+            <h3>模型解释，不编造</h3>
+            <p>比分、阵容、成员关系、照片都必须来自可追溯的采集。缺数据就留空，不生成假肖像，也不用模型填补事实字段。</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section id="gallery">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Interface</span>
+          <h2>界面</h2>
+        </div>
+        <p>一张球队页、一屏阵容、一段对话。桌面与窄屏各自排版，不做简单的等比缩放。</p>
+      </div>
+      <div class="gallery">
+        <figure class="shot wide">
+          <img src="assets/team.png" alt="球队页：阿森纳的资料、赛季表现与积分榜" loading="eager" />
+          <figcaption>球队资料与赛季表现</figcaption>
+        </figure>
+        <figure class="shot phone">
+          <img src="assets/mobile.png" alt="窄屏动态页：底部标签栏与消息流" loading="eager" />
+        </figure>
+        <figure class="shot full">
+          <img src="assets/squad.png" alt="球员信息：一线队网格与筛选" loading="eager" />
+          <figcaption>一线队阵容 · 与来源数据同步</figcaption>
+        </figure>
+        <figure class="shot full">
+          <img src="assets/feed.png" alt="动态页：阿森纳的中文消息流与下一场比赛卡片" loading="eager" />
+          <figcaption>动态 · 按球队阅读</figcaption>
+        </figure>
+        <figure class="shot full">
+          <img src="assets/assistant.png" alt="问助手：技能入口与对话输入框" loading="eager" />
+          <figcaption>问助手 · 带着资料回答</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Get started</span>
+          <h2>在本机运行</h2>
+        </div>
+        <p>需要 Python 3.11+ 与 Node.js 22+。Windows 下双击启动脚本即可，其余平台按下面四步执行。</p>
+      </div>
+      <div class="install-grid">
+        <div class="steps">
+          <article class="step">
+            <span class="step-no">1</span>
+            <div>
+              <h3>准备环境</h3>
+              <p>创建虚拟环境，安装固定版本的 Python 依赖。</p>
+              <code>python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -c requirements.lock.txt</code>
+            </div>
+          </article>
+          <article class="step">
+            <span class="step-no">2</span>
+            <div>
+              <h3>构建页面</h3>
+              <p>安装前端依赖并构建。首次构建会先生成球队索引。</p>
+              <code>npm ci
+npm run build</code>
+            </div>
+          </article>
+          <article class="step">
+            <span class="step-no">3</span>
+            <div>
+              <h3>启动服务</h3>
+              <p>打开 <code style="display:inline;padding:1px 5px;background:var(--paper-sunk);color:var(--ink)">http://127.0.0.1:9080/</code>。端口被系统占用时用 <code style="display:inline;padding:1px 5px;background:var(--paper-sunk);color:var(--ink)">TOUCHLINE_PORT</code> 换一个。</p>
+              <code>.\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 9080</code>
+            </div>
+          </article>
+          <article class="step">
+            <span class="step-no">4</span>
+            <div>
+              <h3>配置模型并关注球队</h3>
+              <p>在设置里添加模型服务商（地址、协议、密钥），选择一个模型；然后关注一支球队，点击动态页的「启动」。</p>
+            </div>
+          </article>
+        </div>
+        <aside class="specs">
+          <h3>运行要求</h3>
+          <dl>
+            <div><dt>运行方式</dt><dd>本地单用户，数据不出本机</dd></div>
+            <div><dt>Python</dt><dd>3.11 及以上</dd></div>
+            <div><dt>Node.js</dt><dd>22 及以上</dd></div>
+            <div><dt>模型</dt><dd>任意兼容 Chat Completions / Responses / Anthropic Messages 的服务</dd></div>
+            <div><dt>联赛</dt><dd>英超 · 西甲 · 德甲 · 意甲 · 法甲（2026/27，96 队）</dd></div>
+            <div><dt>数据位置</dt><dd><code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">data/</code>，含加密凭据</dd></div>
+          </dl>
+          <p class="tagline">
+            模型 API 是否收费取决于你的服务商。看台本身不收取费用，也不包含广告或遥测。
+          </p>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <p>
+        看台 · Touchline Football Agent。队徽与球员照片的权利属于各俱乐部与原始来源，
+        项目内保存的素材均附来源记录。
+      </p>
+    </div>
+    <nav class="links" aria-label="页脚链接">
+      <a href="https://github.com/AlexYin-Tongji/touchline-football">GitHub</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/docs/CHANGELOG.md">版本记录</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/AGENTS.md">开发约定</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/docs/ARCHITECTURE.md">代码结构</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
