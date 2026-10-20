@@ -106,10 +106,22 @@ npm run dev          # 开发前端（API 代理到 9080）
 - **中文不加 `letter-spacing`。** 字距只用于西文大写（`.overline`）与英文名；方块字自带字距，拉开就散。
 - **同一件事只说一次。** 状态句、进度条、加载提示同时出现时，读者只会以为页面卡住了。
 - 真实联网／模型验收要**限量**，并明确区分测试资料与真实资料。
+- **发布页在 `site/`**（单文件 `index.html` + `assets/`），面向外部访客：只讲能做什么和怎么开始，不写原理、免责与技术细节。改完后在 `site/` 起一个本地静态服务看桌面与窄屏两种宽度；确认无误后按第五节的发布流程同步到 `gh-pages`。
 
 ## 五、Git 与数据
 
-- 只保留 `main`。交付前留可回退标签。**不要改写已共享历史。**
+- **开发分支只保留 `main`。** 临时分支合入后删除，交付前留可回退标签。**不要改写已共享历史。**
+- **发布分支 `gh-pages` 不是开发分支，不要删。** `site/` 的副本推送到 `gh-pages`，由 `https://alexyin-tongji.github.io/touchline-football/` 提供页面；个人主页 `AlexYin-Tongji.github.io` 的 Touchline 卡片也指向它。删掉这个分支等于让发布页下线。它只通过发布流程整体同步，**不在这里直接改代码**。清理分支只清 `main` 上的派分支，发布分支不在清理范围内。
+- **发布到 `gh-pages` 的流程**：只从 `main` 上 `site/` 的最新提交取内容，不要拿工作区里未提交的文件发。
+  ```bash
+  git worktree add --detach ../touchline-ghp origin/gh-pages
+  rm -rf ../touchline-ghp/index.html ../touchline-ghp/assets tmp-site
+  mkdir tmp-site && git archive main site | tar -x -C tmp-site   # tmp-site/ 在 .gitignore 里
+  cp -r tmp-site/site/. ../touchline-ghp/ && rm -rf tmp-site
+  cd ../touchline-ghp && git add -A && git commit -m "deploy: …" && git push origin HEAD:gh-pages
+  cd - && git worktree remove ../touchline-ghp
+  ```
+  推送后等一两分钟，用浏览器打开线上地址确认视频能播放、图片没有 404。
 - `data/`、`output/`、`tmp/`、`.env`、生成索引**不得提交 Git**。
 - 修改迁移前**成对备份数据库及配套 key**，备份只能放 Git 忽略目录。
 - 需要清库时用 `scripts/reset-data.py`（保留密钥、模型配置与迁移哨兵），**永远不要 `rm data/`**。
