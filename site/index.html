@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>看台 Touchline · 你的私人足球编辑部</title>
 <meta name="description" content="看台是一个本地运行的个人足球助手：按球队阅读中文动态、查看阵容与赛程、带着原文向助手提问。数据存在你自己的电脑里。" />
-<meta name="theme-color" content="#0b0f0c" />
+<meta name="theme-color" content="#0c0e0d" />
 <meta property="og:title" content="看台 Touchline · 你的私人足球编辑部" />
-<meta property="og:description" content="一支球队的动态、阵容、赛程与数据，整理成中文，存在你自己的电脑里。" />
+<meta property="og:description" content="一支球队的动态、阵容、赛程和数据，全都整理成中文，放在你自己的电脑里。" />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="assets/film-poster.jpg" />
 <meta property="og:url" content="https://alexyin-tongji.github.io/touchline-football/" />
@@ -16,502 +16,241 @@
 <style>
   /* ============ tokens ============ */
   :root {
-    --night: #0b0f0c;
-    --night-2: #10160f;
-    --night-3: #16201a;
-    --paper: #f3efe4;
-    --bone: #e9e3d4;
-    --mute: #9b9f92;
-    --faint: #6c7266;
-    --line: #ffffff14;
-    --line-2: #ffffff22;
-    --flare: #d3ec4c;      /* 信号色：只在“活的”地方出现 */
-    --flare-ink: #0b0f0c;
-    --claret: #c2334a;     /* 原队色留下的“判断”红，只作小面积点缀 */
-    --font-sans: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
-    --font-serif: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "SimSun", serif;
-    --font-mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Consolas, ui-monospace, monospace;
-    --ease: cubic-bezier(.2, .7, .2, 1);
-    --max: 1240px;
-    --head: 76px;
+    --ink: #0c0e0d;
+    --paper: #f4f1ea;
+    --bone: #e6e1d5;
+    --text: #1a1d1b;
+    --mute: #5f665f;
+    --faint: #8e958c;
+    --rule: #d9d3c4;
+    --red: #c2334a;
+    --red-bright: #e85b70;
+    --night-mute: #9ea294;
+    --night-faint: #6c7266;
+    --line-night: #ffffff16;
+    --line-night-2: #ffffff2a;
+    --flare: #d3ec4c;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "SimSun", serif;
+    --sans: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --ease: cubic-bezier(.2, .75, .2, 1);
+    --max: 1320px;
+    --gut: 56px;
   }
   *, *::before, *::after { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; background: var(--night); }
-  body {
-    margin: 0;
-    background: var(--night);
-    color: var(--bone);
-    font-family: var(--font-sans);
-    font-size: 16px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
-  }
+  html { background: var(--ink); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
   h1, h2, h3, p, figure, blockquote, dl, dd { margin: 0; }
   a { color: inherit; text-decoration: none; }
   img, video { display: block; max-width: 100%; }
-  ::selection { background: var(--flare); color: var(--flare-ink); }
+  ::selection { background: var(--red); color: #fff; }
+  :focus-visible { outline: 2px solid var(--red-bright); outline-offset: 3px; }
 
-  .wrap { width: 100%; max-width: var(--max); margin: 0 auto; padding: 0 32px; }
-
-  /* 固定纹理：冷场灯下的颗粒 */
-  .grain {
-    position: fixed; inset: -50%;
-    pointer-events: none; z-index: 100;
-    opacity: .05; mix-blend-mode: screen;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    animation: grain 1.2s steps(4) infinite;
+  /* ============ 版式：两条红线 ============ */
+  .sheet { position: relative; max-width: var(--max); margin: 0 auto; padding: 0 var(--gut); }
+    .rail { position: absolute; top: 0; bottom: 0; width: 1px; background: #c2334a40; pointer-events: none; }
+  .rail.l { left: var(--gut); } .rail.r { right: var(--gut); }
+  .tag {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--red); text-transform: uppercase;
+    padding: 26px 0 14px; border-bottom: 1px solid var(--red);
   }
-  @keyframes grain {
-    0% { transform: translate(0, 0); } 25% { transform: translate(-2%, 3%); }
-    50% { transform: translate(3%, -2%); } 75% { transform: translate(-3%, -3%); } 100% { transform: translate(2%, 2%); }
-  }
-
-  /* ============ 页头 ============ */
-  .head {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
-    height: var(--head);
-    transition: background .4s var(--ease), border-color .4s, backdrop-filter .4s;
-    border-bottom: 1px solid transparent;
-  }
-  .head.solid { background: #0b0f0ce6; backdrop-filter: blur(14px) saturate(1.2); border-bottom-color: var(--line); }
-  .head .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; height: 100%; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand svg { width: 34px; height: 34px; color: var(--paper); }
-  .brand .cn { font-family: var(--font-serif); font-size: 21px; font-weight: 700; letter-spacing: .02em; color: var(--paper); }
-  .brand .en { font-family: var(--font-mono); font-size: 10px; letter-spacing: .32em; color: var(--faint); display: block; line-height: 1; margin-top: 3px; }
-  .nav { display: flex; gap: 30px; font-size: 13px; color: var(--mute); }
-  .nav a { position: relative; padding: 6px 0; }
-  .nav a:hover { color: var(--paper); }
-  .nav a::after {
-    content: ""; position: absolute; left: 0; right: 100%; bottom: 0; height: 1px;
-    background: var(--flare); transition: right .3s var(--ease);
-  }
-  .nav a:hover::after { right: 0; }
-  .head-dl {
-    display: inline-flex; align-items: center; gap: 10px;
-    height: 40px; padding: 0 18px;
-    border: 1px solid var(--line-2); border-radius: 999px;
-    font-size: 13px; color: var(--paper);
-    transition: background .2s, color .2s, border-color .2s;
-  }
-  .head-dl:hover { background: var(--flare); color: var(--flare-ink); border-color: var(--flare); }
-  .head-dl .ver { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
-  .head-dl:hover .ver { color: var(--flare-ink); opacity: .7; }
-
-  /* ============ 开场：看台 ============ */
-  .stage {
-    position: relative;
-    min-height: 100svh;
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    background:
-      radial-gradient(120% 70% at 50% -10%, #223027 0%, #121a15 45%, var(--night) 80%);
-    isolation: isolate;
-  }
-  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
-  .stage::after {
-    content: ""; position: absolute; inset: auto 0 0; height: 40vh; z-index: -1;
-    background: linear-gradient(180deg, transparent, var(--night));
-    pointer-events: none;
-  }
-  .pitch-line {
-    position: absolute; left: 50%; top: 54%;
-    width: min(1500px, 160vw); aspect-ratio: 2 / 1;
-    transform: translate(-50%, -50%);
-    border: 1px solid #ffffff10; border-radius: 999px;
-    z-index: -1; pointer-events: none;
-  }
-  .pitch-line::before {
-    content: ""; position: absolute; inset: 18% 4%;
-    border-top: 1px solid #ffffff0c;
-    border-radius: 50%;
-  }
-  .stage-in {
-    flex: 1;
-    display: flex; flex-direction: column; justify-content: center;
-    padding: calc(var(--head) + 40px) 0 90px;
-  }
-  .meta-row {
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: .2em; color: var(--mute);
-    text-transform: uppercase;
-  }
-  .live {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 12px 5px 10px; border-radius: 999px;
-    border: 1px solid var(--line-2); color: var(--paper); letter-spacing: .14em;
-  }
-  .live i {
-    width: 7px; height: 7px; border-radius: 50%; background: var(--claret);
-    box-shadow: 0 0 0 0 #c2334a88; animation: pulse 2.4s infinite;
-  }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 #c2334a88; } 70% { box-shadow: 0 0 0 10px #c2334a00; } 100% { box-shadow: 0 0 0 0 #c2334a00; }
-  }
-  .stage h1 {
-    margin: 34px 0 26px;
-    font-family: var(--font-serif);
-    font-weight: 700;
-    font-size: clamp(52px, 10vw, 148px);
-    line-height: .98;
-    letter-spacing: -.01em;
-    color: var(--paper);
-    text-wrap: balance;
-    width: fit-content;
-  }
-  .stage h1 .l2 { display: block; }
-  .stage h1 .l2 { color: transparent; -webkit-text-stroke: 1.2px #f3efe4aa; }
-  .stage h1 .l2 b { -webkit-text-stroke: 0; color: var(--flare); font-weight: inherit; }
-
-  /* 比分牌 */
-  .score {
-    display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-    gap: 40px; align-items: end;
-    margin-top: 10px;
-  }
-  .score p { max-width: 44ch; font-size: 17px; color: var(--mute); line-height: 1.85; }
-  .tally {
-    justify-self: end; width: min(100%, 360px);
-    border-top: 1px solid var(--line-2);
-  }
-  .tally div {
-    display: flex; align-items: baseline; justify-content: space-between;
-    padding: 9px 0; border-bottom: 1px solid var(--line);
-    font-size: 13px; color: var(--mute);
-  }
-  .tally span:last-child {
-    font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; color: var(--paper);
-  }
-  .tally div.hot span:last-child { color: var(--flare); }
-  .cta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 40px; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 12px;
-    height: 54px; padding: 0 26px; border-radius: 999px;
-    font-size: 15px; font-weight: 600; border: 1px solid transparent;
-    transition: transform .25s var(--ease), background .2s, color .2s, border-color .2s;
-  }
-  .btn svg { width: 18px; height: 18px; }
-  .btn.glow {
-    background: var(--flare); color: var(--flare-ink);
-    box-shadow: 0 0 0 0 #d3ec4c00;
-  }
-  .btn.glow:hover { transform: translateY(-2px); box-shadow: 0 0 44px -6px #d3ec4ca8; }
-  .btn.line { border-color: var(--line-2); color: var(--paper); }
-  .btn.line:hover { border-color: var(--paper); transform: translateY(-2px); }
-  .btn small { font-family: var(--font-mono); font-weight: 400; font-size: 11px; letter-spacing: .06em; opacity: .65; }
-  .cta-note { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; color: var(--faint); }
-  .scroll-hint {
-    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .3em; color: var(--faint);
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-  }
-  .scroll-hint::after {
-    content: ""; width: 1px; height: 44px;
-    background: linear-gradient(var(--paper), transparent);
-    animation: drop 2s var(--ease) infinite;
-  }
-  @keyframes drop { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
-
-  /* ============ 通用分节 ============ */
-  section { position: relative; }
-  .sec-head { display: flex; align-items: end; justify-content: space-between; gap: 32px; flex-wrap: wrap; margin-bottom: 52px; }
-  .idx {
-    display: flex; align-items: center; gap: 14px;
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: .24em; color: var(--flare);
-    text-transform: uppercase; margin-bottom: 18px;
-  }
-  .idx::after { content: ""; width: 56px; height: 1px; background: var(--line-2); }
-  .sec-head h2 {
-    font-family: var(--font-serif); font-weight: 700;
-    font-size: clamp(34px, 4.6vw, 60px); line-height: 1.12; color: var(--paper);
-    letter-spacing: -.005em;
-  }
-  .sec-head p { max-width: 40ch; color: var(--mute); font-size: 15px; }
+  .tag span { color: var(--faint); }
+  .mono { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
 
   /* 滚动显现 */
-  .rv { opacity: 0; transform: translateY(28px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
   .rv.in { opacity: 1; transform: none; }
-  .rv[style*="--d"] { transition-delay: var(--d); }
+
+  /* 进度线 */
+  .progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: var(--red); z-index: 60; }
+
+  /* ============ 页头 ============ */
+  .nav {
+    position: fixed; inset: 0 0 auto; z-index: 30; height: 64px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 max(var(--gut), calc((100% - var(--max)) / 2 + var(--gut)));
+    font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
+    color: var(--paper); background: linear-gradient(#0c0e0def 70%, #0c0e0d00);
+  }
+  .nav .brand { display: flex; align-items: center; gap: 12px; }
+  .nav .brand svg { width: 24px; height: 24px; }
+  .nav .brand b { font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: .04em; }
+  .nav .brand i { font-style: normal; opacity: .55; font-size: 10px; letter-spacing: .26em; }
+  .nav .go { color: var(--paper); }
+  .nav .go:hover { color: var(--red-bright); }
+
+  /* ============ 刊头 ============ */
+  .mast { position: relative; background: var(--ink); color: var(--paper); overflow: hidden; isolation: isolate; }
+  .mast canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; opacity: .9; }
+  .mast .glow {
+    position: absolute; inset: -20% -10%; z-index: -1; pointer-events: none;
+    background: radial-gradient(46% 50% at 74% 6%, #e9e3d41f 0%, transparent 62%);
+  }
+  .mast .arc {
+    position: absolute; right: -18%; top: -70%; width: 1120px; aspect-ratio: 1; border-radius: 50%;
+    border: 1px solid #ffffff0d; pointer-events: none; z-index: -1;
+  }
+  .mast .arc::before, .mast .arc::after { content: ""; position: absolute; border-radius: 50%; border: 1px solid #ffffff0b; }
+  .mast .arc::before { inset: 16%; } .mast .arc::after { inset: 32%; }
+  .mast .tag { color: var(--red-bright); border-color: #ffffff20; }
+  .mast .tag span { color: #ffffff66; }
+  .kicker { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-top: 44px; color: #ffffff88; font-size: 14px; }
+  .mast h1 {
+    font-family: var(--serif); font-weight: 700; color: var(--paper);
+    font-size: clamp(56px, 11.6vw, 184px); line-height: .96; letter-spacing: -.015em;
+    margin: 28px 0 36px; text-wrap: balance;
+  }
+  .mast h1 .row { display: flex; align-items: baseline; gap: 30px; flex-wrap: wrap; }
+  .mast h1 small {
+    font-family: var(--mono); font-size: clamp(10px, .9vw, 13px); letter-spacing: .32em; color: #ffffff4d;
+    transform: translateY(-10px); white-space: nowrap; font-weight: 400;
+  }
+  .mast h1 em { font-style: normal; color: var(--red-bright); }
+  .lede { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: end; padding: 0 0 46px; }
+  .lede p { max-width: 40ch; font-size: 18px; line-height: 1.8; color: #ffffffb3; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 24px;
+    font-size: 14px; font-weight: 600; border: 1px solid #ffffff33; color: var(--paper); background: transparent;
+    transition: background .2s, color .2s, border-color .2s, transform .3s var(--ease);
+  }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+  .btn.p { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+  .btn.p:hover { background: var(--red-bright); border-color: var(--red-bright); color: #fff; transform: translateY(-1px); }
+  .btn:hover { border-color: var(--paper); }
+  .band { height: 10px; background: repeating-linear-gradient(90deg, var(--red-bright) 0 64px, transparent 64px 72px); }
+
+  /* 刊头比分牌 */
+  .score {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 48px; align-items: end;
+    padding: 0 0 44px;
+  }
+  .score .lead { max-width: 44ch; color: var(--night-mute); font-size: 17px; line-height: 1.85; margin-top: -6px; }
+  .tally { border-top: 1px solid var(--line-night-2); }
+  .tally div { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: 9px 0; border-bottom: 1px solid var(--line-night); font-size: 13px; color: var(--night-mute); }
+  .tally span:last-child { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; color: var(--paper); white-space: nowrap; }
+  .tally div.hot span:last-child { color: var(--flare); }
+  .tally div.hot span:first-child { color: var(--paper); }
 
   /* ============ 影片 ============ */
-  .film { padding: 150px 0 0; }
-  .film-shell {
-    position: relative; border-radius: 18px; overflow: hidden;
-    background: #050806;
-    border: 1px solid var(--line);
-    box-shadow: 0 40px 120px -30px #000;
+  .film { padding: 0 0 30px; }
+  .film .player { position: relative; margin-top: 12px; border: 1px solid var(--rule); background: #000; }
+  .film video { width: 100%; aspect-ratio: 16 / 9; }
+  .film .player::before, .film .player::after {
+    content: ""; position: absolute; width: 18px; height: 18px; border: 1px solid var(--red); z-index: 1; pointer-events: none;
+    transition: border-color .2s;
   }
-  .film-shell video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #050806; }
-  .film-shell .corner {
-    position: absolute; width: 22px; height: 22px; border: 1px solid #f3efe455; pointer-events: none;
-  }
-  .corner.tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
-  .corner.tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
-  .corner.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
-  .corner.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
-  .film-bar {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px;
-    padding: 18px 4px 0;
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; color: var(--faint);
-  }
-  .film-bar .rec { color: var(--claret); display: inline-flex; align-items: center; gap: 8px; }
-  .film-bar .rec i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .film .player::before { left: -1px; top: -1px; border-right: 0; border-bottom: 0; }
+  .film .player::after { right: -1px; bottom: -1px; border-left: 0; border-top: 0; }
+  .film .player.playing::before, .film .player.playing::after { border-color: var(--red-bright); border-width: 2px; }
+  .film .strip { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--faint); text-transform: uppercase; }
 
-  /* ============ 三个入口 ============ */
-  .entries { padding: 150px 0 40px; }
-  .entry-list { border-top: 1px solid var(--line-2); }
-  .entry {
-    display: grid;
-    grid-template-columns: 90px minmax(0, 1.1fr) minmax(0, 1fr);
-    gap: 36px; align-items: start;
-    padding: 44px 0;
-    border-bottom: 1px solid var(--line-2);
-    position: relative;
-    transition: background .35s var(--ease), padding .35s var(--ease);
-  }
-  .entry::before {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-    background: var(--flare); transform: scaleX(0); transform-origin: left;
-    transition: transform .5s var(--ease);
-  }
-  .entry:hover::before { transform: scaleX(1); }
-  .entry-no { font-family: var(--font-mono); font-size: 12px; color: var(--faint); padding-top: 10px; }
-  .entry h3 {
-    font-family: var(--font-serif); font-size: clamp(30px, 3.6vw, 50px); font-weight: 700; color: var(--paper);
-    line-height: 1.1; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
-  }
-  .entry h3 em { font-family: var(--font-mono); font-style: normal; font-size: 11px; letter-spacing: .3em; color: var(--faint); font-weight: 400; }
-  .entry .desc { margin-top: 16px; max-width: 46ch; color: var(--mute); font-size: 15px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-  .chip {
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em;
-    padding: 6px 11px; border-radius: 6px;
-    border: 1px solid var(--line-2); color: var(--bone);
-  }
-  .source-ladder { display: grid; gap: 10px; }
-  .source-ladder div {
-    display: grid; grid-template-columns: 78px 1fr; gap: 16px; align-items: baseline;
-    padding: 12px 14px; border-radius: 10px;
-    background: var(--night-2);
-    border: 1px solid var(--line);
-    transition: border-color .2s, transform .3s var(--ease);
-  }
-  .entry:hover .source-ladder div { border-color: var(--line-2); }
-  .source-ladder b { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; color: var(--flare); font-weight: 500; }
-  .source-ladder span { font-size: 13.5px; color: var(--bone); }
-  .checks { display: grid; gap: 9px; }
-  .checks div { display: flex; gap: 12px; align-items: baseline; font-size: 13.5px; color: var(--bone); }
-  .checks div::before {
-    content: "✓"; font-family: var(--font-mono); font-size: 11px; color: var(--flare);
-    width: 18px; height: 18px; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--line-2); border-radius: 50%; transform: translateY(2px);
-  }
+  /* ============ 能做什么：报纸分栏 ============ */
+  .what { padding-bottom: 4px; }
+  .what h2 { font-family: var(--serif); font-size: clamp(34px, 5vw, 68px); line-height: 1.1; margin: 30px 0 4px; max-width: 15ch; text-wrap: balance; }
+  .what h2 i { font-style: normal; color: var(--red); }
+  .what-status { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; color: var(--red); padding: 22px 0 14px; display: flex; align-items: center; gap: 10px; }
+  .what-status::after { content: ""; flex: 1; height: 1px; background: var(--red); }
+  .what-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 0 #c2334a88; animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 #c2334a88; } 70% { box-shadow: 0 0 0 9px #c2334a00; } 100% { box-shadow: 0 0 0 0 #c2334a00; } }
+  .cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 3px solid var(--ink); }
+  .col { padding: 22px 22px 34px 0; }
+  .col + .col { padding-left: 22px; border-left: 1px solid var(--rule); }
+  .col .n { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--red); }
+  .col h3 { font-family: var(--serif); font-size: 27px; line-height: 1.25; margin: 14px 0 12px; }
+  .col p { font-size: 15px; line-height: 1.85; color: var(--mute); }
+  .col .drop { float: left; font-family: var(--serif); font-size: 54px; line-height: .88; padding: 5px 8px 0 0; color: var(--ink); }
 
-  /* ============ 原则 ============ */
-  .principles { padding: 160px 0 40px; }
-  .principles .lead {
-    max-width: 62ch; margin: -24px 0 52px;
-    font-family: var(--font-serif); font-size: clamp(20px, 2.2vw, 26px); line-height: 1.6; color: var(--bone);
+  /* ============ 界面：印厂样张 ============ */
+  .show { background: var(--ink); color: var(--paper); padding-bottom: 44px; }
+  .show .rail { background: #ffffff14; }
+  .show .tag { color: var(--red-bright); border-color: #ffffff20; }
+  .show .tag span { color: #ffffff55; }
+  .show h2 { font-family: var(--serif); font-size: clamp(34px, 5vw, 64px); line-height: 1.1; margin: 30px 0 32px; text-wrap: balance; }
+  .plates { position: relative; border: 1px solid #ffffff1f; padding: 10px; background: #070908; }
+  .plates::before, .plates::after {
+    content: ""; position: absolute; top: -1px; width: 22px; height: 22px; border: 1px solid var(--red-bright); border-right: 0; border-bottom: 0;
   }
-  .principles .lead mark { background: none; color: var(--flare); }
-  .pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .pcard {
-    position: relative; overflow: hidden;
-    padding: 34px 28px 30px; border-radius: 16px;
-    background: var(--night-2); border: 1px solid var(--line);
-    min-height: 300px; display: flex; flex-direction: column; justify-content: space-between;
-    transition: border-color .3s, transform .5s var(--ease), background .3s;
-  }
-  .pcard:hover { border-color: #ffffff33; transform: translateY(-4px); background: var(--night-3); }
-  .pcard .big {
-    position: absolute; right: 10px; top: -26px;
-    font-family: var(--font-serif); font-size: 150px; font-weight: 700; line-height: 1;
-    color: #ffffff06; pointer-events: none;
-  }
-  .pcard:hover .big { color: #d3ec4c0d; }
-  .pcard h3 { font-family: var(--font-serif); font-size: 23px; color: var(--paper); line-height: 1.35; }
-  .pcard .rule { font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; color: var(--flare); margin-top: 14px; }
-  .pcard p { color: var(--mute); font-size: 14px; margin-top: 26px; }
+  .plates::before { left: -1px; } .plates::after { right: -1px; left: auto; }
+  .plates img { width: 100%; cursor: zoom-in; }
+  .plates figcaption { display: flex; justify-content: space-between; padding: 12px 2px 2px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: #ffffff66; text-transform: uppercase; }
+  .plates figcaption b { color: var(--red-bright); font-weight: 500; }
+  .filmstrip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .filmstrip button { appearance: none; border: 1px solid #ffffff1a; padding: 0; background: #000; cursor: pointer; opacity: .5; position: relative; transition: opacity .2s, border-color .2s; }
+  .filmstrip button img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; }
+  .filmstrip button span { position: absolute; left: 8px; bottom: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .16em; color: #fff; text-transform: uppercase; }
+  .filmstrip button span::before { content: ""; position: absolute; inset: -4px -6px -5px -6px; background: #000000b3; z-index: -1; }
+  .filmstrip button:hover { opacity: .85; }
+  .filmstrip button[aria-pressed="true"] { opacity: 1; border-color: var(--red-bright); }
 
-  /* ============ 界面 ============ */
-  .interface { padding: 160px 0 40px; }
-  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--night-2); border: 1px solid var(--line); }
-  .tab {
-    border: 0; background: transparent; cursor: pointer;
-    font: inherit; font-size: 13px; color: var(--mute);
-    height: 38px; padding: 0 20px; border-radius: 999px;
-    transition: color .2s, background .25s;
+  /* ============ 开始 ============ */
+  .start { padding-bottom: 0; }
+  .start h2 { font-family: var(--serif); font-size: clamp(34px, 5.2vw, 72px); line-height: 1.06; margin: 30px 0 32px; max-width: 15ch; text-wrap: balance; }
+  .start h2 i { font-style: normal; color: var(--red); }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 3px solid var(--ink); border-bottom: 1px solid var(--rule); }
+  .step { padding: 22px 22px 28px 0; }
+  .step + .step { padding-left: 22px; border-left: 1px solid var(--rule); }
+  .step .n { font-family: var(--serif); font-size: 46px; line-height: 1; color: #c2334a40; }
+  .step h3 { font-size: 16px; margin: 12px 0 6px; }
+  .step p { font-size: 14px; color: var(--mute); line-height: 1.75; }
+  .download {
+    display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    margin: 34px 0 0; padding: 28px; background: var(--ink); color: var(--paper); position: relative; overflow: hidden;
   }
-  .tab:hover { color: var(--paper); }
-  .tab[aria-selected="true"] { background: var(--paper); color: var(--night); font-weight: 600; }
-  .screen {
-    position: relative; margin-top: 24px;
-    border-radius: 18px; overflow: hidden;
-    border: 1px solid var(--line-2);
-    background: var(--night-2);
-    box-shadow: 0 50px 140px -40px #000;
-  }
-  .screen .browser {
-    display: flex; align-items: center; gap: 8px;
-    height: 42px; padding: 0 16px;
-    border-bottom: 1px solid var(--line);
-    background: #0d120f;
-  }
-  .screen .browser i { width: 10px; height: 10px; border-radius: 50%; background: #ffffff1a; }
-  .screen .browser .url {
-    margin-left: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--faint);
-    padding: 4px 12px; border-radius: 6px; background: #ffffff08;
-  }
-  .screen .view { position: relative; aspect-ratio: 16 / 10; }
-  .screen .view img {
-    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left;
-    opacity: 0; transform: scale(1.015);
-    pointer-events: none; cursor: zoom-in;
-    transition: opacity .6s var(--ease), transform 1.4s var(--ease);
-  }
-  .screen .view img.on { opacity: 1; transform: none; pointer-events: auto; }
-  .screen figcaption {
-    position: absolute; left: 18px; bottom: 18px;
-    padding: 8px 14px; border-radius: 8px;
-    background: #0b0f0ce0; backdrop-filter: blur(8px);
-    border: 1px solid var(--line-2);
-    font-size: 13px; color: var(--paper);
-  }
-  .screen figcaption b { font-family: var(--font-mono); color: var(--flare); font-weight: 500; margin-right: 10px; font-size: 11px; }
-
-  /* ============ 本机 ============ */
-  .local { padding: 160px 0 40px; }
-  .local-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-  .term {
-    border-radius: 16px; overflow: hidden;
-    background: #070a08; border: 1px solid var(--line-2);
-    box-shadow: 0 30px 80px -30px #000;
-  }
-  .term-bar {
-    display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px;
-    border-bottom: 1px solid var(--line); background: #0d120f;
-    font-family: var(--font-mono); font-size: 11px; color: var(--faint);
-  }
-  .term-bar i { width: 9px; height: 9px; border-radius: 50%; background: #ffffff17; }
-  .term-bar span { margin-left: 12px; }
-  .term-bar button {
-    margin-left: auto; border: 1px solid var(--line-2); background: transparent; cursor: pointer;
-    color: var(--bone); font: inherit; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em;
-    height: 26px; padding: 0 10px; border-radius: 6px;
-  }
-  .term-bar button:hover { border-color: var(--flare); color: var(--flare); }
-  .term pre {
-    margin: 0; padding: 22px 20px 26px;
-    font-family: var(--font-mono); font-size: 13px; line-height: 1.95;
-    color: var(--bone); overflow-x: auto; white-space: pre;
-  }
-  .term .c { color: var(--faint); }
-  .term .ok { color: var(--flare); }
-  .term .p { color: #7f8a7f; }
-  .specs { border-radius: 16px; border: 1px solid var(--line); background: var(--night-2); padding: 8px 24px; }
-  .specs div {
-    display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 18px;
-    padding: 15px 0; border-bottom: 1px solid var(--line); font-size: 13.5px;
-  }
-  .specs div:last-child { border-bottom: 0; }
-  .specs dt { color: var(--mute); opacity: .75; font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; padding-top: 3px; }
-  .specs dd { color: var(--bone); }
-  .specs code { font-family: var(--font-mono); font-size: 12px; color: var(--flare); }
-
-  /* ============ 下载 ============ */
-  .get { padding: 160px 0 120px; }
-  .get-card {
-    position: relative; overflow: hidden;
-    border-radius: 24px;
-    padding: clamp(36px, 6vw, 80px);
-    background:
-      radial-gradient(80% 120% at 100% 0%, #2a3a2e 0%, transparent 60%),
-      radial-gradient(60% 90% at 0% 100%, #20291c 0%, transparent 55%),
-      var(--night-2);
-    border: 1px solid var(--line-2);
-  }
-  .get-card::before {
-    content: "TOUCHLINE"; position: absolute; right: -20px; bottom: -40px;
-    font-family: var(--font-mono); font-weight: 700; font-size: clamp(90px, 17vw, 250px);
-    letter-spacing: -.04em; color: #ffffff05; pointer-events: none; line-height: 1;
-  }
-  .get-card h2 {
-    font-family: var(--font-serif); font-weight: 700;
-    font-size: clamp(36px, 5.4vw, 76px); line-height: 1.05; color: var(--paper);
-    letter-spacing: -.01em; text-wrap: balance;
-  }
-  .get-card h2 em { font-style: normal; color: var(--flare); }
-  .get-card > p { margin-top: 22px; max-width: 52ch; color: var(--mute); font-size: 16px; }
-  .get-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 40px; position: relative; }
-  .get-facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; position: relative; }
-  .fact {
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; color: var(--mute);
-    padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line-2);
-  }
-  .fact b { color: var(--paper); font-weight: 500; }
+  .download::after { content: ""; position: absolute; inset: auto 0 0; height: 10px; background: repeating-linear-gradient(90deg, var(--red-bright) 0 64px, transparent 64px 72px); opacity: .8; }
+  .download .meta { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: #ffffff88; margin-top: 8px; text-transform: uppercase; }
+  .download h3 { font-family: var(--serif); font-size: 28px; }
+  .note { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--faint); margin: 14px 0 0; }
 
   /* ============ 页脚 ============ */
-  footer { border-top: 1px solid var(--line); padding: 56px 0 40px; }
-  footer .top { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
-  footer .mark { display: flex; align-items: center; gap: 12px; }
-  footer .mark svg { width: 30px; height: 30px; color: var(--paper); }
-  footer .mark b { font-family: var(--font-serif); font-size: 20px; color: var(--paper); }
-  footer .mark span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .3em; color: var(--faint); }
-  footer p { max-width: 46ch; color: var(--faint); font-size: 12.5px; margin-top: 18px; }
-  footer nav { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 13px; color: var(--mute); align-content: start; }
-  footer nav a:hover { color: var(--flare); }
-  footer .bottom {
-    display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-    margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line);
-    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; color: var(--faint);
-    text-transform: uppercase;
-  }
+  footer { background: var(--ink); color: #ffffff80; padding: 30px 0 60px; margin-top: 56px; }
+  footer .sheet { display: flex; justify-content: space-between; gap: 20px 40px; flex-wrap: wrap; font-size: 12.5px; }
+  footer .links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  footer a:hover { color: var(--red-bright); }
+  footer p { max-width: 56ch; margin-top: 10px; font-size: 12px; color: #ffffff55; line-height: 1.8; }
 
   /* 灯箱 */
-  .lightbox {
-    position: fixed; inset: 0; z-index: 90; display: none;
-    background: #000000ed; padding: 4vh 4vw;
-    cursor: zoom-out;
-  }
-  .lightbox.open { display: flex; align-items: center; justify-content: center; }
-  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 40px 120px #000; }
-
-  /* 进度条 */
-  .progress { position: fixed; top: 0; left: 0; height: 2px; background: var(--flare); z-index: 60; width: 0; }
+  .lightbox { position: fixed; inset: 0; z-index: 90; display: none; background: #000000ed; padding: 4vh 4vw; cursor: zoom-out; }
+  .lightbox.open { display: grid; place-items: center; }
+  .lightbox img { max-width: 100%; max-height: 92vh; border-radius: 4px; box-shadow: 0 40px 120px #000; }
 
   /* ============ 响应式 ============ */
-  @media (max-width: 1000px) {
-    .nav { display: none; }
-    .score { grid-template-columns: 1fr; }
-    .tally { justify-self: start; width: 100%; }
-    .entry { grid-template-columns: 56px minmax(0, 1fr); }
-    .entry .side { grid-column: 2; }
-    .pgrid { grid-template-columns: 1fr; }
-    .local-grid { grid-template-columns: 1fr; }
+  @media (max-width: 1080px) {
+    .score { grid-template-columns: 1fr; gap: 26px; }
+    .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .col:nth-child(3) { padding-left: 0; border-left: 0; }
+    .col:nth-child(1), .col:nth-child(2) { border-bottom: 1px solid var(--rule); }
+    .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .step:nth-child(3) { padding-left: 0; border-left: 0; }
+    .step:nth-child(1), .step:nth-child(2) { border-bottom: 1px solid var(--rule); }
   }
-  @media (max-width: 640px) {
-    .wrap { padding: 0 20px; }
-    .head-dl .ver { display: none; }
-    .stage h1 { font-size: clamp(46px, 15vw, 72px); }
-    .stage h1 .l2 { -webkit-text-stroke-width: .9px; }
-    .btn { height: 50px; padding: 0 20px; font-size: 14px; }
-    .film-shell, .screen { border-radius: 12px; }
-    .screen .browser { height: 34px; }
-    .screen .browser .url { font-size: 10px; }
-    .entry { grid-template-columns: 1fr; gap: 14px; padding: 34px 0; }
-    .entry .side { grid-column: 1; }
-    .entry-no { padding-top: 0; }
-    section { }
-    .entries, .principles, .interface, .local, .get { padding-top: 110px; }
-    .scroll-hint { display: none; }
-    .term pre { font-size: 11.5px; }
-    .get .btn { width: 100%; justify-content: center; }
+  @media (max-width: 720px) {
+    :root { --gut: 22px; }
+    body { font-size: 15.5px; }
+    .nav { position: static; background: var(--ink) !important; height: auto; padding-top: 16px; padding-bottom: 6px; mix-blend-mode: normal; }
+    .nav .brand i { display: none; }
+    .mast h1 { font-size: clamp(46px, 13.5vw, 72px); margin-top: 22px; }
+    .mast h1 small { display: none; }
+    .kicker { margin-top: 30px; font-size: 13px; }
+    .lede { grid-template-columns: 1fr; padding-bottom: 34px; }
+    .lede p { font-size: 16px; }
+    .btn { height: 48px; padding: 0 20px; font-size: 13.5px; }
+    .filmstrip { grid-template-columns: repeat(2, 1fr); }
+    .cols, .steps { grid-template-columns: 1fr; }
+    .col + .col, .step + .step { padding-left: 0; border-left: 0; }
+    .col { padding: 20px 0 26px; }
+    .col + .col { border-top: 1px solid var(--rule); }
+    .col h3 { font-size: 24px; }
+    .step { padding: 18px 0 22px; border-left: 0 !important; border-top: 1px solid var(--rule); }
+    .download { padding: 22px; }
+    .download .cta { width: 100%; display: grid; grid-template-columns: 1fr; }
+    .download .btn { justify-content: center; white-space: nowrap; }
+    .film .strip { font-size: 10px; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .grain, .live i, .scroll-hint::after { animation: none; }
+    .what-status i { animation: none; }
     .rv { opacity: 1; transform: none; transition: none; }
     *, *::before, *::after { transition-duration: .01ms !important; }
   }
@@ -519,290 +258,140 @@
 </head>
 <body>
 
-<div class="grain" aria-hidden="true"></div>
 <div class="progress" id="progress" aria-hidden="true"></div>
 
-<header class="head" id="head">
-  <div class="wrap">
-    <a class="brand" href="#top" aria-label="看台 Touchline 首页">
-      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="16" cy="16" r="14"/><path d="M16 9v7.5l4.6 3.2"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/>
-      </svg>
-      <span><span class="cn">看台</span><span class="en">TOUCHLINE · V9.3.0</span></span>
-    </a>
-    <nav class="nav" aria-label="页面导航">
-      <a href="#film">影片</a>
-      <a href="#entries">三个入口</a>
-      <a href="#principles">原则</a>
-      <a href="#interface">界面</a>
-      <a href="#local">本机运行</a>
-    </nav>
-    <a class="head-dl" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
-      下载 <span class="ver">9.3.0 · WIN</span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
-    </a>
-  </div>
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="看台 Touchline 首页">
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="16" r="13.5"/><path d="M16 9v7.4l4.8 3.3"/></svg>
+    <b>看台</b><i>TOUCHLINE · V9.3.0</i>
+  </a>
+  <a class="go" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">下载 V9.3.0 ↓</a>
 </header>
 
 <main id="top">
 
-  <!-- ===== 开场 ===== -->
-  <section class="stage" id="stage">
+  <!-- ===== 刊头 ===== -->
+  <header class="mast">
     <canvas id="stand" aria-hidden="true"></canvas>
-    <div class="pitch-line" aria-hidden="true"></div>
-    <div class="wrap stage-in">
-      <div class="meta-row">
-        <span class="live"><i></i>V9.3.0 · 首个公开发布版</span>
-        <span>本地运行</span><span>/</span><span>单用户</span><span>/</span><span>数据不出本机</span>
+    <div class="glow" aria-hidden="true"></div>
+    <div class="arc" aria-hidden="true"></div>
+    <div class="sheet">
+      <div class="rail l"></div><div class="rail r"></div>
+      <div class="tag">Touchline / 看台 <span>· 个人足球助手 · V9.3.0</span></div>
+      <div class="kicker">
+        <span>Windows · 免费 · 数据存在本机</span>
+        <span>2026</span>
       </div>
       <h1>
-        你的私人
-        <span class="l2">足球<b>编辑部</b></span>
+        <span class="row">你的<em>私人</em><small>YOUR PRIVATE</small></span>
+        <span class="row">足球编辑部<small>FOOTBALL DESK</small></span>
       </h1>
       <div class="score">
-        <p>
-          一支球队的动态、阵容、赛程与数据，整理成中文，存在你自己的电脑里。
-          没有账号，没有推荐算法，也没有替你做判断的“已核实”。
-        </p>
-        <div class="tally" aria-label="与常见资讯产品对照">
-          <div><span>你收到的“已核实”标签</span><span>0</span></div>
-          <div><span>我们替你删掉的争议消息</span><span>0</span></div>
-          <div><span>每一句都能追溯到的来源</span><span>100%</span></div>
-          <div class="hot"><span>需要联网的设备</span><span>只有你这一台</span></div>
+        <div>
+          <p class="lead">一支球队的动态、阵容、赛程和数据，全都整理成中文，放在你自己的电脑里。</p>
+          <div class="tally">
+            <div><span>你收到的“已核实”标签</span><span>0</span></div>
+            <div><span>我们替你删掉的争议消息</span><span>0</span></div>
+            <div><span>每一句都能追溯到的来源</span><span>100%</span></div>
+            <div class="hot"><span>需要联网的设备</span><span>只有你这一台</span></div>
+          </div>
+        </div>
+        <div class="cta">
+          <a class="btn p" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">下载 · 免费
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </a>
+          <a class="btn" href="#film">看影片</a>
         </div>
       </div>
-      <div class="cta-row">
-        <a class="btn glow" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
-          下载 V9.3.0 · Windows
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
-        </a>
-        <a class="btn line" href="#film">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          先看发布影片
-        </a>
-        <span class="cta-note">无需账号 · 解压即用</span>
-      </div>
     </div>
-    <div class="scroll-hint" aria-hidden="true">SCROLL</div>
-  </section>
+    <div class="band" aria-hidden="true"></div>
+  </header>
 
   <!-- ===== 影片 ===== -->
   <section class="film" id="film">
-    <div class="wrap">
-      <div class="sec-head rv">
-        <div>
-          <span class="idx">01 / Release film</span>
-          <h2>看台上的噪音，<br />最后三十秒才是产品。</h2>
-        </div>
-        <p>一分四十七秒，英语旁白。画面由代码逐帧生成，产品片段全部来自真实界面。</p>
+    <div class="sheet">
+      <div class="rail l"></div><div class="rail r"></div>
+      <div class="tag">01 <span>· 发布影片</span></div>
+      <div class="player rv" id="player">
+        <video controls preload="metadata" poster="assets/film-poster.jpg" playsinline src="assets/touchline-film-web.mp4"></video>
       </div>
-      <div class="film-shell rv">
-        <video controls preload="metadata" poster="assets/film-poster.jpg" playsinline
-               src="assets/touchline-film-web.mp4"></video>
-        <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
-      </div>
-      <div class="film-bar rv">
-        <span class="rec"><i></i>REC · 01:47 · 1080p 母版</span>
-        <span>点击播放 · 声音默认开启</span>
-      </div>
+      <div class="strip rv"><span>1:47 · 英语旁白</span><span>点击播放</span></div>
     </div>
   </section>
 
-  <!-- ===== 三个入口 ===== -->
-  <section class="entries" id="entries">
-    <div class="wrap">
-      <div class="sec-head rv">
-        <div>
-          <span class="idx">02 / Three entries</span>
-          <h2>三个入口。<br />只看你在乎的。</h2>
-        </div>
-        <p>采集、缓存、调度、失败重试都在后台。界面上不出现技术细节，也不出现“加载中”之外的第三种状态。</p>
-      </div>
-      <div class="entry-list">
-
-        <article class="entry rv">
-          <span class="entry-no">01</span>
-          <div>
-            <h3>动态 <em>THE FEED</em></h3>
-            <p class="desc">按球队阅读中文消息流。英文报道由模型整理成中文，每条消息标注来源层级，展开后仍可点链接核对原文。</p>
-            <div class="chips"><span class="chip">按球队</span><span class="chip">中文整理</span><span class="chip">层数与认同量</span></div>
-          </div>
-          <div class="side source-ladder">
-            <div><b>OFFICIAL</b><span>直接陈述</span></div>
-            <div><b>DATASET</b><span>直接陈述 · 标注数据源</span></div>
-            <div><b>PRESS</b><span>据 X 报道</span></div>
-            <div><b>COMMUNITY</b><span>社区有说法 · 附认同量，不提级</span></div>
-          </div>
+  <!-- ===== 能做什么 ===== -->
+  <section class="what" id="what">
+    <div class="sheet">
+      <div class="rail l"></div><div class="rail r"></div>
+      <div class="what-status"><i aria-hidden="true"></i>能做什么</div>
+      <h2 class="rv">一支球队的<br /><i>全部动态与资料</i>。</h2>
+      <div class="cols">
+        <article class="col rv">
+          <div class="n">01 / DYNAMIC</div>
+          <h3><span class="drop">按</span>球队读动态</h3>
+          <p>比赛、转会、伤病、阵容变化，中文整理好，一次看不漏。</p>
         </article>
-
-        <article class="entry rv">
-          <span class="entry-no">02</span>
-          <div>
-            <h3>球队 <em>THE CLUB</em></h3>
-            <p class="desc">资料、一线队名单与有来源的照片、赛季表现、积分榜、胜平负与主客场、未来赛程。数值以数据源为准，缺的就留空。</p>
-            <div class="chips"><span class="chip">96 支五大联赛球队</span><span class="chip">照片须有来源</span><span class="chip">更新记录</span></div>
-          </div>
-          <div class="side checks">
-            <div>两名候选人出生日期差一年，继续拒绝挂图</div>
-            <div>同名者不猜人，整年不符照常留空</div>
-            <div>模型不找图、不选 URL，匹配由确定性工具完成</div>
-            <div>射手、助攻、门将扑救分三张榜，不合并</div>
-          </div>
+        <article class="col rv" style="transition-delay:.06s">
+          <div class="n">02 / CLUB</div>
+          <h3><span class="drop">九</span>十六支球队</h3>
+          <p>五大联赛。阵容、照片、赛季表现、积分榜、主客场成绩。</p>
         </article>
-
-        <article class="entry rv">
-          <span class="entry-no">03</span>
-          <div>
-            <h3>问助手 <em>THE ASSISTANT</em></h3>
-            <p class="desc">直接对话，或从今日速览、比赛前瞻、赛后复盘、转会核验、战术讲解进入。回答带引用，引用只来自这一轮真正读过的原文。</p>
-            <div class="chips"><span class="chip">带引用的回答</span><span class="chip">中文问句命中英文来源</span><span class="chip">子助手并行</span></div>
-          </div>
-          <div class="side checks">
-            <div>引用必须来自本轮实际读过的阅读快照</div>
-            <div>搜索摘要、历史记录、子任务摘要不自动取得引用资格</div>
-            <div>避剧透删去的段落不能被引用</div>
-            <div>子助手只作线索，主任务引用前仍读原文</div>
-          </div>
+        <article class="col rv" style="transition-delay:.12s">
+          <div class="n">03 / ASSISTANT</div>
+          <h3><span class="drop">带</span>着资料问</h3>
+          <p>比赛前瞻、赛后复盘、转会追踪、战术讲解。答案都有出处。</p>
         </article>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== 原则 ===== -->
-  <section class="principles" id="principles">
-    <div class="wrap">
-      <div class="sec-head rv">
-        <div>
-          <span class="idx">03 / Principles</span>
-          <h2>三条不妥协的原则</h2>
-        </div>
-        <p>不是功能列表，是每一次取舍的依据。它们来自用真实 bug 换来的边界。</p>
-      </div>
-      <p class="lead rv">我们<mark>整合信息</mark>，不认证真伪。你看到的是「谁在什么时候说了什么」——真伪由你判断。</p>
-      <div class="pgrid">
-        <article class="pcard rv" style="--d:.0s">
-          <span class="big" aria-hidden="true">01</span>
-          <div>
-            <h3>整合信息，<br />不裁决真伪</h3>
-            <p class="rule">DELETE ONLY WHAT ISN'T THIS CLUB'S</p>
-          </div>
-          <p>不盖“已核实”的章，也不因为无法确认就删掉一条消息。只删除不属于本队的内容，并数清删了什么。</p>
-        </article>
-        <article class="pcard rv" style="--d:.08s">
-          <span class="big" aria-hidden="true">02</span>
-          <div>
-            <h3>来源分层决定<br />说话方式</h3>
-            <p class="rule">TIER SETS TONE, NOT STATUS</p>
-          </div>
-          <p>官网直接陈述，媒体写“据 X 报道”，社区写“社区有说法”并附认同量。社区源不是低一等的媒体源，它的价值在时效与现场性。</p>
-        </article>
-        <article class="pcard rv" style="--d:.16s">
-          <span class="big" aria-hidden="true">03</span>
-          <div>
-            <h3>模型解释，<br />不编造</h3>
-            <p class="rule">WHEN UNSURE, LEAVE IT BLANK</p>
-          </div>
-          <p>比分、阵容、成员关系、照片都来自可追溯的采集。缺数据就留空，不生成假肖像，也不让模型改写事实字段。</p>
+        <article class="col rv" style="transition-delay:.18s">
+          <div class="n">04 / YOURS</div>
+          <h3><span class="drop">放</span>在你电脑里</h3>
+          <p>免费，没有账号，数据只存在本机。接任何你喜欢的模型。</p>
         </article>
       </div>
     </div>
   </section>
 
   <!-- ===== 界面 ===== -->
-  <section class="interface" id="interface">
-    <div class="wrap">
-      <div class="sec-head rv">
-        <div>
-          <span class="idx">04 / Interface</span>
-          <h2>界面</h2>
-        </div>
-        <div class="tabs" role="tablist" aria-label="界面截图">
-          <button class="tab" role="tab" aria-selected="true" data-shot="team" data-cap="球队资料 · 阿森纳">球队</button>
-          <button class="tab" role="tab" aria-selected="false" data-shot="squad" data-cap="一线队阵容 · 与来源同步">阵容</button>
-          <button class="tab" role="tab" aria-selected="false" data-shot="feed" data-cap="动态 · 按球队阅读">动态</button>
-          <button class="tab" role="tab" aria-selected="false" data-shot="assistant" data-cap="问助手 · 带着资料回答">问助手</button>
-          <button class="tab" role="tab" aria-selected="false" data-shot="mobile" data-cap="窄屏 · 底部标签栏">窄屏</button>
-        </div>
-      </div>
-      <figure class="screen rv">
-        <div class="browser" aria-hidden="true">
-          <i></i><i></i><i></i><span class="url">127.0.0.1:9080</span>
-        </div>
-        <div class="view">
-          <img src="assets/team.png" alt="球队页：阿森纳的资料、赛季表现与积分榜" class="on" data-key="team" />
-          <img src="assets/squad.png" alt="球员信息：一线队网格与筛选" data-key="squad" loading="lazy" />
-          <img src="assets/feed.png" alt="动态页：阿森纳的中文消息流与下一场比赛卡片" data-key="feed" loading="lazy" />
-          <img src="assets/assistant.png" alt="问助手：技能入口与对话输入框" data-key="assistant" loading="lazy" />
-          <img src="assets/mobile.png" alt="窄屏动态页：底部标签栏与消息流" data-key="mobile" loading="lazy" />
-        </div>
-        <figcaption><b>LIVE</b><span id="cap">球队资料 · 阿森纳</span></figcaption>
+  <section class="show" id="interface">
+    <div class="sheet">
+      <div class="rail l"></div><div class="rail r"></div>
+      <div class="tag">03 <span>· 界面</span></div>
+      <h2 class="rv">每一个页面，<br />都按球队排。</h2>
+      <figure class="plates rv">
+        <img id="shot" src="assets/team.png" alt="球队页：阿森纳的资料、赛季表现与积分榜" />
+        <figcaption><b id="plate-no">01</b><span id="plate-cap">球队资料</span></figcaption>
       </figure>
+      <div class="filmstrip rv" role="group" aria-label="切换界面截图">
+        <button type="button" aria-pressed="true" data-src="assets/team.png" data-alt="球队页：资料、赛季表现与积分榜" data-cap="球队资料"><img src="assets/team.png" alt="" /><span>球队</span></button>
+        <button type="button" aria-pressed="false" data-src="assets/squad.png" data-alt="球员页：一线队阵容、筛选与搜索" data-cap="一线队阵容"><img src="assets/squad.png" alt="" /><span>阵容</span></button>
+        <button type="button" aria-pressed="false" data-src="assets/feed.png" data-alt="动态页：中文消息流与下一场比赛" data-cap="主场动态"><img src="assets/feed.png" alt="" /><span>动态</span></button>
+        <button type="button" aria-pressed="false" data-src="assets/assistant.png" data-alt="问助手：技能入口与对话输入框" data-cap="问助手"><img src="assets/assistant.png" alt="" /><span>问助手</span></button>
+      </div>
     </div>
   </section>
 
-  <!-- ===== 本机 ===== -->
-  <section class="local" id="local">
-    <div class="wrap">
-      <div class="sec-head rv">
+  <!-- ===== 开始使用 ===== -->
+  <section class="start" id="dl">
+    <div class="sheet">
+      <div class="rail l"></div><div class="rail r"></div>
+      <div class="tag">04 <span>· 开始使用</span></div>
+      <h2 class="rv">下载，解压，<br /><i>双击开始</i>。</h2>
+      <div class="steps rv">
+        <div class="step"><div class="n">1</div><h3>下载</h3><p>Touchline-9.3.0.zip，约 15 MB。</p></div>
+        <div class="step"><div class="n">2</div><h3>解压</h3><p>放到任意文件夹，不用装进系统。</p></div>
+        <div class="step"><div class="n">3</div><h3>双击启动</h3><p>运行「启动看台.cmd」，首次会自己准备环境。</p></div>
+        <div class="step"><div class="n">4</div><h3>连接模型</h3><p>在设置里填上你的模型服务，然后关注一支球队。</p></div>
+      </div>
+      <p class="note rv">需要 Windows 10/11、Python 3.11+ 与 Node.js 22+（首次启动会自动检查）。</p>
+      <div class="download rv">
         <div>
-          <span class="idx">05 / Get started</span>
-          <h2>在你自己的电脑上跑</h2>
+          <h3>看台 V9.3.0</h3>
+          <div class="meta">Windows 10 / 11 · 免费 · 数据存在本机</div>
         </div>
-        <p>需要 Python 3.11+ 与 Node.js 22+。Windows 下双击启动脚本即可，其余平台按终端里的四步执行。</p>
-      </div>
-      <div class="local-grid">
-        <div class="term rv">
-          <div class="term-bar">
-            <i></i><i></i><i></i><span>touchline — powershell</span>
-            <button type="button" id="copy">COPY ALL</button>
-          </div>
-          <pre id="cmds"><span class="c"># 1 · 准备环境</span>
-<span class="p">PS&gt;</span> python -m venv .venv
-<span class="p">PS&gt;</span> .\.venv\Scripts\python.exe -m pip install -r requirements.txt -c requirements.lock.txt
-
-<span class="c"># 2 · 构建页面</span>
-<span class="p">PS&gt;</span> npm ci
-<span class="p">PS&gt;</span> npm run build
-
-<span class="c"># 3 · 启动服务</span>
-<span class="p">PS&gt;</span> .\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 9080
-<span class="ok">→   http://127.0.0.1:9080/</span>
-
-<span class="c"># 4 · 设置里填模型服务商 → 关注球队 → 动态页点「启动」</span></pre>
-        </div>
-        <dl class="specs rv">
-          <div><dt>运行方式</dt><dd>本地单用户，数据不出本机</dd></div>
-          <div><dt>PYTHON</dt><dd>3.11 及以上</dd></div>
-          <div><dt>NODE</dt><dd>22 及以上</dd></div>
-          <div><dt>模型</dt><dd>任意兼容 Chat Completions / Responses / Anthropic Messages 的服务</dd></div>
-          <div><dt>联赛</dt><dd>英超 · 西甲 · 德甲 · 意甲 · 法甲（2026/27，96 队）</dd></div>
-          <div><dt>数据</dt><dd><code>data/</code>，凭据加密存放；删掉 key 则全部密钥不可恢复</dd></div>
-          <div><dt>费用</dt><dd>看台本身免费，模型 API 费用取决于你的服务商</dd></div>
-        </dl>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== 下载 ===== -->
-  <section class="get" id="download">
-    <div class="wrap">
-      <div class="get-card rv">
-        <h2>下载。<br />然后<em>关掉别的页面</em>。</h2>
-        <p>一个压缩包，解压后双击 <b style="color:var(--paper)">启动看台.cmd</b>。首次启动自动准备环境、安装依赖并校验页面构建，之后每次打开只要几秒。</p>
-        <div class="get-row">
-          <a class="btn glow" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">
-            下载 Touchline-9.3.0.zip
+        <div class="cta">
+          <a class="btn p" href="https://github.com/AlexYin-Tongji/touchline-football/releases/latest/download/Touchline-9.3.0.zip">下载 Touchline-9.3.0.zip
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
           </a>
-          <a class="btn line" href="https://github.com/AlexYin-Tongji/touchline-football/releases">全部版本与校验值</a>
-        </div>
-        <div class="get-facts">
-          <span class="fact"><b>V9.3.0</b> · 首个公开发布版</span>
-          <span class="fact">Windows 10 / 11</span>
-          <span class="fact">Python <b>3.11+</b></span>
-          <span class="fact">Node.js <b>22+</b></span>
-          <span class="fact">含预构建 <b>dist/</b></span>
+          <a class="btn" href="https://github.com/AlexYin-Tongji/touchline-football/releases">全部版本与校验值</a>
         </div>
       </div>
     </div>
@@ -810,27 +399,17 @@
 </main>
 
 <footer>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <div class="mark">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="16" r="14"/><path d="M16 9v7.5l4.6 3.2"/></svg>
-          <b>看台</b><span>TOUCHLINE</span>
-        </div>
-        <p>队徽与球员照片的权利属于各俱乐部与原始来源，项目内保存的素材均附来源记录。仓库：<a href="https://github.com/AlexYin-Tongji/touchline-football" style="color:var(--bone)">AlexYin-Tongji/touchline-football</a>。</p>
-      </div>
-      <nav aria-label="页脚链接">
-        <a href="https://alexyin-tongji.github.io/">个人主页</a>
-        <a href="https://github.com/AlexYin-Tongji/touchline-football">GitHub</a>
-        <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/docs/CHANGELOG.md">版本记录</a>
-        <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/AGENTS.md">开发约定</a>
-        <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/docs/ARCHITECTURE.md">代码结构</a>
-        <a href="#top">回到顶部 ↑</a>
-      </nav>
+  <div class="sheet">
+    <div>
+      <span>看台 · Touchline · © 2026 Wenyu Yin</span>
+      <p>队徽与球员照片的权利属于各俱乐部与原始来源，项目内保存的素材均附来源记录。</p>
     </div>
-    <div class="bottom">
-      <span>Touchline · Local-first football agent</span>
-      <span>© 2026 Wenyu Yin · Built to be checked</span>
+    <div class="links">
+      <a href="https://alexyin-tongji.github.io/">个人主页</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football">GitHub</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/docs/CHANGELOG.md">版本记录</a>
+      <a href="https://github.com/AlexYin-Tongji/touchline-football/blob/main/AGENTS.md">开发约定</a>
+      <a href="#top">回到顶部 ↑</a>
     </div>
   </div>
 </footer>
@@ -841,130 +420,96 @@
 (() => {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---------- 看台：人群的呼吸 ---------- */
+  /* ---------- 刊头背后的看台：一圈圈座位，各自呼吸 ---------- */
   const canvas = document.getElementById("stand");
   const ctx = canvas.getContext("2d");
-  let W = 0, H = 0, dpr = 1, dots = [], raf = 0, t0 = performance.now();
+  let W = 0, H = 0, dots = [], t0 = performance.now();
 
   function build() {
-    dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = Math.min(devicePixelRatio || 1, 2);
     W = canvas.clientWidth; H = canvas.clientHeight;
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     dots = [];
-    // 从舞台中央向外排开，越靠外越暗：看台的“座”
-    const cx = W * 0.5, cy = H * 0.52;
-    const maxR = Math.hypot(W, H) * 0.62;
-    const step = Math.max(16, Math.min(W, H) / 26);
+    const cx = W * 0.74, cy = H * 0.02;
+    const maxR = Math.hypot(W, H) * 0.95;
+    const step = Math.max(14, Math.min(W, H) / 40);
     for (let r = step; r < maxR; r += step) {
-      const n = Math.max(10, Math.floor((2 * Math.PI * r) / step));
+      const n = Math.max(8, Math.floor((2 * Math.PI * r) / step));
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 + r * 0.004;
-        const wob = 1 + (Math.sin(i * 12.9898 + r * 0.37) * 43758.5453 % 1) * 0.22;
+        const jitter = (Math.sin(i * 12.9898 + r * 0.37) * 43758.5453) % 1;
         dots.push({
-          a, r: r * wob,
-          s: Math.random(),
-          base: 0.07 + Math.random() * 0.16,
+          a: (i / n) * Math.PI * 2 + r * 0.004,
+          r: r * (1 + jitter * 0.2),
+          flick: Math.random() > 0.985,
+          base: 0.04 + Math.random() * 0.12,
           ph: Math.random() * Math.PI * 2,
           v: 0.5 + Math.random() * 1.6,
         });
       }
     }
+    if (reduced) paint(0);
   }
 
-  function draw(now) {
-    const t = (now - t0) / 1000;
+  function paint(t) {
     ctx.clearRect(0, 0, W, H);
-    const cx = W * 0.5, cy = H * 0.52;
+    const cx = W * 0.74, cy = H * 0.02;
     for (const d of dots) {
-      const r = d.r * (1 + 0.012 * Math.sin(t * 0.6 + d.a * 3));
-      const x = cx + Math.cos(d.a) * r;
-      const y = cy + Math.sin(d.a) * r * 0.55;
-      // 呼吸：每个人各自节奏的明暗，像看台上零星的闪光灯
+      const x = cx + Math.cos(d.a) * d.r;
+      const y = cy + Math.sin(d.a) * d.r * 0.62;
       const breath = 0.5 + 0.5 * Math.sin(t * d.v + d.ph);
-      const flick = d.s > 0.985 ? Math.pow(breath, 8) * 1.6 : 0;
-      const a = d.base * (0.55 + 0.45 * breath) + flick * 0.55;
-      if (a < 0.012) continue;
-      ctx.fillStyle = flick > 0.2 ? `rgba(211,236,76,${Math.min(a, .9)})` : `rgba(236,232,220,${Math.min(a, .5)})`;
-      const sz = flick > 0.2 ? 1.8 : 1.1;
-      ctx.fillRect(x, y, sz, sz);
+      const flash = d.flick ? Math.pow(breath, 9) * 1.4 : 0;
+      const a = d.base * (0.6 + 0.4 * breath) + flash * 0.5;
+      if (a < 0.01) continue;
+      ctx.fillStyle = flash > 0.2 ? `rgba(227,235,196,${Math.min(a, .8)})` : `rgba(236,232,220,${Math.min(a, .42)})`;
+      const s = flash > 0.2 ? 1.7 : 1.1;
+      ctx.fillRect(x, y, s, s);
     }
-    raf = requestAnimationFrame(draw);
   }
 
+  function loop(now) { paint((now - t0) / 1000); requestAnimationFrame(loop); }
   build();
-  addEventListener("resize", () => { build(); }, { passive: true });
-  if (!reduced) raf = requestAnimationFrame(draw);
+  addEventListener("resize", build, { passive: true });
+  if (!reduced) requestAnimationFrame(loop);
 
-  /* ---------- 页头与进度 ---------- */
-  const head = document.getElementById("head");
+  /* ---------- 滚动进度 ---------- */
   const prog = document.getElementById("progress");
   const onScroll = () => {
-    head.classList.toggle("solid", scrollY > 24);
     const max = document.documentElement.scrollHeight - innerHeight;
     prog.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + "%";
   };
   addEventListener("scroll", onScroll, { passive: true });
   onScroll();
 
-  /* ---------- 滚动显现 ---------- */
-  const io = new IntersectionObserver((es) => {
+  /* ---------- 显现 ---------- */
+  const io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-  }, { rootMargin: "0px 0px -12% 0px", threshold: 0.08 });
+  }, { rootMargin: "0px 0px -10% 0px", threshold: 0.05 });
   document.querySelectorAll(".rv").forEach(el => io.observe(el));
-  // 截图或减速偏好下，已经滚过的区段直接显示
-  if (reduced || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    document.querySelectorAll(".rv").forEach(el => el.classList.add("in"));
-  }
 
-  /* ---------- 界面切换 + 灯箱 ---------- */
-  const tabs = [...document.querySelectorAll(".tab")];
-  const imgs = [...document.querySelectorAll(".screen .view img")];
-  const cap = document.getElementById("cap");
-  function show(key, name) {
-    tabs.forEach(t => t.setAttribute("aria-selected", String(t.dataset.shot === key)));
-    imgs.forEach(i => i.classList.toggle("on", i.dataset.key === key));
-    if (name) cap.textContent = name;
-  }
-  tabs.forEach(t => t.addEventListener("click", () => show(t.dataset.shot, t.dataset.cap)));
-  // 载入后自动轮播一次，停在任何一张上就停下
-  let rot = 0, timer = 0;
-  const startRot = () => {
-    if (reduced || rot !== 0) return;
-    rot = 1;
-    let i = 0;
-    timer = setInterval(() => {
-      i++;
-      if (i >= tabs.length || rot !== 1) { clearInterval(timer); return; }
-      show(tabs[i].dataset.shot, tabs[i].dataset.cap);
-    }, 3200);
-  };
-  new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { startRot(); ob.disconnect(); } }).observe(document.querySelector(".screen"));
-  document.querySelector(".tabs").addEventListener("pointerdown", () => { rot = -1; clearInterval(timer); }, { once: true });
+  /* ---------- 截图切换 + 灯箱 ---------- */
+  const shot = document.getElementById("shot");
+  const cap = document.getElementById("plate-cap");
+  const no = document.getElementById("plate-no");
+  const buttons = [...document.querySelectorAll(".filmstrip button")];
+  buttons.forEach((b, i) => b.addEventListener("click", () => {
+    buttons.forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    shot.src = b.dataset.src; shot.alt = b.dataset.alt;
+    cap.textContent = b.dataset.cap; no.textContent = String(i + 1).padStart(2, "0");
+  }));
 
   const lb = document.getElementById("lightbox");
   const lbImg = lb.querySelector("img");
-  imgs.forEach(img => img.addEventListener("click", () => {
-    lbImg.src = img.src; lbImg.alt = img.alt; lb.classList.add("open");
-  }));
+  shot.addEventListener("click", () => { lbImg.src = shot.src; lbImg.alt = shot.alt; lb.classList.add("open"); });
   lb.addEventListener("click", () => lb.classList.remove("open"));
   addEventListener("keydown", e => { if (e.key === "Escape") lb.classList.remove("open"); });
 
-  /* ---------- 复制命令 ---------- */
-  const copy = document.getElementById("copy");
-  copy.addEventListener("click", async () => {
-    const text = [...document.querySelectorAll("#cmds .p")].map(el => el.nextSibling.textContent.trim()).join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      copy.textContent = "COPIED ✓";
-    } catch { copy.textContent = "复制失败"; }
-    setTimeout(() => (copy.textContent = "COPY ALL"), 1600);
-  });
-
-  /* ---------- 影片：进入视口再做一次轻播放提示（不自动播放） ---------- */
-  const video = document.querySelector(".film-shell video");
-  if (video) video.addEventListener("play", () => video.closest(".film-shell").querySelectorAll(".corner").forEach(c => c.style.borderColor = "var(--flare)"));
-  if (video) video.addEventListener("pause", () => video.closest(".film-shell").querySelectorAll(".corner").forEach(c => c.style.borderColor = ""));
+  /* ---------- 影片播放时样张角标变亮 ---------- */
+  const player = document.getElementById("player");
+  const video = player.querySelector("video");
+  video.addEventListener("play", () => player.classList.add("playing"));
+  video.addEventListener("pause", () => player.classList.remove("playing"));
+  video.addEventListener("ended", () => player.classList.remove("playing"));
 })();
 </script>
 </body>
