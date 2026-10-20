@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>P3 · 更衣室</title>
+<style>
+  :root {
+    --night: #080a09;
+    --paper: #f2eee4;
+    --mute: #a3a79b;
+    --faint: #6d736a;
+    --line: #ffffff14;
+    --line-2: #ffffff26;
+    --celeste: #8fd0ea;
+    --flare: #e9f27a;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+    --sans: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --ease: cubic-bezier(.2, .75, .2, 1);
+    --h: 64px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { background: var(--night); scroll-behavior: smooth; }
+  body { margin: 0; background: var(--night); color: var(--paper); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, p { margin: 0; }
+  a { color: inherit; text-decoration: none; }
+  img, video { display: block; max-width: 100%; }
+  .mono { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+  .wrap { width: min(1200px, calc(100% - 48px)); margin: 0 auto; }
+
+  /* 顶栏 */
+  .head { position: fixed; inset: 0 0 auto; height: var(--h); z-index: 30; display: flex; align-items: center;
+    border-bottom: 1px solid transparent; transition: background .3s, border-color .3s, backdrop-filter .3s; }
+  .head.solid { background: #080a09d9; backdrop-filter: blur(12px); border-color: var(--line); }
+  .head .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 26px; height: 26px; }
+  .brand b { font-family: var(--serif); font-size: 19px; }
+  .brand span { color: var(--faint); }
+  .head-cta { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 4px;
+    background: var(--paper); color: var(--night); font-size: 13px; font-weight: 600; }
+  .head-cta:hover { background: var(--flare); }
+
+  /* 影院：视频就是开场 */
+  .cinema { position: relative; height: 100svh; min-height: 560px; overflow: hidden; background: #000; }
+  .cinema video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cinema .scrim { position: absolute; inset: 0; background:
+    linear-gradient(180deg, #080a09cc 0%, #080a0900 22%, #080a0900 46%, #080a09f2 92%); pointer-events: none; }
+  .cinema .bars::before, .cinema .bars::after { content: ""; position: absolute; left: 0; right: 0; height: 48px; background: #000; z-index: 2; pointer-events: none; }
+  .cinema .bars::before { top: 0; } .cinema .bars::after { bottom: 0; }
+  .cinema-in { position: absolute; inset: auto 0 0; z-index: 3; padding: 0 0 56px; }
+  .cinema .lead-line { display: flex; align-items: center; gap: 14px; color: var(--mute); }
+  .cinema .lead-line b { color: var(--flare); font-weight: 500; }
+  .cinema .lead-line i { flex: 0 0 64px; height: 1px; background: var(--line-2); }
+  .cinema h1 { font-family: var(--serif); font-size: clamp(52px, 9vw, 136px); line-height: 1; letter-spacing: -.01em; margin: 22px 0 26px; }
+  .cinema h1 em { font-style: normal; color: var(--celeste); }
+  .cinema .row { display: flex; align-items: end; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+  .cinema p { max-width: 36ch; color: #f2eee4c2; font-size: 17px; line-height: 1.8; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 24px; font-size: 14.5px; font-weight: 600;
+    border-radius: 4px; border: 1px solid var(--line-2); color: var(--paper); transition: transform .3s var(--ease), background .2s, color .2s, border-color .2s; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.p { background: var(--celeste); color: #06222c; border-color: var(--celeste); }
+  .btn.p:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -12px #8fd0ea99; }
+  .btn.s:hover { border-color: var(--paper); }
+  .play { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 3; }
+  .play button { appearance: none; border: 0; cursor: pointer; width: 116px; height: 116px; border-radius: 50%;
+    background: #080a09a6; color: var(--paper); border: 1px solid var(--line-2); backdrop-filter: blur(8px);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .2em; display: grid; place-items: center; gap: 6px; }
+  .play button svg { width: 26px; height: 26px; }
+  .play button:hover { color: var(--celeste); border-color: var(--celeste); }
+
+  /* 能做什么：票根 */
+  .what { padding: 120px 0 20px; }
+  .what h2 { font-family: var(--serif); font-size: clamp(32px, 4.6vw, 60px); margin: 12px 0 46px; max-width: 15ch; }
+  .what h2 em { font-style: normal; color: var(--flare); }
+  .tickets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .ticket {
+    position: relative; padding: 30px 30px 34px; border-radius: 10px;
+    background: #11161340; background: linear-gradient(160deg, #151b18, #0d110f);
+    border: 1px solid var(--line);
+    transition: border-color .3s, transform .5s var(--ease);
+  }
+  .ticket:hover { border-color: var(--celeste); transform: translateY(-4px); }
+  .ticket::before { content: ""; position: absolute; left: 0; top: 22px; bottom: 22px; border-left: 1px dashed #ffffff22; }
+  .ticket::after { content: ""; position: absolute; inset: auto 0 0; height: 4px; border-radius: 0 0 10px 10px;
+    background: repeating-linear-gradient(90deg, #8fd0ea66 0 3px, transparent 3px 9px); }
+  .ticket .k { display: flex; justify-content: space-between; color: var(--faint); }
+  .ticket .k b { color: var(--celeste); font-weight: 500; }
+  .ticket h3 { font-family: var(--serif); font-size: 30px; margin: 26px 0 12px; line-height: 1.2; }
+  .ticket p { color: var(--mute); font-size: 15px; line-height: 1.8; }
+  .ticket .big { font-size: clamp(40px, 5vw, 68px); font-family: var(--mono); letter-spacing: -.04em; color: var(--paper); margin-top: 18px; line-height: 1; }
+  .ticket .big small { font-size: 13px; letter-spacing: .1em; color: var(--faint); margin-left: 8px; }
+
+  /* 界面：灯下的展台 */
+  .stage { padding: 120px 0; overflow: hidden; }
+  .stage h2 { font-family: var(--serif); font-size: clamp(32px, 4.6vw, 60px); margin: 12px 0 42px; }
+  .stand { position: relative; }
+  .stand .bgimg { position: absolute; inset: -6%; filter: blur(60px) saturate(1.2); opacity: .22; z-index: 0; }
+  .stand .bgimg img { width: 100%; height: 100%; object-fit: cover; }
+  .stand .frame { position: relative; z-index: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--line-2);
+    box-shadow: 0 60px 140px -40px #000; background: #000; transition: transform .9s var(--ease); }
+  .stand .frame img { width: 100%; }
+  .dots { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+  .dots button { appearance: none; width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: #ffffff2a; transition: background .2s, transform .2s; }
+  .dots button[aria-pressed="true"] { background: var(--celeste); transform: scale(1.4); }
+  .stand .cap { text-align: center; margin-top: 12px; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; color: var(--faint); text-transform: uppercase; }
+
+  /* 下载 */
+  .dl { padding: 40px 0 120px; }
+  .dl-card { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--line-2);
+    background: radial-gradient(80% 140% at 0% 0%, #1b2a24 0%, #0d110f 60%); padding: clamp(32px, 5vw, 64px); }
+  .dl-card .crest { position: absolute; right: -30px; top: -30px; width: 240px; opacity: .07; transform: rotate(-12deg); }
+  .dl-card h2 { font-family: var(--serif); font-size: clamp(34px, 5vw, 64px); line-height: 1.06; }
+  .dl-card h2 em { font-style: normal; color: var(--celeste); }
+  .dl-card p { color: var(--mute); margin-top: 16px; max-width: 40ch; }
+  .dl-card .btns { margin-top: 30px; }
+  .dl-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
+  .dl-meta span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; color: var(--mute); padding: 6px 10px; border: 1px solid var(--line-2); border-radius: 4px; }
+
+  footer { border-top: 1px solid var(--line); padding: 26px 0 50px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; color: var(--faint); font-size: 12.5px; }
+  footer a:hover { color: var(--celeste); }
+
+  @media (max-width: 900px) {
+    .tickets { grid-template-columns: 1fr; }
+    .play { display: none; }
+    .cinema .bars::before, .cinema .bars::after { height: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .pv { position: fixed; right: 14px; bottom: 14px; z-index: 50; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--flare, #d3ec4c); padding: 6px 10px; border: 1px solid var(--flare, #d3ec4c); border-radius: 3px; background: #0a0d0bcc; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="pv">P3 · 更衣室</div>
+
+<header class="head" id="head">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="13.5"/><path d="M16 9v7.4l4.8 3.3"/></svg>
+      <b>看台</b><span class="mono">TOUCHLINE</span>
+    </a>
+    <a class="head-cta" href="#dl">下载 · 免费 V9.3.0</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="cinema">
+    <video id="film" src="/assets/touchline-film-web.mp4" poster="/assets/film-poster.jpg" muted loop playsinline preload="metadata"></video>
+    <div class="scrim"></div>
+    <div class="bars"></div>
+    <div class="wrap cinema-in">
+      <div class="lead-line mono"><b>V9.3.0</b> 首个公开发布版 <i></i> Windows · 免费</div>
+      <h1>你的私人<br /><em>足球编辑部</em></h1>
+      <div class="row">
+        <p>一支球队的动态、阵容、赛程和数据，全都整理成中文，放在你自己的电脑里。</p>
+        <div class="btns">
+          <a class="btn p" href="#dl">下载
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </a>
+          <a class="btn s" href="#what">能做什么</a>
+        </div>
+      </div>
+    </div>
+    <div class="play wrap" style="position: absolute; left: 50%; transform: translate(-50%, -50%); top: 50%; right: auto;">
+      <button id="sound" aria-label="播放影片声音">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span>PLAY SOUND</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="what" id="what">
+    <div class="wrap">
+      <div class="mono" style="color: var(--faint)">能做什么</div>
+      <h2>你要的，<em>一屏就够了</em>。</h2>
+      <div class="tickets">
+        <article class="ticket">
+          <div class="k mono"><b>01</b><span>DYNAMIC</span></div>
+          <h3>按球队读动态</h3>
+          <p>比赛、转会、伤病、阵容变化，中文整理好，一次看不漏。</p>
+        </article>
+        <article class="ticket">
+          <div class="k mono"><b>02</b><span>CLUB</span></div>
+          <h3>球队与球员资料</h3>
+          <p>阵容、照片、赛季表现、积分榜、胜平负和主客场成绩。</p>
+          <div class="big">96<small>支五大联赛球队</small></div>
+        </article>
+        <article class="ticket">
+          <div class="k mono"><b>03</b><span>ASSISTANT</span></div>
+          <h3>带着资料问助手</h3>
+          <p>比赛前瞻、赛后复盘、转会追踪、战术讲解。答案都有出处。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="wrap">
+      <div class="mono" style="color: var(--faint)">界面</div>
+      <h2>一屏球队页，<br />所有东西都在。</h2>
+      <div class="stand">
+        <div class="bgimg"><img id="bg" src="/assets/team.png" alt="" /></div>
+        <div class="frame" id="frame"><img id="shot" src="/assets/team.png" alt="球队页：阿森纳的资料、赛季表现与积分榜" /></div>
+      </div>
+      <div class="dots" role="tablist">
+        <button aria-pressed="true" data-src="/assets/team.png" data-cap="球队 · 资料与赛季表现" aria-label="球队"></button>
+        <button aria-pressed="false" data-src="/assets/squad.png" data-cap="球员 · 一线队阵容" aria-label="阵容"></button>
+        <button aria-pressed="false" data-src="/assets/feed.png" data-cap="动态 · 按球队" aria-label="动态"></button>
+        <button aria-pressed="false" data-src="/assets/assistant.png" data-cap="问助手 · 带着资料回答" aria-label="问助手"></button>
+        <button aria-pressed="false" data-src="/assets/mobile.png" data-cap="窄屏 · 手机上也能看" aria-label="窄屏"></button>
+      </div>
+      <div class="cap" id="cap">球队 · 资料与赛季表现</div>
+    </div>
+  </section>
+
+  <section class="dl" id="dl">
+    <div class="wrap">
+      <div class="dl-card">
+        <img class="crest" src="/assets/film-poster.jpg" alt="" />
+        <h2>下载看台。<br /><em>然后关掉别的页面。</em></h2>
+        <p>一个压缩包，解压后双击「启动看台.cmd」。首次启动会自动准备环境，之后每次打开只要几秒。</p>
+        <div class="btns">
+          <a class="btn p" href="#dl">下载 Touchline-9.3.0.zip
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </a>
+          <a class="btn s" href="#dl">全部版本与校验值</a>
+        </div>
+        <div class="dl-meta mono"><span>WINDOWS 10 / 11</span><span>免费</span><span>没有账号</span><span>数据存在本机</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>看台 · Touchline · © 2026 Wenyu Yin</span>
+    <span><a href="#what">能做什么</a> · <a href="#dl">下载</a> · <a href="/">GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+  const head = document.getElementById("head");
+  const onScroll = () => head.classList.toggle("solid", scrollY > 40);
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  const film = document.getElementById("film");
+  const sound = document.getElementById("sound");
+  sound.addEventListener("click", () => {
+    film.muted = false; film.controls = true; film.loop = false;
+    film.play();
+    sound.style.display = "none";
+  });
+  film.addEventListener("ended", () => { film.muted = true; film.loop = true; film.controls = false; film.play(); sound.style.display = ""; });
+
+  const shot = document.getElementById("shot"), bg = document.getElementById("bg"), cap = document.getElementById("cap");
+  const dots = [...document.querySelectorAll(".dots button")];
+  dots.forEach(d => d.addEventListener("click", () => {
+    dots.forEach(x => x.setAttribute("aria-pressed", String(x === d)));
+    shot.src = bg.src = d.dataset.src; cap.textContent = d.dataset.cap;
+  }));
+</script>
+</body>
+</html>
