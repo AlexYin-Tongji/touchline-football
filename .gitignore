@@ -11,3 +11,6 @@ output/
 src/generated/
 tmp/
 *.tsbuildinfo
+
+# 发布页：影片母版不重复入库（体积大，只保留网页压缩版）
+site/assets/touchline-release.mp4
